@@ -1,0 +1,6 @@
+<full-backup-content>
+    <include domain="database" path="CalendarMonitor"/>
+    <include domain="database" path="Events"/>
+    <include domain="database" path="DismissedEvents"/>
+    <include domain="database" path="calEditReqs"/>
+</full-backup-content>
