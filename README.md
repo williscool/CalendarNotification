@@ -6,8 +6,18 @@ Android app extending calendar notifications with snooze button and notification
 <a href="https://f-droid.org/repository/browse/?fdid=com.github.quarck.calnotify" target="_blank">
 <img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/></a>
 
+# Building the App
 You can also build the app yourself from sources available here :)
 
+```
+brew tap sdkman/tap
+brew install sdkman-cli
+sdk install java 11.0.20-tem
+sdk use java 11.0.20-tem
+./gradlew build
+```
+
+# Description
 This app would replace default calendar event notifications, providing snooze functionality and notifications persistence. Reboot is handled, all notifications are restored after reboot. Focus of this app is to keep its operation as transparent as possible, calendar notifications would behave like expected: direct click on notification opens event details in default calendar application, new functionality is provided via actions available for notifications.
 On the snooze activity you can also quickly re-schedule event for the next day or week in one click (this is not available for repeating events).
 
@@ -24,10 +34,3 @@ Rationale for requested permissions:
 * Write Calendar - necessary to stop stock calendar from showing the same notification 
 * Start at Boot - to restore notifications
 
-
-# Building the App
-brew tap sdkman/tap
-brew install sdkman-cli
-sdk install java 11.0.20-tem
-sdk use java 11.0.20-tem
-./gradlew build
