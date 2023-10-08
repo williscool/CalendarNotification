@@ -463,6 +463,11 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                 startActivity(
                         Intent(this, AboutActivity::class.java)
                                 .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+            
+            R.id.my_react_activity ->
+                startActivity(
+                        Intent(this, MyReactActivity::class.java)
+                                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
 
             R.id.action_dismiss_all ->
                 onDismissAll()

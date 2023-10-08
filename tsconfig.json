@@ -1,34 +1,13 @@
 {
-  "extends": "./node_modules/gts/tsconfig-google.json",
+  "extends": ["./node_modules/gts/tsconfig-google.json", "@tsconfig/react-native/tsconfig.json"],
   "compilerOptions": {
-    "module": "esnext",
-    "target": "ES2022",
-    "moduleResolution": "Node",
-    "rootDir": ".",
-    "outDir": "build",
-    "esModuleInterop": true,
     "verbatimModuleSyntax": true, // https://swc.rs/docs/migrating-from-tsc
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
-    "emitDeclarationOnly": true,
-    // "baseUrl": "./",
-    // "paths": {
-    //   "*": ["*", "node_modules/*"]
-    // },
-    "lib": [
-      "ES2022"
-    ],
     "sourceMap": true,
     "types": [
-      "node",
       "jest"
     ],
-    // "skipLibCheck": true, 
-    // shed a tear for setting skipLibCheck. 
-    // have to disable all checking beuase drizle is broken https://github.com/drizzle-team/drizzle-orm/issues/1207 
-    // and typescript doesnt have a way to only disable for a specific package. https://github.com/microsoft/TypeScript/issues/30511
-    // actally never mind I figured out a jank way to do it in bash
-    // checkout scripts/tsc_ignore_broken_libs.sh
   },
   "include": [
     "src/**/*.ts",
@@ -41,6 +20,6 @@
     "transpileOnly": true,
     "files": true,
     "experimentalResolver": true,
-    "esm": true,
+    // "esm": true,
   }
 }

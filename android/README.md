@@ -34,3 +34,8 @@ Rationale for requested permissions:
 * Write Calendar - necessary to stop stock calendar from showing the same notification 
 * Start at Boot - to restore notifications
 
+
+TODO
+
+- setup github actions to build and publish to fdroid (2nd steup was copilot)?
+
