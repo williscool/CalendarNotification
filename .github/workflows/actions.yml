@@ -1,4 +1,4 @@
-name: Android CI
+name: Calendar Notifications Plus CI
 
 env:
   # The name of the main module repository
@@ -91,7 +91,7 @@ jobs:
       run: cd android && chmod +x gradlew
       
     - name: Build with Gradle
-      run:  cd android && ./gradlew build
+      run:  cd android && ./gradlew build --info --stacktrace
 
     # Create APK Debug
     - name: Build apk debug project (APK) - ${{ env.main_project_module }} module
