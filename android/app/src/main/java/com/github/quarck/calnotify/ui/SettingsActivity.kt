@@ -22,9 +22,9 @@ package com.github.quarck.calnotify.ui
 import android.content.res.Configuration
 import android.os.Bundle
 import android.preference.PreferenceActivity
-import android.support.annotation.LayoutRes
-import androidx.core.app.ActionBar
-import androidx.core.app.AppCompatDelegate
+import androidx.annotation.LayoutRes
+import androidx.appcompat.app.ActionBar
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.Toolbar
 import android.view.MenuInflater
 import android.view.MenuItem
@@ -101,13 +101,13 @@ class SettingsActivity : PreferenceActivity() {
 
     override fun isValidFragment(fragmentName: String) = true
 
-    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
-
-//        if (android.R.id.home == item?.itemId) {
-//            finish()
-//            return true
-//        }
-
-        return super.onOptionsItemSelected(item)
-    }
+//    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+//
+////        if (android.R.id.home == item?.itemId) {
+////            finish()
+////            return true
+////        }
+//
+//        return super.onOptionsItemSelected(item)
+//    }
 }

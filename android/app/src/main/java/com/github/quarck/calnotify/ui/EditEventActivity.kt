@@ -340,7 +340,7 @@ open class EditEventActivity : AppCompatActivity() {
             }
         }
         else {
-            if (receivedSharedText.isEmpty())
+            if (receivedSharedText?.isEmpty()!!)
                 findOrThrow<LinearLayout>(R.id.layout_focus_catcher).visibility = View.GONE
         }
 
@@ -561,7 +561,7 @@ open class EditEventActivity : AppCompatActivity() {
             eventTitleLayout.background = ColorDrawable(calendar.color.adjustCalendarColor())
             eventTitleText.background = ColorDrawable(calendar.color.adjustCalendarColor())
 
-            if (receivedSharedText.isNotEmpty()) {
+            if (receivedSharedText?.isNotEmpty()!!) {
                 eventTitleText.setText(receivedSharedText)
             }
 
