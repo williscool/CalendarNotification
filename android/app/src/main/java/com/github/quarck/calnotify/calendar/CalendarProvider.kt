@@ -719,7 +719,7 @@ object CalendarProvider : CalendarProviderInterface {
                 val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
 
                 // get the event ID that is the last element in the Uri
-                ret = uri.lastPathSegment.toLong()
+                ret = uri?.lastPathSegment?.toLong()!!
             }
             catch (ex: Exception) {
                 DevLog.error(LOG_TAG, "Exception while adding new event: ${ex.detailed}")
@@ -800,7 +800,7 @@ object CalendarProvider : CalendarProviderInterface {
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
 
             // get the event ID that is the last element in the Uri
-            eventId = uri.lastPathSegment.toLong()
+            eventId = uri?.lastPathSegment?.toLong()!!
         }
         catch (ex: Exception) {
             DevLog.error(LOG_TAG, "Exception while adding new event: ${ex.detailed}")

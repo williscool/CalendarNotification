@@ -151,7 +151,7 @@ class LEDColorPickerPreference(context: Context, attrs: AttributeSet) : DialogPr
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Int? {
         return a.getInteger(index, 0)
     }
 

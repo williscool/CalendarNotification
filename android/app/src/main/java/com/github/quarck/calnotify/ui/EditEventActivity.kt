@@ -29,9 +29,9 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.CalendarContract
-import android.support.v4.content.ContextCompat
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.widget.Toolbar
+import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import android.text.format.DateUtils
 import android.view.Menu
 import android.view.View
@@ -201,7 +201,7 @@ open class EditEventActivity : AppCompatActivity() {
 
     data class ReminderWrapper(val view: TextView, var reminder: EventReminderRecord, val isForAllDay: Boolean)
 
-    private var receivedSharedText = ""
+    private var receivedSharedText: String? = ""
 
     private lateinit var eventTitleText: EditText
 

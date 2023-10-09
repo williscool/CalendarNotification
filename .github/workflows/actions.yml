@@ -1,4 +1,4 @@
-name: Calendar Notifications Plus CI
+name: CNPlus CI
 
 env:
   # The name of the main module repository

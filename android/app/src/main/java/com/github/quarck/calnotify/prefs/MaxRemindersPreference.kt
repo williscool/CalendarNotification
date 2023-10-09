@@ -102,7 +102,7 @@ class MaxRemindersPreference(context: Context, attrs: AttributeSet) : DialogPref
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): String? {
         return a.getString(index)
     }
 
