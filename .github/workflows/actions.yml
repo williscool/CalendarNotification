@@ -91,7 +91,7 @@ jobs:
       run: cd android && chmod +x gradlew
       
     - name: Build with Gradle
-      run:  cd android && ./gradlew build  --warning-mode all --debug --stacktrace
+      run:  cd android && ./gradlew build  --warning-mode all --info --stacktrace
 
     # Create APK Debug
     - name: Build apk debug project (APK) - ${{ env.main_project_module }} module

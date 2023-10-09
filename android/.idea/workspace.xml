@@ -9,10 +9,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d47b34d9-8f79-4da3-9150-ae3325db5dac" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/MyReactActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/MyReactActivity.kt" afterDir="false" />
-    </list>
+    <list default="true" id="d47b34d9-8f79-4da3-9150-ae3325db5dac" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
