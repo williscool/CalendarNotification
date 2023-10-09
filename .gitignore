@@ -134,11 +134,6 @@ dist
 !.yarn/versions
 
 
-# client secrets
-
-*.client_secret.json
-
-
 #TypeScript stuff
 build/
 
@@ -189,6 +184,14 @@ captures/
 .idea/dictionaries
 .idea/libraries
 .idea/caches
+android/.idea/workspace.xml
+android/.idea/tasks.xml
+android/.idea/gradle.xml
+android/.idea/assetWizardSettings.xml
+android/.idea/dictionaries
+android/.idea/libraries
+android/.idea/caches
+
 
 # Keystore files
 # Uncomment the following line if you do not want to check your keystore files in.
