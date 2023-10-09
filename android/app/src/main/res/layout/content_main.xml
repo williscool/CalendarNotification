@@ -18,7 +18,7 @@
         android:visibility="visible"
         android:orientation="vertical">
 
-        <androidx.core.widget.CardView
+        <androidx.cardview.widget.CardView
             xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:card_view="http://schemas.android.com/apk/res-auto"
             android:id="@+id/activity_main_new_style_message_layout"
@@ -138,7 +138,7 @@
 
             </LinearLayout>
 
-        </androidx.core.widget.CardView>
+        </androidx.cardview.widget.CardView>
 
         <RelativeLayout
             android:layout_width="match_parent"

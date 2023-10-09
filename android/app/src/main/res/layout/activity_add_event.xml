@@ -9,7 +9,7 @@
     android:fitsSystemWindows="true"
     tools:context="com.github.quarck.calnotify.ui.EditEventActivity">
 
-    <android.support.design.widget.AppBarLayout
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:theme="@style/AppTheme.AppBarOverlay">
@@ -24,7 +24,7 @@
             android:elevation="@dimen/toolbar_elevation"
             tools:targetApi="m" / -->
 
-    </android.support.design.widget.AppBarLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
     <include layout="@layout/content_add_event"/>
 
