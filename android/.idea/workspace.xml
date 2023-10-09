@@ -10,13 +10,59 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="d47b34d9-8f79-4da3-9150-ae3325db5dac" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../.github/workflows/actions.yml" beforeDir="false" afterPath="$PROJECT_DIR$/../.github/workflows/actions.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/jarRepositories.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/jarRepositories.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/kotlinc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/kotlinc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/runConfigurations.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradlew" beforeDir="false" afterPath="$PROJECT_DIR$/gradlew" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradlew.bat" beforeDir="false" afterPath="$PROJECT_DIR$/gradlew.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/calendar/CalendarProvider.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/calendar/CalendarProvider.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/notification/EventNotificationManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/notification/EventNotificationManager.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/pebble/PebbleUtils.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/pebble/PebbleUtils.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/permissions/PermissionsManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/permissions/PermissionsManager.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/CalendarsActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/CalendarsActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/CarModeActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/CarModeActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/DefaultManualAllDayNotificationPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/DefaultManualAllDayNotificationPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/DefaultManualNotificationPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/DefaultManualNotificationPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/LEDColorPickerPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/LEDColorPickerPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/LEDPatternPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/LEDPatternPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/MaxNotificationsPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/MaxNotificationsPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/MaxRemindersPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/MaxRemindersPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/Prefs.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/Prefs.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/ReminderPatternPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/ReminderPatternPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/SnoozePresetPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/SnoozePresetPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/TimeOfDayPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/TimeOfDayPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/VibrationPatternPreference.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/prefs/VibrationPatternPreference.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/AboutActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/AboutActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventListAdapter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventListAdapter.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventsActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventsActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/EditEventActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/EditEventActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/EventListAdapter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/EventListAdapter.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/MainActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/PrivacyPolicyActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/PrivacyPolicyActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/ReportABugActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/ReportABugActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/SettingsActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/SettingsActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/SettingsActivityNew.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/SettingsActivityNew.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/SnoozeAllActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/SnoozeAllActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/ViewEventActivityNoRecents.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/ui/ViewEventActivityNoRecents.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/utils/ViewUtils.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/github/quarck/calnotify/utils/ViewUtils.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_about.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_about.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_add_event.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_add_event.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_calendars.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_calendars.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_car_mode.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_car_mode.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_dismissed_events.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_dismissed_events.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_main.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_privacy_policy.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_privacy_policy.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_report_a_bug.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_report_a_bug.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_settings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_settings.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_snooze_all.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_snooze_all.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/activity_view.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/activity_view.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/content_calendars.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/content_calendars.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/content_car_mode.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/content_car_mode.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/content_dismissed_events.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/content_dismissed_events.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/res/layout/content_main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/res/layout/content_main.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -37,30 +83,7 @@
         </task>
         <projects_view>
           <tree_state>
-            <expand>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="CalendarNotification" type="f1a62948:ProjectNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="CalendarNotification" type="f1a62948:ProjectNode" />
-                <item name="app" type="2d1252cf:ModuleNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="CalendarNotification" type="f1a62948:ProjectNode" />
-                <item name="app" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="CalendarNotification" type="f1a62948:ProjectNode" />
-                <item name="app" type="2d1252cf:ModuleNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="other" type="c8890929:TasksNode$1" />
-              </path>
-            </expand>
+            <expand />
             <select />
           </tree_state>
         </projects_view>
@@ -68,7 +91,7 @@
     </system>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
@@ -85,12 +108,12 @@
     "RunOnceActivity.cidr.known.project.marker": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cidr.known.project.marker": "true",
-    "last_opened_file_path": "C:/Users/william/unison-with-dropbox-symlinked-to-linux/CalendarNotification"
+    "last_opened_file_path": "C:/Users/william/unison-with-dropbox-symlinked-to-linux/CalendarNotification/android"
   }
 }]]></component>
   <component name="RunManager">
     <configuration name="app" type="AndroidRunConfigurationType" factoryName="Android App">
-      <module name="CalendarNotification.app.main" />
+      <module name="android.app.main" />
       <option name="DEPLOY" value="true" />
       <option name="DEPLOY_APK_FROM_BUNDLE" value="false" />
       <option name="DEPLOY_AS_INSTANT" value="false" />
