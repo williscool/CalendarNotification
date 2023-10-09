@@ -1,4 +1,15 @@
-
+package com.github.quarck.calnotify.ui
+import android.app.Activity
+import android.os.Bundle
+import android.view.KeyEvent
+import com.facebook.react.BuildConfig
+import com.facebook.react.PackageList
+import com.facebook.react.ReactInstanceManager
+import com.facebook.react.ReactPackage
+import com.facebook.react.ReactRootView
+import com.facebook.react.common.LifecycleState
+import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler
+import com.facebook.soloader.SoLoader
 
 class MyReactActivity : Activity(), DefaultHardwareBackBtnHandler {
     private lateinit var reactRootView: ReactRootView
@@ -22,7 +33,7 @@ class MyReactActivity : Activity(), DefaultHardwareBackBtnHandler {
             .build()
         // The string here (e.g. "MyReactNativeApp") has to match
         // the string in AppRegistry.registerComponent() in index.js
-        reactRootView?.startReactApplication(reactInstanceManager, "MyReactNativeApp", null)
+        reactRootView.startReactApplication(reactInstanceManager, "MyReactNativeApp", null)
         setContentView(reactRootView)
     }
 
