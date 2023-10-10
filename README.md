@@ -1,5 +1,8 @@
 # Calendar Notifications Plus React Native
 
+## Prerequisites
+For the original ReadMe, see [android/README.md](android/README.md)
+
 ## Building
 
 ```bash
