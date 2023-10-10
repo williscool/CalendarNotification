@@ -111,7 +111,7 @@ class DefaultManualAllDayNotificationPreference(context: Context, attrs: Attribu
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Int? {
         return a.getInteger(index, -480)
     }
 

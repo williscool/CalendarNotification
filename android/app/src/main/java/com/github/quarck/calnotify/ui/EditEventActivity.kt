@@ -29,9 +29,9 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.CalendarContract
-import android.support.v4.content.ContextCompat
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.widget.Toolbar
+import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import android.text.format.DateUtils
 import android.view.Menu
 import android.view.View
@@ -201,7 +201,7 @@ open class EditEventActivity : AppCompatActivity() {
 
     data class ReminderWrapper(val view: TextView, var reminder: EventReminderRecord, val isForAllDay: Boolean)
 
-    private var receivedSharedText = ""
+    private var receivedSharedText: String? = ""
 
     private lateinit var eventTitleText: EditText
 
@@ -340,7 +340,7 @@ open class EditEventActivity : AppCompatActivity() {
             }
         }
         else {
-            if (receivedSharedText.isEmpty())
+            if (receivedSharedText?.isEmpty()!!)
                 findOrThrow<LinearLayout>(R.id.layout_focus_catcher).visibility = View.GONE
         }
 
@@ -561,7 +561,7 @@ open class EditEventActivity : AppCompatActivity() {
             eventTitleLayout.background = ColorDrawable(calendar.color.adjustCalendarColor())
             eventTitleText.background = ColorDrawable(calendar.color.adjustCalendarColor())
 
-            if (receivedSharedText.isNotEmpty()) {
+            if (receivedSharedText?.isNotEmpty()!!) {
                 eventTitleText.setText(receivedSharedText)
             }
 

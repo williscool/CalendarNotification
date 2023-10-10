@@ -108,7 +108,7 @@ class SnoozePresetPreference(internal var context: Context, attrs: AttributeSet)
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): String? {
         return a.getString(index)
     }
 }

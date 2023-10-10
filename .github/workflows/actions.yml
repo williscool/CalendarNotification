@@ -1,0 +1,129 @@
+name: CNPlus CI
+
+env:
+  # The name of the main module repository
+  main_project_module: app
+
+  # The name of the Play Store
+  app_name: "Calendar Notifications Plus"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**" # https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#patterns-to-match-branches-and-tags
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+
+  install-and-build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        # https://devcenter.heroku.com/articles/nodejs-support#specifying-a-node-js-version
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: "yarn"
+
+    - name: Expose yarn config as "$GITHUB_OUTPUT"
+      id: yarn-config
+      shell: bash
+      run: |
+        echo "CACHE_FOLDER=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+  
+    # Yarn rotates the downloaded cache archives, @see https://github.com/actions/setup-node/issues/325
+    # Yarn cache is also reusable between arch and os.
+    - name: Restore yarn cache
+      uses: actions/cache@v3
+      id: yarn-download-cache
+      with:
+        path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
+        key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
+        restore-keys: |
+          yarn-download-cache-
+
+    # Invalidated on yarn.lock changes
+    - name: Restore yarn install state
+      id: yarn-install-state-cache
+      uses: actions/cache@v3
+      with:
+        path: .yarn/ci-cache/
+        key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+
+    - run: yarn install --immutable --inline-builds
+      env:
+        # CI optimizations. Overrides yarnrc.yml options (or their defaults) in the CI action.
+        YARN_ENABLE_GLOBAL_CACHE: 'false' # Use local cache folder to keep downloaded archives
+        YARN_NM_MODE: 'hardlinks-local' # Hardlinks-(local|global) reduces io / node_modules size
+        YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz # Very small speedup when lock does not change
+        # Other environment variables
+        HUSKY: '0' # By default do not run HUSKY install
+
+    # Where android build starts. one day we will have a separate job for this but i dont know how pass the node_modules cache to it
+    # Set Current Date As Env Variable
+    - name: Set current date as env variable
+      run: echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_ENV
+
+    # Set Repository Name As Env Variable
+    - name: Set repository name as env variable
+      run: echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
+
+    - name: set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: cd android && chmod +x gradlew
+      
+    - name: Build with Gradle
+      run:  cd android && ./gradlew build  --warning-mode all --info --stacktrace
+
+    # Create APK Debug
+    - name: Build apk debug project (APK) - ${{ env.main_project_module }} module
+      run: cd android && ./gradlew assembleDebug
+
+    # Create APK Release
+    - name: Build apk release project (APK) - ${{ env.main_project_module }} module
+      run: cd android && ./gradlew assemble
+
+    # Create Bundle AAB Release
+    # Noted for main module build [main_project_module]:bundleRelease
+    - name: Build app bundle release (AAB) - ${{ env.main_project_module }} module
+      run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease
+
+    # Upload Artifact Build
+    # Noted For Output [main_project_module]/build/outputs/apk/debug/
+    - name: Upload APK Debug - ${{ env.repository_name }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - APK(s) debug generated
+        path: android/${{ env.main_project_module }}/build/outputs/apk/debug/
+
+    # Noted For Output [main_project_module]/build/outputs/apk/release/
+    - name: Upload APK Release - ${{ env.repository_name }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - APK(s) release generated
+        path: android/${{ env.main_project_module }}/build/outputs/apk/release/
+
+    # Noted For Output [main_project_module]/build/outputs/bundle/release/
+    - name: Upload AAB (App Bundle) Release - ${{ env.repository_name }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - App bundle(s) AAB release generated
+        path: android/${{ env.main_project_module }}/build/outputs/bundle/release/

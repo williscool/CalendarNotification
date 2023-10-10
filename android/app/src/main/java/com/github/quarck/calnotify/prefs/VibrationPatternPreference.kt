@@ -98,7 +98,7 @@ open class VibrationPatternPreference(internal var context: Context, attrs: Attr
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): String? {
         return a.getString(index)
     }
 }

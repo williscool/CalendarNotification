@@ -55,7 +55,7 @@ object AlarmScheduler : AlarmSchedulerInterface {
 
             // Schedule event (snooze) alarm
             var nextEventAlarm =
-                    events.filter { it.isSnoozed && it.isNotSpecial }.map { it.snoozedUntil }.min()
+                    events.filter { it.isSnoozed && it.isNotSpecial }.map { it.snoozedUntil }.minOrNull()
 
             if (nextEventAlarm != null) {
 

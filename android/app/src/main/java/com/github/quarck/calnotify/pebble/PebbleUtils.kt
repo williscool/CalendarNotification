@@ -53,7 +53,8 @@ object PebbleUtils {
             data.put(JSON_OBJECT_KEY_BODY, "${title}\n${text}")
         }
 
-        val jsonData = JSONObject(data)
+        // TODO: this json creation is wrong!
+        val jsonData = JSONObject(data.toString())
         val notificationData = JSONArray().put(jsonData).toString()
 
         i.putExtra(INTENT_EXTRA_MESSAGE_TYPE_KEY, INTENT_EXTRA_MESSAGE_TYPE)
