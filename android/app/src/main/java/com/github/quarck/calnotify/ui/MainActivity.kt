@@ -29,14 +29,14 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.support.design.widget.CoordinatorLayout
-import android.support.design.widget.FloatingActionButton
-import android.support.design.widget.Snackbar
-import android.support.v4.widget.SwipeRefreshLayout
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.widget.RecyclerView
-import android.support.v7.widget.StaggeredGridLayoutManager
-import android.support.v7.widget.Toolbar
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.snackbar.Snackbar
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import androidx.appcompat.widget.Toolbar
 import android.text.format.DateUtils
 import android.view.Menu
 import android.view.MenuItem
@@ -288,6 +288,8 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         }
 
         //find<TextView>(R.id.no_permissions_view).visibility = if (granted) View.GONE else View.VISIBLE;
+
+      super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     public override fun onPause() {
@@ -462,6 +464,11 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             R.id.action_about ->
                 startActivity(
                         Intent(this, AboutActivity::class.java)
+                                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+            
+            R.id.my_react_activity ->
+                startActivity(
+                        Intent(this, MyReactActivity::class.java)
                                 .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
 
             R.id.action_dismiss_all ->

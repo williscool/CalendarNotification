@@ -20,7 +20,7 @@
 package com.github.quarck.calnotify.utils
 
 import android.app.Activity
-import android.support.v4.app.Fragment
+import androidx.fragment.app.Fragment
 import android.view.View
 
 
@@ -31,8 +31,8 @@ fun <T : View?> Activity.find(id: Int): T? = findViewById(id) as T?
 fun <T : View?> Fragment.find(id: Int): T? = view?.findViewById(id) as T?
 
 
-fun <T : View?> View.findOrThrow(id: Int): T = (findViewById(id) ?: throw Exception("Cant find resource id $id"))  as T
+fun <T : View?> View.findOrThrow(id: Int): T = (findViewById(id) as T?: throw Exception("Cant find resource id $id"))
 
-fun <T : View?> Activity.findOrThrow(id: Int): T = (findViewById(id) ?: throw Exception("Cant find resource id $id"))  as T
+fun <T : View?> Activity.findOrThrow(id: Int): T = (findViewById(id) as T ?: throw Exception("Cant find resource id $id"))
 
-fun <T : View?> Fragment.findOrThrow(id: Int): T = (view?.findViewById(id) ?: throw Exception("Cant find resource id $id")) as T
+fun <T : View?> Fragment.findOrThrow(id: Int): T = (view?.findViewById(id) as T ?: throw Exception("Cant find resource id $id"))

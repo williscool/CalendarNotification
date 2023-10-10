@@ -33,4 +33,3 @@ Rationale for requested permissions:
 * Read Calendar - required to be able to retrieve event details to display notification
 * Write Calendar - necessary to stop stock calendar from showing the same notification 
 * Start at Boot - to restore notifications
-

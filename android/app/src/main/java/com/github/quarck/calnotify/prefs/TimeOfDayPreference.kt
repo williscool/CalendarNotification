@@ -130,7 +130,7 @@ class TimeOfDayPreference(context: Context, attrs: AttributeSet) : DialogPrefere
         timeValue = PreferenceUtils.unpackTime(timeValueInt)
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Int? {
         return a.getInteger(index, 0)
     }
 

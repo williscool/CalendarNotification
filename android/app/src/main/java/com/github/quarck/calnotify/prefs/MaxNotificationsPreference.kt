@@ -78,7 +78,7 @@ class MaxNotificationsPreference(context: Context, attrs: AttributeSet) : Dialog
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Int? {
         return a.getInt(index, Consts.DEFAULT_NOTIFICATIONS)
     }
 

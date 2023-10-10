@@ -58,6 +58,12 @@
         android:orderInCategory="220"
         app:showAsAction="never"
         android:title="@string/menu_about" />
+    
+    <item
+        android:id="@+id/my_react_activity"
+        android:orderInCategory="220"
+        app:showAsAction="never"
+        android:title="@string/my_react_activity" />
 
     <item
         android:id="@+id/action_test_page"

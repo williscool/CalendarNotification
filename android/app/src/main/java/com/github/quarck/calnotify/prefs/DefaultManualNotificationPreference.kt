@@ -74,7 +74,7 @@ class DefaultManualNotificationPreference(context: Context, attrs: AttributeSet)
         }
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Int? {
         return a.getInteger(index, 15)
     }
 

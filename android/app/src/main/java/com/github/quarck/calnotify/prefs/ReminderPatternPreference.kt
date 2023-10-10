@@ -185,7 +185,7 @@ class ReminderPatternPreference(context: Context, attrs: AttributeSet)
     }
 
     @Suppress("UseExpressionBody")
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any {
+    override fun onGetDefaultValue(a: TypedArray, index: Int): String? {
         val ret = a.getString(index)
         return ret ?: "10m"
     }
