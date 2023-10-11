@@ -3098,6 +3098,7 @@ __metadata:
   dependencies:
     "@jest/globals": ^29.6.4
     "@react-native-picker/picker": ^2.4.10
+    "@react-native/js-polyfills": ^0.74.0
     "@react-native/metro-babel-transformer": ^0.74.0
     "@react-native/metro-config": ^0.74.0
     "@swc-node/register": ^1.6.7
