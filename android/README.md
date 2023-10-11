@@ -12,8 +12,8 @@ You can also build the app yourself from sources available here :)
 ```
 brew tap sdkman/tap
 brew install sdkman-cli
-sdk install java 11.0.20-tem
-sdk use java 11.0.20-tem
+sdk install java 17.0.8-tem
+sdk use java 17.0.8-tem
 ./gradlew build
 ```
 
