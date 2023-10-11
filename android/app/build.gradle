@@ -21,7 +21,6 @@ apply plugin: "com.facebook.react"
 
 android {
     compileSdkVersion 31
-    buildToolsVersion '31.0.0'
 
     defaultConfig {
         applicationId "com.github.quarck.calnotify"
