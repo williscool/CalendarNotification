@@ -379,7 +379,7 @@ object CalendarProvider : CalendarProviderInterface {
                 getEventLocalReminders(context, event.eventId)
                         .map { reminder -> instanceStart - reminder }
                         .filter { reminder -> reminder > currentTime + Consts.ALARM_THRESHOLD }
-                        .min()
+                        .minOrNull()
 
         return nextReminder ?: 0L
     }
