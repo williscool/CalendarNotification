@@ -23,6 +23,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/../modules/my-module/android" />
             <option value="$PROJECT_DIR$/../node_modules/@react-native-picker/picker/android" />
             <option value="$PROJECT_DIR$/../node_modules/expo-application/android" />
             <option value="$PROJECT_DIR$/../node_modules/expo-constants/android" />

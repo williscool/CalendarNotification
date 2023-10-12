@@ -4,6 +4,7 @@
     // "verbatimModuleSyntax": true, // https://swc.rs/docs/migrating-from-tsc
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
     "sourceMap": true,
     "types": [
       "jest"
