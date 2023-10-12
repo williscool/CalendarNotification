@@ -1,7 +1,7 @@
 package com.github.quarck.calnotify.ui
-import android.app.Activity
 import android.os.Bundle
 import android.view.KeyEvent
+import androidx.appcompat.app.AppCompatActivity
 import com.facebook.react.BuildConfig
 import com.facebook.react.PackageList
 import com.facebook.react.ReactInstanceManager
@@ -11,7 +11,9 @@ import com.facebook.react.common.LifecycleState
 import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler
 import com.facebook.soloader.SoLoader
 
-class MyReactActivity : Activity(), DefaultHardwareBackBtnHandler {
+
+
+class MyReactActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
     private lateinit var reactRootView: ReactRootView
     private lateinit var reactInstanceManager: ReactInstanceManager
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,4 +70,6 @@ class MyReactActivity : Activity(), DefaultHardwareBackBtnHandler {
         }
         return super.onKeyUp(keyCode, event)
     }
+
+
 }

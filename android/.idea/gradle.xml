@@ -24,6 +24,15 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/../node_modules/@react-native-picker/picker/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-application/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-constants/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-file-system/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-font/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-keep-awake/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-modules-core/android" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-modules-core/android-annotation" />
+            <option value="$PROJECT_DIR$/../node_modules/expo-modules-core/android-annotation-processor" />
+            <option value="$PROJECT_DIR$/../node_modules/expo/android" />
             <option value="$PROJECT_DIR$/../node_modules/react-native-gradle-plugin" />
           </set>
         </option>
