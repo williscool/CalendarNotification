@@ -14,6 +14,7 @@ const HelloWorld = () => {
 
   useEffect(() => {
     addChangeListener((value) => {
+      console.log(hello());
       console.log('value changed', value);
     })
   }, []);
