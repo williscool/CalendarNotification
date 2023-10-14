@@ -71,6 +71,15 @@ dependencies {
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"
     implementation 'com.google.android.material:material:1.0.0-rc01'
+
+    debugImplementation 'com.facebook.flipper:flipper:0.226.0'
+    debugImplementation 'com.facebook.soloader:soloader:0.10.5'
+
+    releaseImplementation 'com.facebook.flipper:flipper-noop:0.226.0'
+}
+// https://reactnative.dev/docs/react-native-gradle-plugin
+react {
+  entryFile = file("../../index.tsx")
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)

@@ -21,11 +21,29 @@ package com.github.quarck.calnotify
 import android.app.Application;
 import android.content.Context
 
+import com.facebook.flipper.android.AndroidFlipperClient
+import com.facebook.flipper.android.utils.FlipperUtils
+import com.facebook.flipper.core.FlipperClient
+import com.facebook.flipper.plugins.inspector.DescriptorMapping
+import com.facebook.flipper.plugins.inspector.InspectorFlipperPlugin
+import com.facebook.soloader.SoLoader
+
 // This storage is wiped every time app is restarted. Only keep variables
 // that are instance-specific here
 class GlobalState : Application() {
     var lastNotificationRePost: Long = 0
     var lastTimerBroadcastReceived: Long = 0
+
+  override fun onCreate() {
+    super.onCreate()
+    SoLoader.init(this, false)
+
+    if (BuildConfig.DEBUG && FlipperUtils.shouldEnableFlipper(this)) {
+      val client = AndroidFlipperClient.getInstance(this)
+      client.addPlugin(InspectorFlipperPlugin(this, DescriptorMapping.withDefaults()))
+      client.start()
+    }
+  }
 }
 
 val Context.globalState: GlobalState?
