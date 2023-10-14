@@ -20,8 +20,7 @@ apply plugin: "com.facebook.react"
 //
 
 android {
-    compileSdkVersion 31
-    buildToolsVersion '31.0.0'
+    compileSdkVersion 34
 
     defaultConfig {
         applicationId "com.github.quarck.calnotify"
@@ -51,7 +50,10 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
   namespace 'com.github.quarck.calnotify'
+
+
 }
+
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -70,5 +72,11 @@ dependencies {
     implementation "com.facebook.react:hermes-android"
     implementation 'com.google.android.material:material:1.0.0-rc01'
 }
+
+// https://reactnative.dev/docs/react-native-gradle-plugin
+react {
+  entryFile = file("../../index.tsx")
+}
+
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)

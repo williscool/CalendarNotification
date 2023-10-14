@@ -1,19 +1,16 @@
 {
   "extends": ["./node_modules/gts/tsconfig-google.json", "@tsconfig/react-native/tsconfig.json"],
   "compilerOptions": {
-    "verbatimModuleSyntax": true, // https://swc.rs/docs/migrating-from-tsc
+    // "verbatimModuleSyntax": true, // https://swc.rs/docs/migrating-from-tsc
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
     "sourceMap": true,
     "types": [
       "jest"
     ],
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts",
-    "global.d.ts"
-  ],
+  "include": ["src/**/*", "test/**/*", "index.tsx" ],
   "exclude": ["node_modules", "build"],
   "typeRoots": ["./node_modules/@types"],
   "ts-node": { // https://github.com/TypeStrong/ts-node#native-ecmascript-modules
