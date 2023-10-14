@@ -4332,6 +4332,7 @@ __metadata:
     metro-runtime: ^0.79.1
     react: 18.2.0
     react-native: 0.71.13
+    react-native-devsettings: ^1.0.5
     regenerator-runtime: ^0.14.0
     rn-game-over: ^1.1.0
     swc-node: ^1.0.0
@@ -12877,6 +12878,13 @@ __metadata:
     jscodeshift: ^0.14.0
     nullthrows: ^1.1.1
   checksum: 3624f18f4a3d12d3ab304b2c5beaeb59bdf7eb2ce74a44a660cb028846a0993437ab733fe2423f9455d96838628853c8e26cea004c1720b358ee5aed2d46278b
+  languageName: node
+  linkType: hard
+
+"react-native-devsettings@npm:^1.0.5":
+  version: 1.0.5
+  resolution: "react-native-devsettings@npm:1.0.5"
+  checksum: a59be2a07a94d16e8cd6443636ef44ebad15a8ddf6dcb742b737949c9029a9ff295894198e81a5ffd89f5714708be4b02b54b544566656e466e87982ffc89166
   languageName: node
   linkType: hard
 

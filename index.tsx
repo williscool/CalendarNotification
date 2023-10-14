@@ -1,3 +1,4 @@
+import "react-native-devsettings";
 import React, {useEffect} from 'react';
 import {AppRegistry, StyleSheet, Text, View, Button} from 'react-native';
 import Constants from 'expo-constants';

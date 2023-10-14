@@ -18,6 +18,7 @@
     "log4js": "^6.9.1",
     "react": "18.2.0",
     "react-native": "0.71.13",
+    "react-native-devsettings": "^1.0.5",
     "rn-game-over": "^1.1.0",
     "swc-node": "^1.0.0",
     "typed-emitter": "^2.1.0"
