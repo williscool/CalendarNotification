@@ -1,10 +1,23 @@
+// Sources
+// https://gist.github.com/bergmannjg/461958db03c6ae41a66d264ae6504ade?permalink_comment_id=3737831#debug-app-in-visual-studio-code-from-wsl2
 {
 	"configurations": [
 		{
-			"name": "(me) Attach to packager",
+			"name": "(my) Attach to packager",
 			"cwd": "${workspaceFolder}",
 			"type": "reactnative",
 			"request": "attach"
+		},
+		// what I really want to debug is the hermes engine though which is gonna take this setup
+		// https://marketplace.visualstudio.com/items?itemName=msjsdiag.vscode-react-native#hermes-engine
+		//
+		// but sadly spent a day on trying to get hermes debugging going and it don't work :/ see README.md for more info
+		// long story short it doesnt work in dev mode, only release mode and I couldn't get a relase build to work locally to test it
+		{
+			"name": "ONLY WORKS AGAINST A ANDROID RELEASE BUILD- Hermes Attach application - Experimental",
+			"cwd": "${workspaceFolder}",
+			"type": "reactnativedirect",
+			"request": "attach",
 		}
 	]
 }
