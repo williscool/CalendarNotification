@@ -33,11 +33,8 @@ sudo ln -s /mnt/c/Users/<username>/AppData/Local/Android/Sdk/platform-tools/adb.
 # Get the WSL2 IP address and store it in a variable
 WSL_VM_IP_ADDRESS=$(ifconfig eth0 | awk '/inet / {print $2}')
 
-# Get the Windows HOST IP address and store it in a variable
-HOST_IP_ADDRESS=$(ipconfig.exe | awk '/IPv4 Address/ { getline; getline; print $13 }')
-
-# Export IP_ADDRESS as an environment variable (optional)
-export IP_ADDRESS
+# Get the Windows HOST IP address and store it in a variable (in case you need it)
+HOST_IP_ADDRESS=$(ipconfig.exe | awk '/Ethernet adapter vEthernet \(Default Switch\):/{i=1; next} i && /IPv4 Address/{print $NF; exit}' | sed 's/^[ \t]*//')
 
 # Open the developer menu in the React Native activity once loaded
 adb shell input keyevent 82
