@@ -408,6 +408,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
           override fun onQueryTextChange(newText: String?): Boolean {
             adapter.setSearchText(newText)
+            return true
           }
         })
 
