@@ -127,6 +127,7 @@ class EventListAdapter(
     private val primaryColor: Int
     private val changeString: String
     private val snoozeString: String
+    private val searchString: String
 
     private var currentScrollPosition: Int = 0
 
