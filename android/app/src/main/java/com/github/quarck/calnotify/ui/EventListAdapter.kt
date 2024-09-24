@@ -116,6 +116,8 @@ class EventListAdapter(
 
     private var events = arrayOf<EventAlertRecord>();
 
+    private var allEvents = arrayOf<EventAlertRecord>();
+
     private var _recyclerView: RecyclerView? = null
     var recyclerView: RecyclerView?
         get() = _recyclerView
@@ -381,11 +383,12 @@ class EventListAdapter(
     fun setEventsToDisplay(newEvents: Array<EventAlertRecord>? = null) = synchronized(this) {
 
         if (newEvents != null){
+          allEvents = newEvents
           events = newEvents;
         }
 
         if (searchString != null && searchString != ""){
-          events = events.filter { ev -> searchString?.let { ev.title.contains(it) } == true }.toTypedArray()
+          events = allEvents.filter { ev -> searchString?.let { ev.title.lowercase().contains(it.lowercase()) } == true }.toTypedArray()
         }
 
         eventsPendingRemoval.clear()

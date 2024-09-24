@@ -403,11 +403,13 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             searchView.clearFocus()
             searchView.setQuery(query, false)
             searchMenuItem.collapseActionView()
+            adapter.setEventsToDisplay()
             return true
           }
 
           override fun onQueryTextChange(newText: String?): Boolean {
             adapter.setSearchText(newText)
+            adapter.setEventsToDisplay()
             return true
           }
         })
