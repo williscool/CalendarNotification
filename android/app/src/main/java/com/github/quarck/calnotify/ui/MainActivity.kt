@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.ui
 
 import android.annotation.TargetApi
 import android.app.AlertDialog
+import android.app.SearchManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -44,6 +45,7 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.appcompat.widget.SearchView
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.app.UndoManager
@@ -384,6 +386,30 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
+
+        val searchMenuItem = menu.findItem(R.id.action_search)
+
+        searchMenuItem.isVisible = true
+        searchMenuItem.isEnabled = true
+
+        var searchView = searchMenuItem.actionView as SearchView
+        val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
+
+        searchView.setSearchableInfo(manager.getSearchableInfo(componentName))
+
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+          override fun onQueryTextSubmit(query: String?): Boolean {
+            adapter.setSearchText(query)
+            searchView.clearFocus()
+            searchView.setQuery(query, false)
+            searchMenuItem.collapseActionView()
+            return true
+          }
+
+          override fun onQueryTextChange(newText: String?): Boolean {
+            adapter.setSearchText(newText)
+          }
+        })
 
         val menuItem = menu.findItem(R.id.action_snooze_all)
         if (menuItem != null) {

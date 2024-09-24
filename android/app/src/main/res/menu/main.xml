@@ -18,7 +18,8 @@
     android:icon="@android:drawable/ic_menu_search"
     android:orderInCategory="92"
     android:title="@string/search"
-    app:showAsAction="ifRoom|" />
+    app:showAsAction="ifRoom|collapseActionView"
+    app:actionViewClass="androidx.appcompat.widget.SearchView"/>
 
     <item
         android:id="@+id/action_dismissed_events"

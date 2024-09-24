@@ -127,7 +127,7 @@ class EventListAdapter(
     private val primaryColor: Int
     private val changeString: String
     private val snoozeString: String
-    private val searchString: String
+    private var searchString: String? = null
 
     private var currentScrollPosition: Int = 0
 
@@ -373,9 +373,21 @@ class EventListAdapter(
     val hasActiveEvents: Boolean
         get() = events.any { it.snoozedUntil == 0L }
 
-    fun setEventsToDisplay(newEvents: Array<EventAlertRecord>)
-            = synchronized(this) {
-        events = newEvents;
+    fun setSearchText(query: String?) {
+      searchString = query
+      setEventsToDisplay()
+    }
+
+    fun setEventsToDisplay(newEvents: Array<EventAlertRecord>? = null) = synchronized(this) {
+
+        if (newEvents != null){
+          events = newEvents;
+        }
+
+        if (searchString != null && searchString != ""){
+          events = events.filter { ev -> searchString?.let { ev.title.contains(it) } == true }.toTypedArray()
+        }
+
         eventsPendingRemoval.clear()
         pendingEventRemoveRunnables.clear()
         notifyDataSetChanged();
