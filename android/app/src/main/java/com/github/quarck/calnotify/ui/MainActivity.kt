@@ -414,6 +414,16 @@ class MainActivity : AppCompatActivity(), EventListCallback {
           }
         })
 
+        val closebutton: View = searchView.findViewById(androidx.appcompat.R.id.search_close_btn)
+
+        closebutton.setOnClickListener {
+          searchView.setQuery("",false)
+          searchView.clearFocus()
+          adapter.setSearchText(null)
+          adapter.setEventsToDisplay()
+          true
+        }
+
         val menuItem = menu.findItem(R.id.action_snooze_all)
         if (menuItem != null) {
             menuItem.isEnabled = adapter.itemCount > 0

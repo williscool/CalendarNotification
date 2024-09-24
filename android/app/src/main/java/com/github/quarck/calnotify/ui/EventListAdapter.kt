@@ -387,8 +387,10 @@ class EventListAdapter(
           events = newEvents;
         }
 
-        if (searchString != null && searchString != ""){
+        if (!searchString.isNullOrEmpty()){
           events = allEvents.filter { ev -> searchString?.let { ev.title.lowercase().contains(it.lowercase()) } == true }.toTypedArray()
+        } else {
+          events = allEvents
         }
 
         eventsPendingRemoval.clear()
