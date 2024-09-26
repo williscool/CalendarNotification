@@ -246,10 +246,18 @@ jobs:
             You can download these artifacts from the "Artifacts" section of the workflow run.`
           });
 
+    - name: Generate Changelog
+      run: |
+        echo "# Release ${GITHUB_REF#refs/tags/}" > ${{ github.workspace }}-CHANGELOG.txt
+        echo "" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "## What's Changed" >> ${{ github.workspace }}-CHANGELOG.txt
+        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> ${{ github.workspace }}-CHANGELOG.txt
+
     - name: Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/v')
       with:
+        body_path: ${{ github.workspace }}-CHANGELOG.txt
         files: |
           ${{env.app_file_name_prefix}}*-debug.apk
           ${{env.app_file_name_prefix}}*-release.apk
