@@ -225,3 +225,12 @@ jobs:
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - App bundle(s) AAB release generated
         path: ${{env.app_file_name_prefix}}-*.aab
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/v')
+      with:
+        files: |
+          ${{env.app_file_name_prefix}}*-debug.apk
+          ${{env.app_file_name_prefix}}*-release.apk
+          ${{env.app_file_name_prefix}}*.aab
