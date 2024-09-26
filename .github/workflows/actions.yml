@@ -7,6 +7,8 @@ env:
   # The name of the Play Store
   app_name: "Calendar Notifications Plus"
 
+  app_file_name_prefix: "calendar_notifications_plus"
+
 on:
   push:
     branches:
@@ -150,6 +152,37 @@ jobs:
         # override default build-tools version (33.0.0) -- optional
         BUILD_TOOLS_VERSION: "34.0.0"
 
+    # for tags: calendar_notifications_plus-1.2.3-debug.apk
+    # for PRs: calendar_notifications_plus-pr-123-feature-branch-abcdef-debug.apk
+    # for pushes to branches other than main: calendar_notifications_plus-feature-branch-abcdef-debug.apk
+    - name: Rename APKs
+      run: |
+        sanitize_branch_name() {
+          echo "$1" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-20
+        }
+
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          # For tags
+          VERSION=${GITHUB_REF#refs/tags/v}
+          SUFFIX="-${VERSION}"
+        elif [[ $GITHUB_REF == refs/pull/* ]]; then
+          # For pull requests
+          PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
+          BRANCH_NAME=$(sanitize_branch_name "$GITHUB_HEAD_REF")
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          SUFFIX="-pr-${PR_NUMBER}-${BRANCH_NAME}-${SHORT_SHA}"
+        else
+          # For pushes to branches other than main
+          BRANCH_NAME=$(sanitize_branch_name "${GITHUB_REF#refs/heads/}")
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
+        fi
+
+        mv ${{steps.sign_debug_app.outputs.signedReleaseFile}} ${{env.app_file_name_prefix}}${SUFFIX}-debug.apk
+        mv ${{steps.sign_release_app.outputs.signedReleaseFile}} ${{env.app_file_name_prefix}}${SUFFIX}-release.apk
+        mv ${{steps.sign_release_aab.outputs.signedReleaseFile}} ${{env.app_file_name_prefix}}${SUFFIX}.aab
+
+
     # # Upload Artifact Build
     # # Noted For Output [main_project_module]/build/outputs/apk/debug/
     # - name: Upload unsigned APK Debug - ${{ env.repository_name }}
@@ -163,7 +196,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - APK(s) debug generated
-        path: ${{steps.sign_debug_app.outputs.signedReleaseFile}}
+        path: ${{env.app_file_name_prefix}}-*-debug.apk
 
     # # Noted For Output [main_project_module]/build/outputs/apk/release/
     # - name: Upload unsigned APK Release - ${{ env.repository_name }}
@@ -177,7 +210,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - APK(s) release generated
-        path: ${{steps.sign_release_app.outputs.signedReleaseFile}}
+        path: ${{env.app_file_name_prefix}}-*-release.apk
 
     # # Noted For Output [main_project_module]/build/outputs/bundle/release/
     # - name: Upload unsigned AAB (App Bundle) Release - ${{ env.repository_name }}
@@ -191,4 +224,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - App bundle(s) AAB release generated
-        path: ${{steps.sign_release_aab.outputs.signedReleaseFile}}
+        path: ${{env.app_file_name_prefix}}-*.aab
