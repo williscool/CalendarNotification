@@ -63,7 +63,9 @@
         android:id="@+id/my_react_activity"
         android:orderInCategory="220"
         app:showAsAction="never"
-        android:title="@string/my_react_activity" />
+        android:title="@string/my_react_activity" 
+        android:visible="false"
+        />
 
     <item
         android:id="@+id/action_test_page"
