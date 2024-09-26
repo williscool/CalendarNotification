@@ -108,6 +108,48 @@ jobs:
     - name: Build app bundle release (AAB) - ${{ env.main_project_module }} module
       run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease
 
+    - uses: r0adkll/sign-android-release@v1
+      name: Sign debug app APKs
+      # ID used to access action output
+      id: sign_debug_app
+      with:
+        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/apk/debug/
+        signingKeyBase64: ${{ secrets.DEBUG_SIGNING_KEYSTORE }}
+        alias: ${{ secrets.DEBUG_KEYSTORE_ALIAS }}
+        keyStorePassword: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+        keyPassword: ${{ secrets.DEBUG_KEYSTORE_ALIAS_PASS }}
+      env:
+        # override default build-tools version (33.0.0) -- optional
+        BUILD_TOOLS_VERSION: "34.0.0"
+
+    - uses: r0adkll/sign-android-release@v1
+      name: Sign RELEASE app APKs
+      # ID used to access action output
+      id: sign_release_app
+      with:
+        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/apk/release/
+        signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
+        alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+        keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
+      env:
+        # override default build-tools version (33.0.0) -- optional
+        BUILD_TOOLS_VERSION: "34.0.0"
+    
+    - uses: r0adkll/sign-android-release@v1
+      name: Sign RELEASE app AABs
+      # ID used to access action output
+      id: sign_release_aab
+      with:
+        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/bundle/release/
+        signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
+        alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+        keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
+      env:
+        # override default build-tools version (33.0.0) -- optional
+        BUILD_TOOLS_VERSION: "34.0.0"
+
     # Upload Artifact Build
     # Noted For Output [main_project_module]/build/outputs/apk/debug/
     - name: Upload APK Debug - ${{ env.repository_name }}
