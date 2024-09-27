@@ -103,6 +103,11 @@ jobs:
           sed -i "s/versionCode $CURRENT_VERSION_CODE/versionCode $NEW_VERSION_CODE/" android/app/build.gradle
           echo "Incremented versionCode from $CURRENT_VERSION_CODE to $NEW_VERSION_CODE"
 
+      - name: Install SSH Key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.VERSION_BUMP_DEPLOY_PRIVATE_KEY }}
+
       - name: Commit and push changes
         if: steps.get-version.outputs.version != ''
         run: |
