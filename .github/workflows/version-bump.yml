@@ -5,10 +5,11 @@ on:
     types: [closed]
     branches:
       - 'master'
+  workflow_dispatch: # Allow manual triggering of the workflow
 
 jobs:
   update-version:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     permissions:
@@ -62,12 +63,30 @@ jobs:
           # Other environment variables
           HUSKY: '0' # By default do not run HUSKY install
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+
       - name: Get new version
         id: get-version
         run: |
-          VERSION_SPACES=$(npx semantic-release --dryRun | tee /dev/tty | grep -oP 'Published release \K.*? ')
+          # Run semantic-release with full output for debugging
+          SEMANTIC_OUTPUT=$(npx semantic-release --dry-run --debug 2>&1)
+          echo "semantic-release output:"
+          echo "$SEMANTIC_OUTPUT"
+          
+          # Try to extract the version
+          VERSION_SPACES=$(echo "$SEMANTIC_OUTPUT" | grep -oP 'Published release \K.*? ' || echo "")
           VERSION="${VERSION_SPACES// /}"
-          echo "::set-output name=version::$VERSION"
+          
+          if [ -z "$VERSION" ]; then
+            echo "Failed to extract version. semantic-release may have failed."
+            exit 1
+          else
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Extracted version: $VERSION"
+          fi
 
       - name: Log If no version to bump t
         if: steps.get-version.outputs.version == ''
@@ -75,13 +94,13 @@ jobs:
           echo "No version to bump to!"
 
       - name: Update versionName in build.gradle
-        if: steps.get-version.outputs.version
+        if: steps.get-version.outputs.version != ''
         run: |
           echo "Updating versionName to ${{ steps.get-version.outputs.version }}"
           sed -i 's/versionName ".*"/versionName "${{ steps.get-version.outputs.version }}"/' android/app/build.gradle
 
       - name: Increment versionCode in build.gradle
-        if: steps.get-version.outputs.version
+        if: steps.get-version.outputs.version != ''
         run: |
           # Get the current versionCode
           CURRENT_VERSION_CODE=$(grep -oP 'versionCode\s+\K\d+' android/app/build.gradle)
@@ -92,7 +111,7 @@ jobs:
           echo "Incremented versionCode from $CURRENT_VERSION_CODE to $NEW_VERSION_CODE"
 
       - name: Commit and push changes
-        if: steps.get-version.outputs.version
+        if: steps.get-version.outputs.version != ''
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
