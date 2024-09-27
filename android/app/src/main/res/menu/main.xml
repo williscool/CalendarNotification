@@ -4,12 +4,22 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     tools:context=".ui.MainActivity" >
 
-    <item
-        android:id="@+id/action_snooze_all"
-        android:orderInCategory="90"
-        app:showAsAction="ifRoom"
-        android:icon="@drawable/ic_update_white_24dp"
-        android:title="@string/snooze_all" />
+  <item
+    android:id="@+id/action_snooze_all"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:icon="@drawable/ic_update_white_24dp"
+    android:orderInCategory="91"
+    android:title="@string/snooze_all"
+    app:showAsAction="ifRoom" />
+
+  <item
+    android:id="@+id/action_search"
+    android:icon="@android:drawable/ic_menu_search"
+    android:orderInCategory="92"
+    android:title="@string/search"
+    app:showAsAction="ifRoom|collapseActionView"
+    app:actionViewClass="androidx.appcompat.widget.SearchView"/>
 
     <item
         android:id="@+id/action_dismissed_events"

@@ -116,6 +116,8 @@ class EventListAdapter(
 
     private var events = arrayOf<EventAlertRecord>();
 
+    private var allEvents = arrayOf<EventAlertRecord>();
+
     private var _recyclerView: RecyclerView? = null
     var recyclerView: RecyclerView?
         get() = _recyclerView
@@ -127,6 +129,7 @@ class EventListAdapter(
     private val primaryColor: Int
     private val changeString: String
     private val snoozeString: String
+    private var searchString: String? = null
 
     private var currentScrollPosition: Int = 0
 
@@ -372,9 +375,24 @@ class EventListAdapter(
     val hasActiveEvents: Boolean
         get() = events.any { it.snoozedUntil == 0L }
 
-    fun setEventsToDisplay(newEvents: Array<EventAlertRecord>)
-            = synchronized(this) {
-        events = newEvents;
+    fun setSearchText(query: String?) {
+      searchString = query
+      setEventsToDisplay()
+    }
+
+    fun setEventsToDisplay(newEvents: Array<EventAlertRecord>? = null) = synchronized(this) {
+
+        if (newEvents != null){
+          allEvents = newEvents
+          events = newEvents;
+        }
+
+        if (!searchString.isNullOrEmpty()){
+          events = allEvents.filter { ev -> searchString?.let { ev.title.lowercase().contains(it.lowercase()) } == true }.toTypedArray()
+        } else {
+          events = allEvents
+        }
+
         eventsPendingRemoval.clear()
         pendingEventRemoveRunnables.clear()
         notifyDataSetChanged();
