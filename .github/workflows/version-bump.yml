@@ -1,18 +1,21 @@
-name: Release
+name: Update Version on PR Merge to Master
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
-      - master  # or 'main', depending on your default branch name
+      - 'master'
 
 jobs:
-  release:
+  update-version:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+
     permissions:
       # Give the default GITHUB_TOKEN write permission to commit and push the
       # added or changed files to the repository.
       contents: write
-    if: startsWith(github.event.head_commit.message, 'build:')
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,6 +62,31 @@ jobs:
           # Other environment variables
           HUSKY: '0' # By default do not run HUSKY install
 
-      - name: Release
-        # Pushing a tag triggers a release
-        run: npx semantic-release
+      - name: Get new version
+        id: get-version
+        run: |
+          VERSION_SPACES=$(npx semantic-release --dryRun | grep -oP 'Published release \K.*? ')
+          VERSION="${VERSION_SPACES// /}"
+          echo "::set-output name=version::$VERSION"
+
+      - name: Update versionName in build.gradle
+        run: |
+          sed -i 's/versionName ".*"/versionName "${{ steps.get-version.outputs.version }}"/' android/app/build.gradle
+
+      - name: Increment versionCode in build.gradle
+        run: |
+          # Get the current versionCode
+          CURRENT_VERSION_CODE=$(grep -oP 'versionCode\s+\K\d+' android/app/build.gradle)
+          # Increment the versionCode
+          NEW_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
+          # Update the versionCode in build.gradle
+          sed -i "s/versionCode $CURRENT_VERSION_CODE/versionCode $NEW_VERSION_CODE/" android/app/build.gradle
+          echo "Incremented versionCode from $CURRENT_VERSION_CODE to $NEW_VERSION_CODE"
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add android/app/build.gradle
+          git commit -m "build: version bump ${{ steps.get-version.outputs.version }}"
+          git push
