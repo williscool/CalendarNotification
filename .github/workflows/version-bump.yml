@@ -1,15 +1,13 @@
 name: Update Version on PR Merge to Master
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
+  push:
+    branches: 
       - 'master'
   workflow_dispatch: # Allow manual triggering of the workflow
 
 jobs:
   update-version:
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     permissions:
@@ -63,11 +61,6 @@ jobs:
           # Other environment variables
           HUSKY: '0' # By default do not run HUSKY install
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true
-
       - name: Get new version
         id: get-version
         run: |
@@ -118,3 +111,9 @@ jobs:
           git add android/app/build.gradle
           git commit -m "build: version bump ${{ steps.get-version.outputs.version }}"
           git push
+      
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
