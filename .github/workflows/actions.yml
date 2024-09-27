@@ -1,4 +1,4 @@
-name: CNPlus CI
+name: CNPlus CI (Android) App Build
 
 env:
   # The name of the main module repository
@@ -11,8 +11,6 @@ env:
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '**'
   pull_request:
