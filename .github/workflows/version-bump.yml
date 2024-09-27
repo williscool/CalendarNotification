@@ -1,0 +1,92 @@
+name: Update Version on PR Merge to Master
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - 'master'
+
+jobs:
+  update-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the
+      # added or changed files to the repository.
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'yarn'
+
+      - name: Expose yarn config as "$GITHUB_OUTPUT"
+        id: yarn-config
+        shell: bash
+        run: |
+          echo "CACHE_FOLDER=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+        # Yarn rotates the downloaded cache archives, @see https://github.com/actions/setup-node/issues/325
+        # Yarn cache is also reusable between arch and os.
+      - name: Restore yarn cache
+        uses: actions/cache@v4
+        id: yarn-download-cache
+        with:
+          path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
+          key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            yarn-download-cache-
+
+        # Invalidated on yarn.lock changes
+      - name: Restore yarn install state
+        id: yarn-install-state-cache
+        uses: actions/cache@v4
+        with:
+          path: .yarn/ci-cache/
+          key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+
+      - run: yarn install --immutable --inline-builds
+        env:
+          # CI optimizations. Overrides yarnrc.yml options (or their defaults) in the CI action.
+          YARN_ENABLE_GLOBAL_CACHE: 'false' # Use local cache folder to keep downloaded archives
+          YARN_NM_MODE: 'hardlinks-local' # Hardlinks-(local|global) reduces io / node_modules size
+          YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz # Very small speedup when lock does not change
+          # Other environment variables
+          HUSKY: '0' # By default do not run HUSKY install
+
+      - name: Get new version
+        id: get-version
+        run: |
+          VERSION_SPACES=$(npx semantic-release --dryRun | grep -oP 'Published release \K.*? ')
+          VERSION="${VERSION_SPACES// /}"
+          echo "::set-output name=version::$VERSION"
+
+      - name: Update versionName in build.gradle
+        run: |
+          sed -i 's/versionName ".*"/versionName "${{ steps.get-version.outputs.version }}"/' android/app/build.gradle
+
+      - name: Increment versionCode in build.gradle
+        run: |
+          # Get the current versionCode
+          CURRENT_VERSION_CODE=$(grep -oP 'versionCode\s+\K\d+' android/app/build.gradle)
+          # Increment the versionCode
+          NEW_VERSION_CODE=$((CURRENT_VERSION_CODE + 1))
+          # Update the versionCode in build.gradle
+          sed -i "s/versionCode $CURRENT_VERSION_CODE/versionCode $NEW_VERSION_CODE/" android/app/build.gradle
+          echo "Incremented versionCode from $CURRENT_VERSION_CODE to $NEW_VERSION_CODE"
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add android/app/build.gradle
+          git commit -m "build: version bump ${{ steps.get-version.outputs.version }}"
+          git push
