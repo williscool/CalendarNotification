@@ -65,15 +65,23 @@ jobs:
       - name: Get new version
         id: get-version
         run: |
-          VERSION_SPACES=$(npx semantic-release --dryRun | grep -oP 'Published release \K.*? ')
+          VERSION_SPACES=$(npx semantic-release --dryRun | tee /dev/tty | grep -oP 'Published release \K.*? ')
           VERSION="${VERSION_SPACES// /}"
           echo "::set-output name=version::$VERSION"
 
-      - name: Update versionName in build.gradle
+      - name: Log If no version to bump t
+        if: steps.get-version.outputs.version == ''
         run: |
+          echo "No version to bump to!"
+
+      - name: Update versionName in build.gradle
+        if: steps.get-version.outputs.version
+        run: |
+          echo "Updating versionName to ${{ steps.get-version.outputs.version }}"
           sed -i 's/versionName ".*"/versionName "${{ steps.get-version.outputs.version }}"/' android/app/build.gradle
 
       - name: Increment versionCode in build.gradle
+        if: steps.get-version.outputs.version
         run: |
           # Get the current versionCode
           CURRENT_VERSION_CODE=$(grep -oP 'versionCode\s+\K\d+' android/app/build.gradle)
@@ -84,6 +92,7 @@ jobs:
           echo "Incremented versionCode from $CURRENT_VERSION_CODE to $NEW_VERSION_CODE"
 
       - name: Commit and push changes
+        if: steps.get-version.outputs.version
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
