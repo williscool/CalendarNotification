@@ -395,6 +395,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         var searchView = searchMenuItem.actionView as SearchView
         val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
 
+        searchView.queryHint = resources.getQuantityString(R.plurals.search_placeholder, adapter.getAllItemCount(), adapter.getAllItemCount())
         searchView.setSearchableInfo(manager.getSearchableInfo(componentName))
 
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
