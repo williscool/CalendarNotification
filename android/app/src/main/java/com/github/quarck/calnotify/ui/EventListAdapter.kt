@@ -370,6 +370,8 @@ class EventListAdapter(
         return ViewHolder(view);
     }
 
+    fun getAllItemCount(): Int = allEvents.size
+
     override fun getItemCount(): Int = events.size
 
     val hasActiveEvents: Boolean
