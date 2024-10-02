@@ -482,7 +482,7 @@
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="@color/secondary_text"
-            android:text="(wharris@upscalews.com)"
+            android:text="(wharris+cnplus@upscalews.com)"
             android:layout_gravity="center_horizontal"
             tools:ignore="HardcodedText"
             />
