@@ -1,6 +1,4 @@
 <full-backup-content>
-    <include domain="database" path="CalendarMonitor"/>
-    <include domain="database" path="Events"/>
-    <include domain="database" path="DismissedEvents"/>
-    <include domain="database" path="calEditReqs"/>
+    <include domain="database" path="." />
+    <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
 </full-backup-content>
