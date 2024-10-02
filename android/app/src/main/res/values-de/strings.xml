@@ -243,7 +243,7 @@
     <string name="add_event_one_day_before" formatted="false">Am Vortag um %s</string>
     <string name="add_event_zero_days_before" formatted="false">Am Tag um %s</string>
     <string name="remove_reminder">Entfernen</string>
-    <string name="made_in_ireland">Diese Software wurde in Ireland erstellt</string>
+    <string name="made_in_usa">Diese Software wird jetzt in den USA hergestellt 🇺🇸!</string>
     <string name="days_before">Tage zuvor, um:</string>
     <string name="remind">Erinnern</string>
 

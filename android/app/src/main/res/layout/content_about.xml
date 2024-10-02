@@ -472,7 +472,7 @@
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="@color/primary_text"
-            android:text="(c) 2017 Sergey Parshin"
+            android:text="(c) 2023 William Harris"
             android:layout_gravity="center_horizontal"
             tools:ignore="HardcodedText"
             />
@@ -482,7 +482,7 @@
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="@color/secondary_text"
-            android:text="(quarck@gmail.com)"
+            android:text="(wharris+cnplus@upscalews.com)"
             android:layout_gravity="center_horizontal"
             tools:ignore="HardcodedText"
             />
@@ -496,7 +496,7 @@
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="@color/primary_text"
-            android:text="@string/made_in_ireland"
+            android:text="@string/made_in_usa"
             android:layout_gravity="center_horizontal"
             tools:ignore="HardcodedText"
             />
@@ -511,7 +511,7 @@
             android:paddingEnd="16dp"
             android:textColor="@color/primary_text"
             android:textStyle="bold"
-            android:text="@string/donation_offers_are_rejected"
+            android:text="@string/donation_offers_are_considered"
             android:layout_gravity="center_horizontal"
             />
 

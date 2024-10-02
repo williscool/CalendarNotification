@@ -99,7 +99,7 @@
         android:paddingBottom="20dp"
         android:textColor="@color/primary_text"
         android:textStyle="bold"
-        android:text="@string/donation_offers_are_rejected"
+        android:text="@string/donation_offers_are_considered"
         />
 
 </LinearLayout>
