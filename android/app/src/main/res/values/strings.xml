@@ -237,8 +237,8 @@
 
     <string name="exit">Exit</string>
 
-    <string name="special_thanks_line1">my wife Daria</string>
-    <string name="special_thanks_line2">for giving me time to work on this project</string>
+    <string name="special_thanks_line1">Sergey Parshin and his wife Daria</string>
+    <string name="special_thanks_line2">Him for making this project and her for giving him time to work on it!</string>
 
     <string name="save_button_title">SAVE</string>
 
@@ -260,7 +260,7 @@
     <string name="add_event_one_day_before" formatted="false">Day before at %s</string>
     <string name="add_event_zero_days_before" formatted="false">On the day at %s</string>
     <string name="remove_reminder">Remove</string>
-    <string name="made_in_ireland">This software was made in Ireland</string>
+    <string name="made_in_usa">This software now made in the USA 🇺🇸!</string> 
     <string name="days_before">days before, at:</string>
     <string name="remind">Remind</string>
 
@@ -422,7 +422,7 @@
     <string name="report_any_bugs_or_suggestions_directly_to_github">Report any bugs or suggestions directly to github:</string>
     <string name="bugs_details" formatted="false">When reporting a bug, please make sure to include your:\n\n * device model (%s)\n\n * OS version (%s)\n\n * app version (%s)\n\n * detailed description of the issue: what was expected, what happened;\n\n * it would be a great help if you can capture logcat output around the time when issue has occurred, but be aware that other apps can sometimes leak personal information into logcat, so review twice before submitting it into public!</string>
     <string name="befre_big_notice_on_obligations">PLEASE BE AWARE:\n\nIt is in developers interest to keep application as bug free as possible, as well as implement features that could be useful for developers and other users.\nHOWEVER developers of Calendar Notifications Plus have no obligation on fixing any reported issues or implement any requested features.\nWe do what we can when we can.\nAll the work on this app is done in a free time from job and other real life / family duties.\nNo one is getting paid for working on this app.</string>
-    <string name="donation_offers_are_rejected">Any donation offers would be rejected</string>
+    <string name="donation_offers_are_considered">Any donation offers would will be considered!</string>
     <string name="wiki_text">NOTE: some useful information on using the app can be found in the app\'s wiki:</string>
 
     <string name="N_calendar_events" formatted="false">%d events</string>

@@ -244,7 +244,7 @@
     <string name="add_event_one_day_before" formatted="false">Dzień przed o %s</string>
     <string name="add_event_zero_days_before" formatted="false">W dniu wydarzenia o %s</string>
     <string name="remove_reminder">Usuń</string>
-    <string name="made_in_ireland">Program powstał w Irlandii</string>
+    <string name="made_in_usa">To oprogramowanie jest teraz produkowane w USA 🇺🇸!</string>
 
     <string name="days_before">dni przed, o </string>
     <string name="remind">Przypomnij</string>
@@ -401,7 +401,7 @@
     <string name="report_any_bugs_or_suggestions_directly_to_github">Wszelkie znalezione błędy proszę zgłaszać bezpośrednio na stronie github:</string>
     <string name="bugs_details" formatted="false">Zgłaszając błąd podaj:\n\n * model urządzenia (%s)\n\n * OS version (%s)\n\n * wersję aplikacji (%s)\n\n * szczegółowy opis problemu: czego oczekiwałeś a co się stało;\n\n * dużym ułatwieniem byłoby gdybyś mógł zapisać dane logcat z momentu, gdy wystąpił problem, ale zwróć uwagę, że inne aplikacje czasami umieszczają dane osobowe w pliku logcat, więc upewnij się dwa razy przed opublikowaniem wiadomości!</string>
     <string name="befre_big_notice_on_obligations">UWAGA:\n\nW interesie dewelopera leży, aby jego aplikacja była wolna na tyle na ile to możliwe od błędów oraz wdrażać funkcje użyteczne dla niego i użytkowników,\nJEDNAKŻE deweloperzy aplikacji "Powiadomienia kalendarza Plus" nie mają obowiązku naprawy jakiegokolwiek zgłoszonego błędu lub wdrożenia jakiejkolwiek sugerowanej funkcji.\nPrzygotowujemy to co możemy, wtedy kiedy możemy.\nCałość pracy nad tą aplikacją odbywa się w czasie wolnym od pracy zawodowej i innych zajęć, w tym także domowych.\nNikt nie jest opłacany za pracę nad tą aplikacją.</string>
-    <string name="donation_offers_are_rejected">Wszelkie oferty wsparcia finansowego będą odrzucane</string>
+    <string name="donation_offers_are_considered">Rozważymy każdą ofertę wsparcia finansowego!</string>
     <string name="wiki_text">UWAGA: Na stronie wiki aplikacji znajdziesz użyteczne informacje na temat używania tej aplikacji:</string>
 
     <string name="N_calendar_events" formatted="false">%d wydarzenia</string>
