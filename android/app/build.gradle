@@ -27,8 +27,8 @@ android {
         minSdkVersion 21
         //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 25
-        versionCode 4000013
-        versionName "6.4.0"
+        versionCode 4000014
+        versionName "6.4.1"
 
         buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
     }
