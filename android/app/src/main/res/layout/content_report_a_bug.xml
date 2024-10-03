@@ -42,7 +42,7 @@
         android:paddingBottom="16dp"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:text="https://github.com/quarck/CalendarNotification/issues"
+        android:text="https://github.com/williscool/CalendarNotification/issues"
         android:layout_gravity="center_horizontal"
         tools:ignore="HardcodedText"
         />
