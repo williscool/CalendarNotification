@@ -100,7 +100,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
     var customSnooze_TimeIntervalPickerController: TimeIntervalPickerController? = null
     var snoozeUntil_DatePicker: DatePicker? = null
     var snoozeUntil_TimePicker: TimePicker? = null
-
+    private var searchQuery: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
@@ -120,7 +120,9 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
         snoozeFromMainActivity = intent.getBooleanExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, false)
 
-        val toolbar = find<Toolbar?>(R.id.toolbar)
+      searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
+
+      val toolbar = find<Toolbar?>(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
@@ -181,6 +183,19 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 else
                     resources.getString(R.string.change_all_title)
 
+        var count = intent.getIntExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT,  0)
+
+        var snoozeCountTextView = findViewById<TextView>(R.id.snooze_count_text)
+
+            if (searchQuery.isNullOrEmpty()) {
+                snoozeCountTextView.visibility = View.GONE
+            } else {
+                snoozeCountTextView.visibility = View.VISIBLE
+                snoozeCountTextView.text = resources.getQuantityString(
+                    R.plurals.snooze_count_text, count, count, searchQuery
+                )
+            }
+
         restoreState(state)
     }
 
@@ -232,17 +247,24 @@ open class SnoozeAllActivity : AppCompatActivity() {
     private fun snoozeEvent(snoozeDelay: Long) {
         AlertDialog.Builder(this)
                 .setMessage(
-                        if (snoozeAllIsChange)
-                            R.string.change_all_notification
-                        else
-                            R.string.snooze_all_confirmation)
+                        when {
+                            !searchQuery.isNullOrEmpty() -> {
+                                if (snoozeAllIsChange)
+                                    getString(R.string.change_filtered_notification, searchQuery)
+                                else
+                                    getString(R.string.snooze_filtered_confirmation, searchQuery)
+                            }
+                            snoozeAllIsChange -> getString(R.string.change_all_notification)
+                            else -> getString(R.string.snooze_all_confirmation)
+                        }
+                )
                 .setCancelable(false)
                 .setPositiveButton(android.R.string.yes) {
                     _, _ ->
 
                     DevLog.debug(LOG_TAG, "Snoozing (change=$snoozeAllIsChange) all requests, snoozeDelay=${snoozeDelay / 1000L}")
 
-                    val result = ApplicationController.snoozeAllEvents(this, snoozeDelay, snoozeAllIsChange, false);
+                    val result = ApplicationController.snoozeAllEvents(this, snoozeDelay, snoozeAllIsChange, false, searchQuery);
                     if (result != null) {
                         result.toast(this)
                     }
