@@ -92,6 +92,10 @@
 
     <string name="snooze_all_events">Snooze all events to:</string>
     <string name="change_all_events">Change snooze time for all events:</string>
+    <plurals name="snooze_count_text">
+        <item quantity="one">%1$d event matching \""%2$s"\" will be snoozed</item>
+        <item quantity="other">%1$d events matching \""%2$s"\" will be snoozed</item>
+    </plurals>
 
     <string name="change_snooze_to">Change snooze to:</string>
 
@@ -526,5 +530,5 @@
     <string name="skip_expired_events_title">Ignore expired events</string>
     <string name="skip_expired_events_summary">Do not process events if end time is already in the past</string>
 
-</resources>
 
+</resources>

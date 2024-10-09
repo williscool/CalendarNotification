@@ -84,6 +84,19 @@
                         android:textColor="@color/primary_text" />
 
                     <TextView
+                        android:id="@+id/snooze_count_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="@dimen/snooze_view_spacing"
+                        android:paddingEnd="@dimen/snooze_view_padding_end"
+                        android:paddingLeft="@dimen/snooze_view_padding_start"
+                        android:paddingRight="@dimen/snooze_view_padding_end"
+                        android:paddingStart="@dimen/snooze_view_padding_start"
+                        android:paddingTop="@dimen/snooze_view_with_search_query"
+                        android:textSize="16sp"
+                        />
+
+                    <TextView
                         android:id="@+id/snooze_view_snooze_present1_quiet_time_notice_baseline"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

@@ -30,6 +30,8 @@
     <dimen name="snooze_view_spacing">14dp</dimen>
 
     <dimen name="snooze_view_img_topbottom">20dp</dimen>
+    
+    <dimen name="snooze_view_with_search_query">24dp</dimen>
 
     <dimen name="snooze_view_event_title_max_height">160dp</dimen>
     <dimen name="snooze_view_event_details_max_height">100dp</dimen>

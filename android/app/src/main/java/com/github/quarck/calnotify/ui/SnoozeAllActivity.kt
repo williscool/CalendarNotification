@@ -102,6 +102,9 @@ open class SnoozeAllActivity : AppCompatActivity() {
     var snoozeUntil_TimePicker: TimePicker? = null
 
 
+    private lateinit var snoozeCountTextView: TextView
+    private var searchQuery: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
@@ -120,7 +123,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
         snoozeFromMainActivity = intent.getBooleanExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, false)
 
-        val searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
+        searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
 
         val toolbar = find<Toolbar?>(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -183,6 +186,16 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 else
                     resources.getString(R.string.change_all_title)
 
+        snoozeCountTextView = findViewById(R.id.snooze_count_text)
+            if (searchQuery.isNullOrEmpty()) {
+                snoozeCountTextView.visibility = View.GONE
+            } else {
+                snoozeCountTextView.visibility = View.VISIBLE
+                snoozeCountTextView.text = resources.getQuantityString(
+                    R.plurals.snooze_count_text, count, count, searchQuery
+                )
+            }
+
         restoreState(state)
     }
 
@@ -244,7 +257,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
                     DevLog.debug(LOG_TAG, "Snoozing (change=$snoozeAllIsChange) all requests, snoozeDelay=${snoozeDelay / 1000L}")
 
-                    val result = ApplicationController.snoozeAllEvents(this, snoozeDelay, snoozeAllIsChange, false);
+                    val result = ApplicationController.snoozeAllEvents(this, snoozeDelay, snoozeAllIsChange, false, searchQuery);
                     if (result != null) {
                         result.toast(this)
                     }

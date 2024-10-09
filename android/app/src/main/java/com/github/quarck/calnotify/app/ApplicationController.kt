@@ -778,7 +778,7 @@ object ApplicationController : EventMovedHandler {
         return snoozeEvents(context, { it.displayStatus == EventDisplayStatus.DisplayedCollapsed }, snoozeDelay, isChange, onlySnoozeVisible)
     }
 
-    fun snoozeAllEvents(context: Context, snoozeDelay: Long, isChange: Boolean, onlySnoozeVisible: Boolean, searchQuery: String?): SnoozeResult? {
+    fun snoozeAllEvents(context: Context, snoozeDelay: Long, isChange: Boolean, onlySnoozeVisible: Boolean, searchQuery: String? = null): SnoozeResult? {
         return snoozeEvents(context, { event ->
             searchQuery?.let { query ->
                 event.title.contains(query, ignoreCase = true) ||

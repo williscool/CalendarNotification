@@ -480,6 +480,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                                 .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, !adapter.hasActiveEvents)
                                 .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
                                 .putExtra(Consts.INTENT_SEARCH_QUERY, adapter.searchString)
+                                .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, adapter.getItemCount())
                                 .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
 
             R.id.action_mute_all ->
