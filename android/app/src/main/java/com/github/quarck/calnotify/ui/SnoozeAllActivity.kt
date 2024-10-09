@@ -247,10 +247,17 @@ open class SnoozeAllActivity : AppCompatActivity() {
     private fun snoozeEvent(snoozeDelay: Long) {
         AlertDialog.Builder(this)
                 .setMessage(
-                        if (snoozeAllIsChange)
-                            R.string.change_all_notification
-                        else
-                            R.string.snooze_all_confirmation)
+                        when {
+                            !searchQuery.isNullOrEmpty() -> {
+                                if (snoozeAllIsChange)
+                                    getString(R.string.change_filtered_notification, searchQuery)
+                                else
+                                    getString(R.string.snooze_filtered_confirmation, searchQuery)
+                            }
+                            snoozeAllIsChange -> getString(R.string.change_all_notification)
+                            else -> getString(R.string.snooze_all_confirmation)
+                        }
+                )
                 .setCancelable(false)
                 .setPositiveButton(android.R.string.yes) {
                     _, _ ->
