@@ -20,6 +20,7 @@
 
     <string name="empty_title">(No title)</string>
     <string name="snooze_event_for">Snooze event for:</string>
+    <string name="snooze_all_events_for">Snooze all event(s) for:</string>
 
     <string name="snooze_preset_15_min">15 minutes</string>
     <string name="snooze_preset_1_hour">1 hour</string>

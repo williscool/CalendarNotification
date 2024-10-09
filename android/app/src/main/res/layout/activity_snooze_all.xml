@@ -79,7 +79,7 @@
                         android:paddingRight="@dimen/snooze_view_padding_end"
                         android:paddingStart="@dimen/snooze_view_padding_start"
                         android:paddingTop="@dimen/snooze_view_in_text_vert_padding"
-                        android:text="@string/snooze_event_for"
+                        android:text="@string/snooze_all_events_for"
                         android:textAppearance="?android:textAppearanceMedium"
                         android:textColor="@color/primary_text" />
 

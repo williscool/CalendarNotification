@@ -120,6 +120,8 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
         snoozeFromMainActivity = intent.getBooleanExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, false)
 
+        val searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
+
         val toolbar = find<Toolbar?>(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

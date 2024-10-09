@@ -66,6 +66,7 @@ object Consts {
     const val INTENT_SNOOZE_FROM_MAIN_ACTIVITY = "snooze_by_main_activity"
     const val INTENT_SNOOZE_PRESET = "snooze_preset"
     const val INTENT_SNOOZE_ALL_KEY = "snooze_all"
+    const val INTENT_SEARCH_QUERY = "search_query"
     const val INTENT_SNOOZE_ALL_COLLAPSED_KEY = "snooze_all_collapsed"
     const val INTENT_DISMISS_ALL_KEY = "dismiss_all"
 

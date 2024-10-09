@@ -129,7 +129,7 @@ class EventListAdapter(
     private val primaryColor: Int
     private val changeString: String
     private val snoozeString: String
-    private var searchString: String? = null
+    private var currentSearchString: String? = null
 
     private var currentScrollPosition: Int = 0
 
@@ -140,6 +140,9 @@ class EventListAdapter(
 
     val scrollPosition: Int
         get() = currentScrollPosition
+
+    val searchString: String?
+      get() = currentSearchString
 
     init {
         primaryColor = ContextCompat.getColor(context, R.color.primary)
@@ -378,7 +381,7 @@ class EventListAdapter(
         get() = events.any { it.snoozedUntil == 0L }
 
     fun setSearchText(query: String?) {
-      searchString = query
+      currentSearchString = query
       setEventsToDisplay()
     }
 
@@ -389,8 +392,13 @@ class EventListAdapter(
           events = newEvents;
         }
 
-        if (!searchString.isNullOrEmpty()){
-          events = allEvents.filter { ev -> searchString?.let { ev.title.lowercase().contains(it.lowercase()) } == true }.toTypedArray()
+        if (!currentSearchString.isNullOrEmpty()){
+          events = allEvents.filter { ev ->
+              currentSearchString?.let { query ->
+                  ev.title.lowercase().contains(query.lowercase()) ||
+                  ev.desc.lowercase().contains(query.lowercase())
+              } == true
+          }.toTypedArray()
         } else {
           events = allEvents
         }
