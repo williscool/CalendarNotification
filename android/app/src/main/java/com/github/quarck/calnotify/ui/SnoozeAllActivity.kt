@@ -100,9 +100,6 @@ open class SnoozeAllActivity : AppCompatActivity() {
     var customSnooze_TimeIntervalPickerController: TimeIntervalPickerController? = null
     var snoozeUntil_DatePicker: DatePicker? = null
     var snoozeUntil_TimePicker: TimePicker? = null
-
-
-    private lateinit var snoozeCountTextView: TextView
     private var searchQuery: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -123,9 +120,9 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
         snoozeFromMainActivity = intent.getBooleanExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, false)
 
-        searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
+      searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
 
-        val toolbar = find<Toolbar?>(R.id.toolbar)
+      val toolbar = find<Toolbar?>(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
@@ -186,7 +183,10 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 else
                     resources.getString(R.string.change_all_title)
 
-        snoozeCountTextView = findViewById(R.id.snooze_count_text)
+        var count = intent.getIntExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT,  0)
+
+        var snoozeCountTextView = findViewById<TextView>(R.id.snooze_count_text)
+
             if (searchQuery.isNullOrEmpty()) {
                 snoozeCountTextView.visibility = View.GONE
             } else {
