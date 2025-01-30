@@ -44,6 +44,12 @@ android {
                 abortOnError false
             }
         }
+
+      customDebugType {
+        initWith debug
+        matchingFallbacks = ['debug']
+        debuggable true
+      }
     }
 
     sourceSets {

@@ -593,6 +593,8 @@ object ApplicationController : EventMovedHandler {
     ): Boolean {
         var ret = false
 
+        DevLog.info(LOG_TAG, "Event ${eventId} - checking if should auto remove, oldStartTime $oldStartTime,  newStartTime $newStartTime,  newAlertTime $newAlertTime, ")
+
         if (newStartTime - oldStartTime > Consts.EVENT_MOVE_THRESHOLD) {
             if (newAlertTime > System.currentTimeMillis() + Consts.ALARM_THRESHOLD) {
 

@@ -72,6 +72,8 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
             try {
                 val reloadResult = reloadCalendarEventAlert(context, calendar, event, currentTime, movedHandler)
 
+                DevLog.debug(LOG_TAG, "reloadCalendarInternal: Event ${event.eventId} - reloadResult.code ${reloadResult.code} ")
+
                 when (reloadResult.code) {
                 // nothing required
                     ReloadCalendarResultCode.NoChange ->
@@ -154,8 +156,7 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
             calendar: CalendarProviderInterface,
             movedHandler: EventMovedHandler?
     ): Boolean {
-        // don't rescan manually created requests - we won't find most of them
-        val events = db.events.filter { event -> event.origin != EventOrigin.FullManual && event.isNotSpecial }
+        val events = db.events.filter { event -> event.isNotSpecial }
         return reloadCalendarInternal(context, db, events, calendar, movedHandler)
     }
 
