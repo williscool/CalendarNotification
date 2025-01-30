@@ -46,6 +46,8 @@ android {
         }
 
       customDebugType {
+        initWith debug
+        matchingFallbacks = ['debug']
         debuggable true
       }
     }
