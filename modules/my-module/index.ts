@@ -1,4 +1,5 @@
 import { NativeModulesProxy, EventEmitter, Subscription } from 'expo-modules-core';
+// import * as PSYNC from '../../lib/powersync'; 
 
 // Import the native module. On web, it will be resolved to MyModule.web.ts
 // and on native platforms to MyModule.ts

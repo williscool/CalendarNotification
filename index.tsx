@@ -3,7 +3,7 @@ import React, {useEffect} from 'react';
 import {AppRegistry, StyleSheet, Text, View, Button} from 'react-native';
 import Constants from 'expo-constants';
 import { hello, PI, MyModuleView, setValueAsync, addChangeListener } from './modules/my-module';
-
+import { setupPowerSync } from '@lib/powersync';
 
 console.log(Constants.systemFonts);
 console.log(PI);
@@ -14,6 +14,9 @@ console.log(setValueAsync);
 const HelloWorld = () => {
 
   useEffect(() => {
+    (async () => {
+      await setupPowerSync();
+    })();
     addChangeListener((value) => {
       console.log(hello());
       console.log('value changed', value);
@@ -50,3 +53,4 @@ AppRegistry.registerComponent(
   'MyReactNativeApp',
   () => HelloWorld,
 );
+
