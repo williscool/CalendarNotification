@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@babel/plugin-transform-async-generator-functions": "^7.26.8",
+    "@babel/plugin-transform-private-property-in-object": "^7.25.9",
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@react-native/js-polyfills": "^0.74.0",
@@ -39,6 +40,7 @@
     "@types/react": "~18.2.45",
     "@types/react-test-renderer": "^18.0.3",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
+    "babel-plugin-module-resolver": "^5.0.2",
     "drizzle-kit": "^0.19.13",
     "eslint": "^8.48.0",
     "eslint-plugin-node": "latest",

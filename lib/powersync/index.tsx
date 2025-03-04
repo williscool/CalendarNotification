@@ -8,7 +8,7 @@ const factory = new OPSqliteOpenFactory(
     // Filename for the SQLite database — it's important to only instantiate one instance per file.
     dbFilename: 'Events',
     // Optional. Directory where the database file is located.'
-    dbLocation: '/databases'
+    // dbLocation: '/databases'
   }
 );
 
