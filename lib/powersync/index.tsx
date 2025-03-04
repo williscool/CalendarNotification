@@ -6,26 +6,20 @@ import { AppSchema } from './Schema';
 const factory = new OPSqliteOpenFactory(
   {
     // Filename for the SQLite database — it's important to only instantiate one instance per file.
-    dbFilename: 'Events',
-    // Optional. Directory where the database file is located.'
-    // dbLocation: '/databases'
+    // dbFilename: 'Events',
+    dbFilename: 'powerSyncEvents.db',
   }
 );
 
 
 /**
  * Instantiate the local PowerSync database
+ * https://github.com/powersync-ja/powersync-js/blob/%40powersync/react-native%401.18.0/packages/powersync-op-sqlite/README.md
  */
 export const db = new PowerSyncDatabase({
   // The schema you defined in the previous step
   schema: AppSchema,
   database: factory,
-  // database: {
-  //   // Filename for the SQLite database — it's important to only instantiate one instance per file.
-  //   dbFilename: 'Events',
-  //   // Optional. Directory where the database file is located.'
-  //   dbLocation: '/databases'
-  // }
 });
 
 export const setupPowerSync = async () => {
@@ -33,5 +27,11 @@ export const setupPowerSync = async () => {
   const connector = new Connector();
   db.connect(connector);
 
-  await db.init();
+  try {
+    await db.init();
+  } catch (e) {
+    console.log(e, typeof e);
+  }
+
+  // console.log(db)
 };
