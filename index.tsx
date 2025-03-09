@@ -6,7 +6,8 @@ import { hello, PI, MyModuleView, setValueAsync, addChangeListener } from './mod
 import { db, setupPowerSync } from '@lib/powersync';
 import { open } from '@op-engineering/op-sqlite';
 import Logger from 'js-logger';
-
+import { useQuery } from '@powersync/react';
+import { PowerSyncContext } from "@powersync/react";
 
 console.log(Constants.systemFonts);
 console.log(PI);
@@ -14,22 +15,13 @@ console.log(MyModuleView);
 console.log(setValueAsync);
 
 const HelloWorld = () => {
-  // const {data : events } = useQuery<string>('select * from eventsV9'); 
-  const [psEvents, setPsEvents] = useState<any[]>([]);
+  const {data : psEvents } = useQuery<string>('select * from eventsV9'); 
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
   const [lastUpdate, setLastUpdate] = useState<string>('');
 
   useEffect(() => {
     (async () => {
-      await setupPowerSync();
-
-      const psEvents = await db.getAll('SELECT * from eventsV9 limit 1') 
-
-      console.log('db status', db.currentStatus);
-
-      setPsEvents(psEvents);
-
       const regDb = open({name: 'Events'});
       
       // Query events from SQLite
@@ -72,6 +64,35 @@ const HelloWorld = () => {
     </View>
   );
 };
+
+const App = () => {
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      await setupPowerSync();
+      setInitialized(true);
+    };
+    init();
+    Logger.useDefaults();
+    Logger.setLevel(Logger.DEBUG);
+  }, []);
+
+  if (!initialized) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.hello}>Initializing PowerSync...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <PowerSyncContext.Provider value={db}>
+      <HelloWorld />
+    </PowerSyncContext.Provider>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -86,6 +107,6 @@ const styles = StyleSheet.create({
 
 AppRegistry.registerComponent(
   'MyReactNativeApp',
-  () => HelloWorld,
+  () => App,
 );
 
