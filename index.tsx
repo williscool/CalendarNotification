@@ -24,6 +24,30 @@ const HelloWorld = () => {
     (async () => {
       const regDb = open({name: 'Events'});
       
+      // Load cr-sqlite extension
+      try {
+        await regDb.execute("SELECT load_extension('crsqlite')");
+        
+        // Unique index on 2 columns gets error below
+        // statement execution error: Table eventsV9 has unique indices besidesthe primary key. This is not allowed for CRRs
+        await regDb.execute("DROP INDEX IF EXISTS eventsIdxV9");
+
+        // add primary key
+        await regDb.execute("ALTER TABLE eventsV9 ADD PRIMARY KEY id");
+
+        // recreate index with no unique constraint
+        await regDb.execute("CREATE INDEX IF NOT EXISTS eventsIdxV9 ON eventsV9 (id, istart)");
+        
+        // Initialize cr-sqlite
+        await regDb.execute("SELECT crsql_finalize()");
+        
+        // Enable CRDT behavior for the table
+        await regDb.execute("SELECT crsql_as_crr('eventsV9')");
+      } catch (error) {
+        console.error('Failed to load crsqlite extension:', error);
+      }
+
+      
       // Query events from SQLite
       const result = await regDb.execute('SELECT * FROM eventsV9 limit 1');
       if (result?.rows) {

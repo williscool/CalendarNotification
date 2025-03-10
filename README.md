@@ -117,3 +117,64 @@ Android studio instructions: https://stackoverflow.com/questions/18460774/how-to
 
 ### Release CI
 see .github/workflows/actions.yml
+
+## Building cr-sqlite for Android
+
+### Prerequisites
+
+- Rust toolchain with nightly version
+- Android NDK (version 26.1.10909125 recommended)
+- cargo-ndk
+
+### Important Warning ⚠️
+
+The Android NDK version you use **must** match your target operating system. For example:
+- If building on Linux, use the Linux NDK
+- If building on Windows, use the Windows NDK
+- If building on macOS, use the macOS NDK
+
+Using an NDK from a different OS (e.g., using Windows NDK on Linux) will cause hard-to-debug build failures.
+
+### Build Instructions
+
+1. Set up the environment:
+```bash
+# Set NDK path - adjust this to your NDK installation location
+export ANDROID_NDK_HOME=/path/to/your/ndk/26.1.10909125
+
+# Install Rust nightly and required components
+brew install rustup
+rustup toolchain install nightly
+rustup target add x86_64-linux-android --toolchain nightly
+rustup component add rust-src --toolchain nightly
+
+# Install cargo-ndk
+cargo install cargo-ndk
+```
+
+2. Clone and build cr-sqlite:
+```bash
+# Clone the repository
+git clone https://github.com/vlcn-io/cr-sqlite.git
+cd cr-sqlite
+
+# Build the loadable extension
+cd core
+export ANDROID_NDK_HOME=/home/william/android/ndk/26.1.10909125
+export ANDROID_TARGET=x86_64-linux-android
+make loadable 
+```
+
+3. The compiled `.so` file will be in `core/dist/`. Copy it to your project:
+```bash
+# from the root of the project
+mkdir -p android/app/src/main/jniLibs/x86_64
+
+# from the root of your cr-sqlite checkout
+cp core/dist/crsqlite.so android/app/src/main/jniLibs/x86_64/crsqlite.so
+```
+
+### Troubleshooting
+
+- If you see linker errors, double-check that your NDK matches your host OS
+- Ensure the NDK version matches what's specified in your project's `build.gradle`

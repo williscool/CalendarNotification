@@ -82,6 +82,6 @@
         app:showAsAction="never"
         android:title="Dev page"
         tools:ignore="HardcodedText"
-        android:visible="false"
+        android:visible="true"
         />
 </menu>

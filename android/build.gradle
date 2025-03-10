@@ -5,6 +5,9 @@ buildscript {
     ext {
       kotlin_version = '1.9.25'
       kotlinVersion = '1.9.25'
+      
+      // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
+      // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
     }
 
