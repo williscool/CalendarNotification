@@ -150,7 +150,7 @@ object ApplicationController : EventMovedHandler {
 
         DevLog.info(LOG_TAG, "OS boot is complete")
 
-        loadCrSqlLite(context)
+//        loadCrSqlLite(context)
 
         // this will post event notifications for existing known requests
         notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)

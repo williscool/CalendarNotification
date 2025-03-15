@@ -30,8 +30,8 @@ errorHandler) {
   ): SQLiteDatabaseConfiguration {
     val configuration = super.createConfiguration(path, openFlags)
 
-      
-    val soPath = soPathcontext.applicationInfo.nativeLibraryDir + "/crsqlite"
+
+    val soPath = soPathcontext.applicationInfo.dataDir + "/lib/x86_64/crsqlite"
 
     configuration.customExtensions.add(SQLiteCustomExtension(soPath, "sqlite3_crsqlite_init"))
     return configuration

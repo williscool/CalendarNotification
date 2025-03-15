@@ -102,9 +102,7 @@ dependencies {
   implementation "com.facebook.react:hermes-android"
   implementation 'com.google.android.material:material:1.0.0-rc01'
 
-  // Remove the incorrect cr-sqlite dependencies
-  // implementation 'io.github.powersync-ja:sqlite-android:0.3.0'
-  // implementation 'io.github.powersync-ja:cr-sqlite-android:0.3.0'
+  implementation 'com.github.requery:sqlite-android:3.45.0'
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
