@@ -24,7 +24,7 @@ export class Connector {
             endpoint: 'https://67c38073586c8d282a06c3c2.powersync.journeyapps.com',
             // Use a development token (see Authentication Setup https://docs.powersync.com/installation/authentication-setup/development-tokens) to get up and running quickly
 			// TODO: programattically generate token from user id (i.e. email or phone number) + random secret
-            token: 'eyJhbGciOiJSUzI1NiIsImtpZCI6InBvd2Vyc3luYy1kZXYtMzIyM2Q0ZTMifQ.eyJzdWIiOiIxIiwiaWF0IjoxNzQxNTgxMDg4LCJpc3MiOiJodHRwczovL3Bvd2Vyc3luYy1hcGkuam91cm5leWFwcHMuY29tIiwiYXVkIjoiaHR0cHM6Ly82N2MzODA3MzU4NmM4ZDI4MmEwNmMzYzIucG93ZXJzeW5jLmpvdXJuZXlhcHBzLmNvbSIsImV4cCI6MTc0MTYyNDI4OH0.OCEL2ZH4Ywj6NUWp2_W71vOy8p0tR-xoz2yLuMx1KGc9-r6s4cKTyC7ew-y-jqonVHmhN4HM1wev9kl9dZjVnvkMXkYmT8fsmfHEBdeWkwR9H23s9cSv4ClNpa01W4stquTZUifvTHwM_ConFiEHwakha3Sp8IC0wr4M8E4MzJBgGmzLQuP1zYt3ZX0Z23uJnHBpbB--WaGyolHWOQ2A3zQCdAsPuMLANHHX-gtIW6a2VSzfw_-b50GG-CsLVVG1NmJtlPHsxpMouuvmVAF51-0PxE6vueuJ99rlyGabIm_yxPv5udAAeqLyth2iqbmRCAc8dPyZxvW-PzjomQyCqg'
+            token: 'eyJhbGciOiJSUzI1NiIsImtpZCI6InBvd2Vyc3luYy1kZXYtMzIyM2Q0ZTMifQ.eyJzdWIiOiIxIiwiaWF0IjoxNzQyMDYzNDQ0LCJpc3MiOiJodHRwczovL3Bvd2Vyc3luYy1hcGkuam91cm5leWFwcHMuY29tIiwiYXVkIjoiaHR0cHM6Ly82N2MzODA3MzU4NmM4ZDI4MmEwNmMzYzIucG93ZXJzeW5jLmpvdXJuZXlhcHBzLmNvbSIsImV4cCI6MTc0MjEwNjY0NH0.upObNEBHAbb64Re49BnoK8JdQdVN3FlwTd2zCPVVHO1DKXwD4YnyRkZ9ZU-hfcmmj7iW3cCGvbO4yoQ0ZXgvtREiNbsDmHgu1l9-ITIy1yJzOMwmjlsda5ZAPsYyqbSckRxcFlyaxOjWOKxXEHPcTWg7QJ8mRNM-v-ESK2G5k5_44ZpHoEDyOg-rcFEVWc6S_Ng0sPvTDH1SetmM7NUw6SB0v304kirGHGXSeYsXHnxF610DCU_KXKPry50wZgm1K5qpXuhEOYXgS4HuzmbLsuYHdfq2N-cSgwiFP4LuOK4UKbwid3EqL2bQ2cVc8LVygGroJkK-NMRX-Y5bcZC0EA'
         };
     }
 
