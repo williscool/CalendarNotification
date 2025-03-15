@@ -98,6 +98,10 @@ class EventsStorageImplV9(val context: Context)
         db.execSQL(CREATE_INDEX)
     }
 
+    override fun loadExtention(db: SQLiteDatabase) {
+      db.execSQL("SELECT load_extension('crsqlite');")
+    }
+
     override fun dropAll(db: SQLiteDatabase): Boolean {
 
         var ret = false

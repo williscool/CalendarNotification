@@ -33,13 +33,23 @@ const HelloWorld = () => {
         await regDb.execute("DROP INDEX IF EXISTS eventsIdxV9");
 
         // add primary key
-        await regDb.execute("ALTER TABLE eventsV9 ADD PRIMARY KEY id");
+        await regDb.execute("CREATE TABLE IF NOT EXISTS eventsV9_temp AS SELECT * FROM eventsV9");
+        let result = await regDb.execute("select id from eventsV9_temp");
+        console.log(result?.rows);
+
+        result = await regDb.execute("select id, Count(*) from eventsV9_temp group by id");
+        console.log(result?.rows);
+
+        // await regDb.execute("DROP TABLE eventsV9");
+        await regDb.execute("CREATE TABLE IF NOT EXISTS eventsV9  (id INTEGER NOT NULL PRIMARY KEY, cid INTEGER, rep INTEGER, alld INTEGER, nid INTEGER, ttl TEXT, s1 TEXT, estart INTEGER, eend INTEGER, istart INTEGER, iend INTEGER, loc TEXT, snz INTEGER, dsts INTEGER, ls INTEGER, clr INTEGER, altm INTEGER, ogn INTEGER, fsn INTEGER, attsts INTEGER, oattsts INTEGER, i1 INTEGER, i2 INTEGER, i3 INTEGER, i4 INTEGER, i5 INTEGER, i6 INTEGER, i7 INTEGER, i8 INTEGER, s2 TEXT)");
+        await regDb.execute("INSERT OR IGNORE INTO eventsV9 SELECT * FROM eventsV9_temp");
+        // await regDb.execute("DROP TABLE eventsV9_temp");
 
         // recreate index with no unique constraint
         await regDb.execute("CREATE INDEX IF NOT EXISTS eventsIdxV9 ON eventsV9 (id, istart)");
         
         // Initialize cr-sqlite
-        await regDb.execute("SELECT crsql_finalize()");
+        // await regDb.execute("SELECT crsql_finalize()");
         
         // Enable CRDT behavior for the table
         await regDb.execute("SELECT crsql_as_crr('eventsV9')");

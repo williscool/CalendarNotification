@@ -43,6 +43,7 @@ import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.ui.UINotifier
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManagerInterface
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManager
+import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
 
 
@@ -74,6 +75,12 @@ object ApplicationController : EventMovedHandler {
             }
         }
         return quietHoursManagerValue!!
+    }
+
+    private fun loadCrSqlLite(ctx: Context) {
+        EventsStorage(ctx).use {
+            db -> db.loadExtention()
+        }
     }
 
     private val calendarReloadManager: CalendarReloadManagerInterface = CalendarReloadManager
@@ -142,6 +149,8 @@ object ApplicationController : EventMovedHandler {
     fun onBootComplete(context: Context) {
 
         DevLog.info(LOG_TAG, "OS boot is complete")
+
+        loadCrSqlLite(context)
 
         // this will post event notifications for existing known requests
         notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)
@@ -819,7 +828,10 @@ object ApplicationController : EventMovedHandler {
             shouldRepost: Boolean,
             monitorSettingsChanged: Boolean
     ) {
+
         if (context != null) {
+
+            loadCrSqlLite(context)
 
             cleanupEventReminder(context)
 

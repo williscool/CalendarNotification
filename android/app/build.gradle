@@ -20,53 +20,65 @@ apply plugin: "com.facebook.react"
 //
 
 android {
-    compileSdkVersion 34
+  compileSdkVersion 34
 
-    // compileKotlin {
-    //     kotlinOptions.allWarningsAsErrors = false
-    // }
-    compileOptions {
-      sourceCompatibility JavaVersion.VERSION_17
-      targetCompatibility JavaVersion.VERSION_17
+  // compileKotlin {
+  //     kotlinOptions.allWarningsAsErrors = false
+  // }
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = JavaVersion.VERSION_17.toString()
+  }
+  defaultConfig {
+    applicationId "com.github.quarck.calnotify"
+    minSdkVersion 24
+    //noinspection ExpiredTargetSdkVersion
+    targetSdkVersion 25
+    versionCode 4000016
+    versionName "6.5.1"
+
+    buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+
+    // Only include x86_64
+    ndk { 
+      abiFilters 'x86_64'
     }
 
-    kotlinOptions {
-      jvmTarget = JavaVersion.VERSION_17.toString()
+    // Add packagingOptions to include necessary .so files
+    packagingOptions {
+      pickFirst '**/*.so'
     }
-    defaultConfig {
-        applicationId "com.github.quarck.calnotify"
-        minSdkVersion 24
-        //noinspection ExpiredTargetSdkVersion
-        targetSdkVersion 25
-        versionCode 4000016
-        versionName "6.5.1"
+  }
 
-        buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+  buildTypes {
+    release {
+      minifyEnabled false
+      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 
-    }
-
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-
-            lintOptions {
-                disable 'MissingTranslation'
-                abortOnError false
-            }
-        }
-
-      customDebugType {
-        initWith debug
-        matchingFallbacks = ['debug']
-        debuggable true
+      lintOptions {
+        disable 'MissingTranslation'
+        abortOnError false
       }
     }
 
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
+    customDebugType {
+      initWith debug
+      matchingFallbacks = ['debug']
+      debuggable true
     }
+  }
+
+  sourceSets {
+    main {
+      java.srcDirs += 'src/main/kotlin'
+      // Add JNI libs directory
+      jniLibs.srcDirs = ['src/main/jniLibs']
+    }
+  }
   namespace 'com.github.quarck.calnotify'
 
 
@@ -74,21 +86,25 @@ android {
 
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+  implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-    //implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+  //implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+  implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 
-    implementation 'androidx.appcompat:appcompat:1.0.0'
-    implementation 'com.google.android.material:material:1.0.0'
+  implementation 'androidx.appcompat:appcompat:1.0.0'
+  implementation 'com.google.android.material:material:1.0.0'
 
-    implementation 'androidx.recyclerview:recyclerview:1.0.0'
-    implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.palette:palette:1.0.0'
-    implementation "com.facebook.react:react-android"
-    implementation "com.facebook.react:hermes-android"
-    implementation 'com.google.android.material:material:1.0.0-rc01'
+  implementation 'androidx.recyclerview:recyclerview:1.0.0'
+  implementation 'androidx.cardview:cardview:1.0.0'
+  implementation 'androidx.palette:palette:1.0.0'
+  implementation "com.facebook.react:react-android"
+  implementation "com.facebook.react:hermes-android"
+  implementation 'com.google.android.material:material:1.0.0-rc01'
+
+  // Remove the incorrect cr-sqlite dependencies
+  // implementation 'io.github.powersync-ja:sqlite-android:0.3.0'
+  // implementation 'io.github.powersync-ja:cr-sqlite-android:0.3.0'
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
