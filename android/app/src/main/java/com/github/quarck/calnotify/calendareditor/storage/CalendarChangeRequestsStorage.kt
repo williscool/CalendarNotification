@@ -20,8 +20,8 @@
 package com.github.quarck.calnotify.calendareditor.storage
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import io.requery.android.database.sqlite.SQLiteDatabase
+import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequest
 import com.github.quarck.calnotify.logs.DevLog
 import java.io.Closeable

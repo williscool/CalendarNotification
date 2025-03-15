@@ -20,8 +20,8 @@
 package com.github.quarck.calnotify.eventsstorage
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import io.requery.android.database.sqlite.SQLiteDatabase
+import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendar.EventAlertFlags
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -42,7 +42,7 @@ class EventsStorage(val context: Context)
     override fun onCreate(db: SQLiteDatabase)
             = impl.createDb(db)
 
-    fun loadExtention() = synchronized(EventsStorage::class.java) { writableDatabase.use { impl.loadExtention(it) } }
+    fun loadExtention(context: Context) = synchronized(EventsStorage::class.java) { writableDatabase.use { impl.loadExtention(context, it) } }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
 

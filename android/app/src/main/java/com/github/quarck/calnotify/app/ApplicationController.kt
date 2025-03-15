@@ -79,7 +79,7 @@ object ApplicationController : EventMovedHandler {
 
     private fun loadCrSqlLite(ctx: Context) {
         EventsStorage(ctx).use {
-            db -> db.loadExtention()
+            db -> db.loadExtention(ctx)
         }
     }
 

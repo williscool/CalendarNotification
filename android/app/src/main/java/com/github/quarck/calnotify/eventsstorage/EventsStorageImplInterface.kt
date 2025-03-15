@@ -19,13 +19,14 @@
 
 package com.github.quarck.calnotify.eventsstorage
 
-import android.database.sqlite.SQLiteDatabase
+import android.content.Context
+import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 
 interface EventsStorageImplInterface {
     fun createDb(db: SQLiteDatabase)
 
-    fun loadExtention(db: SQLiteDatabase)
+    fun loadExtention(context: Context, db: SQLiteDatabase)
 
     fun addEventImpl(db: SQLiteDatabase, event: EventAlertRecord): Boolean
 

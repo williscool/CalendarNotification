@@ -24,7 +24,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.SQLException
 import android.database.sqlite.SQLiteConstraintException
-import android.database.sqlite.SQLiteDatabase
+import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.logs.DevLog
@@ -92,7 +92,7 @@ class EventsStorageImplV8(val context: Context)
         db.execSQL(CREATE_INDEX)
     }
 
-  override fun loadExtention(db: SQLiteDatabase) {
+  override fun loadExtention(context: Context, db: SQLiteDatabase) {
     TODO("Not yet implemented")
   }
 
