@@ -74,6 +74,7 @@ const HelloWorld = () => {
         
         // Enable CRDT behavior for the table
         await regDb.execute("SELECT crsql_as_crr('eventsV9')");
+        await regDb.execute("SELECT crsql_finalize();")
       } catch (error) {
         console.error('Failed to load crsqlite extension:', error);
       }

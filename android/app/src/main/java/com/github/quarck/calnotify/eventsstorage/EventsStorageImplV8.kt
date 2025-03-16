@@ -92,9 +92,6 @@ class EventsStorageImplV8(val context: Context)
         db.execSQL(CREATE_INDEX)
     }
 
-  override fun loadExtention(context: Context, db: SQLiteDatabase) {
-    TODO("Not yet implemented")
-  }
 
     override fun dropAll(db: SQLiteDatabase): Boolean {
 

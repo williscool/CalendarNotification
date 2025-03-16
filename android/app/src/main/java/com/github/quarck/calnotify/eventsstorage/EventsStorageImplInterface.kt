@@ -26,8 +26,6 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 interface EventsStorageImplInterface {
     fun createDb(db: SQLiteDatabase)
 
-    fun loadExtention(context: Context, db: SQLiteDatabase)
-
     fun addEventImpl(db: SQLiteDatabase, event: EventAlertRecord): Boolean
 
     fun addEventsImpl(db: SQLiteDatabase, events: List<EventAlertRecord>): Boolean

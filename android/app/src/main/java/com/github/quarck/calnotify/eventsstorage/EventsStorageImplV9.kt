@@ -103,13 +103,6 @@ class EventsStorageImplV9(val context: Context)
         db.execSQL(CREATE_INDEX)
     }
 
-    override fun loadExtention(context: Context, db: SQLiteDatabase) {
-      val soPath = context.applicationInfo.nativeLibraryDir + "/crsqlite.so"
-      DevLog.info(LOG_TAG, "soPath: ${soPath}")
-      SQLiteCustomExtension(soPath, "sqlite3_crsqlite_init")
-//      db.execSQL("SELECT load_extension('crsqlite');")
-    }
-
     override fun dropAll(db: SQLiteDatabase): Boolean {
 
         var ret = false

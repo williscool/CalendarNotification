@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.database
 
 import android.content.Context
+import com.github.quarck.calnotify.logs.DevLog
 import io.requery.android.database.sqlite.SQLiteOpenHelper
 
 import io.requery.android.database.sqlite.SQLiteDatabase
@@ -22,7 +23,7 @@ version,
 errorHandler) {
 
   // Store context as a property so it can be accessed in other methods
-  protected val soPathcontext: Context = context
+  //  protected val soPathcontext: Context = context
 
   override fun createConfiguration(
     path: String?,
@@ -30,11 +31,36 @@ errorHandler) {
   ): SQLiteDatabaseConfiguration {
     val configuration = super.createConfiguration(path, openFlags)
 
-
-    val soPath = soPathcontext.applicationInfo.dataDir + "/lib/x86_64/crsqlite"
-
-    configuration.customExtensions.add(SQLiteCustomExtension(soPath, "sqlite3_crsqlite_init"))
+    configuration.customExtensions.add(SQLiteCustomExtension("crsqlite", "sqlite3_crsqlite_init"))
     return configuration
   }
 
+  fun dbQueryAndDebugLog(db: SQLiteDatabase, query: String) {
+    val queryResponse = db.query(query)
+    val results = mutableListOf<String>()
+
+    if (queryResponse.moveToFirst()) {
+        do {
+            for (i in 0 until queryResponse.columnCount) {
+                results.add(queryResponse.getString(i))
+            }
+        } while (queryResponse.moveToNext())
+    }
+
+    DevLog.info(LOG_TAG, "Sqlite $query response: $results")
+    
+  }
+
+  override fun close() {
+    val db = this.writableDatabase
+
+    dbQueryAndDebugLog(db, "SELECT crsql_finalize();")
+    dbQueryAndDebugLog(db, "PRAGMA integrity_check;")
+
+    super.close()
+  }
+
+  companion object {
+    private const val LOG_TAG = "Overridden SQLiteOpenHelper"
+  }
 }

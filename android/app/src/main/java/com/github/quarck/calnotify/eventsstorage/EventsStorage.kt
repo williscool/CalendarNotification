@@ -42,8 +42,6 @@ class EventsStorage(val context: Context)
     override fun onCreate(db: SQLiteDatabase)
             = impl.createDb(db)
 
-    fun loadExtention(context: Context) = synchronized(EventsStorage::class.java) { writableDatabase.use { impl.loadExtention(context, it) } }
-
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
 
         DevLog.info(LOG_TAG, "onUpgrade $oldVersion -> $newVersion")

@@ -77,12 +77,6 @@ object ApplicationController : EventMovedHandler {
         return quietHoursManagerValue!!
     }
 
-    private fun loadCrSqlLite(ctx: Context) {
-        EventsStorage(ctx).use {
-            db -> db.loadExtention(ctx)
-        }
-    }
-
     private val calendarReloadManager: CalendarReloadManagerInterface = CalendarReloadManager
 
     private val calendarProvider: CalendarProviderInterface = CalendarProvider
@@ -149,8 +143,6 @@ object ApplicationController : EventMovedHandler {
     fun onBootComplete(context: Context) {
 
         DevLog.info(LOG_TAG, "OS boot is complete")
-
-//        loadCrSqlLite(context)
 
         // this will post event notifications for existing known requests
         notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)
@@ -830,8 +822,6 @@ object ApplicationController : EventMovedHandler {
     ) {
 
         if (context != null) {
-
-            loadCrSqlLite(context)
 
             cleanupEventReminder(context)
 

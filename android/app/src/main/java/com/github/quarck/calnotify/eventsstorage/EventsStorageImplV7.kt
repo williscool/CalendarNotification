@@ -84,10 +84,6 @@ class EventsStorageImplV7
         db.execSQL(CREATE_INDEX)
     }
 
-    override fun loadExtention( context: Context,db: SQLiteDatabase) {
-      TODO("Not yet implemented")
-    }
-
     override fun dropAll(db: SQLiteDatabase): Boolean {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME);
         db.execSQL("DROP INDEX IF EXISTS " + INDEX_NAME);
