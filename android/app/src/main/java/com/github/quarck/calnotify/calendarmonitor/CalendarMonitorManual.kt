@@ -24,12 +24,14 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 //import com.github.quarck.calnotify.monitorstorage.WasHandledCache
 import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.detailed
 import java.util.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 
 class CalendarMonitorManual(
@@ -77,7 +79,7 @@ class CalendarMonitorManual(
         }
 
         var alerts =
-                MonitorStorage(context).use {
+                MonitorStorage(context).classCustomUse {
                     db ->
                     if (prevEventFire == null)
                         db.getAlertsAt(nextEventFire)
@@ -176,7 +178,7 @@ class CalendarMonitorManual(
 
 
     private fun markAlertsAsHandledInDB(context: Context, alerts: Collection<MonitorEventAlertEntry>) {
-        MonitorStorage(context).use {
+        MonitorStorage(context).classCustomUse {
             db ->
             DevLog.info(LOG_TAG, "marking ${alerts.size} alerts as handled in the manual alerts DB");
 
@@ -205,7 +207,7 @@ class CalendarMonitorManual(
         var numUpdatedAlerts = 0
         var numAddedAlerts = 0
 
-        MonitorStorage(context).use {
+        MonitorStorage(context).classCustomUse {
             db ->
             val knownAlerts = db.getInstanceAlerts(event.eventId, event.startTime).associateBy { it.key }
 
@@ -340,7 +342,7 @@ class CalendarMonitorManual(
         // Very finally - delete requests that we are no longer interested in:
         // * requests that were handled already
         // * and old enough (before this iteration's 'scanFrom'
-        MonitorStorage(context).use {
+        MonitorStorage(context).classCustomUse {
             it.deleteAlertsMatching {
                 alert ->
                 alert.instanceStartTime < scanFrom && alert.wasHandled
@@ -360,7 +362,7 @@ class CalendarMonitorManual(
 
         val ts1 = System.currentTimeMillis()
 
-        MonitorStorage(context).use {
+        MonitorStorage(context).classCustomUse {
             db ->
             val knownAlerts = db.getAlertsForInstanceStartRange(scanFrom, scanTo).associateBy { it.key }
 

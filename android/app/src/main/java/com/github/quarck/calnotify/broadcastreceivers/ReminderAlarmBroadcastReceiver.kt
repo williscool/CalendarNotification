@@ -27,6 +27,7 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.isActiveAlarm
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.logs.DevLog
@@ -36,6 +37,7 @@ import com.github.quarck.calnotify.quiethours.QuietHoursManager
 import com.github.quarck.calnotify.reminders.ReminderState
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.utils.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
@@ -64,7 +66,7 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
             val currentTime = System.currentTimeMillis()
 
-            val hasActiveAlarms = EventsStorage(context).use {
+            val hasActiveAlarms = EventsStorage(context).classCustomUse {
                 db -> db.events.any { it.isActiveAlarm && !it.isMuted && !it.isTask }
             }
 

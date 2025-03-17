@@ -1,5 +1,6 @@
 package com.github.quarck.calnotify.database
 import io.requery.android.database.sqlite.SQLiteDatabase
+import com.github.quarck.calnotify.database.SQLiteOpenHelper
 
 object  SQLiteDatabaseExtensions {
   // had to overwrite this to call crsql finalize before every connection close
@@ -23,6 +24,15 @@ object  SQLiteDatabaseExtensions {
       } finally {
         close()
       }
+    }
+  }
+
+  fun <T : SQLiteOpenHelper, R> T.classCustomUse(block: (T) -> R): R {
+    val db = this.writableDatabase
+    try {
+      return block(this)
+    } finally {
+//      db.customUse {  }
     }
   }
 }

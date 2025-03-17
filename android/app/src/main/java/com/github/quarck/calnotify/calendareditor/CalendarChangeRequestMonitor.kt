@@ -25,9 +25,11 @@ import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.calendareditor.storage.CalendarChangeRequestsStorage
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.detailed
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
 
@@ -52,7 +54,7 @@ class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
         val currentTime = System.currentTimeMillis()
         val cleanupEventsTo = currentTime - Consts.NEW_EVENT_MONITOR_KEEP_DAYS * Consts.DAY_IN_MILLISECONDS
 
-        CalendarChangeRequestsStorage(context).use {
+        CalendarChangeRequestsStorage(context).classCustomUse {
             db ->
 
             val eventsToDelete = mutableListOf<CalendarChangeRequest>()

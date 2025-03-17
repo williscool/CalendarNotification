@@ -30,6 +30,7 @@ import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmBroadcastR
 import com.github.quarck.calnotify.broadcastreceivers.ManualEventExactAlarmBroadcastReceiver
 import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmPeriodicRescanBroadcastReceiver
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.permissions.PermissionsManager
@@ -384,7 +385,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
     override fun getAlertsAt(context: android.content.Context, time: Long): List<MonitorEventAlertEntry> {
 
-        val ret = MonitorStorage(context).use {
+        val ret = MonitorStorage(context).classCustomUse {
             db ->
             db.getAlertsAt(time)
         }
@@ -394,7 +395,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
     override fun getAlertsForAlertRange(context: Context, scanFrom: Long, scanTo: Long): List<MonitorEventAlertEntry> {
 
-        val ret = MonitorStorage(context).use {
+        val ret = MonitorStorage(context).classCustomUse {
             db ->
             db.getAlertsForAlertRange(scanFrom, scanTo)
         }
@@ -404,7 +405,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
     override fun setAlertWasHandled(context: Context, ev: EventAlertRecord, createdByUs: Boolean) {
 
-        MonitorStorage(context).use {
+        MonitorStorage(context).classCustomUse {
             db ->
             var alert: MonitorEventAlertEntry? = db.getAlert(ev.eventId, ev.alertTime, ev.instanceStartTime)
 
@@ -438,7 +439,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
     }
 
     override fun getAlertWasHandled(context: Context, ev: EventAlertRecord): Boolean {
-        return MonitorStorage(context).use {
+        return MonitorStorage(context).classCustomUse {
             db ->
             getAlertWasHandled(db, ev)
         }

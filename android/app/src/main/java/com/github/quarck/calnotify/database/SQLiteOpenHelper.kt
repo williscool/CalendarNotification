@@ -10,7 +10,8 @@ import io.requery.android.database.sqlite.SQLiteCustomExtension
 import io.requery.android.database.sqlite.SQLiteDatabase.OpenFlags
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
-
+import io.requery.android.database.sqlite.SQLiteClosable
+import java.io.Closeable
 
 abstract class SQLiteOpenHelper @JvmOverloads constructor(
   context: Context, name: String?,
@@ -64,7 +65,6 @@ errorHandler) {
     
   }
 
-  // Extension function for SQLiteOpenHelper.
   inline fun <R> customUse(block: (SQLiteDatabase) -> R): R {
     return writableDatabase.customUse { block(it) }
   }
@@ -81,3 +81,5 @@ errorHandler) {
     private const val LOG_TAG = "Overridden SQLiteOpenHelper"
   }
 }
+
+

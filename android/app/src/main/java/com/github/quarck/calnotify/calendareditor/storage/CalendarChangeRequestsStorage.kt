@@ -23,6 +23,7 @@ import android.content.Context
 import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequest
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import com.github.quarck.calnotify.logs.DevLog
 import java.io.Closeable
 
@@ -55,26 +56,26 @@ class CalendarChangeRequestsStorage(val context: Context)
     }
 
     override fun add(req: CalendarChangeRequest)
-            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.use { impl.addImpl(it, req) } }
+            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.customUse { impl.addImpl(it, req) } }
 
     override fun deleteForEventId(eventId: Long)
-            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.use { impl.deleteForEventIdImpl(it, eventId) } }
+            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.customUse { impl.deleteForEventIdImpl(it, eventId) } }
 
     override fun delete(req: CalendarChangeRequest)
-            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.use { impl.deleteImpl(it, req) } }
+            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.customUse { impl.deleteImpl(it, req) } }
 
     override fun deleteMany(requests: List<CalendarChangeRequest>)
-            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.use { impl.deleteManyImpl(it, requests) } }
+            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.customUse { impl.deleteManyImpl(it, requests) } }
 
     override fun update(req: CalendarChangeRequest)
-            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.use { impl.updateImpl(it, req) } }
+            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.customUse { impl.updateImpl(it, req) } }
 
     override fun updateMany(requests: List<CalendarChangeRequest>)
-            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.use { impl.updateManyImpl(it, requests) } }
+            = synchronized(CalendarChangeRequestsStorage::class.java) { writableDatabase.customUse { impl.updateManyImpl(it, requests) } }
 
 
     override val requests: List<CalendarChangeRequest>
-        get() = synchronized(CalendarChangeRequestsStorage::class.java) { readableDatabase.use { impl.getImpl(it) } }
+        get() = synchronized(CalendarChangeRequestsStorage::class.java) { readableDatabase.customUse { impl.getImpl(it) } }
 
     override fun close() = super.close()
 
