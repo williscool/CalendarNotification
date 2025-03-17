@@ -28,7 +28,7 @@ const HelloWorld = () => {
       // Load cr-sqlite extension
       try {
         await regDb.execute("SELECT load_extension('crsqlite', 'sqlite3_crsqlite_init')");
-        
+      
         // Check if eventsV9 exists before creating temp table
         const tableExists = await regDb.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='eventsV9'");
         console.log('tableExists', tableExists?.rows);
@@ -44,14 +44,22 @@ const HelloWorld = () => {
 
             // Get schema for eventsV9 
             const eventsV9Schema = await regDb.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='eventsV9'");
-            console.log('original eventsV9 schema:', eventsV9Schema?.rows);
 
-            const newSchemaStatementLines = (eventsV9Schema?.rows?.[0]?.sql as string).split('\n')
+            const originalSchema = eventsV9Schema?.rows?.[0]?.sql as string;
 
-            const idIndex = newSchemaStatementLines.findIndex(i => i === "  id INT," || i === "  id INTEGER,")
-            newSchemaStatementLines[idIndex] = "  id INT NOT NULL PRIMARY KEY,"
+            console.log('original eventsV9 schema:', originalSchema);
 
-            const newSchema = newSchemaStatementLines.join('\n')
+            const newSchemaStatementLines = originalSchema.split(',')
+
+            const idIndex = newSchemaStatementLines.findIndex(i => i === " id INT" || i === " id INTEGER")
+            
+            newSchemaStatementLines[idIndex] = "id INT NOT NULL PRIMARY KEY"
+            
+            console.log('idIndex', idIndex);
+
+            console.log('newSchemaStatementLines', newSchemaStatementLines.length, newSchemaStatementLines);
+
+            const newSchema = newSchemaStatementLines.join(',')
             .replace(", PRIMARY KEY (id, istart)", "")
 
             console.log('new Crsql compatible schema:', newSchema);
