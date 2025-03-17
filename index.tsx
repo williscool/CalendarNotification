@@ -27,7 +27,7 @@ const HelloWorld = () => {
       
       // Load cr-sqlite extension
       try {
-        await regDb.execute("SELECT load_extension('crsqlite')");
+        await regDb.execute("SELECT load_extension('crsqlite', 'sqlite3_crsqlite_init')");
         
         // Check if eventsV9 exists before creating temp table
         const tableExists = await regDb.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='eventsV9'");

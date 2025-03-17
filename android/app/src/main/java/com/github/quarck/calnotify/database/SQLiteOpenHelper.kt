@@ -11,6 +11,7 @@ import io.requery.android.database.sqlite.SQLiteDatabase.OpenFlags
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 
 
+
 abstract class SQLiteOpenHelper @JvmOverloads constructor(
   context: Context, name: String?,
   factory: SQLiteDatabase.CursorFactory?,
@@ -24,6 +25,18 @@ errorHandler) {
 
   // Store context as a property so it can be accessed in other methods
   //  protected val soPathcontext: Context = context
+
+//  private var closable: CrSQLClosable? = null
+//
+//  override val writableDatabase: SQLiteDatabase
+//    get() = super.writableDatabase.apply {
+//      // Create and track closable instance
+//      closable = CrSQLClosable(this).apply {
+//        acquireReference()  // Start reference tracking
+//      }
+//    }
+
+
 
   override fun createConfiguration(
     path: String?,
@@ -52,10 +65,12 @@ errorHandler) {
   }
 
   override fun close() {
-    val db = this.writableDatabase
-
-    dbQueryAndDebugLog(db, "SELECT crsql_finalize();")
-    dbQueryAndDebugLog(db, "PRAGMA integrity_check;")
+//    closable?.releaseReference()  // Triggers custom close logic
+    this.writableDatabase.use {
+      db ->
+      dbQueryAndDebugLog(db, "SELECT crsql_finalize();")
+//      dbQueryAndDebugLog(db, "PRAGMA integrity_check;")
+    }
 
     super.close()
   }

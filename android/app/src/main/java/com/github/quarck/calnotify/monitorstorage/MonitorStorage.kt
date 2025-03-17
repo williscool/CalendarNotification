@@ -28,6 +28,9 @@ import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
 import java.io.Closeable
 
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+
+
 
 class MonitorStorage(val context: Context)
     : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, MonitorStorageInterface {
@@ -50,10 +53,10 @@ class MonitorStorage(val context: Context)
     }
 
     override fun addAlert(entry: MonitorEventAlertEntry)
-            = synchronized(MonitorStorage::class.java) { writableDatabase.use { impl.addAlert(it, entry) } }
+            = synchronized(MonitorStorage::class.java) { writableDatabase.customUse { impl.addAlert(it, entry) } }
 
     override fun addAlerts(entries: Collection<MonitorEventAlertEntry>)
-            = synchronized(MonitorStorage::class.java) { writableDatabase.use { impl.addAlerts(it, entries) } }
+            = synchronized(MonitorStorage::class.java) { writableDatabase.customUse { impl.addAlerts(it, entries) } }
 
     override fun deleteAlert(entry: MonitorEventAlertEntry)
             = deleteAlert(entry.eventId, entry.alertTime, entry.instanceStartTime)
