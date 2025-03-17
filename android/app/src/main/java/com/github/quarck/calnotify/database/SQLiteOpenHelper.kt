@@ -9,7 +9,7 @@ import io.requery.android.database.DatabaseErrorHandler
 import io.requery.android.database.sqlite.SQLiteCustomExtension
 import io.requery.android.database.sqlite.SQLiteDatabase.OpenFlags
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
-
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 
 abstract class SQLiteOpenHelper @JvmOverloads constructor(
@@ -64,13 +64,15 @@ errorHandler) {
     
   }
 
+  // Extension function for SQLiteOpenHelper.
+  inline fun <R> customUse(block: (SQLiteDatabase) -> R): R {
+    return writableDatabase.customUse { block(it) }
+  }
+
   override fun close() {
 //    closable?.releaseReference()  // Triggers custom close logic
-    this.writableDatabase.use {
-      db ->
-      dbQueryAndDebugLog(db, "SELECT crsql_finalize();")
-//      dbQueryAndDebugLog(db, "PRAGMA integrity_check;")
-    }
+    // now just calling custom use will do the finalize
+    this.writableDatabase.customUse {}
 
     super.close()
   }
