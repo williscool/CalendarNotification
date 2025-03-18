@@ -1,13 +1,15 @@
 import "react-native-devsettings";
-import React, {useContext, useEffect, useState} from 'react';
-import {AppRegistry, StyleSheet, Text, View, Button} from 'react-native';
+import React, { useContext, useEffect, useState } from 'react';
+import { AppRegistry, StyleSheet, Text, View, Button } from 'react-native';
 import Constants from 'expo-constants';
 import { hello, PI, MyModuleView, setValueAsync, addChangeListener } from './modules/my-module';
-import { db, setupPowerSync } from '@lib/powersync';
+import { db as psDb, setupPowerSync } from '@lib/powersync';
 import { open } from '@op-engineering/op-sqlite';
 import Logger from 'js-logger';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
+import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
+import { ConfigObj } from '@lib/config';
 
 console.log(Constants.systemFonts);
 console.log(PI);
@@ -15,95 +17,29 @@ console.log(MyModuleView);
 console.log(setValueAsync);
 
 const HelloWorld = () => {
-  const {data : psEvents } = useQuery<string>('select id, nid, ttl from eventsV9'); 
+  const { data: psEvents } = useQuery<string>('select id, nid, ttl from eventsV9');
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
   const [lastUpdate, setLastUpdate] = useState<string>('');
-  const regDb = open({name: 'Events'});
+  const regDb = open({ name: 'Events' });
 
   useEffect(() => {
     (async () => {
-      
-      // Load cr-sqlite extension
-      try {
-        await regDb.execute("SELECT load_extension('crsqlite', 'sqlite3_crsqlite_init')");
-      
-        // Check if eventsV9 exists before creating temp table
-        const tableExists = await regDb.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='eventsV9'");
-        console.log('tableExists', tableExists?.rows);
-
-        if (tableExists?.rows?.length > 0) {
-            // Unique index on 2 columns gets error below
-            // statement execution error: Table eventsV9 has unique indices besides the primary key. This is not allowed for CRRs
-            await regDb.execute("DROP INDEX IF EXISTS eventsIdxV9");
-            await regDb.execute("CREATE TABLE IF NOT EXISTS eventsV9_temp AS SELECT * FROM eventsV9");
-
-            const result = await regDb.execute("select id, Count(*) from eventsV9_temp group by id");
-            console.log("num events in temp table:", result?.rows?.length);
-
-            // Get schema for eventsV9 
-            const eventsV9Schema = await regDb.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='eventsV9'");
-
-            const originalSchema = eventsV9Schema?.rows?.[0]?.sql as string;
-
-            console.log('original eventsV9 schema:', originalSchema);
-
-            const newSchemaStatementLines = originalSchema.split(',')
-
-            const idIndex = newSchemaStatementLines.findIndex(i => i === " id INT" || i === " id INTEGER")
-            
-            newSchemaStatementLines[idIndex] = "id INT NOT NULL PRIMARY KEY"
-            
-            console.log('idIndex', idIndex);
-
-            console.log('newSchemaStatementLines', newSchemaStatementLines.length, newSchemaStatementLines);
-
-            const newSchema = newSchemaStatementLines.join(',')
-            .replace(", PRIMARY KEY (id, istart)", "")
-
-            console.log('new Crsql compatible schema:', newSchema);
-            
-            // Drop eventsV9 table with old schema
-            await regDb.execute("DROP TABLE IF EXISTS eventsV9");
-
-            // Create eventsV9 table with schema 
-            await regDb.execute(newSchema);
-            
-            try {
-              await regDb.execute(`INSERT OR REPLACE INTO eventsV9 SELECT * FROM eventsV9_temp`);
-            } catch (error) {
-              console.error('Failed to insert/update data from temp table:', error);
-            }
-            
-            try {
-              await regDb.execute(`INSERT OR REPLACE INTO eventsV9 SELECT * FROM eventsV9_temp`);
-            } catch (error) {
-              console.error('Failed to insert/update data from temp table:', error);
-            }
-        } 
-        
-        // recreate index with no unique constraint
-        await regDb.execute("CREATE INDEX IF NOT EXISTS eventsIdxV9 ON eventsV9 (id, istart)");
-        
-        // Enable CRDT behavior for the table
-        await regDb.execute("SELECT crsql_as_crr('eventsV9')");
-        await regDb.execute("SELECT crsql_finalize();")
-      } catch (error) {
-        console.error('Failed to load crsqlite extension:', error);
+      if (ConfigObj.sync.type === 'bidirectional') {
+        await installCrsqliteOnTable('Events', 'eventsV9');
       }
 
-      
       // Query events from SQLite
       const result = await regDb.execute('SELECT id, nid, ttl FROM eventsV9');
       if (result?.rows) {
         setSqliteEvents(result.rows || []);
       }
-        // Query temp table events
-        const tempResult = await regDb.execute('SELECT id, nid, ttl FROM eventsV9_temp');
-        if (tempResult?.rows) {
-          setTempTableEvents(tempResult.rows || []);
-        }
+      // Query temp table events
+      const tempResult = await regDb.execute('SELECT id, nid, ttl FROM eventsV9_temp');
+      if (tempResult?.rows) {
+        setTempTableEvents(tempResult.rows || []);
+      }
 
     })();
 
@@ -111,10 +47,10 @@ const HelloWorld = () => {
       console.log(hello());
       console.log('value changed', value);
     })
-    
+
     // Set up interval to check PowerSync status
     const statusInterval = setInterval(() => {
-      setDbStatus(JSON.stringify(db.currentStatus));
+      setDbStatus(JSON.stringify(psDb.currentStatus));
       setLastUpdate(new Date().toLocaleTimeString());
     }, 1000);
 
@@ -123,38 +59,37 @@ const HelloWorld = () => {
   }, []);
 
 
-    // need the value of the PowerSyncContext.Provider
-    const providerDb = useContext(PowerSyncContext);
-    // console.log('providerDb', providerDb);
+  // need the value of the PowerSyncContext.Provider
+  const providerDb = useContext(PowerSyncContext);
+  // console.log('providerDb', providerDb);
 
-    useEffect(() => {
-      if (!providerDb) return;
-      
-      const insertData = async () => {
-        try {
+  useEffect(() => {
+    if (!providerDb) return;
 
-          // convert fullTableEvents to array of arrays
-          const fullTableResult = await regDb.execute('SELECT * FROM eventsV9');
-          const fullTableEvents = fullTableResult?.rows || [];
-          // for each key in fullTableEvents, convert the value to an array
-          const fullTableEventsKeys = Object.keys(fullTableEvents[0]);
-          console.log('fullTableEventsKeys', fullTableEventsKeys);
-          const fullTableEventsArray = fullTableEvents.map(event => fullTableEventsKeys.map(key => event[key]));
-          console.log('fullTableEventsArray', fullTableEventsArray);
+    const insertData = async (tableName: string) => {
+      try {
+        // convert fullTableEvents to array of arrays
+        const fullTableResult = await regDb.execute(`SELECT * FROM ${tableName}`);
+        const fullTableEvents = fullTableResult?.rows || [];
+        // for each key in fullTableEvents, convert the value to an array
+        const fullTableEventsKeys = Object.keys(fullTableEvents[0]);
+        console.log('fullTableEventsKeys', fullTableEventsKeys);
+        const fullTableEventsArray = fullTableEvents.map(event => fullTableEventsKeys.map(key => event[key]));
+        console.log('fullTableEventsArray', fullTableEventsArray);
 
-          const powerSyncInsertQuery = `INSERT OR REPLACE INTO eventsV9 (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`;
-          console.log('powerSyncInsertQuery', powerSyncInsertQuery);
+        const powerSyncInsertQuery = `INSERT OR REPLACE INTO ${tableName} (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`;
+        console.log('powerSyncInsertQuery', powerSyncInsertQuery);
 
-          const powerSyncInsertResult = await providerDb.executeBatch(`INSERT OR REPLACE INTO eventsV9 (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`, fullTableEventsArray);
-          
-          console.log('powerSyncInsertResult', powerSyncInsertResult);
-        } catch (error) {
-          console.error('Failed to insert data:', error);
-        }
-      };
+        const powerSyncInsertResult = await providerDb.executeBatch(powerSyncInsertQuery, fullTableEventsArray);
 
-      insertData();
-    }, [providerDb]); // Only re-run if providerDb changes
+        console.log('powerSyncInsertResult', powerSyncInsertResult);
+      } catch (error) {
+        console.error('Failed to insert data:', error);
+      }
+    };
+
+    insertData('eventsV9');
+  }, [providerDb]); // Only re-run if providerDb changes
 
   return (
     <View style={styles.container}>
@@ -171,7 +106,7 @@ const HelloWorld = () => {
         onPress={async () => {
           await setValueAsync('blarf');
         }}
-        ></Button>
+      ></Button>
     </View>
   );
 };
@@ -198,7 +133,7 @@ const App = () => {
   }
 
   return (
-    <PowerSyncContext.Provider value={db}>
+    <PowerSyncContext.Provider value={psDb}>
       <HelloWorld />
     </PowerSyncContext.Provider>
   );
