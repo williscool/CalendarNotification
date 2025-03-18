@@ -64,7 +64,7 @@ android {
 
   namespace "expo.modules.mymodule"
   defaultConfig {
-    minSdkVersion safeExtGet("minSdkVersion", 24)
+    minSdkVersion safeExtGet("minSdkVersion", 23)
     targetSdkVersion safeExtGet("targetSdkVersion", 33)
     versionCode 1
     versionName "0.2.0"
