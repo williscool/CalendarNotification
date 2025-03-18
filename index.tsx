@@ -1,5 +1,5 @@
 import "react-native-devsettings";
-import React, {useEffect, useState} from 'react';
+import React, {useContext, useEffect, useState} from 'react';
 import {AppRegistry, StyleSheet, Text, View, Button} from 'react-native';
 import Constants from 'expo-constants';
 import { hello, PI, MyModuleView, setValueAsync, addChangeListener } from './modules/my-module';
@@ -18,6 +18,7 @@ const HelloWorld = () => {
   const {data : psEvents } = useQuery<string>('select id, nid, ttl from eventsV9'); 
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
+  const [fullTableEvents, setFullTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
   const [lastUpdate, setLastUpdate] = useState<string>('');
 
@@ -75,6 +76,12 @@ const HelloWorld = () => {
             } catch (error) {
               console.error('Failed to insert/update data from temp table:', error);
             }
+            
+            try {
+              await regDb.execute(`INSERT OR REPLACE INTO eventsV9 SELECT * FROM eventsV9_temp`);
+            } catch (error) {
+              console.error('Failed to insert/update data from temp table:', error);
+            }
         } 
         
         // recreate index with no unique constraint
@@ -99,6 +106,12 @@ const HelloWorld = () => {
           setTempTableEvents(tempResult.rows || []);
         }
 
+
+        const fullTableResult = await regDb.execute('SELECT * FROM eventsV9');
+        if (fullTableResult?.rows) {
+          setFullTableEvents(fullTableResult.rows || []);
+        }
+
     })();
 
     addChangeListener((value) => {
@@ -115,7 +128,28 @@ const HelloWorld = () => {
     // Cleanup interval on component unmount
     return () => clearInterval(statusInterval);
   }, []);
-  
+
+
+    // need the value of the PowerSyncContext.Provider
+    const providerDb = useContext(PowerSyncContext);
+    // console.log('providerDb', providerDb);
+
+    useEffect(() => {
+      if (!providerDb) return;
+      
+      const insertData = async () => {
+        try {
+          const powerSyncInsertResult = await providerDb.execute('INSERT OR REPLACE INTO eventsV9 (cid, id, ttl) VALUES (?, ?, ?)', [2, 'nid1', 'ttl1']);
+          // console.log('providerDb', providerDb);
+          
+          console.log('powerSyncInsertResult', powerSyncInsertResult);
+        } catch (error) {
+          console.error('Failed to insert data:', error);
+        }
+      };
+
+      insertData();
+    }, [providerDb]); // Only re-run if providerDb changes
 
   return (
     <View style={styles.container}>
