@@ -139,7 +139,7 @@ const HelloWorld = () => {
       
       const insertData = async () => {
         try {
-          const powerSyncInsertResult = await providerDb.execute('INSERT OR REPLACE INTO eventsV9 (cid, id, ttl) VALUES (?, ?, ?)', [2, 'nid1', 'ttl1']);
+          const powerSyncInsertResult = await providerDb.execute('INSERT OR REPLACE INTO eventsV9 (cid, id, ttl, istart, iend) VALUES (?, ?, ?, ?, ?)', [54, 5, 'ttl1', 1, 7000, 8000]);
           // console.log('providerDb', providerDb);
           
           console.log('powerSyncInsertResult', powerSyncInsertResult);

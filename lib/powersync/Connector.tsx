@@ -1,5 +1,10 @@
+import 'react-native-url-polyfill/auto'
+
 // lib/Connector.js
-// import { UpdateType } from '@powersync/react-native';
+import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
+import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { ConfigObj } from '../config';
+
 
 /// Postgres Response codes that we cannot recover from by retrying.
 const FATAL_RESPONSE_CODES = [
@@ -13,25 +18,83 @@ const FATAL_RESPONSE_CODES = [
   new RegExp('^42501$')
 ];
 
-export class Connector {
+export class Connector implements PowerSyncBackendConnector {
+    client: SupabaseClient;
+
+    constructor() {
+        // TODO setup session storage to support supabase auth
+        // right now its not needed because will have people input
+        // there own powersync token an supabase links in the app to start
+        this.client = createClient(ConfigObj.supabase.url, ConfigObj.supabase.anonKey);
+    }
+
     async fetchCredentials() {
-    // Implement fetchCredentials to obtain a JWT from your authentication service.
-    // See https://docs.powersync.com/installation/authentication-setup
-    // If you're using Supabase or Firebase, you can re-use the JWT from those clients, see
-    // - https://docs.powersync.com/installation/authentication-setup/supabase-auth
     // - https://docs.powersync.com/installation/authentication-setup/firebase-auth
         return {
-            endpoint: 'https://67c38073586c8d282a06c3c2.powersync.journeyapps.com',
+            endpoint: ConfigObj.powersync.url,
             // Use a development token (see Authentication Setup https://docs.powersync.com/installation/authentication-setup/development-tokens) to get up and running quickly
 			// TODO: programattically generate token from user id (i.e. email or phone number) + random secret
-            token: 'eyJhbGciOiJSUzI1NiIsImtpZCI6InBvd2Vyc3luYy1kZXYtMzIyM2Q0ZTMifQ.eyJzdWIiOiIxIiwiaWF0IjoxNzQyMDYzNDQ0LCJpc3MiOiJodHRwczovL3Bvd2Vyc3luYy1hcGkuam91cm5leWFwcHMuY29tIiwiYXVkIjoiaHR0cHM6Ly82N2MzODA3MzU4NmM4ZDI4MmEwNmMzYzIucG93ZXJzeW5jLmpvdXJuZXlhcHBzLmNvbSIsImV4cCI6MTc0MjEwNjY0NH0.upObNEBHAbb64Re49BnoK8JdQdVN3FlwTd2zCPVVHO1DKXwD4YnyRkZ9ZU-hfcmmj7iW3cCGvbO4yoQ0ZXgvtREiNbsDmHgu1l9-ITIy1yJzOMwmjlsda5ZAPsYyqbSckRxcFlyaxOjWOKxXEHPcTWg7QJ8mRNM-v-ESK2G5k5_44ZpHoEDyOg-rcFEVWc6S_Ng0sPvTDH1SetmM7NUw6SB0v304kirGHGXSeYsXHnxF610DCU_KXKPry50wZgm1K5qpXuhEOYXgS4HuzmbLsuYHdfq2N-cSgwiFP4LuOK4UKbwid3EqL2bQ2cVc8LVygGroJkK-NMRX-Y5bcZC0EA'
+            token: ConfigObj.powersync.token
         };
     }
 
-    async uploadData(database) {
-     // Implement uploadData to send local changes to your backend service.
-     // You can omit this method if you only want to sync data from the database to the client
-
-     // See example implementation here:https://docs.powersync.com/client-sdk-references/react-native-and-expo#3-integrate-with-your-backend
-	}
+    async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
+        // based on https://github.com/powersync-ja/powersync-js/blob/main/demos/react-native-supabase-todolist/library/supabase/SupabaseConnector.ts
+        // https://github.com/powersync-ja/powersync-js/blob/main/demos/react-native-supabase-todolist/library/powersync/system.ts
+        const transaction = await database.getNextCrudTransaction();
+    
+        if (!transaction) {
+          return;
+        }
+    
+        let lastOp: CrudEntry | null = null;
+        try {
+          // Note: If transactional consistency is important, use database functions
+          // or edge functions to process the entire transaction in a single call.
+          for (const op of transaction.crud) {
+            lastOp = op;
+            const table = this.client.from(op.table);
+            let result: any = null;
+            switch (op.op) {
+              case UpdateType.PUT:
+                // eslint-disable-next-line no-case-declarations
+                const record = { ...op.opData, id: op.id };
+                result = await table.upsert(record);
+                break;
+              case UpdateType.PATCH:
+                result = await table.update(op.opData).eq('id', op.id);
+                break;
+              case UpdateType.DELETE:
+                result = await table.delete().eq('id', op.id);
+                break;
+            }
+    
+            if (result.error) {
+              console.error(result.error);
+              result.error.message = `Could not ${op.op} data to Supabase error: ${JSON.stringify(result)}`;
+              throw result.error;
+            }
+          }
+    
+          await transaction.complete();
+        } catch (ex: any) {
+          console.debug(ex);
+          if (typeof ex.code == 'string' && FATAL_RESPONSE_CODES.some((regex) => regex.test(ex.code))) {
+            /**
+             * Instead of blocking the queue with these errors,
+             * discard the (rest of the) transaction.
+             *
+             * Note that these errors typically indicate a bug in the application.
+             * If protecting against data loss is important, save the failing records
+             * elsewhere instead of discarding, and/or notify the user.
+             */
+            console.error('Data upload error - discarding:', lastOp, ex);
+            await transaction.complete();
+          } else {
+            // Error may be retryable - e.g. network error or temporary server error.
+            // Throwing an error here causes this call to be retried after a delay.
+            throw ex;
+          }
+        }
+      }
 }
