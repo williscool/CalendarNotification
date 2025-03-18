@@ -18,13 +18,12 @@ const HelloWorld = () => {
   const {data : psEvents } = useQuery<string>('select id, nid, ttl from eventsV9'); 
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
-  const [fullTableEvents, setFullTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
   const [lastUpdate, setLastUpdate] = useState<string>('');
+  const regDb = open({name: 'Events'});
 
   useEffect(() => {
     (async () => {
-      const regDb = open({name: 'Events'});
       
       // Load cr-sqlite extension
       try {
@@ -106,12 +105,6 @@ const HelloWorld = () => {
           setTempTableEvents(tempResult.rows || []);
         }
 
-
-        const fullTableResult = await regDb.execute('SELECT * FROM eventsV9');
-        if (fullTableResult?.rows) {
-          setFullTableEvents(fullTableResult.rows || []);
-        }
-
     })();
 
     addChangeListener((value) => {
@@ -139,8 +132,20 @@ const HelloWorld = () => {
       
       const insertData = async () => {
         try {
-          const powerSyncInsertResult = await providerDb.execute('INSERT OR REPLACE INTO eventsV9 (cid, id, ttl, istart, iend) VALUES (?, ?, ?, ?, ?)', [54, 5, 'ttl1', 1, 7000, 8000]);
-          // console.log('providerDb', providerDb);
+
+          // convert fullTableEvents to array of arrays
+          const fullTableResult = await regDb.execute('SELECT * FROM eventsV9');
+          const fullTableEvents = fullTableResult?.rows || [];
+          // for each key in fullTableEvents, convert the value to an array
+          const fullTableEventsKeys = Object.keys(fullTableEvents[0]);
+          console.log('fullTableEventsKeys', fullTableEventsKeys);
+          const fullTableEventsArray = fullTableEvents.map(event => fullTableEventsKeys.map(key => event[key]));
+          console.log('fullTableEventsArray', fullTableEventsArray);
+
+          const powerSyncInsertQuery = `INSERT OR REPLACE INTO eventsV9 (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`;
+          console.log('powerSyncInsertQuery', powerSyncInsertQuery);
+
+          const powerSyncInsertResult = await providerDb.executeBatch(`INSERT OR REPLACE INTO eventsV9 (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`, fullTableEventsArray);
           
           console.log('powerSyncInsertResult', powerSyncInsertResult);
         } catch (error) {
