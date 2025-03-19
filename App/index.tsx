@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Button } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity, BackHandler } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,6 +10,7 @@ import { SetupSync } from './SetupSync';
 import { Settings } from './Settings';
 import { enableScreens } from 'react-native-screens';
 import { useStoredSettings } from '@lib/hooks/useStoredSettings';
+import { Ionicons } from '@expo/vector-icons';
 
 // Enable screens
 enableScreens();
@@ -74,12 +75,29 @@ export const App = () => {
           <Stack.Screen 
             name="Home" 
             component={HomeScreen}
-            options={{ title: 'Sync Setup' }}
+            options={({ navigation }) => ({
+              title: 'Sync Info',
+              headerLeft: () => (
+                <TouchableOpacity 
+                  onPress={() => BackHandler.exitApp()}
+                >
+                  <Ionicons name="arrow-back" size={24} color="#007AFF" style={{ marginRight: 20 }} />
+                </TouchableOpacity>
+              ),
+              headerRight: () => (
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate('Settings')}
+                  style={{ marginRight: 15 }}
+                >
+                  <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
+                </TouchableOpacity>
+              ),
+            })}
           />
           <Stack.Screen 
             name="Settings" 
             component={Settings}
-            options={{ title: 'Settings' }}
+            options={{ title: 'Sync Settings' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

@@ -10,7 +10,6 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './index';
 import { useStoredSettings } from '../lib/hooks/useStoredSettings';
-import { setupPowerSync } from '../lib/powersync';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -96,16 +95,6 @@ export const SetupSync = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.hello}>Calendar Notifications</Text>
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Text style={styles.settingsButtonText}>Settings</Text>
-        </TouchableOpacity>
-      </View>
-      
       <Text style={styles.hello}>PowerSync Status: {dbStatus}</Text>
       <Text style={styles.hello}>Last Updated: {lastUpdate}</Text>
       <Text style={styles.hello}>PowerSync Events: {JSON.stringify(psEvents)}</Text>
@@ -114,13 +103,20 @@ export const SetupSync = () => {
       {storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional' && (
         <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
       )}
-      <MyModuleView name="MyModuleView" />
+
+
+      {/* TODO: this native module can be used to communicate with the kolin code */}
+      {/* I want to use it to get things like the mute status of a notification  */}
+      {/* or whatever other useful things. so dont delete it so I remember to use it later  */}
+
+      {/* <MyModuleView name="MyModuleView" />
       <Button
         title="Click me!"
         onPress={async () => {
           await setValueAsync('blarf');
         }}
-      ></Button>
+      ></Button> */}
+
     </View>
   );
 };
