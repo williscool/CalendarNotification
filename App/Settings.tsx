@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConfigObj } from '../lib/config';
 
 type SyncType = 'unidirectional' | 'bidirectional' | 'none';
@@ -16,14 +17,40 @@ const DEFAULT_SETTINGS: Settings = {
   devMode: false,
 };
 
+const SETTINGS_STORAGE_KEY = '@calendar_notifications_settings';
+
 export const Settings = () => {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
-  const saveSettings = (newSettings: Settings) => {
-    setSettings(newSettings);
-    // Update ConfigObj to reflect new settings
-    ConfigObj.sync.enabled = newSettings.syncEnabled;
-    ConfigObj.sync.type = newSettings.syncType;
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const storedSettings = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings);
+        setSettings(parsedSettings);
+        // Update ConfigObj to reflect loaded settings
+        ConfigObj.sync.enabled = parsedSettings.syncEnabled;
+        ConfigObj.sync.type = parsedSettings.syncType;
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const saveSettings = async (newSettings: Settings) => {
+    try {
+      await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
+      setSettings(newSettings);
+      // Update ConfigObj to reflect new settings
+      ConfigObj.sync.enabled = newSettings.syncEnabled;
+      ConfigObj.sync.type = newSettings.syncType;
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
   };
 
   return (
