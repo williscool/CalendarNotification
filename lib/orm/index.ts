@@ -45,3 +45,24 @@ export async function psInsertDbTable(
     throw error;
   }
 } 
+
+/**
+ * Deletes all records from a PowerSync table
+ * @param tableName The name of the PowerSync table to clear
+ * @param psDb The PowerSync database instance
+ * @returns The result of the delete operation
+ */
+export async function psClearTable(
+  tableName: string,
+  psDb: AbstractPowerSyncDatabase
+) {
+  try {
+    const deleteResult = await psDb.execute(`DELETE FROM ${tableName}`);
+    console.log(`Successfully cleared all records from PowerSync table ${tableName}`);
+    return deleteResult;
+  } catch (error) {
+    console.error(`Failed to clear PowerSync table ${tableName}:`, error);
+    throw error;
+  }
+}
+

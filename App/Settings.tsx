@@ -91,6 +91,19 @@ export const Settings = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Current Settings Output</Text>
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugText} selectable>
+            {JSON.stringify({
+              ...tempSettings,
+              supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
+              powersyncToken: showPowerSyncToken ? tempSettings.powersyncToken : '[Hidden Reveal Below]'
+            }, null, 2)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Supabase Settings</Text>
         
         <View style={styles.setting}>
@@ -305,5 +318,15 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     padding: 8,
+  },
+  debugContainer: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  debugText: {
+    fontSize: 14,
+    color: '#333',
   },
 }); 

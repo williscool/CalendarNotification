@@ -5,7 +5,7 @@ import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
-import { psInsertDbTable } from '@lib/orm';
+import { psInsertDbTable, psClearTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './index';
@@ -17,6 +17,7 @@ export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
   const { settings } = useSettings();
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
+  const [showDangerZone, setShowDangerZone] = useState(false);
 
   const numEventsToDisplay = 3;
 
@@ -97,7 +98,7 @@ export const SetupSync = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.hello}>PowerSync Status: {dbStatus}</Text>
+      <Text style={styles.hello} selectable>PowerSync Status: {dbStatus}</Text>
       <Text style={styles.hello}>Last Updated: {lastUpdate}</Text>
 
       <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
@@ -113,8 +114,41 @@ export const SetupSync = () => {
         onPress={handleSync}
       >
         {/* TODO: move to background job instead of buttton  */}
-        <Text style={styles.syncButtonText}>Sync Events Now</Text>
+        <Text style={styles.syncButtonText}>Sync Events Local To PowerSync Now</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.toggleButton, showDangerZone && styles.toggleButtonActive]}
+        onPress={() => setShowDangerZone(!showDangerZone)}
+      >
+        <Text style={[styles.toggleButtonText, showDangerZone && styles.toggleButtonTextActive]}>
+          {showDangerZone ? '🔒 Hide Danger Zone' : '⚠️ Show Danger Zone'}
+        </Text>
+      </TouchableOpacity>
+
+      {showDangerZone && (
+        <>
+          <View style={styles.warningContainer}>
+            <Text style={styles.warningText}>
+              ⚠️ WARNING: This will only delete events from the remote PowerSync database.{'\n'}
+              Your local device events will remain unchanged.
+            </Text>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.syncButton, styles.deleteButton]}
+            onPress={async () => {
+              try {
+                await psClearTable('eventsV9', providerDb);
+              } catch (error) {
+                console.error('Failed to clear PowerSync events:', error);
+              }
+            }}
+          >
+            <Text style={styles.syncButtonText}>Clear Remote PowerSync Events</Text>
+          </TouchableOpacity>
+        </>
+      )}
 
       {/* TODO: this native module can be used to communicate with the kolin code */}
       {/* I want to use it to get things like the mute status of a notification  */}
@@ -163,7 +197,7 @@ const styles = StyleSheet.create({
     margin: 10,
   },
   syncButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#28a745',
     padding: 15,
     borderRadius: 8,
     marginTop: 20,
@@ -174,5 +208,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     fontWeight: '600',
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  debugContainer: {
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  debugText: {
+    fontSize: 16,
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  warningContainer: {
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+    marginTop: 20,
+    marginHorizontal: 20,
+  },
+  warningText: {
+    fontSize: 16,
+    color: '#FF3B30',
+  },
+  toggleButton: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 20,
+    marginHorizontal: 20,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#FF3B30',
+  },
+  toggleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  toggleButtonTextActive: {
+    color: '#fff',
   },
 }); 
