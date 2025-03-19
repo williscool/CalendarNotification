@@ -5,7 +5,20 @@ buildscript {
     ext {
       kotlin_version = '1.9.25'
       kotlinVersion = '1.9.25'
-      
+
+      androidx_lib_version = '1.0.0'
+      androidxLibVersion = '1.0.0'
+
+      gradleVersion = '8.6.0'
+      gradle_version = '8.6.0'
+
+      // WARNING the android gradle plugin VERIONS != TO GRADLE PLUGIN VERSION
+      // https://developer.android.com/build/releases/gradle-plugin
+
+      androidGradlePluginVersion = '8.4.0'
+      android_gradle_plugin_version = '8.4.0'
+
+
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
@@ -18,7 +31,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.2'
+        classpath "com.android.tools.build:gradle:$android_gradle_plugin_version"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath("com.facebook.react:react-native-gradle-plugin")
 
