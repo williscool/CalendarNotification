@@ -6,8 +6,8 @@ buildscript {
       kotlin_version = '1.9.25'
       kotlinVersion = '1.9.25'
 
-      androidx_lib_version = '1.0.0'
-      androidxLibVersion = '1.0.0'
+      androidx_lib_version = '1.6.1'
+      androidxLibVersion = '1.6.1'
 
       gradleVersion = '8.6.0'
       gradle_version = '8.6.0'
