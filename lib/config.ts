@@ -8,6 +8,7 @@ export const ConfigObj = {
 		// anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
 		anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuYXlkYXdsaXZmZWV3aHd0dnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA4NjI5MDMsImV4cCI6MjA1NjQzODkwM30.M4Kl6odVaShvuA7cp1xVUljqUeqeDEFJeMyAtZwNQaE',
 		// bucket: process.env.EXPO_PUBLIC_SUPABASE_BUCKET || '',
+		// bucket: '', // Not supported yet
 	},
 	powersync:{
 		// url: process.env.EXPO_PUBLIC_POWERSYNC_URL || ''
