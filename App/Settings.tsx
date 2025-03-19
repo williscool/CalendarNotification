@@ -1,9 +1,19 @@
-import React from 'react';
-import { StyleSheet, View, Text, Switch, ScrollView, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Switch, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useStoredSettings } from '../lib/hooks/useStoredSettings';
+import { Ionicons } from '@expo/vector-icons';
 
 export const Settings = () => {
   const { storedSettings, updateSettings } = useStoredSettings();
+  const [tempSettings, setTempSettings] = useState(storedSettings);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
+  const [showPowerSyncToken, setShowPowerSyncToken] = useState(false);
+
+  useEffect(() => {
+    setTempSettings(storedSettings);
+    setIsDirty(false);
+  }, [storedSettings]);
 
   const areAllSettingsValid = (s: typeof storedSettings) => {
     return s.supabaseUrl.trim() !== '' &&
@@ -12,34 +22,52 @@ export const Settings = () => {
            s.powersyncToken.trim() !== '';
   };
 
+  const handleSettingChange = (newSettings: typeof storedSettings) => {
+    setTempSettings(newSettings);
+    setIsDirty(true);
+  };
+
+  const handleSave = () => {
+    if (areAllSettingsValid(tempSettings)) {
+      updateSettings(tempSettings);
+      setIsDirty(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
+      {isDirty && (
+        <View style={styles.dirtyIndicator}>
+          <Text style={styles.dirtyText}>You have unsaved changes</Text>
+        </View>
+      )}
+      
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Sync Settings</Text>
         
         <View style={styles.setting}>
           <Text style={styles.settingLabel}>Enable Sync</Text>
           <Switch
-            value={storedSettings.syncEnabled}
+            value={tempSettings.syncEnabled}
             onValueChange={(value) => {
-              if (!value || areAllSettingsValid(storedSettings)) {
-                updateSettings({ ...storedSettings, syncEnabled: value });
+              if (!value || areAllSettingsValid(tempSettings)) {
+                handleSettingChange({ ...tempSettings, syncEnabled: value });
               }
             }}
-            disabled={!areAllSettingsValid(storedSettings)}
+            disabled={!areAllSettingsValid(tempSettings)}
           />
         </View>
 
-        {storedSettings.syncEnabled && (
+        {tempSettings.syncEnabled && (
           <View style={styles.setting}>
             <Text style={styles.settingLabel}>Sync Type</Text>
             <View style={styles.syncTypeButtons}>
               <Text
                 style={[
                   styles.syncTypeButton,
-                  storedSettings.syncType === 'unidirectional' && styles.syncTypeButtonActive,
+                  tempSettings.syncType === 'unidirectional' && styles.syncTypeButtonActive,
                 ]}
-                onPress={() => updateSettings({ ...storedSettings, syncType: 'unidirectional' })}
+                onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
               >
                 Unidirectional
               </Text>
@@ -65,8 +93,8 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>Supabase URL</Text>
           <TextInput
             style={styles.input}
-            value={storedSettings.supabaseUrl}
-            onChangeText={(text) => updateSettings({ ...storedSettings, supabaseUrl: text })}
+            value={tempSettings.supabaseUrl}
+            onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
             placeholder="https://your-project.supabase.co"
             placeholderTextColor="#999"
           />
@@ -74,14 +102,26 @@ export const Settings = () => {
 
         <View style={styles.setting}>
           <Text style={styles.settingLabel}>Supabase Anon Key</Text>
-          <TextInput
-            style={styles.input}
-            value={storedSettings.supabaseAnonKey}
-            onChangeText={(text) => updateSettings({ ...storedSettings, supabaseAnonKey: text })}
-            placeholder="your-supabase-anon-key"
-            placeholderTextColor="#999"
-            secureTextEntry
-          />
+          <View style={styles.secureInputContainer}>
+            <TextInput
+              style={[styles.input, styles.secureInput]}
+              value={tempSettings.supabaseAnonKey}
+              onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
+              placeholder="your-supabase-anon-key"
+              placeholderTextColor="#999"
+              secureTextEntry={!showSupabaseKey}
+            />
+            <TouchableOpacity 
+              style={styles.eyeIcon}
+              onPress={() => setShowSupabaseKey(!showSupabaseKey)}
+            >
+              <Ionicons 
+                name={showSupabaseKey ? "eye-off" : "eye"} 
+                size={24} 
+                color="#666" 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -92,8 +132,8 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>PowerSync URL</Text>
           <TextInput
             style={styles.input}
-            value={storedSettings.powersyncUrl}
-            onChangeText={(text) => updateSettings({ ...storedSettings, powersyncUrl: text })}
+            value={tempSettings.powersyncUrl}
+            onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
             placeholder="https://your-project.powersync.journeyapps.com"
             placeholderTextColor="#999"
           />
@@ -101,22 +141,48 @@ export const Settings = () => {
 
         <View style={styles.setting}>
           <Text style={styles.settingLabel}>PowerSync Token</Text>
-          <TextInput
-            style={styles.input}
-            value={storedSettings.powersyncToken}
-            onChangeText={(text) => updateSettings({ ...storedSettings, powersyncToken: text })}
-            placeholder="your-powersync-token"
-            placeholderTextColor="#999"
-            secureTextEntry
-          />
+          <View style={styles.secureInputContainer}>
+            <TextInput
+              style={[styles.input, styles.secureInput]}
+              value={tempSettings.powersyncToken}
+              onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
+              placeholder="your-powersync-token"
+              placeholderTextColor="#999"
+              secureTextEntry={!showPowerSyncToken}
+            />
+            <TouchableOpacity 
+              style={styles.eyeIcon}
+              onPress={() => setShowPowerSyncToken(!showPowerSyncToken)}
+            >
+              <Ionicons 
+                name={showPowerSyncToken ? "eye-off" : "eye"} 
+                size={24} 
+                color="#666" 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      {!areAllSettingsValid(storedSettings) && (
+      {!areAllSettingsValid(tempSettings) && (
         <Text style={styles.validationMessage}>
           Please fill in all settings to enable sync
         </Text>
       )}
+
+      <TouchableOpacity 
+        style={[
+          styles.saveButton,
+          !areAllSettingsValid(tempSettings) && styles.saveButtonDisabled,
+          isDirty && styles.saveButtonDirty
+        ]}
+        onPress={handleSave}
+        disabled={!areAllSettingsValid(tempSettings)}
+      >
+        <Text style={styles.saveButtonText}>
+          {isDirty ? 'Save Changes*' : 'Save Changes'}
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -191,5 +257,49 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     margin: 16,
     fontStyle: 'italic',
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    margin: 16,
+    alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  dirtyIndicator: {
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    margin: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffeeba',
+  },
+  dirtyText: {
+    color: '#856404',
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  saveButtonDirty: {
+    backgroundColor: '#28a745',
+  },
+  secureInputContainer: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 16,
+  },
+  secureInput: {
+    marginLeft: 0,
+    marginRight: 8,
+  },
+  eyeIcon: {
+    padding: 8,
   },
 }); 
