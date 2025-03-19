@@ -99,6 +99,8 @@ dependencies {
 
   implementation "androidx.core:core:$androidx_lib_version"
 
+  implementation "androidx.core:core-ktx:$androidx_lib_version"
+
   implementation "androidx.appcompat:appcompat:$androidx_lib_version"
 
   // https://mvnrepository.com/artifact/androidx.recyclerview/recyclerview
