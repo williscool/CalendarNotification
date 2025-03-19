@@ -10,6 +10,7 @@ buildscript {
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
       minSdk = 24 // https://github.com/software-mansion/react-native-screens/pull/2251#ref-issue-2457327086
+      minSdkVersion = 24
     }
 
     repositories {
