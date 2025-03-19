@@ -9,7 +9,11 @@ import { ConfigObj } from '@lib/config';
 import { psInsertDbTable } from '@lib/orm';
 
 export const SetupSync = () => {
-  const { data: psEvents } = useQuery<string>('select id, nid, ttl from eventsV9');
+
+  const debugDisplayKeys = ['id', 'ttl', 'loc'];
+  const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9`;
+
+  const { data: psEvents } = useQuery<string>(debugDisplayQuery);
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
@@ -24,14 +28,17 @@ export const SetupSync = () => {
       }
 
       // Query events from SQLite
-      const result = await regDb.execute('SELECT id, nid, ttl FROM eventsV9');
+      const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
         setSqliteEvents(result.rows || []);
       }
-      // Query temp table events
-      const tempResult = await regDb.execute('SELECT id, nid, ttl FROM eventsV9_temp');
-      if (tempResult?.rows) {
-        setTempTableEvents(tempResult.rows || []);
+
+      // Query temp table events only in bidirectional mode
+      if (ConfigObj.sync.type === 'bidirectional') {
+        const tempResult = await regDb.execute(debugDisplayQuery);
+        if (tempResult?.rows) {
+          setTempTableEvents(tempResult.rows || []);
+        }
       }
 
     })();
@@ -75,7 +82,9 @@ export const SetupSync = () => {
       <Text style={styles.hello}>PowerSync Events: {JSON.stringify(psEvents)}</Text>
 
       <Text style={styles.hello}>SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
-      <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
+      {ConfigObj.sync.type === 'bidirectional' && (
+        <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
+      )}
       <MyModuleView name="MyModuleView" />
       <Button
         title="Click me!"
