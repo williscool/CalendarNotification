@@ -89,35 +89,20 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+        cache: gradle # This already handles basic Gradle caching
 
-    # Cache Gradle dependencies
-    - name: Cache Gradle dependencies
-      uses: actions/cache@v3
+    # Setup Gradle
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4.0.0
       with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-
-    # Cache Gradle build outputs
-    - name: Cache Gradle build outputs
-      uses: actions/cache@v3
-      with:
-        path: |
-          android/app/build
-          android/build
-        key: ${{ runner.os }}-gradle-build-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-build-
+        cache-read-only: ${{ github.ref != 'refs/heads/main' }} # Only write cache on main branch
+        gradle-home-cache-cleanup: true
 
     - name: Grant execute permission for gradlew and show version
       run: cd android && chmod +x gradlew && ./gradlew --version
       
     - name: Build with Gradle
-      run:  cd android && ./gradlew build  --warning-mode all --info --stacktrace
+      run: cd android && ./gradlew build --warning-mode all --info --stacktrace --build-cache
 
     # Create APK Debug
     - name: Build apk debug project (APK) - ${{ env.main_project_module }} module
