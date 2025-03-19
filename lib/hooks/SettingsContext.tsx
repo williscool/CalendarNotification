@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConfigObj } from '../config';
 
@@ -24,8 +24,15 @@ const DEFAULT_SETTINGS: Settings = {
 
 const SETTINGS_STORAGE_KEY = '@calendar_notifications_settings';
 
-export const useStoredSettings = () => {
-  const [storedSettings, setStoredSettings] = useState<Settings>(DEFAULT_SETTINGS);
+interface SettingsContextType {
+  settings: Settings;
+  updateSettings: (newSettings: Settings) => Promise<void>;
+}
+
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+
+export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     loadSettings();
@@ -36,7 +43,7 @@ export const useStoredSettings = () => {
       const storedSettingsStr = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
       if (storedSettingsStr) {
         const parsedSettings = JSON.parse(storedSettingsStr);
-        setStoredSettings(parsedSettings);
+        setSettings(parsedSettings);
       } else {
         // Initialize with current ConfigObj values
         const currentSettings: Settings = {
@@ -47,7 +54,7 @@ export const useStoredSettings = () => {
           powersyncUrl: ConfigObj.powersync.url,
           powersyncToken: ConfigObj.powersync.token,
         };
-        setStoredSettings(currentSettings);
+        setSettings(currentSettings);
         await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(currentSettings));
       }
     } catch (error) {
@@ -58,14 +65,23 @@ export const useStoredSettings = () => {
   const updateSettings = async (newSettings: Settings) => {
     try {
       await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
-      setStoredSettings(newSettings);
+      setSettings(newSettings);
     } catch (error) {
       console.error('Error saving settings:', error);
     }
   };
 
-  return {
-    storedSettings,
-    updateSettings,
-  };
+  return (
+    <SettingsContext.Provider value={{ settings, updateSettings }}>
+      {children}
+    </SettingsContext.Provider>
+  );
+};
+
+export const useSettings = () => {
+  const context = useContext(SettingsContext);
+  if (context === undefined) {
+    throw new Error('useSettings must be used within a SettingsProvider');
+  }
+  return context;
 }; 

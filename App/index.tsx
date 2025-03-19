@@ -9,8 +9,9 @@ import { PowerSyncContext } from "@powersync/react";
 import { SetupSync } from './SetupSync';
 import { Settings } from './Settings';
 import { enableScreens } from 'react-native-screens';
-import { useStoredSettings } from '@lib/hooks/useStoredSettings';
+import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
+import { SettingsProvider } from '@lib/hooks/SettingsContext';
 
 // Enable screens
 enableScreens();
@@ -34,18 +35,18 @@ const InitialSetupScreen = ({ navigation }: { navigation: NativeStackNavigationP
 );
 
 const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<RootStackParamList> }) => {
-  const { storedSettings } = useStoredSettings();
+  const { settings } = useSettings();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-      if (storedSettings.syncEnabled) {
-        await setupPowerSync(storedSettings);
+      if (settings.syncEnabled) {
+        await setupPowerSync(settings);
       }
       setIsReady(true);
     };
     init();
-  }, [storedSettings.syncEnabled, storedSettings]);
+  }, [settings.syncEnabled, settings]);
 
   if (!isReady) {
     return (
@@ -55,7 +56,7 @@ const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<Root
     );
   }
 
-  return storedSettings.syncEnabled ? <SetupSync /> : <InitialSetupScreen navigation={navigation} />;
+  return settings.syncEnabled ? <SetupSync /> : <InitialSetupScreen navigation={navigation} />;
 };
 
 export const App = () => {
@@ -63,45 +64,47 @@ export const App = () => {
   Logger.setLevel(Logger.INFO);
 
   return (
-    <PowerSyncContext.Provider value={psDb}>
-      <NavigationContainer>
-        <Stack.Navigator 
-          initialRouteName="Home"
-          screenOptions={{
-            headerShown: true,
-            headerBackTitle: 'Back',
-          }}
-        >
-          <Stack.Screen 
-            name="Home" 
-            component={HomeScreen}
-            options={({ navigation }) => ({
-              title: 'Sync Info',
-              headerLeft: () => (
-                <TouchableOpacity 
-                  onPress={() => BackHandler.exitApp()}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#007AFF" style={{ marginRight: 20 }} />
-                </TouchableOpacity>
-              ),
-              headerRight: () => (
-                <TouchableOpacity 
-                  onPress={() => navigation.navigate('Settings')}
-                  style={{ marginRight: 15 }}
-                >
-                  <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
-                </TouchableOpacity>
-              ),
-            })}
-          />
-          <Stack.Screen 
-            name="Settings" 
-            component={Settings}
-            options={{ title: 'Sync Settings' }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </PowerSyncContext.Provider>
+    <SettingsProvider>
+      <PowerSyncContext.Provider value={psDb}>
+        <NavigationContainer>
+          <Stack.Navigator 
+            initialRouteName="Home"
+            screenOptions={{
+              headerShown: true,
+              headerBackTitle: 'Back',
+            }}
+          >
+            <Stack.Screen 
+              name="Home" 
+              component={HomeScreen}
+              options={({ navigation }) => ({
+                title: 'Sync Info',
+                headerLeft: () => (
+                  <TouchableOpacity 
+                    onPress={() => BackHandler.exitApp()}
+                  >
+                    <Ionicons name="arrow-back" size={24} color="#007AFF" style={{ marginRight: 20 }} />
+                  </TouchableOpacity>
+                ),
+                headerRight: () => (
+                  <TouchableOpacity 
+                    onPress={() => navigation.navigate('Settings')}
+                    style={{ marginRight: 15 }}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
+                  </TouchableOpacity>
+                ),
+              })}
+            />
+            <Stack.Screen 
+              name="Settings" 
+              component={Settings}
+              options={{ title: 'Sync Settings' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </PowerSyncContext.Provider>
+    </SettingsProvider>
   );
 };
 

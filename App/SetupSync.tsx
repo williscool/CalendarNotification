@@ -9,13 +9,13 @@ import { psInsertDbTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './index';
-import { useStoredSettings } from '../lib/hooks/useStoredSettings';
+import { useSettings } from '@lib/hooks/SettingsContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { storedSettings } = useStoredSettings();
+  const { settings } = useSettings();
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
 
   const numEventsToDisplay = 3;
@@ -32,7 +32,7 @@ export const SetupSync = () => {
 
   useEffect(() => {
     (async () => {
-      if (storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional') {
+      if (settings.syncEnabled && settings.syncType === 'bidirectional') {
         await installCrsqliteOnTable('Events', 'eventsV9');
       }
 
@@ -43,7 +43,7 @@ export const SetupSync = () => {
       }
 
       // Query temp table events only in bidirectional mode
-      if (storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional') {
+      if (settings.syncEnabled && settings.syncType === 'bidirectional') {
         const tempResult = await regDb.execute(debugDisplayQuery);
         if (tempResult?.rows) {
           setTempTableEvents(tempResult.rows || []);
@@ -65,10 +65,10 @@ export const SetupSync = () => {
 
     // Cleanup interval on component unmount
     return () => clearInterval(statusInterval);
-  }, [storedSettings.syncEnabled, storedSettings.syncType]);
+  }, [settings.syncEnabled, settings.syncType]);
 
   const handleSync = async () => {
-    if (!providerDb || !storedSettings.syncEnabled) return;
+    if (!providerDb || !settings.syncEnabled) return;
     
     try {
       await psInsertDbTable('Events', 'eventsV9', providerDb);
@@ -82,7 +82,7 @@ export const SetupSync = () => {
     }
   };
 
-  if (!storedSettings.supabaseUrl || !storedSettings.supabaseAnonKey || !storedSettings.powersyncUrl || !storedSettings.powersyncToken) {
+  if (!settings.supabaseUrl || !settings.supabaseAnonKey || !settings.powersyncUrl || !settings.powersyncToken) {
     return (
       <View style={styles.container}>
         <Text style={styles.hello}>PowerSync not configured</Text>
@@ -104,7 +104,7 @@ export const SetupSync = () => {
       
       <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
 
-      {storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional' && (
+      {settings.syncEnabled && settings.syncType === 'bidirectional' && (
         <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
       )}
 

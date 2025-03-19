@@ -1,28 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-import { useStoredSettings } from '../lib/hooks/useStoredSettings';
+import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export const Settings = () => {
-  const { storedSettings, updateSettings } = useStoredSettings();
-  const [tempSettings, setTempSettings] = useState(storedSettings);
+  const { settings, updateSettings } = useSettings();
+  const [tempSettings, setTempSettings] = useState(settings);
   const [isDirty, setIsDirty] = useState(false);
   const [showSupabaseKey, setShowSupabaseKey] = useState(false);
   const [showPowerSyncToken, setShowPowerSyncToken] = useState(false);
 
   useEffect(() => {
-    setTempSettings(storedSettings);
+    setTempSettings(settings);
     setIsDirty(false);
-  }, [storedSettings]);
+  }, [settings]);
 
-  const areAllSettingsValid = (s: typeof storedSettings) => {
+  const areAllSettingsValid = (s: typeof settings) => {
     return s.supabaseUrl.trim() !== '' &&
            s.supabaseAnonKey.trim() !== '' &&
            s.powersyncUrl.trim() !== '' &&
            s.powersyncToken.trim() !== '';
   };
 
-  const handleSettingChange = (newSettings: typeof storedSettings) => {
+  const handleSettingChange = (newSettings: typeof settings) => {
     setTempSettings(newSettings);
     setIsDirty(true);
   };
