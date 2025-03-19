@@ -17,7 +17,10 @@ export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
   const { storedSettings } = useStoredSettings();
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
-  const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit 3`;
+
+  const numEventsToDisplay = 3;
+
+  const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit ${numEventsToDisplay}`;
 
   const { data: psEvents } = useQuery<string>(debugDisplayQuery);
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
@@ -64,21 +67,20 @@ export const SetupSync = () => {
     return () => clearInterval(statusInterval);
   }, [storedSettings.syncEnabled, storedSettings.syncType]);
 
-  useEffect(() => {
+  const handleSync = async () => {
     if (!providerDb || !storedSettings.syncEnabled) return;
-
-    const syncData = async () => {
-      try {
-        await psInsertDbTable('Events', 'eventsV9', providerDb);
-      } catch (error) {
-        console.error('Failed to sync data:', error);
+    
+    try {
+      await psInsertDbTable('Events', 'eventsV9', providerDb);
+      // Refresh the events display after sync
+      const result = await regDb.execute(debugDisplayQuery);
+      if (result?.rows) {
+        setSqliteEvents(result.rows || []);
       }
-    };
-
-    (async () => {
-      await syncData();
-    })();
-  }, [providerDb, storedSettings.syncEnabled]); // Only re-run if providerDb or sync enabled changes
+    } catch (error) {
+      console.error('Failed to sync data:', error);
+    }
+  };
 
   if (!storedSettings.supabaseUrl || !storedSettings.supabaseAnonKey || !storedSettings.powersyncUrl || !storedSettings.powersyncToken) {
     return (
@@ -97,13 +99,22 @@ export const SetupSync = () => {
     <View style={styles.container}>
       <Text style={styles.hello}>PowerSync Status: {dbStatus}</Text>
       <Text style={styles.hello}>Last Updated: {lastUpdate}</Text>
-      <Text style={styles.hello}>PowerSync Events: {JSON.stringify(psEvents)}</Text>
 
-      <Text style={styles.hello}>SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
+      <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
+      
+      <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
+
       {storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional' && (
         <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
       )}
 
+      <TouchableOpacity 
+        style={styles.syncButton}
+        onPress={handleSync}
+      >
+        {/* TODO: move to background job instead of buttton  */}
+        <Text style={styles.syncButtonText}>Sync Events Now</Text>
+      </TouchableOpacity>
 
       {/* TODO: this native module can be used to communicate with the kolin code */}
       {/* I want to use it to get things like the mute status of a notification  */}
@@ -150,5 +161,18 @@ const styles = StyleSheet.create({
   subtext: {
     textAlign: 'center',
     margin: 10,
+  },
+  syncButton: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 20,
+    marginHorizontal: 20,
+  },
+  syncButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '600',
   },
 }); 
