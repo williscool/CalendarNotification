@@ -33,9 +33,9 @@ class MyReactActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
             .setUseDeveloperSupport(BuildConfig.DEBUG)
             .setInitialLifecycleState(LifecycleState.RESUMED)
             .build()
-        // The string here (e.g. "MyReactNativeApp") has to match
+        // The string here (e.g. "CNPlusSync") has to match
         // the string in AppRegistry.registerComponent() in index.js
-        reactRootView.startReactApplication(reactInstanceManager, "MyReactNativeApp", null)
+        reactRootView.startReactApplication(reactInstanceManager, "CNPlusSync", null)
         setContentView(reactRootView)
     }
 
