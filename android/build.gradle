@@ -9,6 +9,7 @@ buildscript {
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
+      minSdk = 24
     }
 
     repositories {

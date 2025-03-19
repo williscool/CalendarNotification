@@ -36,6 +36,7 @@ android {
   defaultConfig {
     applicationId "com.github.quarck.calnotify"
     minSdkVersion 24
+    minSdk 24
     //noinspection ExpiredTargetSdkVersion
     targetSdkVersion 25
     versionCode 4000016

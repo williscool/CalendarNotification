@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Button } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity } from 'react-native';
 import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
@@ -7,9 +7,14 @@ import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
 import { ConfigObj } from '@lib/config';
 import { psInsertDbTable } from '@lib/orm';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from './index';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SetupSync = () => {
-
+  const navigation = useNavigation<NavigationProp>();
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
   const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9`;
 
@@ -76,7 +81,16 @@ export const SetupSync = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.hello}>Hello, World</Text>
+      <View style={styles.header}>
+        <Text style={styles.hello}>Calendar Notifications</Text>
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <Text style={styles.settingsButtonText}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+      
       <Text style={styles.hello}>PowerSync Status: {dbStatus}</Text>
       <Text style={styles.hello}>Last Updated: {lastUpdate}</Text>
       <Text style={styles.hello}>PowerSync Events: {JSON.stringify(psEvents)}</Text>
@@ -101,9 +115,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
   hello: {
     fontSize: 20,
     textAlign: 'center',
     margin: 10,
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  settingsButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
   },
 }); 

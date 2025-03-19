@@ -17,7 +17,7 @@ class MyReactActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
     private lateinit var reactRootView: ReactRootView
     private lateinit var reactInstanceManager: ReactInstanceManager
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        super.onCreate(null) // null is required for react-native-screens https://github.com/software-mansion/react-native-screens
         SoLoader.init(this, false)
         reactRootView = ReactRootView(this)
         val packages: List<ReactPackage> = PackageList(application).packages
