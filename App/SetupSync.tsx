@@ -5,18 +5,20 @@ import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
-import { ConfigObj } from '@lib/config';
 import { psInsertDbTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './index';
+import { useStoredSettings } from '../lib/hooks/useStoredSettings';
+import { setupPowerSync } from '../lib/powersync';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { storedSettings } = useStoredSettings();
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
-  const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9`;
+  const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit 3`;
 
   const { data: psEvents } = useQuery<string>(debugDisplayQuery);
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
@@ -28,7 +30,7 @@ export const SetupSync = () => {
 
   useEffect(() => {
     (async () => {
-      if (ConfigObj.sync.type === 'bidirectional') {
+      if (storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional') {
         await installCrsqliteOnTable('Events', 'eventsV9');
       }
 
@@ -39,7 +41,7 @@ export const SetupSync = () => {
       }
 
       // Query temp table events only in bidirectional mode
-      if (ConfigObj.sync.type === 'bidirectional') {
+      if (storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional') {
         const tempResult = await regDb.execute(debugDisplayQuery);
         if (tempResult?.rows) {
           setTempTableEvents(tempResult.rows || []);
@@ -61,10 +63,10 @@ export const SetupSync = () => {
 
     // Cleanup interval on component unmount
     return () => clearInterval(statusInterval);
-  }, []);
+  }, [storedSettings.syncEnabled, storedSettings.syncType]);
 
   useEffect(() => {
-    if (!providerDb) return;
+    if (!providerDb || !storedSettings.syncEnabled) return;
 
     const syncData = async () => {
       try {
@@ -77,7 +79,20 @@ export const SetupSync = () => {
     (async () => {
       await syncData();
     })();
-  }, [providerDb]); // Only re-run if providerDb changes
+  }, [providerDb, storedSettings.syncEnabled]); // Only re-run if providerDb or sync enabled changes
+
+  if (!storedSettings.supabaseUrl || !storedSettings.supabaseAnonKey || !storedSettings.powersyncUrl || !storedSettings.powersyncToken) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.hello}>PowerSync not configured</Text>
+        <Text style={styles.subtext}>Please configure your sync settings to continue</Text>
+        <Button 
+          title="Go to Settings" 
+          onPress={() => navigation.navigate('Settings')}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -96,7 +111,7 @@ export const SetupSync = () => {
       <Text style={styles.hello}>PowerSync Events: {JSON.stringify(psEvents)}</Text>
 
       <Text style={styles.hello}>SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
-      {ConfigObj.sync.type === 'bidirectional' && (
+      {storedSettings.syncEnabled && storedSettings.syncType === 'bidirectional' && (
         <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
       )}
       <MyModuleView name="MyModuleView" />
@@ -135,5 +150,9 @@ const styles = StyleSheet.create({
   settingsButtonText: {
     fontSize: 16,
     color: '#007AFF',
+  },
+  subtext: {
+    textAlign: 'center',
+    margin: 10,
   },
 }); 

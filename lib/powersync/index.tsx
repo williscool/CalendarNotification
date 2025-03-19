@@ -2,7 +2,7 @@ import { OPSqliteOpenFactory } from '@powersync/op-sqlite';
 import { PowerSyncDatabase } from '@powersync/react-native';
 import { Connector } from './Connector';
 import { AppSchema } from './Schema';
-
+import { Settings } from '../hooks/useStoredSettings';
 const factory = new OPSqliteOpenFactory(
   {
     // Filename for the SQLite database — it's important to only instantiate one instance per file.
@@ -10,7 +10,6 @@ const factory = new OPSqliteOpenFactory(
     dbFilename: 'powerSyncEvents.db',
   }
 );
-
 
 /**
  * Instantiate the local PowerSync database
@@ -22,9 +21,9 @@ export const db = new PowerSyncDatabase({
   database: factory,
 });
 
-export const setupPowerSync = async () => {
+export const setupPowerSync = async (settings: Settings) => {
   // Uses the backend connector that will be created in the next section
-  const connector = new Connector();
+  const connector = new Connector(settings);
   db.connect(connector);
 
   try {

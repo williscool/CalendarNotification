@@ -1,81 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, View, Text, Switch, ScrollView, TextInput } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ConfigObj } from '../lib/config';
-
-type SyncType = 'unidirectional' | 'bidirectional';
-
-interface Settings {
-  syncEnabled: boolean;
-  syncType: SyncType;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  powersyncUrl: string;
-  powersyncToken: string;
-}
-
-const DEFAULT_SETTINGS: Settings = {
-  syncEnabled: false,
-  syncType: 'unidirectional',
-  supabaseUrl: '',
-  supabaseAnonKey: '',
-  powersyncUrl: '',
-  powersyncToken: '',
-};
-
-const SETTINGS_STORAGE_KEY = '@calendar_notifications_settings';
+import { useStoredSettings } from '../lib/hooks/useStoredSettings';
 
 export const Settings = () => {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const { storedSettings, updateSettings } = useStoredSettings();
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const storedSettings = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (storedSettings) {
-        const parsedSettings = JSON.parse(storedSettings);
-        setSettings(parsedSettings);
-        updateConfigObj(parsedSettings);
-      } else {
-        // Initialize with current ConfigObj values
-        const currentSettings: Settings = {
-          syncEnabled: ConfigObj.sync.enabled,
-          syncType: ConfigObj.sync.type as SyncType,
-          supabaseUrl: ConfigObj.supabase.url,
-          supabaseAnonKey: ConfigObj.supabase.anonKey,
-          powersyncUrl: ConfigObj.powersync.url,
-          powersyncToken: ConfigObj.powersync.token,
-        };
-        setSettings(currentSettings);
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
-
-  const updateConfigObj = (newSettings: Settings) => {
-    ConfigObj.sync.enabled = newSettings.syncEnabled;
-    ConfigObj.sync.type = newSettings.syncEnabled ? newSettings.syncType : 'none';
-    ConfigObj.supabase.url = newSettings.supabaseUrl;
-    ConfigObj.supabase.anonKey = newSettings.supabaseAnonKey;
-    ConfigObj.powersync.url = newSettings.powersyncUrl;
-    ConfigObj.powersync.token = newSettings.powersyncToken;
-  };
-
-  const saveSettings = async (newSettings: Settings) => {
-    try {
-      await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
-      updateConfigObj(newSettings);
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
-  };
-
-  const areAllSettingsValid = (s: Settings) => {
+  const areAllSettingsValid = (s: typeof storedSettings) => {
     return s.supabaseUrl.trim() !== '' &&
            s.supabaseAnonKey.trim() !== '' &&
            s.powersyncUrl.trim() !== '' &&
@@ -90,26 +20,26 @@ export const Settings = () => {
         <View style={styles.setting}>
           <Text style={styles.settingLabel}>Enable Sync</Text>
           <Switch
-            value={settings.syncEnabled}
+            value={storedSettings.syncEnabled}
             onValueChange={(value) => {
-              if (!value || areAllSettingsValid(settings)) {
-                saveSettings({ ...settings, syncEnabled: value });
+              if (!value || areAllSettingsValid(storedSettings)) {
+                updateSettings({ ...storedSettings, syncEnabled: value });
               }
             }}
-            disabled={!areAllSettingsValid(settings)}
+            disabled={!areAllSettingsValid(storedSettings)}
           />
         </View>
 
-        {settings.syncEnabled && (
+        {storedSettings.syncEnabled && (
           <View style={styles.setting}>
             <Text style={styles.settingLabel}>Sync Type</Text>
             <View style={styles.syncTypeButtons}>
               <Text
                 style={[
                   styles.syncTypeButton,
-                  settings.syncType === 'unidirectional' && styles.syncTypeButtonActive,
+                  storedSettings.syncType === 'unidirectional' && styles.syncTypeButtonActive,
                 ]}
-                onPress={() => saveSettings({ ...settings, syncType: 'unidirectional' })}
+                onPress={() => updateSettings({ ...storedSettings, syncType: 'unidirectional' })}
               >
                 Unidirectional
               </Text>
@@ -135,8 +65,8 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>Supabase URL</Text>
           <TextInput
             style={styles.input}
-            value={settings.supabaseUrl}
-            onChangeText={(text) => saveSettings({ ...settings, supabaseUrl: text })}
+            value={storedSettings.supabaseUrl}
+            onChangeText={(text) => updateSettings({ ...storedSettings, supabaseUrl: text })}
             placeholder="https://your-project.supabase.co"
             placeholderTextColor="#999"
           />
@@ -146,8 +76,8 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>Supabase Anon Key</Text>
           <TextInput
             style={styles.input}
-            value={settings.supabaseAnonKey}
-            onChangeText={(text) => saveSettings({ ...settings, supabaseAnonKey: text })}
+            value={storedSettings.supabaseAnonKey}
+            onChangeText={(text) => updateSettings({ ...storedSettings, supabaseAnonKey: text })}
             placeholder="your-supabase-anon-key"
             placeholderTextColor="#999"
             secureTextEntry
@@ -162,8 +92,8 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>PowerSync URL</Text>
           <TextInput
             style={styles.input}
-            value={settings.powersyncUrl}
-            onChangeText={(text) => saveSettings({ ...settings, powersyncUrl: text })}
+            value={storedSettings.powersyncUrl}
+            onChangeText={(text) => updateSettings({ ...storedSettings, powersyncUrl: text })}
             placeholder="https://your-project.powersync.journeyapps.com"
             placeholderTextColor="#999"
           />
@@ -173,8 +103,8 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>PowerSync Token</Text>
           <TextInput
             style={styles.input}
-            value={settings.powersyncToken}
-            onChangeText={(text) => saveSettings({ ...settings, powersyncToken: text })}
+            value={storedSettings.powersyncToken}
+            onChangeText={(text) => updateSettings({ ...storedSettings, powersyncToken: text })}
             placeholder="your-powersync-token"
             placeholderTextColor="#999"
             secureTextEntry
@@ -182,7 +112,7 @@ export const Settings = () => {
         </View>
       </View>
 
-      {!areAllSettingsValid(settings) && (
+      {!areAllSettingsValid(storedSettings) && (
         <Text style={styles.validationMessage}>
           Please fill in all settings to enable sync
         </Text>

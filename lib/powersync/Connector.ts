@@ -2,9 +2,8 @@ import 'react-native-url-polyfill/auto'
 
 // lib/Connector.js
 import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
-import { SupabaseClient, createClient } from '@supabase/supabase-js';
-import { ConfigObj } from '../config';
-
+import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
+import { Settings } from '../hooks/useStoredSettings';
 
 /// Postgres Response codes that we cannot recover from by retrying.
 const FATAL_RESPONSE_CODES = [
@@ -18,23 +17,26 @@ const FATAL_RESPONSE_CODES = [
   new RegExp('^42501$')
 ];
 
+interface SupabaseError {
+  code: string;
+}
+
 export class Connector implements PowerSyncBackendConnector {
     client: SupabaseClient;
+    private settings: Settings;
 
-    constructor() {
+    constructor(settings: Settings) {
+        this.settings = settings;
         // TODO setup session storage to support supabase auth
         // right now its not needed because will have people input
         // there own powersync token an supabase links in the app to start
-        this.client = createClient(ConfigObj.supabase.url, ConfigObj.supabase.anonKey);
+        this.client = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
     }
 
     async fetchCredentials() {
-    // - https://docs.powersync.com/installation/authentication-setup/firebase-auth
         return {
-            endpoint: ConfigObj.powersync.url,
-            // Use a development token (see Authentication Setup https://docs.powersync.com/installation/authentication-setup/development-tokens) to get up and running quickly
-			// TODO: programattically generate token from user id (i.e. email or phone number) + random secret
-            token: ConfigObj.powersync.token
+            endpoint: this.settings.powersyncUrl,
+            token: this.settings.powersyncToken  // TODO: programattically generate token from user id (i.e. email or phone number) + random secret
         };
     }
 
@@ -54,7 +56,7 @@ export class Connector implements PowerSyncBackendConnector {
           for (const op of transaction.crud) {
             lastOp = op;
             const table = this.client.from(op.table);
-            let result: any = null;
+            let result: PostgrestSingleResponse<null> | null = null;
             switch (op.op) {
               case UpdateType.PUT:
                 // eslint-disable-next-line no-case-declarations
@@ -69,7 +71,7 @@ export class Connector implements PowerSyncBackendConnector {
                 break;
             }
     
-            if (result.error) {
+            if (result?.error) {
               console.error(result.error);
               result.error.message = `Could not ${op.op} data to Supabase error: ${JSON.stringify(result)}`;
               throw result.error;
@@ -77,9 +79,10 @@ export class Connector implements PowerSyncBackendConnector {
           }
     
           await transaction.complete();
-        } catch (ex: any) {
+        } catch (ex: unknown) {
           console.debug(ex);
-          if (typeof ex.code == 'string' && FATAL_RESPONSE_CODES.some((regex) => regex.test(ex.code))) {
+          const error = ex as SupabaseError;
+          if (typeof error.code === 'string' && FATAL_RESPONSE_CODES.some((regex) => regex.test(error.code))) {
             /**
              * Instead of blocking the queue with these errors,
              * discard the (rest of the) transaction.
@@ -88,7 +91,7 @@ export class Connector implements PowerSyncBackendConnector {
              * If protecting against data loss is important, save the failing records
              * elsewhere instead of discarding, and/or notify the user.
              */
-            console.error('Data upload error - discarding:', lastOp, ex);
+            console.error('Data upload error - discarding:', lastOp, error);
             await transaction.complete();
           } else {
             // Error may be retryable - e.g. network error or temporary server error.
@@ -97,4 +100,4 @@ export class Connector implements PowerSyncBackendConnector {
           }
         }
       }
-}
+} 
