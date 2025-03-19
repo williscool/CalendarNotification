@@ -34,6 +34,14 @@ export const Settings = () => {
     }
   };
 
+  const handleSyncToggle = (value: boolean) => {
+    if (!value || areAllSettingsValid(tempSettings)) {
+      const newSettings = { ...tempSettings, syncEnabled: value };
+      setTempSettings(newSettings);
+      updateSettings(newSettings);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       {isDirty && (
@@ -49,11 +57,7 @@ export const Settings = () => {
           <Text style={styles.settingLabel}>Enable Sync</Text>
           <Switch
             value={tempSettings.syncEnabled}
-            onValueChange={(value) => {
-              if (!value || areAllSettingsValid(tempSettings)) {
-                handleSettingChange({ ...tempSettings, syncEnabled: value });
-              }
-            }}
+            onValueChange={handleSyncToggle}
             disabled={!areAllSettingsValid(tempSettings)}
           />
         </View>
