@@ -3,7 +3,7 @@ import 'react-native-url-polyfill/auto'
 // lib/Connector.js
 import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
 import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
-import { Settings } from '../hooks/useStoredSettings';
+import { Settings } from '../hooks/SettingsContext';
 
 /// Postgres Response codes that we cannot recover from by retrying.
 const FATAL_RESPONSE_CODES = [

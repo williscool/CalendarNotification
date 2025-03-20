@@ -29,7 +29,7 @@ export const setupPowerSync = async (settings: Settings) => {
   try {
     await db.init();
   } catch (e) {
-    console.log(e, typeof e);
+    console.log('Error initializing PowerSync connection:', e);
   }
 
   // console.log(db)
