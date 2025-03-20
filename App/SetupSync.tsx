@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView } from 'react-native';
 import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
@@ -18,6 +18,7 @@ export const SetupSync = () => {
   const { settings } = useSettings();
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
+  const [showDebugOutput, setShowDebugOutput] = useState(false);
 
   const numEventsToDisplay = 3;
 
@@ -97,16 +98,29 @@ export const SetupSync = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.contentContainer} style={styles.scrollContainer}>
       <Text style={styles.hello} selectable>PowerSync Status: {dbStatus}</Text>
       <Text style={styles.hello}>Last Updated: {lastUpdate}</Text>
 
-      <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
-      
-      <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
+      <TouchableOpacity 
+        style={[styles.toggleButton, styles.debugToggleButton]}
+        onPress={() => setShowDebugOutput(!showDebugOutput)}
+      >
+        <Text style={styles.toggleButtonText}>
+          {showDebugOutput ? 'Hide Debug Data' : 'Show Debug Data'}
+        </Text>
+      </TouchableOpacity>
 
-      {settings.syncEnabled && settings.syncType === 'bidirectional' && (
-        <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
+      {showDebugOutput && (
+        <View style={styles.debugSection}>
+          <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
+          
+          <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
+
+          {settings.syncEnabled && settings.syncType === 'bidirectional' && (
+            <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
+          )}
+        </View>
       )}
 
       <TouchableOpacity 
@@ -162,7 +176,7 @@ export const SetupSync = () => {
         }}
       ></Button> */}
 
-    </View>
+    </ScrollView>
   );
 };
 
@@ -170,6 +184,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingVertical: 20,
+    paddingHorizontal: 10,
   },
   header: {
     flexDirection: 'row',
@@ -261,5 +282,17 @@ const styles = StyleSheet.create({
   },
   toggleButtonTextActive: {
     color: '#fff',
+  },
+  debugSection: {
+    marginVertical: 10,
+    padding: 10,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  debugToggleButton: {
+    backgroundColor: '#6c757d',
+    marginTop: 10,
   },
 }); 
