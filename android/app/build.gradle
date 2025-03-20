@@ -38,8 +38,8 @@ android {
     minSdkVersion 24
     minSdk 24
     //noinspection ExpiredTargetSdkVersion
-    targetSdkVersion 34
-    targetSdk 34
+    targetSdkVersion 31
+    targetSdk 31
     versionCode 4000016
     versionName "6.5.1"
 
