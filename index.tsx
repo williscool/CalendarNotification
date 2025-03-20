@@ -1,4 +1,7 @@
 import "react-native-devsettings";
+// Initialize environment variables
+import './lib/env';
+
 import { AppRegistry } from 'react-native';
 import Constants from 'expo-constants';
 import { PI, MyModuleView, setValueAsync } from './modules/my-module';
