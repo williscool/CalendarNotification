@@ -44,9 +44,10 @@ android {
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
-    ndk { 
-      abiFilters 'x86_64', 'arm64-v8a'
-    }
+    // We removed abiFilters since it conflicts with splits
+    // ndk { 
+    //   abiFilters 'x86_64', 'arm64-v8a'
+    // }
 
     // Add packagingOptions to include necessary .so files
     packagingOptions {
