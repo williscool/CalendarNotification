@@ -178,3 +178,21 @@ cp core/dist/crsqlite.so android/app/src/main/jniLibs/x86_64/crsqlite.so
 
 - If you see linker errors, double-check that your NDK matches your host OS
 - Ensure the NDK version matches what's specified in your project's `build.gradle`
+
+## Dependencies Note
+
+### Removal of react-native-safe-area-context despite the usage of react-native-screens for Data Sync UI
+
+The `react-native-safe-area-context` package has been removed from the project's dependencies due to build issues. This package is typically used alongside `react-native-screens` for handling safe area insets and providing proper layout around notches, status bars, and home indicators.
+
+#### Relationship with react-native-screens
+
+`react-native-screens` does not directly depend on `react-native-safe-area-context` at the code level, but they are often used together in React Navigation implementations. React Navigation requires both packages as peer dependencies for proper functioning.
+
+Key points about this relationship:
+
+1. `react-native-screens` optimizes the native view hierarchy by using native platform components for screens.
+2. `react-native-safe-area-context` provides inset values and components (like `SafeAreaView`) to handle device-specific UI features safely.
+3. React Navigation uses both packages to create properly inset navigation components.
+
+Since we have removed `react-native-safe-area-context`, some UI elements might not properly respect safe areas on notched devices or devices with system UI elements that intrude into the screen area. This is a known limitation until we can update our SDK versions to support both packages without breaking the build.

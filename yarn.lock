@@ -4869,7 +4869,6 @@ __metadata:
     react: 18.2.0
     react-native: 0.74.5
     react-native-devsettings: ^1.0.5
-    react-native-safe-area-context: 5.3.0
     react-native-screens: 4.9.1
     react-native-url-polyfill: ^2.0.0
     regenerator-runtime: ^0.14.0
@@ -14493,16 +14492,6 @@ eslint-plugin-prettier@latest:
   version: 1.0.5
   resolution: "react-native-devsettings@npm:1.0.5"
   checksum: a59be2a07a94d16e8cd6443636ef44ebad15a8ddf6dcb742b737949c9029a9ff295894198e81a5ffd89f5714708be4b02b54b544566656e466e87982ffc89166
-  languageName: node
-  linkType: hard
-
-"react-native-safe-area-context@npm:5.3.0":
-  version: 5.3.0
-  resolution: "react-native-safe-area-context@npm:5.3.0"
-  peerDependencies:
-    react: "*"
-    react-native: "*"
-  checksum: 21f18b1286fc7bc6f38f864b7468848c16c58106ae429633e8f655dabb80571beba19ac8aa8bc5e1b2e926d75afddd7ded919a56450aa00c36d56f7fb421f782
   languageName: node
   linkType: hard
 
