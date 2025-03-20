@@ -19,6 +19,7 @@ export const SetupSync = () => {
   const debugDisplayKeys = ['id', 'ttl', 'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
   const numEventsToDisplay = 3;
 
@@ -51,18 +52,25 @@ export const SetupSync = () => {
           setTempTableEvents(tempResult.rows || []);
         }
       }
-
     })();
 
     addChangeListener((value) => {
       console.log(hello());
       console.log('value changed', value);
-    })
+    });
 
     // Set up interval to check PowerSync status
     const statusInterval = setInterval(() => {
-      setDbStatus(JSON.stringify(providerDb.currentStatus));
-      setLastUpdate(new Date().toLocaleTimeString());
+      if (providerDb) {
+        setDbStatus(JSON.stringify(providerDb.currentStatus));
+        setLastUpdate(new Date().toLocaleTimeString());
+        
+        // Only update connection status if PowerSync has initialized
+        // (hasSynced is defined and currentStatus object is populated)
+        if (providerDb.currentStatus && providerDb.currentStatus.hasSynced !== undefined) {
+          setIsConnected(providerDb.currentStatus.connected);
+        }
+      }
     }, 1000);
 
     // Cleanup interval on component unmount
@@ -102,6 +110,28 @@ export const SetupSync = () => {
       <Text style={styles.hello} selectable>PowerSync Status: {dbStatus}</Text>
       <Text style={styles.hello}>Last Updated: {lastUpdate}</Text>
 
+      {isConnected === false && (
+        <View style={styles.connectionWarning}>
+          <Text style={styles.warningText}>
+            ⚠️ PowerSync is not connected. Sync features are disabled.
+          </Text>
+          <TouchableOpacity 
+            style={styles.settingsLinkButton}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Text style={styles.settingsLinkText}>Go to Settings</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {isConnected === null && (
+        <View style={styles.initializingWarning}>
+          <Text style={styles.initializingText}>
+            ⏳ PowerSync is initializing... Please wait.
+          </Text>
+        </View>
+      )}
+
       <TouchableOpacity 
         style={[styles.toggleButton, styles.debugToggleButton]}
         onPress={() => setShowDebugOutput(!showDebugOutput)}
@@ -124,23 +154,33 @@ export const SetupSync = () => {
       )}
 
       <TouchableOpacity 
-        style={styles.syncButton}
-        onPress={handleSync}
+        style={[styles.syncButton, isConnected === false && styles.disabledButton]}
+        onPress={isConnected === false ? undefined : handleSync}
+        disabled={isConnected === false}
       >
         {/* TODO: move to background job instead of buttton  */}
         <Text style={styles.syncButtonText}>Sync Events Local To PowerSync Now</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
-        style={[styles.toggleButton, showDangerZone && styles.toggleButtonActive]}
-        onPress={() => setShowDangerZone(!showDangerZone)}
+        style={[
+          styles.toggleButton, 
+          showDangerZone && styles.toggleButtonActive,
+          isConnected === false && styles.disabledButton
+        ]}
+        onPress={isConnected === false ? undefined : () => setShowDangerZone(!showDangerZone)}
+        disabled={isConnected === false}
       >
-        <Text style={[styles.toggleButtonText, showDangerZone && styles.toggleButtonTextActive]}>
+        <Text style={[
+          styles.toggleButtonText, 
+          showDangerZone && styles.toggleButtonTextActive,
+          isConnected === false && styles.disabledButtonText
+        ]}>
           {showDangerZone ? '🔒 Hide Danger Zone' : '⚠️ Show Danger Zone'}
         </Text>
       </TouchableOpacity>
 
-      {showDangerZone && (
+      {showDangerZone && isConnected !== false && (
         <>
           <View style={styles.warningContainer}>
             <Text style={styles.warningText}>
@@ -294,5 +334,46 @@ const styles = StyleSheet.create({
   debugToggleButton: {
     backgroundColor: '#6c757d',
     marginTop: 10,
+  },
+  disabledButton: {
+    backgroundColor: '#cccccc',
+    opacity: 0.7,
+  },
+  disabledButtonText: {
+    color: '#888888',
+  },
+  connectionWarning: {
+    backgroundColor: '#fff3cd',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffeeba',
+    marginVertical: 15,
+    marginHorizontal: 20,
+    alignItems: 'center',
+  },
+  settingsLinkButton: {
+    marginTop: 10,
+    padding: 8,
+  },
+  settingsLinkText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  initializingWarning: {
+    backgroundColor: '#e2f3fc',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#90caf9',
+    marginVertical: 15,
+    marginHorizontal: 20,
+    alignItems: 'center',
+  },
+  initializingText: {
+    fontSize: 16,
+    color: '#0277bd',
   },
 }); 
