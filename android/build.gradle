@@ -24,8 +24,8 @@ buildscript {
       ndkVersion = '26.1.10909125'
       minSdk = 24 // https://github.com/software-mansion/react-native-screens/pull/2251#ref-issue-2457327086
       minSdkVersion = 24
-      targetSdk = 31
-      targetSdkVersion = 31
+      targetSdk = 28
+      targetSdkVersion = 28
     }
 
     repositories {
