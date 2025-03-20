@@ -108,7 +108,7 @@ https://instamobile.io/android-development/generate-react-native-release-build-a
 
 build the bundle ahead of time
 
-```
+```bash
 yarn  react-native bundle --platform android --dev false --entry-file index.tsx --bundle-output android/app/src/main/assets/index.android.bundle  --assets-dest android/app/src/main/res/
 ```
 
@@ -195,4 +195,32 @@ Key points about this relationship:
 2. `react-native-safe-area-context` provides inset values and components (like `SafeAreaView`) to handle device-specific UI features safely.
 3. React Navigation uses both packages to create properly inset navigation components.
 
-Since we have removed `react-native-safe-area-context`, some UI elements might not properly respect safe areas on notched devices or devices with system UI elements that intrude into the screen area. This is a known limitation until we can update our SDK versions to support both packages without breaking the build.
+#### Mock Implementation Solution
+
+Since removing `react-native-safe-area-context` causes dependency errors with React Navigation, we've implemented a mock version of the package. This mock provides dummy implementations of the required components and hooks without the native code that was causing build issues.
+
+The mock is automatically created during the `yarn install` process via a postinstall script. You can manually run the setup with:
+
+```bash
+node scripts/setup_safe_area_mock.js
+```
+
+##### Mock Implementation Structure
+
+For easier review and maintenance, the mock implementation templates are organized in separate files:
+
+- `scripts/safe-area-mock-templates/` - Directory containing all template files
+  - `package.json` - Package metadata
+  - `module-index.js` - ES modules implementation
+  - `commonjs-index.js` - CommonJS implementation
+  - `typescript-index.d.ts` - TypeScript definition
+
+The `setup_safe_area_mock.js` script combines these templates to create the mock package at runtime.
+
+This approach allows us to:
+1. Keep using React Navigation without errors
+2. Avoid the build issues caused by the native implementation
+3. Ensure consistent behavior in both development and CI environments
+4. Easily review and maintain the mock implementation
+
+Note: This is a temporary solution until we can update our SDK versions to support both packages without breaking the build. UI elements might not properly respect safe areas on notched devices or devices with system UI elements that intrude into the screen area.
