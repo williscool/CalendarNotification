@@ -34,6 +34,7 @@
             android:name=".ui.MainActivity"
             android:label="@string/main_activity_title"
             android:theme="@style/AppTheme.NoActionBar"
+            android:exported="true"
 			android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -75,7 +76,8 @@
             android:name=".prefs.CalendarsActivity"
             android:label="@string/title_calendars_activity"
             android:parentActivityName=".ui.SettingsActivity"
-            android:theme="@style/AppTheme.NoActionBar">
+            android:theme="@style/AppTheme.NoActionBar"
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.prefs.CalendarsActivity" />
 
@@ -87,7 +89,8 @@
             android:name=".prefs.CarModeActivity"
             android:label="@string/title_car_mode_activity"
             android:parentActivityName=".ui.SettingsActivity"
-            android:theme="@style/AppTheme.NoActionBar">
+            android:theme="@style/AppTheme.NoActionBar"
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.prefs.CarModeActivity" />
 
@@ -128,7 +131,7 @@
             android:theme="@style/AppTheme.NoActionBar"
             android:parentActivityName=".ui.MainActivity"
             android:label="@string/create_event"
-            >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -160,7 +163,9 @@
         <service android:name=".notification.NotificationActionSnoozeService" />
         <service android:name=".notification.NotificationActionMuteToggleService" />
 
-        <receiver android:name=".broadcastreceivers.AppUpdatedBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.AppUpdatedBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
@@ -181,7 +186,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.EventReminderBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.EventReminderBroadcastReceiver"
+            android:exported="true">
             <intent-filter android:priority="2147483647">
                 <action android:name="android.intent.action.EVENT_REMINDER" />
 
@@ -205,7 +212,9 @@
                 <data android:mimeType="vnd.android.cursor.item/calendar_alert_time" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.CalendarChangedBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.CalendarChangedBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.PROVIDER_CHANGED" />
 
@@ -220,13 +229,17 @@
         <receiver android:name=".broadcastreceivers.ReminderExactAlarmBroadcastReceiver" />
         <receiver android:name=".broadcastreceivers.ManualEventExactAlarmBroadcastReceiver" />
         <receiver android:name=".broadcastreceivers.ManualEventAlarmPeriodicRescanBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.TimeSetBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.TimeSetBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.RemoteCommandBroadcastReceiver"
+        <receiver 
+            android:name=".broadcastreceivers.RemoteCommandBroadcastReceiver"
+            android:exported="true"
             tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.remote_mute_all" />
