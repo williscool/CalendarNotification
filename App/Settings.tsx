@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Switch, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, Switch, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -9,6 +9,8 @@ export const Settings = () => {
   const [isDirty, setIsDirty] = useState(false);
   const [showSupabaseKey, setShowSupabaseKey] = useState(false);
   const [showPowerSyncToken, setShowPowerSyncToken] = useState(false);
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 450;
 
   useEffect(() => {
     setTempSettings(settings);
@@ -53,8 +55,8 @@ export const Settings = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Sync Settings</Text>
         
-        <View style={styles.setting}>
-          <Text style={styles.settingLabel}>Enable Sync</Text>
+        <View style={[styles.setting, isSmallScreen && styles.settingColumn]}>
+          <Text style={[styles.settingLabel, isSmallScreen && styles.settingLabelFullWidth]}>Enable Sync</Text>
           <Switch
             value={tempSettings.syncEnabled}
             onValueChange={handleSyncToggle}
@@ -63,29 +65,31 @@ export const Settings = () => {
         </View>
 
         {tempSettings.syncEnabled && (
-          <View style={styles.setting}>
-            <Text style={styles.settingLabel}>Sync Type</Text>
-            <View style={styles.syncTypeButtons}>
-              <Text
-                style={[
-                  styles.syncTypeButton,
-                  tempSettings.syncType === 'unidirectional' && styles.syncTypeButtonActive,
-                ]}
-                onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
-              >
-                Unidirectional
-              </Text>
-              <Text
-                style={[
-                  styles.syncTypeButton,
-                  styles.syncTypeButtonDisabled,
-                ]}
-                onPress={() => {}}
-              >
-                Bidirectional
-              </Text>
+          <View style={[styles.setting, isSmallScreen && styles.settingColumn]}>
+            <Text style={[styles.settingLabel, isSmallScreen && styles.settingLabelFullWidth]}>Sync Type</Text>
+            <View style={[styles.syncTypeContainer, isSmallScreen && styles.syncTypeContainerFullWidth]}>
+              <View style={[styles.syncTypeButtons, isSmallScreen && styles.syncTypeButtonsFullWidth]}>
+                <Text
+                  style={[
+                    styles.syncTypeButton,
+                    tempSettings.syncType === 'unidirectional' && styles.syncTypeButtonActive,
+                  ]}
+                  onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
+                >
+                  Unidirectional
+                </Text>
+                <Text
+                  style={[
+                    styles.syncTypeButton,
+                    styles.syncTypeButtonDisabled,
+                  ]}
+                  onPress={() => {}}
+                >
+                  Bidirectional
+                </Text>
+              </View>
+              <Text style={[styles.disabledMessage, isSmallScreen && styles.disabledMessageFullWidth]}>Bidirectional sync coming soon</Text>
             </View>
-            <Text style={styles.disabledMessage}>Bidirectional sync coming soon</Text>
           </View>
         )}
       </View>
@@ -106,10 +110,10 @@ export const Settings = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Supabase Settings</Text>
         
-        <View style={styles.setting}>
-          <Text style={styles.settingLabel}>Supabase URL</Text>
+        <View style={[styles.setting, isSmallScreen && styles.settingColumn]}>
+          <Text style={[styles.settingLabel, isSmallScreen && styles.settingLabelFullWidth]}>Supabase URL</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isSmallScreen && styles.inputFullWidth]}
             value={tempSettings.supabaseUrl}
             onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
             placeholder="https://your-project.supabase.co"
@@ -117,11 +121,11 @@ export const Settings = () => {
           />
         </View>
 
-        <View style={styles.setting}>
-          <Text style={styles.settingLabel}>Supabase Anon Key</Text>
-          <View style={styles.secureInputContainer}>
+        <View style={[styles.setting, isSmallScreen && styles.settingColumn]}>
+          <Text style={[styles.settingLabel, isSmallScreen && styles.settingLabelFullWidth]}>Supabase Anon Key</Text>
+          <View style={[styles.secureInputContainer, isSmallScreen && styles.secureInputContainerFullWidth]}>
             <TextInput
-              style={[styles.input, styles.secureInput]}
+              style={[styles.input, styles.secureInput, isSmallScreen && styles.inputFullWidth]}
               value={tempSettings.supabaseAnonKey}
               onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
               placeholder="your-supabase-anon-key"
@@ -145,10 +149,10 @@ export const Settings = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>PowerSync Settings</Text>
         
-        <View style={styles.setting}>
-          <Text style={styles.settingLabel}>PowerSync URL</Text>
+        <View style={[styles.setting, isSmallScreen && styles.settingColumn]}>
+          <Text style={[styles.settingLabel, isSmallScreen && styles.settingLabelFullWidth]}>PowerSync URL</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isSmallScreen && styles.inputFullWidth]}
             value={tempSettings.powersyncUrl}
             onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
             placeholder="https://your-project.powersync.journeyapps.com"
@@ -156,11 +160,11 @@ export const Settings = () => {
           />
         </View>
 
-        <View style={styles.setting}>
-          <Text style={styles.settingLabel}>PowerSync Token</Text>
-          <View style={styles.secureInputContainer}>
+        <View style={[styles.setting, isSmallScreen && styles.settingColumn]}>
+          <Text style={[styles.settingLabel, isSmallScreen && styles.settingLabelFullWidth]}>PowerSync Token</Text>
+          <View style={[styles.secureInputContainer, isSmallScreen && styles.secureInputContainerFullWidth]}>
             <TextInput
-              style={[styles.input, styles.secureInput]}
+              style={[styles.input, styles.secureInput, isSmallScreen && styles.inputFullWidth]}
               value={tempSettings.powersyncToken}
               onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
               placeholder="your-powersync-token"
@@ -230,10 +234,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  settingColumn: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
   settingLabel: {
     fontSize: 16,
     color: '#333',
     flex: 1,
+  },
+  settingLabelFullWidth: {
+    flex: 0,
+    width: '100%',
+    marginBottom: 8,
   },
   input: {
     flex: 2,
@@ -244,9 +257,33 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     fontSize: 16,
   },
+  inputFullWidth: {
+    flex: 1,
+    marginLeft: 0,
+    width: '100%',
+  },
+  syncTypeContainer: {
+    flex: 2,
+    flexDirection: 'column',
+    marginLeft: 16,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  syncTypeContainerFullWidth: {
+    flex: 1,
+    width: '100%',
+    marginLeft: 0,
+    alignItems: 'flex-start',
+  },
   syncTypeButtons: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
+  },
+  syncTypeButtonsFullWidth: {
+    marginTop: 8,
+    justifyContent: 'flex-start',
+    width: 'auto',
   },
   syncTypeButton: {
     paddingHorizontal: 12,
@@ -268,6 +305,10 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     marginTop: 4,
+    textAlign: 'right',
+  },
+  disabledMessageFullWidth: {
+    textAlign: 'left',
   },
   validationMessage: {
     color: '#ff3b30',
@@ -312,9 +353,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 16,
   },
+  secureInputContainerFullWidth: {
+    flex: 1,
+    marginLeft: 0,
+    width: '100%',
+  },
   secureInput: {
     marginLeft: 0,
     marginRight: 8,
+    flex: 1,
   },
   eyeIcon: {
     padding: 8,
