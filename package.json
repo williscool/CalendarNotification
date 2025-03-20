@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "yarn react-native start"
+    "start": "yarn react-native start",
+    "postinstall": "node scripts/setup_safe_area_mock.js"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",

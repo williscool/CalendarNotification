@@ -1,0 +1,13 @@
+{
+  "name": "react-native-safe-area-context",
+  "version": "4.5.0",
+  "description": "Mock implementation of react-native-safe-area-context",
+  "main": "lib/module/index.js",
+  "types": "lib/typescript/index.d.ts",
+  "react-native": "lib/module/index.js",
+  "nativePackage": false,
+  "private": false,
+  "sideEffects": false,
+  "author": "Mock Implementation",
+  "license": "MIT"
+} 
