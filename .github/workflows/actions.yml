@@ -9,6 +9,9 @@ env:
 
   app_file_name_prefix: "calendar_notifications_plus"
 
+  # Explicitly set CI flag to true for our Gradle task
+  CI: true
+
 on:
   push:
     tags:

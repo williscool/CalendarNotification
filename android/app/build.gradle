@@ -19,6 +19,27 @@ apply plugin: "com.facebook.react"
 // 28       P                   9
 //
 
+// Check if we're running in a CI environment
+def isCiBuild = System.getenv("CI") != null && System.getenv("CI").toBoolean()
+// Alternatively, you can also check for GitHub Actions specifically
+def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("GITHUB_ACTIONS").toBoolean()
+// Combined flag to determine if we should bundle JS
+def shouldBundleJS = isCiBuild || isGitHubActions
+
+// Task to generate React Native bundle for CI builds
+if (shouldBundleJS) {
+    tasks.register("createJSBundle", Exec) {
+        workingDir "../../"
+        commandLine "yarn", "react-native", "bundle", "--platform", "android", "--dev", "false", 
+                    "--entry-file", "index.tsx", 
+                    "--bundle-output", "android/app/src/main/assets/index.android.bundle", 
+                    "--assets-dest", "android/app/src/main/res/"
+        doFirst {
+            new File("${projectDir}/src/main/assets").mkdirs()
+        }
+    }
+}
+
 android {
   compileSdkVersion 34
 
@@ -92,9 +113,16 @@ android {
   }
   namespace 'com.github.quarck.calnotify'
 
-
 }
 
+// Ensure the CI build generates the bundle before assembling
+if (shouldBundleJS) {
+    tasks.whenTaskAdded { task ->
+        if (task.name.contains('assemble') || task.name.contains('bundle')) {
+            task.dependsOn createJSBundle
+        }
+    }
+}
 
 dependencies {
   implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -136,6 +164,9 @@ dependencies {
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
   entryFile = file("../../index.tsx")
+  // Only enable bundling on CI builds to avoid bundling during local development
+  // bundleInDebug = shouldBundleJS
+  // bundleInRelease = true
 }
 
 

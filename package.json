@@ -5,7 +5,11 @@
   "scripts": {
     "start": "yarn react-native start",
     "postinstall": "node scripts/setup_safe_area_mock.js",
-    "build:crsqlite:arm64": "cd scripts && ./build_crsqlite_arm64.sh"
+    "build:crsqlite:arm64": "cd scripts && ./build_crsqlite_arm64.sh",
+    "bundle:android": "node scripts/bundle_android.js",
+    "android:build:debug": "yarn bundle:android && cd android && ./gradlew assembleDebug",
+    "android:build:release": "yarn bundle:android && cd android && ./gradlew assembleRelease",
+    "android:install:debug": "yarn bundle:android && cd android && ./gradlew installDebug"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
