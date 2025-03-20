@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "yarn react-native start",
-    "postinstall": "node scripts/setup_safe_area_mock.js"
+    "postinstall": "node scripts/setup_safe_area_mock.js",
+    "build:crsqlite:arm64": "cd scripts && ./build_crsqlite_arm64.sh"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",

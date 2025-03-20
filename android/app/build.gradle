@@ -44,14 +44,23 @@ android {
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
-    // Only include x86_64
     ndk { 
-      abiFilters 'x86_64'
+      abiFilters 'x86_64', 'arm64-v8a'
     }
 
     // Add packagingOptions to include necessary .so files
     packagingOptions {
       pickFirst '**/*.so'
+    }
+  }
+
+  // Add splits configuration for APK size optimization
+  splits {
+    abi {
+      enable true
+      reset()
+      include 'x86_64', 'arm64-v8a'
+      universalApk false
     }
   }
 

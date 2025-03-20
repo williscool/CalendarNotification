@@ -137,6 +137,8 @@ Using an NDK from a different OS (e.g., using Windows NDK on Linux) will cause h
 
 ### Build Instructions
 
+#### Build for x86_64 (Emulator)
+
 1. Set up the environment:
 ```bash
 # Set NDK path - adjust this to your NDK installation location
@@ -174,10 +176,46 @@ mkdir -p android/app/src/main/jniLibs/x86_64
 cp core/dist/crsqlite.so android/app/src/main/jniLibs/x86_64/crsqlite.so
 ```
 
+#### Build for arm64-v8a (Physical Devices like Pixel 9 Pro)
+
+You can use the convenience script we've added to build for arm64-v8a:
+
+```bash
+# Set NDK path - adjust this to your NDK installation location
+export ANDROID_NDK_HOME=/path/to/your/ndk/26.1.10909125
+
+# Run the build script
+yarn build:crsqlite:arm64
+```
+
+This will clone the cr-sqlite repository, build for arm64-v8a, and copy the resulting .so file to the correct location in your project.
+
 ### Troubleshooting
 
 - If you see linker errors, double-check that your NDK matches your host OS
 - Ensure the NDK version matches what's specified in your project's `build.gradle`
+- For arm64-v8a builds, make sure you have the aarch64-linux-android target installed: `rustup target add aarch64-linux-android --toolchain nightly`
+- If you see an error like `the -Z flag is only accepted on the nightly channel of Cargo`, ensure you're explicitly using the nightly toolchain:
+  ```
+  rustup run nightly make loadable
+  ```
+  or set the default to nightly temporarily:
+  ```
+  rustup default nightly
+  make loadable
+  rustup default stable  # Switch back when done
+  ```
+- **Homebrew Rust vs. Official Rust**: If you have Homebrew's Rust installed, it may conflict with rustup's version:
+  - Check which Rust you're using: `which cargo` and `cargo --version`
+  - If using Homebrew's Rust, uninstall it: `brew uninstall rust`
+  - Install the official Rust toolchain from https://www.rust-lang.org/tools/install
+  - Install nightly: `rustup toolchain install nightly`
+  - Set nightly as default: `rustup default nightly`
+  - Or use the `+nightly` flag with cargo commands and `rustup run nightly` with other commands
+- **Missing submodule files**: If you see errors like `failed to read .../sqlite_nostd/Cargo.toml`, the Git submodules were not properly initialized:
+  - Remove the tmp directory: `rm -rf tmp`
+  - Run the build script again, which will re-clone the repository with proper submodule initialization
+  - Or manually initialize submodules: `cd tmp/cr-sqlite && git submodule update --init --recursive`
 
 ## Dependencies Note
 
@@ -224,3 +262,10 @@ This approach allows us to:
 4. Easily review and maintain the mock implementation
 
 Note: This is a temporary solution until we can update our SDK versions to support both packages without breaking the build. UI elements might not properly respect safe areas on notched devices or devices with system UI elements that intrude into the screen area.
+
+
+
+# TODOS (using cursor)
+- need to rewrite the commits on database sync branch so merging doesn't break ci becaue it can't read them right to determine new version
+- cleanup this readme and make it more useful!
+- cleanup working directory of stuff so I dont have stuff lying around
