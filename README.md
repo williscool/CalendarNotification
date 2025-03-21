@@ -264,8 +264,3 @@ This approach allows us to:
 Note: This is a temporary solution until we can update our SDK versions to support both packages without breaking the build. UI elements might not properly respect safe areas on notched devices or devices with system UI elements that intrude into the screen area.
 
 
-
-# TODOS (using cursor)
-- need to rewrite the commits on database sync branch so merging doesn't break ci becaue it can't read them right to determine new version
-- cleanup this readme and make it more useful!
-- cleanup working directory of stuff so I dont have stuff lying around

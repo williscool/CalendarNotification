@@ -9,7 +9,9 @@
     "bundle:android": "node scripts/bundle_android.js",
     "android:build:debug": "yarn bundle:android && cd android && ./gradlew assembleDebug",
     "android:build:release": "yarn bundle:android && cd android && ./gradlew assembleRelease",
-    "android:install:debug": "yarn bundle:android && cd android && ./gradlew installDebug"
+    "android:install:debug": "yarn bundle:android && cd android && ./gradlew installDebug",
+    "android:sign:debug-apks": "node scripts/sign_android.js",
+    "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
