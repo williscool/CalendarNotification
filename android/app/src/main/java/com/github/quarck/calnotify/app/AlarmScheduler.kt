@@ -29,6 +29,7 @@ import com.github.quarck.calnotify.broadcastreceivers.SnoozeExactAlarmBroadcastR
 import com.github.quarck.calnotify.calendar.isNotSnoozed
 import com.github.quarck.calnotify.calendar.isNotSpecial
 import com.github.quarck.calnotify.calendar.isSnoozed
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.persistentState
@@ -48,7 +49,7 @@ object AlarmScheduler : AlarmSchedulerInterface {
 
         DevLog.debug(LOG_TAG, "rescheduleAlarms called");
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             val events = db.events

@@ -19,7 +19,8 @@
 
 package com.github.quarck.calnotify.eventsstorage
 
-import android.database.sqlite.SQLiteDatabase
+import android.content.Context
+import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 
 interface EventsStorageImplInterface {
@@ -48,5 +49,6 @@ interface EventsStorageImplInterface {
     fun deleteEventsImpl(db: SQLiteDatabase, events: Collection<EventAlertRecord>): Int
 
     fun dropAll(db: SQLiteDatabase): Boolean
+
 
 }

@@ -24,8 +24,10 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.calendareditor.storage.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarChangeManagerInterface {
 
@@ -50,7 +52,7 @@ class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarCh
                 oldDetails = CalendarEventDetails.createEmpty()
         )
 
-        CalendarChangeRequestsStorage(context).use {
+        CalendarChangeRequestsStorage(context).classCustomUse {
             db ->
 
             db.add(event)
@@ -85,7 +87,7 @@ class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarCh
             return false;
         }
 
-        CalendarChangeRequestsStorage(context).use {
+        CalendarChangeRequestsStorage(context).classCustomUse {
             db ->
 
             db.deleteForEventId(event.eventId)
@@ -217,7 +219,7 @@ class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarCh
 
         var ret = false
 
-        CalendarChangeRequestsStorage(context).use {
+        CalendarChangeRequestsStorage(context).classCustomUse {
             db ->
 
             db.deleteForEventId(eventToEdit.eventId)

@@ -17,7 +17,7 @@ class MyReactActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
     private lateinit var reactRootView: ReactRootView
     private lateinit var reactInstanceManager: ReactInstanceManager
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        super.onCreate(null) // null is required for react-native-screens https://github.com/software-mansion/react-native-screens
         SoLoader.init(this, false)
         reactRootView = ReactRootView(this)
         val packages: List<ReactPackage> = PackageList(application).packages
@@ -33,9 +33,9 @@ class MyReactActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
             .setUseDeveloperSupport(BuildConfig.DEBUG)
             .setInitialLifecycleState(LifecycleState.RESUMED)
             .build()
-        // The string here (e.g. "MyReactNativeApp") has to match
+        // The string here (e.g. "CNPlusSync") has to match
         // the string in AppRegistry.registerComponent() in index.js
-        reactRootView.startReactApplication(reactInstanceManager, "MyReactNativeApp", null)
+        reactRootView.startReactApplication(reactInstanceManager, "CNPlusSync", null)
         setContentView(reactRootView)
     }
 

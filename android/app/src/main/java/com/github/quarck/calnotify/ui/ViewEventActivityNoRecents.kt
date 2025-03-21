@@ -50,6 +50,8 @@ import android.os.Build
 import android.os.Handler
 import androidx.core.content.ContextCompat
 import android.text.method.ScrollingMovementMethod
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 // TODO: add repeating rule and calendar name somewhere on the snooze activity
 
@@ -195,7 +197,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         find<Toolbar?>(R.id.toolbar)?.visibility = View.GONE
 
         // load event if it is not a "snooze all"
-        EventsStorage(this).use {
+        EventsStorage(this).classCustomUse {
             db ->
 
             var dbEvent = db.getEvent(eventId, instanceStartTime)
@@ -215,10 +217,12 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             if (dbEvent == null) {
                 DevLog.error(LOG_TAG, "ViewActivity started for non-existing eveng id $eventId, st $instanceStartTime")
                 finish()
-                return
+//                return
             }
 
+          if (dbEvent != null) {
             event = dbEvent
+          }
         }
 
         calendar = calendarProvider.getCalendarById(this, event.calendarId)

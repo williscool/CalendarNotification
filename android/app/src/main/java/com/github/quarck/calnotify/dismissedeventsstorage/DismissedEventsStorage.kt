@@ -20,13 +20,14 @@
 package com.github.quarck.calnotify.dismissedeventsstorage
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import io.requery.android.database.sqlite.SQLiteDatabase
+import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.detailed
 //import com.github.quarck.calnotify.logs.Logger
 import java.io.Closeable
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 class DismissedEventsStorage(val context: Context)
     : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, DismissedEventsStorageInterface {
@@ -89,22 +90,22 @@ class DismissedEventsStorage(val context: Context)
             = addEvent(type, System.currentTimeMillis(), event)
 
     override fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.use { impl.addEventImpl(it, type, changeTime, event) } }
+            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventImpl(it, type, changeTime, event) } }
 
     override fun addEvents(type: EventDismissType, events: Collection<EventAlertRecord>)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.use { impl.addEventsImpl(it, type, System.currentTimeMillis(), events) } }
+            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventsImpl(it, type, System.currentTimeMillis(), events) } }
 
     override fun deleteEvent(entry: DismissedEventAlertRecord)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.use { impl.deleteEventImpl(it, entry) } }
+            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.deleteEventImpl(it, entry) } }
 
     override fun deleteEvent(event: EventAlertRecord)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.use { impl.deleteEventImpl(it, event) } }
+            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.deleteEventImpl(it, event) } }
 
     override fun clearHistory()
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.use { impl.clearHistoryImpl(it) } }
+            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.clearHistoryImpl(it) } }
 
     override val events: List<DismissedEventAlertRecord>
-        get() = synchronized(DismissedEventsStorage::class.java) { readableDatabase.use { impl.getEventsImpl(it) } }
+        get() = synchronized(DismissedEventsStorage::class.java) { readableDatabase.customUse { impl.getEventsImpl(it) } }
 
     override fun purgeOld(currentTime: Long, maxLiveTime: Long)
             = events.filter { (currentTime - it.dismissTime) > maxLiveTime }.forEach { deleteEvent(it) }

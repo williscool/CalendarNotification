@@ -43,7 +43,11 @@ import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.ui.UINotifier
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManagerInterface
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManager
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
+import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
+
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 
 object ApplicationController : EventMovedHandler {
@@ -95,13 +99,13 @@ object ApplicationController : EventMovedHandler {
         get() = addEventMonitor
 
 //    fun hasActiveEvents(context: Context) =
-//            EventsStorage(context).use {
+//            EventsStorage(context).classCustomUse {
 //                val settings = Settings(context)
 //                it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
 //            }
 
     fun hasActiveEventsToRemind(context: Context) =
-            EventsStorage(context).use {
+            EventsStorage(context).classCustomUse {
                 //val settings = Settings(context)
                 it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
             }
@@ -170,7 +174,7 @@ object ApplicationController : EventMovedHandler {
 
         DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService")
 
-        val changes = EventsStorage(context).use {
+        val changes = EventsStorage(context).classCustomUse {
             db -> calendarReloadManager.rescanForRescheduledEvents(context, db, calendarProvider, this)
         }
 
@@ -194,7 +198,7 @@ object ApplicationController : EventMovedHandler {
 
         DevLog.info(LOG_TAG, "calendarReloadFromService")
 
-        val changes = EventsStorage(context).use {
+        val changes = EventsStorage(context).classCustomUse {
             db -> calendarReloadManager.reloadCalendar(context, db, calendarProvider, this)
         }
 
@@ -232,7 +236,7 @@ object ApplicationController : EventMovedHandler {
 
         if (shouldAutoDismiss) {
 
-            EventsStorage(context).use {
+            EventsStorage(context).classCustomUse {
                 db ->
 
                 val alertRecord = db.getEvent(oldEvent.eventId, oldEvent.startTime)
@@ -309,7 +313,7 @@ object ApplicationController : EventMovedHandler {
         DevLog.info(LOG_TAG, "registerNewEvent: Event fired: calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime ${event.alertTime}, muted: ${event.isMuted}, task: ${event.isTask}")
 
         // 1st step - save event into DB
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             if (event.isNotSpecial)
@@ -352,7 +356,7 @@ object ApplicationController : EventMovedHandler {
         // * is there
         // * is not set as visible
         // * is not snoozed
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             if (event.isRepeating) {
@@ -379,7 +383,7 @@ object ApplicationController : EventMovedHandler {
         else {
             DevLog.debug(LOG_TAG, "event added: ${event.eventId} (cal id: ${event.calendarId})")
 
-//            WasHandledCache(context).use {
+//            WasHandledCache(context).classCustomUse {
 //                cache -> cache.addHandledAlert(event)
 //            }
         }
@@ -410,7 +414,7 @@ object ApplicationController : EventMovedHandler {
         var eventsToAdd: List<EventAlertRecord>? = null
 
         // 1st step - save event into DB
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             for ((alert, event) in handledPairs) {
@@ -483,7 +487,7 @@ object ApplicationController : EventMovedHandler {
 
         val validPairs = arrayListOf<Pair<MonitorEventAlertEntry, EventAlertRecord>>()
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             for ((alert, event) in pairsToAdd) {
@@ -616,7 +620,7 @@ object ApplicationController : EventMovedHandler {
         //val currentTime = System.currentTimeMillis()
 
         val mutedEvent: EventAlertRecord? =
-                EventsStorage(context).use {
+                EventsStorage(context).classCustomUse {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -654,7 +658,7 @@ object ApplicationController : EventMovedHandler {
         val currentTime = System.currentTimeMillis()
 
         val snoozedEvent: EventAlertRecord? =
-                EventsStorage(context).use {
+                EventsStorage(context).classCustomUse {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -713,7 +717,7 @@ object ApplicationController : EventMovedHandler {
 
         var allSuccess = true
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
             val events = db.events.filter { it.isNotSpecial && filter(it) }
 
@@ -819,6 +823,7 @@ object ApplicationController : EventMovedHandler {
             shouldRepost: Boolean,
             monitorSettingsChanged: Boolean
     ) {
+
         if (context != null) {
 
             cleanupEventReminder(context)
@@ -846,7 +851,7 @@ object ApplicationController : EventMovedHandler {
 //        if (now - prState.lastWasHandledCacheCleanup < Consts.WAS_HANDLED_CACHE_CLEANUP_INTERVALS)
 //            return
 //
-//        WasHandledCache(context).use { it.removeOldEntries( Consts.WAS_HANDLED_CACHE_MAX_AGE_MILLIS )}
+//        WasHandledCache(context).classCustomUse { it.removeOldEntries( Consts.WAS_HANDLED_CACHE_MAX_AGE_MILLIS )}
 //
 //        prState.lastWasHandledCacheCleanup = now
 //    }
@@ -867,7 +872,7 @@ object ApplicationController : EventMovedHandler {
         DevLog.info(LOG_TAG, "Dismissing ${events.size}  requests")
 
         if (dismissType.shouldKeep) {
-            DismissedEventsStorage(context).use {
+            DismissedEventsStorage(context).classCustomUse {
                 it.addEvents(dismissType, events)
             }
         }
@@ -906,7 +911,7 @@ object ApplicationController : EventMovedHandler {
 
         val currentTime = System.currentTimeMillis()
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
             val eventsToDismiss = db.events.filter {
                 event ->
@@ -920,7 +925,7 @@ object ApplicationController : EventMovedHandler {
 
     fun muteAllVisibleEvents(context: Context) {
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
             val eventsToMute = db.events.filter {
                 event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask
@@ -953,7 +958,7 @@ object ApplicationController : EventMovedHandler {
         DevLog.info(LOG_TAG, "Dismissing event id ${event.eventId} / instance ${event.instanceStartTime}")
 
         if (dismissType.shouldKeep && event.isNotSpecial) {
-            DismissedEventsStorage(context).use {
+            DismissedEventsStorage(context).classCustomUse {
                 it.addEvent(dismissType, event)
             }
         }
@@ -981,7 +986,7 @@ object ApplicationController : EventMovedHandler {
     }
 
     fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord) {
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
             dismissEvent(context, db, event, dismissType, false)
         }
@@ -1008,7 +1013,7 @@ object ApplicationController : EventMovedHandler {
             notifyActivity: Boolean = true
     ) {
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
             val event = db.getEvent(eventId, instanceStartTime)
             if (event != null) {
@@ -1034,7 +1039,7 @@ object ApplicationController : EventMovedHandler {
                         displayStatus = EventDisplayStatus.Hidden) // ensure correct visibility is set
 
         val successOnAdd =
-                EventsStorage(context).use {
+                EventsStorage(context).classCustomUse {
                     db ->
                     val ret = db.addEvent(toRestore)
                     calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
@@ -1044,7 +1049,7 @@ object ApplicationController : EventMovedHandler {
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            DismissedEventsStorage(context).use {
+            DismissedEventsStorage(context).classCustomUse {
                 db ->
                 db.deleteEvent(event)
             }
@@ -1058,7 +1063,7 @@ object ApplicationController : EventMovedHandler {
         if (moved) {
             DevLog.info(LOG_TAG, "moveEvent: Moved event ${event.eventId} by ${addTime / 1000L} seconds")
 
-            EventsStorage(context).use {
+            EventsStorage(context).classCustomUse {
                 db ->
                 dismissEvent(
                         context,
@@ -1080,7 +1085,7 @@ object ApplicationController : EventMovedHandler {
         if (eventId != -1L) {
             DevLog.debug(LOG_TAG, "Event created: id=${eventId}")
 
-            EventsStorage(context).use {
+            EventsStorage(context).classCustomUse {
                 db ->
                 dismissEvent(
                         context,

@@ -13,6 +13,7 @@ import android.view.View
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.logs.DevLog
@@ -20,6 +21,7 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback {
 
@@ -61,7 +63,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
     private fun reloadData() {
         background {
             val events =
-                    DismissedEventsStorage(this).use {
+                    DismissedEventsStorage(this).classCustomUse {
                         db ->
                         db.events.sortedByDescending { it.dismissTime }.toTypedArray()
                     }
@@ -73,7 +75,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
 
 
     override fun onItemRemoved(entry: DismissedEventAlertRecord) {
-        DismissedEventsStorage(this).use { db -> db.deleteEvent(entry) }
+        DismissedEventsStorage(this).classCustomUse { db -> db.deleteEvent(entry) }
     }
 
     override fun onItemClick(v: View, position: Int, entry: DismissedEventAlertRecord) {
@@ -94,7 +96,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
                 }
 
 //                R.id.action_remove_dismissed -> {
-//                    DismissedEventsStorage(this).use { db -> db.deleteEvent(entry) }
+//                    DismissedEventsStorage(this).customUse { db -> db.deleteEvent(entry) }
 //                    adapter.removeEntry(entry)
 //                    true
 //                }
@@ -121,7 +123,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
                         .setCancelable(false)
                         .setPositiveButton(android.R.string.ok) {
                             _, _ ->
-                            DismissedEventsStorage(this).use { db -> db.clearHistory() }
+                            DismissedEventsStorage(this).classCustomUse { db -> db.clearHistory() }
                             adapter.removeAll()
                         }
                         .setNegativeButton(R.string.cancel) {

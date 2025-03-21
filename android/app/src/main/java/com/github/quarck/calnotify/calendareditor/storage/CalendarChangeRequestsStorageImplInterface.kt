@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.calendareditor.storage
 
-import android.database.sqlite.SQLiteDatabase
+import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequest
 
 interface CalendarChangeRequestsStorageImplInterface {

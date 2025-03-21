@@ -91,7 +91,7 @@ class ReportABugActivity : AppCompatActivity() {
 //
 //            val newFile = File(logsPath, LOG_FILE_ATTACHMENT)
 //
-//            PrintWriter(newFile).use {
+//            PrintWriter(newFile).customUse {
 //                writer ->
 //
 //                if (devLogLines != null)

@@ -144,7 +144,7 @@
 
     <string name="before_event">before</string>
     <string name="menu_about">About</string>
-    <string name="my_react_activity">My React Activity</string>
+    <string name="my_react_activity">Data Sync</string>
     <string name="translation_contributors">Translation contributors:</string>
 
     <!-- NOTE for translators: 'gplv3_notice' is a part of standard GPLv3 notice text. Most likely there is already official version of this text translated to your language -->

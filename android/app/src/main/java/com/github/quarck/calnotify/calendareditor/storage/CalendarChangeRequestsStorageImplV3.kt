@@ -22,7 +22,7 @@ package com.github.quarck.calnotify.calendareditor.storage
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteConstraintException
-import android.database.sqlite.SQLiteDatabase
+import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.deserializeCalendarEventReminders
 import com.github.quarck.calnotify.calendar.serialize

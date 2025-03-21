@@ -19,18 +19,23 @@
 
 package com.github.quarck.calnotify.eventsstorage
 
+//import com.github.quarck.calnotify.logs.Logger
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.SQLException
 import android.database.sqlite.SQLiteConstraintException
-import android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.Consts
-import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.calendar.AttendanceStatus
+import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.detailed
-//import com.github.quarck.calnotify.logs.Logger
-import java.util.*
+import io.requery.android.database.sqlite.SQLiteCustomExtension
+import io.requery.android.database.sqlite.SQLiteDatabase
+import java.util.LinkedList
 
 @Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
 class EventsStorageImplV9(val context: Context)

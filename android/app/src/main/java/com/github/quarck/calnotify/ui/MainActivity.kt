@@ -53,6 +53,7 @@ import com.github.quarck.calnotify.app.UndoState
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.isSpecial
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -67,6 +68,7 @@ import com.github.quarck.calnotify.utils.findOrThrow
 import com.github.quarck.calnotify.utils.powerManager
 import org.jetbrains.annotations.NotNull
 import java.util.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -111,7 +113,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     private val undoManager by lazy { UndoManager }
 
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+  override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         DevLog.debug(LOG_TAG, "onCreateView")
@@ -531,12 +533,14 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     private fun reloadData() {
 
         background {
-            DismissedEventsStorage(this).use { it.purgeOld(System.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
+
+            DismissedEventsStorage(this).classCustomUse { it.purgeOld(System.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
 
             val events =
-                    EventsStorage(this).use {
+                    EventsStorage(this).classCustomUse {
 
                         db ->
+
                         db.events.sortedWith(
                                 Comparator<EventAlertRecord> {
                                     lhs, rhs ->
@@ -554,6 +558,8 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                                     return@Comparator 0;
 
                                 }).toTypedArray()
+
+
                     }
 
             val quietPeriodUntil = QuietHoursManager(this).getSilentUntil(settings)

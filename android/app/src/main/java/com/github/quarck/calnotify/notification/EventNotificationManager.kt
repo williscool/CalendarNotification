@@ -31,6 +31,7 @@ import androidx.core.app.NotificationManagerCompat
 import android.text.format.DateUtils
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.pebble.PebbleUtils
@@ -42,6 +43,7 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 @Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
 class EventNotificationManager : EventNotificationManagerInterface {
@@ -62,7 +64,7 @@ class EventNotificationManager : EventNotificationManagerInterface {
     override fun onEventRestored(context: Context, formatter: EventFormatterInterface, event: EventAlertRecord) {
 
         if (event.displayStatus != EventDisplayStatus.Hidden) {
-            EventsStorage(context).use {
+            EventsStorage(context).classCustomUse {
                 it.updateEvent(event, displayStatus = EventDisplayStatus.Hidden)
             }
         }
@@ -207,7 +209,7 @@ class EventNotificationManager : EventNotificationManagerInterface {
 
         var updatedAnything = false
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             val (recentEvents, collapsedEvents) = arrangeEvents(db, currentTime, settings)
@@ -278,7 +280,7 @@ class EventNotificationManager : EventNotificationManagerInterface {
         val quietHoursManager = QuietHoursManager(context)
         val isQuietPeriodActive = !hasActiveAlarms && (quietHoursManager.getSilentUntil(settings) != 0L)
 
-        EventsStorage(context).use {
+        EventsStorage(context).classCustomUse {
             db ->
 
             val notificationSettings = settings.loadNotificationSettings().let {

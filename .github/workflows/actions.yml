@@ -9,6 +9,9 @@ env:
 
   app_file_name_prefix: "calendar_notifications_plus"
 
+  # Explicitly set CI flag to true for our Gradle task
+  CI: true
+
 on:
   push:
     tags:
@@ -74,6 +77,10 @@ jobs:
         YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz # Very small speedup when lock does not change
         # Other environment variables
         HUSKY: '0' # By default do not run HUSKY install
+    
+    # Ensure mock is set up correctly
+    - name: Setup react-native-safe-area-context mock
+      run: node scripts/setup_safe_area_mock.js
 
     # Where android build starts. one day we will have a separate job for this but i dont know how pass the node_modules cache to it
     # Set Current Date As Env Variable
@@ -89,13 +96,20 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+        cache: gradle # This already handles basic Gradle caching
+
+    # Setup Gradle
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4.0.0
+      with:
+        cache-read-only: ${{ github.ref != 'refs/heads/main' }} # Only write cache on main branch
+        gradle-home-cache-cleanup: true
 
     - name: Grant execute permission for gradlew and show version
       run: cd android && chmod +x gradlew && ./gradlew --version
       
     - name: Build with Gradle
-      run:  cd android && ./gradlew build  --warning-mode all --info --stacktrace
+      run: cd android && ./gradlew build --warning-mode all --info --stacktrace --build-cache
 
     # Create APK Debug
     - name: Build apk debug project (APK) - ${{ env.main_project_module }} module
@@ -152,9 +166,11 @@ jobs:
         # override default build-tools version (33.0.0) -- optional
         BUILD_TOOLS_VERSION: "34.0.0"
 
+    # Rename APKs
     # for tags: calendar_notifications_plus-1.2.3-debug.apk
     # for PRs: calendar_notifications_plus-pr-123-feature-branch-abcdef-debug.apk
     # for pushes to branches other than main: calendar_notifications_plus-feature-branch-abcdef-debug.apk
+    # for split APKs: calendar_notifications_plus-1.2.3-arm64-v8a-release.apk, calendar_notifications_plus-1.2.3-x86_64-release.apk
     - name: Rename APKs
       run: |
         sanitize_branch_name() {
@@ -178,53 +194,85 @@ jobs:
           SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
         fi
 
-        mv ${{steps.sign_debug_app.outputs.signedReleaseFile}} ${{env.app_file_name_prefix}}${SUFFIX}-debug.apk
-        mv ${{steps.sign_release_app.outputs.signedReleaseFile}} ${{env.app_file_name_prefix}}${SUFFIX}-release.apk
-        mv ${{steps.sign_release_aab.outputs.signedReleaseFile}} ${{env.app_file_name_prefix}}${SUFFIX}.aab
+        # Handle multiple APKs including split APKs
+        mkdir -p renamed_apks
+        
+        # For debug APK
+        if [[ -f "${{steps.sign_debug_app.outputs.signedReleaseFile}}" ]]; then
+          echo "Copying signed debug APK..."
+          cp ${{steps.sign_debug_app.outputs.signedReleaseFile}} renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-debug.apk
+        fi
+        
+        # For debug APKs - Process architecture-specific debug builds if they exist
+        # This handles APKs split by ABI (arm64-v8a, x86_64) due to the splits{} configuration in build.gradle
+        echo "Processing debug APKs including split APKs by architecture..."
+        for apk in $(find android/${{ env.main_project_module }}/build/outputs/apk/debug/ -name "*-signed.apk"); do
+          filename=$(basename "$apk")
+          echo "Processing debug APK: $filename"
+          
+          # Extract architecture info if it exists in the filename
+          if [[ "$filename" == *"arm64-v8a"* ]]; then
+            echo "Detected arm64-v8a debug APK"
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-arm64-v8a-debug.apk
+          elif [[ "$filename" == *"x86_64"* ]]; then
+            echo "Detected x86_64 debug APK"
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-x86_64-debug.apk
+          fi
+        done
+        
+        # For release APKs - Handle split APKs by architecture
+        # This handles APKs split by ABI (arm64-v8a, x86_64) due to the splits{} configuration in build.gradle
+        echo "Processing release APKs including split APKs by architecture..."
+        for apk in $(find android/${{ env.main_project_module }}/build/outputs/apk/release/ -name "*-signed.apk"); do
+          filename=$(basename "$apk")
+          echo "Processing APK: $filename"
+          
+          # Extract architecture info if it exists in the filename
+          if [[ "$filename" == *"arm64-v8a"* ]]; then
+            echo "Detected arm64-v8a APK"
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-arm64-v8a-release.apk
+          elif [[ "$filename" == *"x86_64"* ]]; then
+            echo "Detected x86_64 APK"
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-x86_64-release.apk
+          else
+            # For non-split or universal APK
+            echo "Detected universal APK (or APK without architecture in filename)"
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-universal-release.apk
+          fi
+        done
+        
+        # For AAB (App Bundle)
+        if [[ -f "${{steps.sign_release_aab.outputs.signedReleaseFile}}" ]]; then
+          echo "Copying signed AAB file..."
+          cp ${{steps.sign_release_aab.outputs.signedReleaseFile}} renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}.aab
+        fi
+        
+        # List all renamed files for verification
+        echo "Renamed files:"
+        ls -la renamed_apks/
 
-
-    # # Upload Artifact Build
-    # # Noted For Output [main_project_module]/build/outputs/apk/debug/
-    # - name: Upload unsigned APK Debug - ${{ env.repository_name }}
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - unsigned APK(s) debug generated
-    #     path: android/${{ env.main_project_module }}/build/outputs/apk/debug/
-    
     # Upload Artifact Build
+    # Debug APK for development testing - includes architecture-specific variants if available
     - name: Upload SIGNED APK Debug - ${{ env.repository_name }}
       uses: actions/upload-artifact@v4
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - APK(s) debug generated
-        path: ${{env.app_file_name_prefix}}-*-debug.apk
+        path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
-    # # Noted For Output [main_project_module]/build/outputs/apk/release/
-    # - name: Upload unsigned APK Release - ${{ env.repository_name }}
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - unsigned APK(s) release generated
-    #     path: android/${{ env.main_project_module }}/build/outputs/apk/release/
-    
-    # Upload Artifact Build
+    # Upload Artifact Build - Release APKs for all architectures
+    # Includes architecture-specific APKs (arm64-v8a, x86_64) based on splits{} configuration
     - name: Upload SIGNED APK RELEASE - ${{ env.repository_name }}
       uses: actions/upload-artifact@v4
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - APK(s) release generated
-        path: ${{env.app_file_name_prefix}}-*-release.apk
+        path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
-    # # Noted For Output [main_project_module]/build/outputs/bundle/release/
-    # - name: Upload unsigned AAB (App Bundle) Release - ${{ env.repository_name }}
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: ${{ matrix.node-version }} -  ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - unsigned App bundle(s) AAB release generated
-    #     path: android/${{ env.main_project_module }}/build/outputs/bundle/release/
-
-    # Upload Artifact Build
+    # Upload Artifact Build for Google Play Store submission
     - name: Upload SIGNED AAB (App Bundle) Release - ${{ env.repository_name }}
       uses: actions/upload-artifact@v4
       with:
         name: signed - ${{ matrix.node-version }} - ${{ env.build_datetime }} - ${{ env.app_name }} - ${{ env.repository_name }} - App bundle(s) AAB release generated
-        path: ${{env.app_file_name_prefix}}-*.aab
+        path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
     - name: Comment PR
       uses: actions/github-script@v6
@@ -239,8 +287,8 @@ jobs:
             repo: context.repo.repo,
             body: `Build artifacts for this PR are available:
 
-            - [Debug APK](${workflowUrl}#artifacts)
-            - [Release APK](${workflowUrl}#artifacts)
+            - [Debug APKs (universal, arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+            - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
             - [AAB](${workflowUrl}#artifacts)
 
             You can download these artifacts from the "Artifacts" section of the workflow run.`
@@ -253,12 +301,14 @@ jobs:
         echo "## What's Changed" >> ${{ github.workspace }}-CHANGELOG.txt
         git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> ${{ github.workspace }}-CHANGELOG.txt
 
+    # Create a GitHub Release when a tag is pushed
+    # Includes all APK variants (arm64-v8a, x86_64) and AAB
     - name: Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/v')
       with:
         body_path: ${{ github.workspace }}-CHANGELOG.txt
         files: |
-          ${{env.app_file_name_prefix}}*-debug.apk
-          ${{env.app_file_name_prefix}}*-release.apk
-          ${{env.app_file_name_prefix}}*.aab
+          renamed_apks/${{env.app_file_name_prefix}}*-debug.apk
+          renamed_apks/${{env.app_file_name_prefix}}*-release.apk
+          renamed_apks/${{env.app_file_name_prefix}}*.aab
