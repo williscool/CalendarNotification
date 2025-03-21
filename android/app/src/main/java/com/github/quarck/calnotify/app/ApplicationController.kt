@@ -1032,25 +1032,30 @@ object ApplicationController : EventMovedHandler {
     }
 
     fun restoreEvent(context: Context, event: EventAlertRecord) {
+        // Get backup info for the original calendar
+        val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
+        
+        // Find matching calendar on the new device
+        val newCalendarId = calendarBackupInfo?.let { backupInfo ->
+            calendarProvider.findMatchingCalendarId(context, backupInfo)
+        } ?: event.calendarId // Fallback to original ID if no match found
+        
+        val toRestore = event.copy(
+            notificationId = 0, // re-assign new notification ID since old one might already in use
+            displayStatus = EventDisplayStatus.Hidden, // ensure correct visibility is set
+            calendarId = newCalendarId // Update to new calendar ID
+        )
 
-        val toRestore =
-                event.copy(
-                        notificationId = 0, // re-assign new notification ID since old one might already in use
-                        displayStatus = EventDisplayStatus.Hidden) // ensure correct visibility is set
-
-        val successOnAdd =
-                EventsStorage(context).classCustomUse {
-                    db ->
-                    val ret = db.addEvent(toRestore)
-                    calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
-                    ret
-                }
+        val successOnAdd = EventsStorage(context).classCustomUse { db ->
+            val ret = db.addEvent(toRestore)
+            calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
+            ret
+        }
 
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            DismissedEventsStorage(context).classCustomUse {
-                db ->
+            DismissedEventsStorage(context).classCustomUse { db ->
                 db.deleteEvent(event)
             }
         }

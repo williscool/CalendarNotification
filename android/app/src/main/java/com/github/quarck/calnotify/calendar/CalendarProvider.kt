@@ -1748,4 +1748,81 @@ object CalendarProvider : CalendarProviderInterface {
 
         return ret
     }
+
+    fun getCalendarBackupInfo(context: Context, calendarId: Long): CalendarBackupInfo? {
+        checkPermissions(context)
+        
+        val uri = CalendarContract.Calendars.CONTENT_URI
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.OWNER_ACCOUNT,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.NAME
+        )
+        
+        val selection = "${CalendarContract.Calendars._ID} = ?"
+        val selectionArgs = arrayOf(calendarId.toString())
+        
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return CalendarBackupInfo(
+                    originalCalendarId = cursor.getLong(0),
+                    owner = cursor.getString(1) ?: "",
+                    accountName = cursor.getString(2) ?: "",
+                    accountType = cursor.getString(3) ?: "",
+                    displayName = cursor.getString(4) ?: "",
+                    name = cursor.getString(5) ?: ""
+                )
+            }
+        }
+        return null
+    }
+
+    fun findMatchingCalendarId(context: Context, backupInfo: CalendarBackupInfo): Long? {
+        checkPermissions(context)
+        
+        val uri = CalendarContract.Calendars.CONTENT_URI
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.OWNER_ACCOUNT,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.NAME
+        )
+        
+        // Try exact match first
+        var selection = "${CalendarContract.Calendars.OWNER_ACCOUNT} = ? AND " +
+                       "${CalendarContract.Calendars.ACCOUNT_NAME} = ? AND " +
+                       "${CalendarContract.Calendars.ACCOUNT_TYPE} = ? AND " +
+                       "${CalendarContract.Calendars.NAME} = ?"
+                       
+        var selectionArgs = arrayOf(
+            backupInfo.owner,
+            backupInfo.accountName,
+            backupInfo.accountType,
+            backupInfo.name
+        )
+        
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+        
+        // Try fallback match with account name and type
+        selection = "${CalendarContract.Calendars.ACCOUNT_NAME} = ? AND " +
+                    "${CalendarContract.Calendars.ACCOUNT_TYPE} = ?"
+        selectionArgs = arrayOf(backupInfo.accountName, backupInfo.accountType)
+        
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+        
+        return null
+    }
 }
