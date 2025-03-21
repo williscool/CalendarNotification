@@ -3,6 +3,9 @@
 ## Prerequisites
 For the original ReadMe, see [android/README.md](android/README.md)
 
+## Data Synchronization
+For setting up data synchronization between devices using Supabase and PowerSync, see our [Data Sync Guide](docs/DATA_SYNC_README.md).
+
 ## Building
 
 ```bash
