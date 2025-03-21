@@ -25,6 +25,30 @@ sdk install java 21.0.6-tem
 sdk use java 21.0.6-tem
 ```
 
+### Dependencies Setup
+
+#### react-native-safe-area-context Mock
+
+Due to build issues with `react-native-safe-area-context`, we use a custom mock implementation. The mock:
+- Provides dummy implementations of required components
+- Allows React Navigation to function without errors
+- Is automatically created during `yarn install`
+
+To manually set up the mock:
+```bash
+node scripts/setup_safe_area_mock.js
+```
+
+##### Mock Implementation Details
+
+Located in `scripts/safe-area-mock-templates/`:
+- `package.json` - Package metadata
+- `module-index.js` - ES modules implementation
+- `commonjs-index.js` - CommonJS implementation
+- `typescript-index.d.ts` - TypeScript definitions
+
+Note: This is a temporary solution until SDK compatibility issues are resolved. UI elements may not properly respect safe areas on devices with notches or system UI elements.
+
 ### Basic Build
 
 ```bash

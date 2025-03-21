@@ -4,13 +4,19 @@
 
 Enhance your calendar experience with powerful notification controls! Calendar Notifications Plus is a feature-rich Android app that extends your calendar notifications with snooze functionality, persistence, and much more.
 
+## 📱 What It Does
+
+This app replaces default calendar event notifications with an enhanced version that provides snooze functionality and notification persistence. It's designed to be transparent in its operation - calendar notifications behave as expected, with direct clicks opening event details in your default calendar application. The enhanced functionality is provided through additional actions in the notifications.
+
+When snoozing events, you can snooze them a desired amount of time or quickly reschedule them with just one click. All your notification states persist through device reboots, ensuring you never miss an important event.
+
 ## ✨ Key Features
 
 - **Smart Snooze**: Easily snooze calendar notifications to a time that works for you
 - **Notification Persistence**: Never miss an event - notifications persist until you handle them
 - **Quick Rescheduling**: Reschedule non-repeating events for the next day or week with just one click
 - **Quiet Hours**: Set periods when notifications won't disturb you
-- **Missed Event Reminders**: Optional reminders for notifications you might have missed
+- **Missed Event Reminders**: Optional reminders for notifications you might have missed (configurable intervals)
 - **Bulk Actions**: "Snooze All" button to manage multiple notifications at once
 - **Customization**: Custom LED colors and screen wake options for notifications
 - **Data Backup**: Unidirectional sync to backup your notification data to the cloud (via Supabase/PowerSync)
@@ -46,7 +52,7 @@ The app requires the following permissions for core functionality:
 
 ## 💖 Contributing
 
-We welcome contributions! Whether it's bug reports, feature requests, or code contributions, please feel free to get involved.
+We welcome contributions! Whether it's bug reports, feature requests, or code contributions, please feel free to get involved. Please report any bugs or feedback through the app's feedback page.
 
 ## 📜 History
 

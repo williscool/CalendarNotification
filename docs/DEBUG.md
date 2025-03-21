@@ -37,28 +37,4 @@ The Chrome debugger runs React Native inside its JS VM and communicates with mob
 
 Currently, Hermes debugging in development mode is limited. There are ongoing efforts to improve this:
 - [react-native-devsettings](https://github.com/gusgard/react-native-devsettings)
-- [Related Discussion](https://github.com/jhen0409/react-native-debugger/issues/573#issuecomment-1533894331)
-
-## Debugging Dependencies
-
-### react-native-safe-area-context
-
-We've implemented a custom mock for `react-native-safe-area-context` due to build issues. The mock:
-- Provides dummy implementations of required components
-- Allows React Navigation to function without errors
-- Is automatically created during `yarn install`
-
-To manually set up the mock:
-```bash
-node scripts/setup_safe_area_mock.js
-```
-
-#### Mock Implementation Details
-
-Located in `scripts/safe-area-mock-templates/`:
-- `package.json` - Package metadata
-- `module-index.js` - ES modules implementation
-- `commonjs-index.js` - CommonJS implementation
-- `typescript-index.d.ts` - TypeScript definitions
-
-Note: This is a temporary solution until SDK compatibility issues are resolved. UI elements may not properly respect safe areas on devices with notches or system UI elements. 
+- [Related Discussion](https://github.com/jhen0409/react-native-debugger/issues/573#issuecomment-1533894331) 
