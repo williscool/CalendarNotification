@@ -1,9 +1,9 @@
 # Calendar Notifications Plus
 
-[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/refs/heads/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="200"/>](https://github.com/ImranR98/Obtainium)
+[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/refs/heads/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="150"/>](https://github.com/ImranR98/Obtainium)
 
 
-Enhance your calendar experience with powerful notification controls! Calendar Notifications Plus is a feature-rich Android app that extends your calendar notifications with snooze functionality, persistence, and much more.
+Enhance your calendar experience with powerful notification controls! Calendar Notifications Plus is a feature-rich Android app that extends your calendar notifications with customizable snooze functionality, persistence, and much more!
 
 ## 📱 What It Does
 
@@ -26,8 +26,17 @@ When snoozing events, you can snooze them a desired amount of time or quickly re
 - **Missed Event Reminders**: Optional reminders for notifications you might have missed (configurable intervals)
 - **Bulk Actions**: "Snooze All" button to manage multiple notifications at once
 - **Customization**: Custom LED colors and screen wake options for notifications
-- **Data Backup**: Unidirectional sync to backup your notification data to the cloud (via Supabase/PowerSync)
 - **Reboot Protection**: All your notifications are automatically restored after device restart
+
+### ☁️ NEW! (March 2025)
+- **Data Backup**: Unidirectional sync to backup your notification data to the cloud (via Supabase/PowerSync)
+
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/c161e971-d29c-49e3-a35e-377ee9597126" width="250" alt="Data Backup Screen 1"/>&nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/user-attachments/assets/24417dc9-6e84-4fea-8399-12d8bb422f2f" width="250" alt="Data Backup Screen 2"/>&nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/user-attachments/assets/9fffc46c-4590-464f-be48-6bb02784e467" width="250" alt="Data Backup Screen 3"/>
+</p>
 
 ## 📱 Installation
 
