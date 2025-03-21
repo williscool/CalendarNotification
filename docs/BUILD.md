@@ -91,6 +91,8 @@ cd C:\Users\<username>\appdata\local\android\sdk
 
 Follow these steps to set up ADB in WSL:
 
+https://gist.github.com/bergmannjg/461958db03c6ae41a66d264ae6504ade?permalink_comment_id=4149833#gistcomment-4149833
+
 ```bash
 sudo ln -s /mnt/c/Users/<username>/AppData/Local/Android/Sdk/platform-tools/adb.exe /home/<username>/android/platform-tools/adb
 ```
