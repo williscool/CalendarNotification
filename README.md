@@ -1,6 +1,6 @@
 # Calendar Notifications Plus
 
-[![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/get-it-on-obtainium.png)](https://github.com/ImranR98/Obtainium)
+[![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/refs/heads/main/assets/graphics/badge_obtainium.png)](https://github.com/ImranR98/Obtainium)
 
 Enhance your calendar experience with powerful notification controls! Calendar Notifications Plus is a feature-rich Android app that extends your calendar notifications with snooze functionality, persistence, and much more.
 

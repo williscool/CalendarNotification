@@ -27,19 +27,34 @@ sdk use java 21.0.6-tem
 
 ### Dependencies Setup
 
-#### react-native-safe-area-context Mock
+#### react-native-safe-area-context Issue and Mock Solution
 
-Due to build issues with `react-native-safe-area-context`, we use a custom mock implementation. The mock:
+We encountered a critical build issue with `react-native-safe-area-context` that required a custom solution. While upgrading the SDK would typically be the preferred solution, this wasn't immediately viable as SDK upgrades were breaking core notification functionality that would require extensive testing and modifications to fix.
+
+##### Background
+
+`react-native-safe-area-context` and `react-native-screens` are typically used together in React Navigation implementations:
+1. `react-native-screens` optimizes the native view hierarchy using platform components
+2. `react-native-safe-area-context` handles device-specific UI features (notches, status bars, etc.)
+3. React Navigation expects both as peer dependencies
+
+##### The Problem
+
+We needed `react-native-screens` for the Data Sync UI, but `react-native-safe-area-context` was causing build failures. Simply removing it wasn't an option due to React Navigation's dependencies.
+
+##### Our Solution: Custom Mock
+
+We implemented a mock version of `react-native-safe-area-context` that:
 - Provides dummy implementations of required components
 - Allows React Navigation to function without errors
-- Is automatically created during `yarn install`
+- Avoids the problematic native code entirely
 
-To manually set up the mock:
+The mock is automatically created during `yarn install` via a postinstall script:
 ```bash
 node scripts/setup_safe_area_mock.js
 ```
 
-##### Mock Implementation Details
+##### Mock Implementation Structure
 
 Located in `scripts/safe-area-mock-templates/`:
 - `package.json` - Package metadata
@@ -47,7 +62,13 @@ Located in `scripts/safe-area-mock-templates/`:
 - `commonjs-index.js` - CommonJS implementation
 - `typescript-index.d.ts` - TypeScript definitions
 
-Note: This is a temporary solution until SDK compatibility issues are resolved. UI elements may not properly respect safe areas on devices with notches or system UI elements.
+This approach allows us to:
+1. Keep using React Navigation without errors
+2. Avoid the build issues from the native implementation
+3. Maintain consistent behavior in development and CI
+4. Easily maintain the mock implementation
+
+⚠️ **Note**: This is a temporary solution until we can safely upgrade SDK versions. UI elements may not properly respect safe areas on devices with notches or system UI elements.
 
 ### Basic Build
 
