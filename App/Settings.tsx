@@ -39,8 +39,21 @@ export const Settings = () => {
       powersyncToken: tempSettings.powersyncToken.trim()
     };
 
-    if (areAllSettingsValid(trimmedSettings)) {
+    // Only save if there are actual changes after trimming
+    const hasActualChanges = 
+      trimmedSettings.supabaseUrl !== settings.supabaseUrl.trim() ||
+      trimmedSettings.supabaseAnonKey !== settings.supabaseAnonKey.trim() ||
+      trimmedSettings.powersyncUrl !== settings.powersyncUrl.trim() ||
+      trimmedSettings.powersyncToken !== settings.powersyncToken.trim() ||
+      trimmedSettings.syncEnabled !== settings.syncEnabled ||
+      trimmedSettings.syncType !== settings.syncType;
+
+    if (areAllSettingsValid(trimmedSettings) && hasActualChanges) {
       updateSettings(trimmedSettings);
+      setIsDirty(false);
+    } else if (!hasActualChanges) {
+      // If no actual changes after trimming, just reset the dirty state
+      setTempSettings(settings);
       setIsDirty(false);
     }
   };
@@ -49,7 +62,7 @@ export const Settings = () => {
     if (!value || areAllSettingsValid(tempSettings)) {
       const newSettings = { ...tempSettings, syncEnabled: value };
       setTempSettings(newSettings);
-      updateSettings(newSettings);
+      setIsDirty(true);
     }
   };
 
@@ -203,11 +216,10 @@ export const Settings = () => {
       <TouchableOpacity 
         style={[
           styles.saveButton,
-          !areAllSettingsValid(tempSettings) && styles.saveButtonDisabled,
-          isDirty && styles.saveButtonDirty
+          (!isDirty || !areAllSettingsValid(tempSettings)) ? styles.saveButtonDisabled : styles.saveButtonDirty
         ]}
         onPress={handleSave}
-        disabled={!areAllSettingsValid(tempSettings)}
+        disabled={!isDirty || !areAllSettingsValid(tempSettings)}
       >
         <Text style={styles.saveButtonText}>
           {isDirty ? 'Save Changes*' : 'Save Changes'}
