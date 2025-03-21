@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './index';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { GITHUB_README_URL } from '@lib/constants';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -20,6 +21,13 @@ export const SetupSync = () => {
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+
+  const isConfigured = Boolean(
+    settings.supabaseUrl &&
+    settings.supabaseAnonKey &&
+    settings.powersyncUrl &&
+    settings.powersyncToken
+  );
 
   const numEventsToDisplay = 3;
 
@@ -92,11 +100,23 @@ export const SetupSync = () => {
     }
   };
 
-  if (!settings.supabaseUrl || !settings.supabaseAnonKey || !settings.powersyncUrl || !settings.powersyncToken) {
+  if (!isConfigured) {
     return (
       <View style={styles.container}>
         <Text style={styles.hello}>PowerSync not configured</Text>
         <Text style={styles.subtext}>Please configure your sync settings to continue</Text>
+        <Text style={styles.subtext}>
+          For setup instructions, please visit our
+        </Text>
+        <Text   
+          style={[styles.hello, styles.link]}
+          onPress={() => Linking.openURL(GITHUB_README_URL)}
+        >
+          GitHub README
+        </Text>
+        <Text style={[styles.subtext, { marginBottom: 20 }]}>
+          or
+        </Text>
         <Button 
           title="Go to Settings" 
           onPress={() => navigation.navigate('Settings')}
@@ -375,5 +395,15 @@ const styles = StyleSheet.create({
   initializingText: {
     fontSize: 16,
     color: '#0277bd',
+  },
+  link: {
+    color: '#007AFF',
+    textDecorationLine: 'underline',
+  },
+  warningActions: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
   },
 }); 

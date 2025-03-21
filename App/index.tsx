@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity, BackHandler } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity, BackHandler, Linking } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,6 +12,7 @@ import { enableScreens } from 'react-native-screens';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SettingsProvider } from '@lib/hooks/SettingsContext';
+import { GITHUB_README_URL } from '@lib/constants';
 
 // Enable screens
 enableScreens();
@@ -31,6 +32,15 @@ const InitialSetupScreen = ({ navigation }: { navigation: NativeStackNavigationP
       title="Go to Settings" 
       onPress={() => navigation.navigate('Settings')}
     />
+    <Text style={[styles.subtext, { marginTop: 20 }]}>
+      or view our
+    </Text>
+    <Text   
+      style={[styles.hello, styles.link]}
+      onPress={() => Linking.openURL(GITHUB_README_URL)}
+    >
+      Setup Guide
+    </Text>
   </View>
 );
 
@@ -125,5 +135,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
     color: '#666',
+  },
+  link: {
+    color: '#007AFF',
+    textDecorationLine: 'underline',
   },
 }); 

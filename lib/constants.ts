@@ -1,0 +1,1 @@
+export const GITHUB_README_URL = 'https://github.com/williscool/CalendarNotification'; 
