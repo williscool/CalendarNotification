@@ -1,4 +1,56 @@
-# Calendar Notifications Plus React Native
+# Calendar Notifications Plus
+
+[![Get it on Obtainium](https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/get-it-on-obtainium.png)](https://github.com/ImranR98/Obtainium)
+
+Enhance your calendar experience with powerful notification controls! Calendar Notifications Plus is a feature-rich Android app that extends your calendar notifications with snooze functionality, persistence, and much more.
+
+## ✨ Key Features
+
+- **Smart Snooze**: Easily snooze calendar notifications to a time that works for you
+- **Notification Persistence**: Never miss an event - notifications persist until you handle them
+- **Quick Rescheduling**: Reschedule non-repeating events for the next day or week with just one click
+- **Quiet Hours**: Set periods when notifications won't disturb you
+- **Missed Event Reminders**: Optional reminders for notifications you might have missed
+- **Bulk Actions**: "Snooze All" button to manage multiple notifications at once
+- **Customization**: Custom LED colors and screen wake options for notifications
+- **Data Backup**: Unidirectional sync to backup your notification data to the cloud (via Supabase/PowerSync)
+- **Reboot Protection**: All your notifications are automatically restored after device restart
+
+## 📱 Installation
+
+You can install Calendar Notifications Plus in several ways:
+1. Through [Obtainium](https://github.com/ImranR98/Obtainium)
+2. Directly from our [GitHub Releases](https://github.com/williscool/CalendarNotification/releases)
+
+## 🚀 Getting Started
+
+The app seamlessly integrates with your existing calendar:
+- Direct tap on notifications opens event details in your default calendar app
+- Additional actions are available through notification buttons
+- Works with your existing calendar events - no migration needed
+
+## 🛠️ For Developers
+
+If you're interested in contributing or building the app yourself, check out our developer documentation:
+
+- [Build Instructions](docs/BUILD.md)
+- [Data Sync Guide](docs/DATA_SYNC_README.md)
+- [Debugging Guide](docs/DEBUG.md)
+
+## 📝 Permissions
+
+The app requires the following permissions for core functionality:
+- **Read Calendar**: To retrieve event details for notifications
+- **Write Calendar**: To prevent duplicate notifications from the stock calendar
+- **Start at Boot**: To restore your notifications after device restart
+
+## 💖 Contributing
+
+We welcome contributions! Whether it's bug reports, feature requests, or code contributions, please feel free to get involved.
+
+## 📜 History
+
+This project is a maintained fork of the original [Calendar Notifications](https://github.com/quarck/CalendarNotification) app. When the original was archived in 2020, we took on the responsibility of maintaining and enhancing it to ensure continued compatibility with modern Android versions while adding new features like cloud data backup.
 
 ## Prerequisites
 For the original ReadMe, see [android/README.md](android/README.md)
