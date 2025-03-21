@@ -30,8 +30,17 @@ export const Settings = () => {
   };
 
   const handleSave = () => {
-    if (areAllSettingsValid(tempSettings)) {
-      updateSettings(tempSettings);
+    // Trim whitespace from text input fields before saving
+    const trimmedSettings = {
+      ...tempSettings,
+      supabaseUrl: tempSettings.supabaseUrl.trim(),
+      supabaseAnonKey: tempSettings.supabaseAnonKey.trim(),
+      powersyncUrl: tempSettings.powersyncUrl.trim(),
+      powersyncToken: tempSettings.powersyncToken.trim()
+    };
+
+    if (areAllSettingsValid(trimmedSettings)) {
+      updateSettings(trimmedSettings);
       setIsDirty(false);
     }
   };
