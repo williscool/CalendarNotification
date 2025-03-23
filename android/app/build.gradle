@@ -124,6 +124,8 @@ if (shouldBundleJS) {
     }
 }
 
+
+
 dependencies {
   implementation fileTree(dir: 'libs', include: ['*.jar'])
 
@@ -135,9 +137,10 @@ dependencies {
   // https://mvnrepository.com/artifact/androidx.legacy/legacy-support-v4
   implementation "androidx.legacy:legacy-support-v4:1.0.0"
 
-  implementation "androidx.core:core:$androidx_lib_version"
+  // https://mvnrepository.com/artifact/androidx.core/core 
+  implementation "androidx.core:core:$android_core_version"
 
-  implementation "androidx.core:core-ktx:$androidx_lib_version"
+  implementation "androidx.core:core-ktx:$android_core_version"
 
   implementation "androidx.appcompat:appcompat:$androidx_lib_version"
 
@@ -159,6 +162,13 @@ dependencies {
   implementation "com.facebook.react:hermes-android"
 
   implementation 'com.github.requery:sqlite-android:3.45.0'
+
+  // Android Testing Dependencies
+  androidTestImplementation 'androidx.test:runner:1.5.2'
+  androidTestImplementation 'androidx.test:rules:1.5.0'
+  androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+  androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+  androidTestImplementation 'junit:junit:4.13.2'
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin

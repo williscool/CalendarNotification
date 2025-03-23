@@ -73,4 +73,8 @@ interface CalendarProviderInterface {
     fun getCalendarById(context: Context, calendarId: Long): CalendarRecord?
 
     fun createCalendarNotFoundCal(context: Context): CalendarRecord
+
+    fun getCalendarBackupInfo(context: Context, calendarId: Long): CalendarBackupInfo?
+
+    fun findMatchingCalendarId(context: Context, backupInfo: CalendarBackupInfo): Long
 }
