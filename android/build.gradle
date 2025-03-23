@@ -1,15 +1,20 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
-import org.gradle.api.artifacts.DependencyResolveDetails
-
 buildscript {
 
     ext {
       kotlin_version = '1.9.25'
       kotlinVersion = '1.9.25'
 
-      androidx_lib_version = '1.4.1'
-      androidxLibVersion = '1.4.1'
+      // App versions (from master - known working for builds)
+      androidx_lib_version = '1.6.0'
+      androidxLibVersion = '1.6.0'
+      android_core_version = '1.6.0'
+      androidCoreVersion = '1.6.0'
+
+      // Test versions (from feature branch - known working for tests)
+      androidx_test_version = '1.4.1'
+      android_core_test_version = '1.4.1'
 
       gradleVersion = '8.6.0'
       gradle_version = '8.6.0'
@@ -19,11 +24,6 @@ buildscript {
 
       androidGradlePluginVersion = '8.4.0'
       android_gradle_plugin_version = '8.4.0'
-
-
-      android_core_version = '1.8.0'
-      androidCoreVersion = '1.8.0'
-
 
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
@@ -46,26 +46,6 @@ buildscript {
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
-    }
-}
-
-subprojects {
-    configurations.all {
-        resolutionStrategy {
-            force "androidx.appcompat:appcompat:$androidx_lib_version"
-            force "androidx.appcompat:appcompat-resources:$androidx_lib_version"
-            force "androidx.core:core:$android_core_version"
-            force "androidx.core:core-ktx:$android_core_version"
-            force "androidx.fragment:fragment:$androidx_lib_version"
-            force "androidx.lifecycle:lifecycle-runtime:2.5.1"
-            force "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
-            force "androidx.annotation:annotation:1.4.0"
-            force "androidx.vectordrawable:vectordrawable:1.1.0"
-            force "androidx.vectordrawable:vectordrawable-animated:1.1.0"
-            force "androidx.activity:activity:1.4.0"
-            force "androidx.activity:activity-ktx:1.4.0"
-            force "com.google.android.material:material:1.6.1"
-        }
     }
 }
 
