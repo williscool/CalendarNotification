@@ -197,6 +197,9 @@ class EventsStorage(val context: Context)
     override fun deleteEvents(events: Collection<EventAlertRecord>): Int
             = synchronized(EventsStorage::class.java) { writableDatabase.customUse { impl.deleteEventsImpl(it, events) } }
 
+    override fun deleteAllEvents(): Boolean
+            = synchronized(EventsStorage::class.java) { writableDatabase.customUse { impl.deleteAllEventsImpl(it) } }
+
     override val events: List<EventAlertRecord>
         get() = synchronized(EventsStorage::class.java) { readableDatabase.customUse { impl.getEventsImpl(it) } }
 

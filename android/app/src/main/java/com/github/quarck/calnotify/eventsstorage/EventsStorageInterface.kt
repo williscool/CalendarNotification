@@ -79,5 +79,7 @@ interface EventsStorageInterface {
 
     fun deleteEvents(events: Collection<EventAlertRecord>): Int
 
+    fun deleteAllEvents(): Boolean
+
     val events: List<EventAlertRecord> get
 }
