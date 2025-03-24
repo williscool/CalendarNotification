@@ -24,12 +24,25 @@ import java.util.concurrent.TimeUnit
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
+import org.mockito.Mock
+import org.mockito.Mockito.any
+import org.mockito.Mockito.anyLong
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.spy
+import org.mockito.Mockito.`when`
+import org.mockito.junit.MockitoJUnit
+import org.mockito.junit.MockitoRule
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.atomic.AtomicLong
 
 @RunWith(AndroidJUnit4::class)
 class CalendarMonitorServiceTest {
     private lateinit var context: Context
     private var testCalendarId: Long = -1
     private var testEventId: Long = -1
+    private lateinit var mockTimer: ScheduledExecutorService
+    private val currentTime = AtomicLong(0L)
 
     companion object {
         private const val LOG_TAG = "CalMonitorSvcTest"
@@ -43,9 +56,24 @@ class CalendarMonitorServiceTest {
         Manifest.permission.RECEIVE_BOOT_COMPLETED
     )
 
+    @get:Rule
+    val mockitoRule: MockitoRule = MockitoJUnit.rule()
+
     @Before
     fun setup() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Create mock timer
+        mockTimer = mock(ScheduledExecutorService::class.java)
+        val mockFuture = mock(ScheduledFuture::class.java)
+        `when`(mockTimer.schedule(any(), anyLong(), any())).thenAnswer { invocation ->
+            val delay = invocation.getArgument<Long>(1)
+            val unit = invocation.getArgument<TimeUnit>(2)
+            val task = invocation.getArgument<Runnable>(0)
+            currentTime.addAndGet(unit.toMillis(delay))
+            task.run()
+            mockFuture
+        }
         
         // Create test calendar
         testCalendarId = createTestCalendar(
@@ -106,12 +134,12 @@ class CalendarMonitorServiceTest {
         // Reset monitor state and ensure firstScanEver is false
         val monitorState = CalendarMonitorState(context)
         monitorState.firstScanEver = false
-        val currentTime = System.currentTimeMillis()
-        monitorState.prevEventScanTo = currentTime
-        monitorState.prevEventFireFromScan = currentTime
+        currentTime.set(System.currentTimeMillis())
+        monitorState.prevEventScanTo = currentTime.get()
+        monitorState.prevEventFireFromScan = currentTime.get()
         
         // Create a test event with reminder - use current time
-        val eventStartTime = currentTime + 60000 // 1 minute from now
+        val eventStartTime = currentTime.get() + 60000 // 1 minute from now
         val reminderTime = eventStartTime - 30000 // 30 seconds before start
         
         DevLog.info(LOG_TAG, "Creating test event: startTime=$eventStartTime, reminderTime=$reminderTime")
@@ -164,7 +192,11 @@ class CalendarMonitorServiceTest {
 
         // Notify calendar change and wait for propagation
         ApplicationController.onCalendarChanged(context)
-        Thread.sleep(1000)
+        mockTimer.schedule({}, 1, TimeUnit.SECONDS)
+
+        // Create a mock service and configure it to use our mock timer
+        val service = mock(CalendarMonitorService::class.java)
+        `when`(service.timer).thenReturn(mockTimer)
 
         // Start the monitor service directly
         CalendarMonitorService.startRescanService(
@@ -172,11 +204,11 @@ class CalendarMonitorServiceTest {
             startDelay = 0,
             reloadCalendar = true,
             rescanMonitor = true,
-            userActionUntil = System.currentTimeMillis() + 10000
+            userActionUntil = currentTime.get() + 10000
         )
 
         // Wait for service to complete and process events
-        Thread.sleep(5000)
+        mockTimer.schedule({}, 5, TimeUnit.SECONDS)
 
         // Check monitor storage after service
         MonitorStorage(context).classCustomUse { db ->
@@ -210,19 +242,19 @@ class CalendarMonitorServiceTest {
         
         // Notify calendar change and wait a moment for propagation
         ApplicationController.onCalendarChanged(context)
-        Thread.sleep(1000)
+        mockTimer.schedule({}, 1, TimeUnit.SECONDS)
         
         // Start service with reload
         val intent = Intent(context, CalendarMonitorService::class.java).apply {
             putExtra("start_delay", 0)
             putExtra("reload_calendar", true)
             putExtra("rescan_monitor", true)
-            putExtra("user_action_until", System.currentTimeMillis() + 10000)
+            putExtra("user_action_until", currentTime.get() + 10000)
         }
         context.startService(intent)
 
         // Wait for service to complete and process events
-        Thread.sleep(5000)
+        mockTimer.schedule({}, 5, TimeUnit.SECONDS)
 
         // Verify all events were reloaded
         EventsStorage(context).classCustomUse { db ->
@@ -234,29 +266,40 @@ class CalendarMonitorServiceTest {
         }
     }
 
+    /**
+     * Tests that the CalendarMonitorService properly respects the startDelay parameter when processing events.
+     * 
+     * This test verifies that:
+     * 1. When a service is started with a delay parameter (e.g. 2000ms)
+     * 2. And a calendar event is created with a reminder
+     * 3. Then the event should not be processed until after the specified delay has elapsed
+     * 
+     * This ensures that delayed event processing works correctly for scenarios where immediate 
+     * processing is not desired, such as waiting for calendar sync or other system events.
+     */
     @Test
     fun testDelayedProcessing() {
         val startDelay = 2000 // 2 second delay
-        val startTime = System.currentTimeMillis()
+        val startTime = currentTime.get()
 
         // Create test event with reminder
         createTestEvent()
 
         // Notify calendar change and wait a moment for propagation
         ApplicationController.onCalendarChanged(context)
-        Thread.sleep(1000)
+        mockTimer.schedule({}, 1, TimeUnit.SECONDS)
 
         // Start service with delay
         val intent = Intent(context, CalendarMonitorService::class.java).apply {
             putExtra("start_delay", startDelay)
             putExtra("reload_calendar", true)
             putExtra("rescan_monitor", true)
-            putExtra("user_action_until", System.currentTimeMillis() + 10000)
+            putExtra("user_action_until", currentTime.get() + 10000)
         }
         context.startService(intent)
 
         // Wait for slightly longer than the delay
-        Thread.sleep(startDelay + 3000L)
+        mockTimer.schedule({}, startDelay + 3000L, TimeUnit.MILLISECONDS)
 
         // Verify the event was processed after the delay
         EventsStorage(context).classCustomUse { db ->
@@ -300,7 +343,7 @@ class CalendarMonitorServiceTest {
     }
 
     private fun createTestEvent(): Long {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = this.currentTime.get()
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
             put(CalendarContract.Events.TITLE, "Test Event")
@@ -328,7 +371,7 @@ class CalendarMonitorServiceTest {
     private fun createMultipleTestEvents(count: Int): List<Long> {
         val eventIds = mutableListOf<Long>()
         repeat(count) { index ->
-            val currentTime = System.currentTimeMillis()
+            val currentTime = this.currentTime.get()
             val values = ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
                 put(CalendarContract.Events.TITLE, "Test Event $index")
