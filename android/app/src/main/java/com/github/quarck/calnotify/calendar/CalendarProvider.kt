@@ -1748,4 +1748,96 @@ object CalendarProvider : CalendarProviderInterface {
 
         return ret
     }
+
+    override fun getCalendarBackupInfo(context: Context, calendarId: Long): CalendarBackupInfo? {
+        if (!PermissionsManager.hasAllCalendarPermissionsNoCache(context))
+            return null
+
+        val uri = CalendarContract.Calendars.CONTENT_URI
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.OWNER_ACCOUNT,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.NAME
+        )
+        val selection = "${CalendarContract.Calendars._ID} = ?"
+        val selectionArgs = arrayOf(calendarId.toString())
+
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return CalendarBackupInfo(
+                    calendarId = cursor.getLong(0),
+                    accountName = cursor.getString(1),
+                    accountType = cursor.getString(2),
+                    ownerAccount = cursor.getString(3),
+                    displayName = cursor.getString(4),
+                    name = cursor.getString(5)
+                )
+            }
+        }
+        return null
+    }
+
+    override fun findMatchingCalendarId(context: Context, backupInfo: CalendarBackupInfo): Long {
+        if (!PermissionsManager.hasAllCalendarPermissionsNoCache(context))
+            return -1L
+
+        val uri = CalendarContract.Calendars.CONTENT_URI
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.OWNER_ACCOUNT,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.NAME
+        )
+
+        // Try exact match first
+        var selection = "${CalendarContract.Calendars.ACCOUNT_NAME} = ? AND " +
+                       "${CalendarContract.Calendars.ACCOUNT_TYPE} = ? AND " +
+                       "${CalendarContract.Calendars.OWNER_ACCOUNT} = ?"
+        var selectionArgs = arrayOf(
+            backupInfo.accountName,
+            backupInfo.accountType,
+            backupInfo.ownerAccount
+        )
+
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+
+        // Try fallback to account name and type only
+        selection = "${CalendarContract.Calendars.ACCOUNT_NAME} = ? AND " +
+                    "${CalendarContract.Calendars.ACCOUNT_TYPE} = ?"
+        selectionArgs = arrayOf(
+            backupInfo.accountName,
+            backupInfo.accountType
+        )
+
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+
+        // If still no match, try matching by display name
+        selection = "${CalendarContract.Calendars.CALENDAR_DISPLAY_NAME} = ?"
+        selectionArgs = arrayOf(backupInfo.displayName)
+
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getLong(0)
+            }
+        }
+
+        return -1L
+    }
+
+    private fun checkPermissions(context: Context): Boolean {
+        return PermissionsManager.hasAllCalendarPermissionsNoCache(context)
+    }
 }

@@ -19,7 +19,10 @@
 
 package com.github.quarck.calnotify.app
 
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
+import android.provider.CalendarContract
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequestMonitor
@@ -1032,27 +1035,39 @@ object ApplicationController : EventMovedHandler {
     }
 
     fun restoreEvent(context: Context, event: EventAlertRecord) {
+        // Get backup info for the original calendar
+        val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
+        
+        // Find matching calendar on the new device
+        val newCalendarId = calendarBackupInfo?.let { backupInfo ->
+            calendarProvider.findMatchingCalendarId(context, backupInfo)
+        } ?: event.calendarId // Fallback to original ID if no match found
+        
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId}: original calendar ${event.calendarId}, matched calendar $newCalendarId")
+        
+        // Create restored event with updated calendar ID
+        val toRestore = event.copy(
+            notificationId = 0, // re-assign new notification ID since old one might already in use
+            displayStatus = EventDisplayStatus.Hidden, // ensure correct visibility is set
+            calendarId = newCalendarId // Update to new calendar ID
+        )
 
-        val toRestore =
-                event.copy(
-                        notificationId = 0, // re-assign new notification ID since old one might already in use
-                        displayStatus = EventDisplayStatus.Hidden) // ensure correct visibility is set
-
-        val successOnAdd =
-                EventsStorage(context).classCustomUse {
-                    db ->
-                    val ret = db.addEvent(toRestore)
-                    calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
-                    ret
-                }
+        val successOnAdd = EventsStorage(context).classCustomUse { db ->
+            val ret = db.addEvent(toRestore)
+            calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
+            ret
+        }
 
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            DismissedEventsStorage(context).classCustomUse {
-                db ->
+            DismissedEventsStorage(context).classCustomUse { db ->
                 db.deleteEvent(event)
             }
+            
+            DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to calendar $newCalendarId")
+        } else {
+            DevLog.error(LOG_TAG, "Failed to restore event ${event.eventId}")
         }
     }
 
