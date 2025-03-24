@@ -339,8 +339,12 @@ class EventsStorageImplV7
         return events.size
     }
 
+  override fun deleteAllEventsImpl(db: SQLiteDatabase): Boolean {
+    TODO("Not yet implemented")
+  }
 
-    private fun eventRecordToContentValues(event: EventAlertRecord, includeKeyValues: Boolean = false): ContentValues {
+
+  private fun eventRecordToContentValues(event: EventAlertRecord, includeKeyValues: Boolean = false): ContentValues {
         val values = ContentValues();
 
         values.put(KEY_CALENDAR_ID, event.calendarId)

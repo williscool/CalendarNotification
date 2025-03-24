@@ -48,6 +48,8 @@ interface EventsStorageImplInterface {
 
     fun deleteEventsImpl(db: SQLiteDatabase, events: Collection<EventAlertRecord>): Int
 
+    fun deleteAllEventsImpl(db: SQLiteDatabase): Boolean
+
     fun dropAll(db: SQLiteDatabase): Boolean
 
 
