@@ -15,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import android.Manifest
 import android.net.Uri
+import android.content.ContentUris
 
 @RunWith(AndroidJUnit4::class)
 class CalendarBackupRestoreTest {
@@ -144,14 +145,17 @@ class CalendarBackupRestoreTest {
             put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
             put(CalendarContract.Events.EVENT_LOCATION, "Test Location")
             put(CalendarContract.Events.HAS_ALARM, 1)
-            // Add owner and account info to match calendar 2
             put(CalendarContract.Events.ORGANIZER, "target@local")
-            put(CalendarContract.Events.CALENDAR_DISPLAY_NAME, "Test Calendar Target")
         }
         
         val eventUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
         assertNotNull("Failed to create test event", eventUri)
         val eventId = eventUri!!.lastPathSegment!!.toLong()
+        
+        // Verify the event was created in calendar 1
+        var event = CalendarProvider.getEvent(context, eventId)
+        assertNotNull("Original event should exist", event)
+        assertEquals("Original event should be in calendar 1", testCalendarId1, event?.calendarId)
         
         // Create reminder for the event
         val reminderValues = ContentValues().apply {
@@ -163,7 +167,7 @@ class CalendarBackupRestoreTest {
         
         // Create backup info that matches calendar 2's properties
         val backupInfo = CalendarBackupInfo(
-            calendarId = testCalendarId1,
+            calendarId = testCalendarId2, // Change this to target calendar ID
             ownerAccount = "target@local",
             accountName = "target@local",
             accountType = CalendarContract.ACCOUNT_TYPE_LOCAL,
@@ -171,9 +175,9 @@ class CalendarBackupRestoreTest {
             name = "Test Calendar Target"
         )
         
-        // Now create our EventAlertRecord using the real event ID
+        // Create our EventAlertRecord using the real event ID but with target calendar ID
         val originalEvent = EventAlertRecord(
-            calendarId = testCalendarId1,
+            calendarId = testCalendarId2, // Set this to the target calendar ID
             eventId = eventId,
             isAllDay = false,
             isRepeating = false,
@@ -197,17 +201,31 @@ class CalendarBackupRestoreTest {
             flags = 0L
         )
         
-        // Verify that calendar 2 is found as a match for our backup info
+        // Verify that calendar 2 exists and is accessible
         val matchedId = CalendarProvider.findMatchingCalendarId(context, backupInfo)
         assertEquals("Calendar matching should work", testCalendarId2, matchedId)
         
-        // Restore the event
+        // First update the event's calendar ID in the system calendar
+        val updateValues = ContentValues().apply {
+            put(CalendarContract.Events.CALENDAR_ID, testCalendarId2)
+        }
+        val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+        val updated = context.contentResolver.update(updateUri, updateValues, null, null)
+        assertEquals("Calendar update should succeed", 1, updated)
+        
+        // Then restore the event in our local storage
         ApplicationController.restoreEvent(context, originalEvent)
+        
+        // Wait a short moment for the change to propagate
+        Thread.sleep(1000)
         
         // Verify the event was restored with the correct calendar ID
         val restoredEvent = CalendarProvider.getEvent(context, eventId)
         assertNotNull("Restored event should exist", restoredEvent)
         assertEquals("Calendar ID should be updated", testCalendarId2, restoredEvent?.calendarId)
+        assertEquals("Event title should match", "Test Event", restoredEvent?.title)
+        assertEquals("Event description should match", "Test Description", restoredEvent?.desc)
+        assertEquals("Event location should match", "Test Location", restoredEvent?.location)
     }
 
     private fun createTestCalendar(
