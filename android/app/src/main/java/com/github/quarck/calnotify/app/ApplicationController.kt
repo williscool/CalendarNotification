@@ -1043,23 +1043,9 @@ object ApplicationController : EventMovedHandler {
             calendarProvider.findMatchingCalendarId(context, backupInfo)
         } ?: event.calendarId // Fallback to original ID if no match found
         
-        // First update the event's calendar ID in the system calendar
-        val updateValues = ContentValues().apply {
-            put(CalendarContract.Events.CALENDAR_ID, newCalendarId)
-        }
-        val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.eventId)
-        try {
-            val updated = context.contentResolver.update(updateUri, updateValues, null, null)
-            if (updated != 1) {
-                DevLog.error(LOG_TAG, "Failed to update calendar ID in system calendar")
-                return
-            }
-        } catch (ex: Exception) {
-            DevLog.error(LOG_TAG, "Exception while updating calendar ID: ${ex.detailed}")
-            return
-        }
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId}: original calendar ${event.calendarId}, matched calendar $newCalendarId")
         
-        // Then update our local storage
+        // Create restored event with updated calendar ID
         val toRestore = event.copy(
             notificationId = 0, // re-assign new notification ID since old one might already in use
             displayStatus = EventDisplayStatus.Hidden, // ensure correct visibility is set
@@ -1078,6 +1064,10 @@ object ApplicationController : EventMovedHandler {
             DismissedEventsStorage(context).classCustomUse { db ->
                 db.deleteEvent(event)
             }
+            
+            DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to calendar $newCalendarId")
+        } else {
+            DevLog.error(LOG_TAG, "Failed to restore event ${event.eventId}")
         }
     }
 

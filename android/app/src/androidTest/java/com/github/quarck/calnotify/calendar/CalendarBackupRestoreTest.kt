@@ -16,6 +16,8 @@ import org.junit.runner.RunWith
 import android.Manifest
 import android.net.Uri
 import android.content.ContentUris
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 
 @RunWith(AndroidJUnit4::class)
 class CalendarBackupRestoreTest {
@@ -205,27 +207,28 @@ class CalendarBackupRestoreTest {
         val matchedId = CalendarProvider.findMatchingCalendarId(context, backupInfo)
         assertEquals("Calendar matching should work", testCalendarId2, matchedId)
         
-        // First update the event's calendar ID in the system calendar
-        val updateValues = ContentValues().apply {
-            put(CalendarContract.Events.CALENDAR_ID, testCalendarId2)
-        }
-        val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
-        val updated = context.contentResolver.update(updateUri, updateValues, null, null)
-        assertEquals("Calendar update should succeed", 1, updated)
-        
-        // Then restore the event in our local storage
+        // Restore the event in our local storage
         ApplicationController.restoreEvent(context, originalEvent)
         
         // Wait a short moment for the change to propagate
         Thread.sleep(1000)
         
-        // Verify the event was restored with the correct calendar ID
-        val restoredEvent = CalendarProvider.getEvent(context, eventId)
-        assertNotNull("Restored event should exist", restoredEvent)
-        assertEquals("Calendar ID should be updated", testCalendarId2, restoredEvent?.calendarId)
+        // Get the restored event from our local storage
+        val restoredEvent = EventsStorage(context).classCustomUse { db ->
+            db.getEvent(eventId, originalEvent.instanceStartTime)
+        }
+        
+        // Verify the restored event has the correct properties
+        assertNotNull("Restored event should exist in local storage", restoredEvent)
+        assertEquals("Calendar ID should be updated in local storage", testCalendarId2, restoredEvent?.calendarId)
         assertEquals("Event title should match", "Test Event", restoredEvent?.title)
         assertEquals("Event description should match", "Test Description", restoredEvent?.desc)
         assertEquals("Event location should match", "Test Location", restoredEvent?.location)
+        
+        // Verify the original event in system calendar is unchanged
+        val systemEvent = CalendarProvider.getEvent(context, eventId)
+        assertNotNull("Original event should still exist in system calendar", systemEvent)
+        assertEquals("System calendar event should maintain original calendar ID", testCalendarId1, systemEvent?.calendarId)
     }
 
     private fun createTestCalendar(
