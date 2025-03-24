@@ -161,6 +161,15 @@ dependencies {
     androidTestImplementation "androidx.core:core-ktx:$android_core_test_version"
     androidTestImplementation "androidx.appcompat:appcompat:$androidx_test_version"
     androidTestImplementation "androidx.appcompat:appcompat-resources:$androidx_test_version"
+    androidTestImplementation "androidx.fragment:fragment:$androidx_test_version"
+    androidTestImplementation "androidx.lifecycle:lifecycle-runtime:2.5.1"
+    androidTestImplementation "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
+    androidTestImplementation "androidx.annotation:annotation:1.4.0"
+    androidTestImplementation "androidx.vectordrawable:vectordrawable:1.1.0"
+    androidTestImplementation "androidx.vectordrawable:vectordrawable-animated:1.1.0"
+    androidTestImplementation "androidx.activity:activity:1.4.0"
+    androidTestImplementation "androidx.activity:activity-ktx:1.4.0"
+    androidTestImplementation "com.google.android.material:material:1.6.1"
     
     // Android Testing Dependencies
     androidTestImplementation 'androidx.test:runner:1.5.2'
