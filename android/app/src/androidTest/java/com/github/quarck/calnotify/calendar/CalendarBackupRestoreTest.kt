@@ -112,7 +112,7 @@ class CalendarBackupRestoreTest {
         )
         
         val matchedId = CalendarProvider.findMatchingCalendarId(context, backupInfo)
-        assertNull("Should not find any matching calendar", matchedId)
+        assertEquals("Should not find any matching calendar", -1L, matchedId)
     }
 
     @Test
@@ -173,7 +173,12 @@ class CalendarBackupRestoreTest {
             lastStatusChangeTime = currentTime,
             snoozedUntil = 0L,
             displayStatus = EventDisplayStatus.Hidden,
-            color = 0
+            color = 0,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = currentTime,
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0L
         )
     }
 } 
