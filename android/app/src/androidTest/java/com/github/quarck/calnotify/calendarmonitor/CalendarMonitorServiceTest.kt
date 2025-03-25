@@ -39,7 +39,6 @@ class CalendarMonitorServiceTest {
     @MockK
     private lateinit var mockTimer: ScheduledExecutorService
     
-    @MockK
     private lateinit var mockService: CalendarMonitorService
     
     private val currentTime = AtomicLong(0L)
@@ -74,13 +73,11 @@ class CalendarMonitorServiceTest {
             mockFuture
         }
 
-        // Configure mock service
+        // Create spy of real service instead of mock
+        mockService = spyk(CalendarMonitorService())
         every { mockService.timer } returns mockTimer
-        every { 
-            mockService.onStartCommand(any(), any(), any()) 
-        } returns 0
         
-        // Mock static service method
+        // Mock static service method to use our spy
         mockkObject(CalendarMonitorService.Companion)
         every { 
             CalendarMonitorService.startRescanService(
@@ -92,11 +89,13 @@ class CalendarMonitorServiceTest {
             )
         } answers { call ->
             val context = call.invocation.args[0] as Context
-            val startDelay = call.invocation.args[1] as Long
+            val startDelay = call.invocation.args[1] as Integer
             val reloadCalendar = call.invocation.args[2] as Boolean
             val rescanMonitor = call.invocation.args[3] as Boolean
             val userActionUntil = call.invocation.args[4] as Long
             
+            // Call the real service implementation with our spy
+            mockService.onCreate()
             mockService.onStartCommand(
                 Intent(context, CalendarMonitorService::class.java).apply {
                     putExtra("start_delay", startDelay)
@@ -107,6 +106,7 @@ class CalendarMonitorServiceTest {
                 0,
                 0
             )
+            mockService.onDestroy()
         }
         
         // Create test calendar
