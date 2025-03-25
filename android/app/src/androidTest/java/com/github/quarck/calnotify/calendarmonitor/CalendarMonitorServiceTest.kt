@@ -37,6 +37,16 @@ import com.github.quarck.calnotify.utils.detailed
 import android.app.PendingIntent
 import android.content.ComponentName
 
+/**
+ * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
+ * event processing, and delayed event handling functionality.
+ *
+ * These tests use mock objects to simulate calendar provider interactions and verify that:
+ * 1. Events are properly detected and processed
+ * 2. Event timing and delays are respected
+ * 3. Multiple events are handled correctly
+ * 4. Calendar monitoring state is maintained
+ */
 @RunWith(AndroidJUnit4::class)
 class CalendarMonitorServiceTest {
     private lateinit var context: Context
@@ -272,6 +282,15 @@ class CalendarMonitorServiceTest {
         clearStorages()
     }
 
+    /**
+     * Tests basic calendar event monitoring functionality.
+     * 
+     * Verifies that:
+     * 1. A single event can be created and detected
+     * 2. The event is properly registered in storage
+     * 3. Event reminders are correctly processed
+     * 4. Monitor service properly handles the event lifecycle
+     */
     @Test
     fun testCalendarEventMonitoring() {
         // Reset monitor state and ensure firstScanEver is false
@@ -420,6 +439,15 @@ class CalendarMonitorServiceTest {
         }
     }
 
+    /**
+     * Tests calendar reload functionality with multiple events.
+     * 
+     * Verifies that:
+     * 1. Multiple events can be created and detected
+     * 2. Events are processed in the correct order
+     * 3. All events are properly stored with correct metadata
+     * 4. Service properly handles batch event processing
+     */
     @Test
     fun testCalendarReload() {
         // Reset monitor state and ensure firstScanEver is false
@@ -700,15 +728,13 @@ class CalendarMonitorServiceTest {
     }
 
     /**
-     * Tests that the CalendarMonitorService properly respects the startDelay parameter when processing events.
+     * Tests that the CalendarMonitorService properly respects the startDelay parameter.
      * 
-     * This test verifies that:
-     * 1. When a service is started with a delay parameter (e.g. 2000ms)
-     * 2. And a calendar event is created with a reminder
-     * 3. Then the event should not be processed until after the specified delay has elapsed
-     * 
-     * This ensures that delayed event processing works correctly for scenarios where immediate 
-     * processing is not desired, such as waiting for calendar sync or other system events.
+     * Verifies that:
+     * 1. Events are not processed before the specified delay
+     * 2. Events are correctly processed after the delay
+     * 3. Event timing and state are maintained during the delay
+     * 4. Service properly handles delayed event processing
      */
     @Test
     fun testDelayedProcessing() {
@@ -716,120 +742,48 @@ class CalendarMonitorServiceTest {
         currentTime.set(System.currentTimeMillis())
         val startTime = currentTime.get()
 
-        // Create test event with reminder
+        // Create test event and setup monitor state
         createTestEvent()
+        setupMonitorState(startTime)
 
-        // Mock CalendarProvider behavior for this test event
-        every { CalendarProvider.getEventReminders(any(), eq(testEventId)) } returns listOf(
-            EventReminderRecord(millisecondsBefore = 30000) // 30 seconds before
-        )
-
-        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
-            val scanFrom = secondArg<Long>()
-            val scanTo = thirdArg<Long>()
-            
-            DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called at currentTime=${currentTime.get()}, startTime=$startTime, delay=$startDelay")
-            
-            if (currentTime.get() >= (startTime + startDelay)) {
-                DevLog.info(LOG_TAG, "Returning event alert after delay")
-                listOf(MonitorEventAlertEntry(
-                    eventId = testEventId,
-                    isAllDay = false,
-                    alertTime = startTime + 3600000 - 30000,
-                    instanceStartTime = startTime + 3600000,
-                    instanceEndTime = startTime + 7200000,
-                    alertCreatedByUs = false,
-                    wasHandled = false
-                ))
-            } else {
-                DevLog.info(LOG_TAG, "Skipping event alert due to delay not elapsed: current=${currentTime.get()}, start=$startTime, delay=$startDelay")
-                emptyList()
-            }
-        }
-
-        every { CalendarProvider.getEvent(any(), eq(testEventId)) } returns EventRecord(
-            calendarId = testCalendarId,
-            eventId = testEventId,
-            details = CalendarEventDetails(
-                title = "Test Event",
-                desc = "Test Description",
-                location = "",
-                timezone = "UTC",
-                startTime = startTime + 3600000,
-                endTime = startTime + 7200000,
-                isAllDay = false,
-                reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
-                repeatingRule = "",
-                repeatingRDate = "",
-                repeatingExRule = "",
-                repeatingExRDate = "",
-                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
-            ),
-            eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None
-        )
+        // Setup mocks for event handling
+        mockEventReminders(testEventId)
+        mockDelayedEventAlerts(testEventId, startTime, startDelay.toLong())
+        mockEventDetails(testEventId, startTime + 3600000, duration = 3600000)
 
         // Verify no events are processed before delay
-        EventsStorage(context).classCustomUse { db ->
-            val events = db.events
-            assertTrue("No events should be processed before delay",
-                events.isEmpty()
-            )
-        }
-
-        // Notify calendar change and wait a moment for propagation
-        DevLog.info(LOG_TAG, "Notifying calendar change...")
-        ApplicationController.onCalendarChanged(context)
-        advanceTimer(1000) // Advance timer by 1 second
+        verifyNoEvents()
 
         // Start service with delay
-        DevLog.info(LOG_TAG, "Starting service with delay $startDelay...")
-        CalendarMonitorService.startRescanService(
-            context = context,
-            startDelay = startDelay,
-            reloadCalendar = true,
-            rescanMonitor = true,
-            userActionUntil = currentTime.get() + 10000
-        )
+        notifyCalendarChangeAndWait()
+        startServiceAndWait(startDelay = startDelay)
 
         // Verify still no events before delay
-        EventsStorage(context).classCustomUse { db ->
-            val events = db.events
-            assertTrue("No events should be processed before delay",
-                events.isEmpty()
-            )
-        }
+        verifyNoEvents()
 
-        // Wait for slightly longer than the delay
+        // Wait for slightly longer than the delay and trigger rescan
         DevLog.info(LOG_TAG, "Advancing timer past delay...")
         advanceTimer(startDelay + 1000L) // Add 1 second margin
 
-        // Trigger another rescan after the delay
         DevLog.info(LOG_TAG, "Triggering post-delay rescan...")
         mockCalendarMonitor.onRescanFromService(context)
 
         // Verify the event was processed after the delay
-        EventsStorage(context).classCustomUse { db ->
-            val events = db.events
-            DevLog.info(LOG_TAG, "Found ${events.size} events after delay")
-            events.forEach { event ->
-                DevLog.info(LOG_TAG, "Event: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}")
-            }
-            
-            assertTrue("Event should be processed after delay",
-                events.any { it.eventId == testEventId }
-            )
-            
-            val processedEvent = events.firstOrNull { it.eventId == testEventId }
-            assertNotNull("Event should exist in storage", processedEvent)
-            processedEvent?.let {
-                assertTrue("Event should be processed after the delay",
-                    it.timeFirstSeen >= startTime + startDelay
-                )
-            }
-        }
+        verifyEventProcessed(
+            eventId = testEventId,
+            startTime = startTime + 3600000,
+            afterDelay = startTime + startDelay
+        )
     }
 
+    /**
+     * Creates a test calendar with the specified properties.
+     * 
+     * @param displayName The display name for the calendar
+     * @param accountName The account name associated with the calendar
+     * @param ownerAccount The owner account for the calendar
+     * @return The ID of the created calendar, or -1 if creation failed
+     */
     private fun createTestCalendar(
         displayName: String,
         accountName: String,
@@ -857,6 +811,11 @@ class CalendarMonitorServiceTest {
         return calUri?.lastPathSegment?.toLong() ?: -1L
     }
 
+    /**
+     * Creates a test event in the test calendar with default reminder settings.
+     * 
+     * @return The ID of the created event
+     */
     private fun createTestEvent(): Long {
         val currentTime = this.currentTime.get()
         val values = ContentValues().apply {
@@ -883,6 +842,12 @@ class CalendarMonitorServiceTest {
         return testEventId
     }
 
+    /**
+     * Creates multiple test events with sequential timing.
+     * 
+     * @param count The number of events to create
+     * @return List of created event IDs
+     */
     private fun createMultipleTestEvents(count: Int): List<Long> {
         val eventIds = mutableListOf<Long>()
         val currentTime = this.currentTime.get() // Capture current time at start of creation
@@ -912,9 +877,210 @@ class CalendarMonitorServiceTest {
         return eventIds
     }
 
+    /**
+     * Advances the mock timer by the specified duration and processes any scheduled tasks.
+     * 
+     * @param milliseconds The amount of time to advance
+     */
     private fun advanceTimer(milliseconds: Long) {
         currentTime.addAndGet(milliseconds)
         // Force timer to check for due tasks
         mockTimer.schedule({}, 0, TimeUnit.MILLISECONDS)
+    }
+
+    /**
+     * Sets up the monitor state with the specified start time.
+     * 
+     * @param startTime The time to use for monitor state initialization
+     */
+    private fun setupMonitorState(startTime: Long) {
+        val monitorState = CalendarMonitorState(context)
+        monitorState.firstScanEver = false
+        monitorState.prevEventScanTo = startTime
+        monitorState.prevEventFireFromScan = startTime
+    }
+
+    /**
+     * Mocks event reminder behavior for a specific event.
+     * 
+     * @param eventId The ID of the event to mock reminders for
+     * @param millisecondsBefore Time before event to trigger reminder
+     */
+    private fun mockEventReminders(eventId: Long, millisecondsBefore: Long = 30000) {
+        every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns listOf(
+            EventReminderRecord(millisecondsBefore = millisecondsBefore)
+        )
+    }
+
+    /**
+     * Mocks event alerts for a specific event with timing parameters.
+     * 
+     * @param eventId The ID of the event to mock alerts for
+     * @param startTime The start time of the event
+     * @param duration The duration of the event
+     * @param alertOffset Time before event start to trigger alert
+     */
+    private fun mockEventAlerts(eventId: Long, startTime: Long, duration: Long = 60000, alertOffset: Long = 30000) {
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            
+            if (startTime in scanFrom..scanTo) {
+                listOf(MonitorEventAlertEntry(
+                    eventId = eventId,
+                    isAllDay = false,
+                    alertTime = startTime - alertOffset,
+                    instanceStartTime = startTime,
+                    instanceEndTime = startTime + duration,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                ))
+            } else {
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * Mocks delayed event alerts that respect a specified delay period.
+     * 
+     * @param eventId The ID of the event to mock alerts for
+     * @param startTime The base time for delay calculation
+     * @param delay The delay duration before alerts should be processed
+     */
+    private fun mockDelayedEventAlerts(eventId: Long, startTime: Long, delay: Long) {
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            
+            DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called at currentTime=${currentTime.get()}, startTime=$startTime, delay=$delay")
+            
+            if (currentTime.get() >= (startTime + delay)) {
+                DevLog.info(LOG_TAG, "Returning event alert after delay")
+                listOf(MonitorEventAlertEntry(
+                    eventId = eventId,
+                    isAllDay = false,
+                    alertTime = startTime + 3600000 - 30000,
+                    instanceStartTime = startTime + 3600000,
+                    instanceEndTime = startTime + 7200000,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                ))
+            } else {
+                DevLog.info(LOG_TAG, "Skipping event alert due to delay not elapsed: current=${currentTime.get()}, start=$startTime, delay=$delay")
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * Mocks event details for a specific event.
+     * 
+     * @param eventId The ID of the event to mock
+     * @param startTime The start time of the event
+     * @param title The title of the event
+     * @param duration The duration of the event
+     */
+    private fun mockEventDetails(eventId: Long, startTime: Long, title: String = "Test Event", duration: Long = 3600000) {
+        every { CalendarProvider.getEvent(any(), eq(eventId)) } returns EventRecord(
+            calendarId = testCalendarId,
+            eventId = eventId,
+            details = CalendarEventDetails(
+                title = title,
+                desc = "Test Description",
+                location = "",
+                timezone = "UTC",
+                startTime = startTime,
+                endTime = startTime + duration,
+                isAllDay = false,
+                reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
+                repeatingRule = "",
+                repeatingRDate = "",
+                repeatingExRule = "",
+                repeatingExRDate = "",
+                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
+            ),
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None
+        )
+    }
+
+    /**
+     * Verifies that no events are present in storage.
+     * Fails the test if any events are found.
+     */
+    private fun verifyNoEvents() {
+        EventsStorage(context).classCustomUse { db ->
+            val events = db.events
+            assertTrue("No events should be present", events.isEmpty())
+        }
+    }
+
+    /**
+     * Verifies that an event was processed with the expected properties.
+     * 
+     * @param eventId The ID of the event to verify
+     * @param startTime The expected start time of the event
+     * @param title Optional title to verify
+     * @param afterDelay Optional delay time to verify processing occurred after
+     */
+    private fun verifyEventProcessed(eventId: Long, startTime: Long, title: String? = null, afterDelay: Long? = null) {
+        EventsStorage(context).classCustomUse { db ->
+            val events = db.events
+            DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
+            events.forEach { event ->
+                DevLog.info(LOG_TAG, "Event: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}")
+            }
+            
+            assertTrue("Event should be processed", events.any { it.eventId == eventId })
+            
+            val processedEvent = events.firstOrNull { it.eventId == eventId }
+            assertNotNull("Event should exist in storage", processedEvent)
+            
+            processedEvent?.let {
+                if (title != null) {
+                    assertEquals("Event should have correct title", title, it.title)
+                }
+                assertEquals("Event should have correct start time", startTime, it.startTime)
+                if (afterDelay != null) {
+                    assertTrue("Event should be processed after the delay",
+                        it.timeFirstSeen >= afterDelay
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Starts the monitor service and waits for processing to complete.
+     * 
+     * @param startDelay Optional delay before service should start processing
+     * @param waitTime Time to wait for service processing to complete
+     * @param userActionOffset Time offset for user action window
+     */
+    private fun startServiceAndWait(startDelay: Int = 0, waitTime: Long = 5000, userActionOffset: Long = 10000) {
+        DevLog.info(LOG_TAG, "Starting service with delay $startDelay...")
+        CalendarMonitorService.startRescanService(
+            context = context,
+            startDelay = startDelay,
+            reloadCalendar = true,
+            rescanMonitor = true,
+            userActionUntil = currentTime.get() + userActionOffset
+        )
+        DevLog.info(LOG_TAG, "Service started, waiting $waitTime ms...")
+        advanceTimer(waitTime)
+        DevLog.info(LOG_TAG, "Service wait complete")
+    }
+
+    /**
+     * Notifies of calendar changes and waits for change propagation.
+     * 
+     * @param waitTime Time to wait for change propagation
+     */
+    private fun notifyCalendarChangeAndWait(waitTime: Long = 1000) {
+        DevLog.info(LOG_TAG, "Notifying calendar change...")
+        ApplicationController.onCalendarChanged(context)
+        advanceTimer(waitTime)
+        DevLog.info(LOG_TAG, "Calendar change notification complete")
     }
 } 
