@@ -24,14 +24,8 @@ import java.util.concurrent.TimeUnit
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
-import org.mockito.Mock
-import org.mockito.Mockito.any
-import org.mockito.Mockito.anyLong
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.spy
-import org.mockito.Mockito.`when`
-import org.mockito.junit.MockitoJUnit
-import org.mockito.junit.MockitoRule
+import io.mockk.*
+import io.mockk.impl.annotations.MockK
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.atomic.AtomicLong
@@ -41,7 +35,13 @@ class CalendarMonitorServiceTest {
     private lateinit var context: Context
     private var testCalendarId: Long = -1
     private var testEventId: Long = -1
+    
+    @MockK
     private lateinit var mockTimer: ScheduledExecutorService
+    
+    @MockK
+    private lateinit var mockService: CalendarMonitorService
+    
     private val currentTime = AtomicLong(0L)
 
     companion object {
@@ -56,23 +56,57 @@ class CalendarMonitorServiceTest {
         Manifest.permission.RECEIVE_BOOT_COMPLETED
     )
 
-    @get:Rule
-    val mockitoRule: MockitoRule = MockitoJUnit.rule()
-
     @Before
     fun setup() {
+        MockKAnnotations.init(this)
         context = InstrumentationRegistry.getInstrumentation().targetContext
         
-        // Create mock timer
-        mockTimer = mock(ScheduledExecutorService::class.java)
-        val mockFuture = mock(ScheduledFuture::class.java)
-        `when`(mockTimer.schedule(any(), anyLong(), any())).thenAnswer { invocation ->
-            val delay = invocation.getArgument<Long>(1)
-            val unit = invocation.getArgument<TimeUnit>(2)
-            val task = invocation.getArgument<Runnable>(0)
+        // Configure mock timer
+        val mockFuture = mockk<ScheduledFuture<*>>()
+        every { 
+            mockTimer.schedule(any(), any<Long>(), any()) 
+        } answers { call ->
+            val delay = call.invocation.args[1] as Long
+            val unit = call.invocation.args[2] as TimeUnit
+            val task = call.invocation.args[0] as Runnable
             currentTime.addAndGet(unit.toMillis(delay))
             task.run()
             mockFuture
+        }
+
+        // Configure mock service
+        every { mockService.timer } returns mockTimer
+        every { 
+            mockService.onStartCommand(any(), any(), any()) 
+        } returns 0
+        
+        // Mock static service method
+        mockkObject(CalendarMonitorService.Companion)
+        every { 
+            CalendarMonitorService.startRescanService(
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        } answers { call ->
+            val context = call.invocation.args[0] as Context
+            val startDelay = call.invocation.args[1] as Long
+            val reloadCalendar = call.invocation.args[2] as Boolean
+            val rescanMonitor = call.invocation.args[3] as Boolean
+            val userActionUntil = call.invocation.args[4] as Long
+            
+            mockService.onStartCommand(
+                Intent(context, CalendarMonitorService::class.java).apply {
+                    putExtra("start_delay", startDelay)
+                    putExtra("reload_calendar", reloadCalendar)
+                    putExtra("rescan_monitor", rescanMonitor)
+                    putExtra("user_action_until", userActionUntil)
+                },
+                0,
+                0
+            )
         }
         
         // Create test calendar
@@ -100,6 +134,8 @@ class CalendarMonitorServiceTest {
 
     @After
     fun cleanup() {
+        unmockkAll()
+        
         // Delete test events
         if (testEventId != -1L) {
             context.contentResolver.delete(
@@ -194,11 +230,7 @@ class CalendarMonitorServiceTest {
         ApplicationController.onCalendarChanged(context)
         mockTimer.schedule({}, 1, TimeUnit.SECONDS)
 
-        // Create a mock service and configure it to use our mock timer
-        val service = mock(CalendarMonitorService::class.java)
-        `when`(service.timer).thenReturn(mockTimer)
-
-        // Start the monitor service directly
+        // Start the monitor service
         CalendarMonitorService.startRescanService(
             context = context,
             startDelay = 0,

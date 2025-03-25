@@ -55,6 +55,30 @@ android {
     jvmTarget = JavaVersion.VERSION_17.toString()
   }
 
+  configurations.all {
+    exclude group: 'xmlpull', module: 'xmlpull'
+    exclude group: 'xpp3', module: 'xpp3'
+    exclude group: 'xpp3', module: 'xpp3_min'
+    
+    resolutionStrategy {
+      force 'org.objenesis:objenesis:3.3'
+      force 'net.bytebuddy:byte-buddy:1.14.11'
+      force 'net.bytebuddy:byte-buddy-agent:1.14.11'
+    }
+  }
+
+  packagingOptions {
+    resources {
+      excludes += ['META-INF/LICENSE.md']
+      excludes += ['META-INF/LICENSE-notice.md']
+      excludes += ['META-INF/NOTICE.md']
+      excludes += ['META-INF/*.kotlin_module']
+      excludes += ['META-INF/AL2.0']
+      excludes += ['META-INF/LGPL2.1']
+    }
+    pickFirst '**/*.so'
+  }
+
   defaultConfig {
     applicationId "com.github.quarck.calnotify"
     minSdkVersion 24
@@ -67,9 +91,7 @@ android {
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
     // Add test runner configuration
-    // testInstrumentationRunner "com.github.quarck.calnotify.DexOpenerAndroidJUnitRunner"
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
 
     // We removed abiFilters since it conflicts with splits
     // ndk { 
@@ -81,6 +103,10 @@ android {
       pickFirst '**/*.so'
     }
 
+  }
+
+  configurations {
+    all*.exclude group: 'xpp3', module: 'xpp3'
   }
 
   // Add splits configuration for APK size optimization
@@ -192,9 +218,12 @@ dependencies {
 
     // Mockito dependencies
     androidTestImplementation 'org.mockito:mockito-core:5.16.1'
-//    androidTestImplementation 'org.mockito:mockito-android:5.16.1'
     androidTestImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
-    androidTestImplementation 'com.linkedin.dexmaker:dexmaker-mockito-inline:2.28.4'
+//    androidTestImplementation 'com.linkedin.dexmaker:dexmaker-mockito-inline:2.28.4'
+    
+    // MockK for Kotlin mocking
+    androidTestImplementation 'io.mockk:mockk-android:1.13.9'
+    androidTestImplementation 'io.mockk:mockk-agent:1.13.9'
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
