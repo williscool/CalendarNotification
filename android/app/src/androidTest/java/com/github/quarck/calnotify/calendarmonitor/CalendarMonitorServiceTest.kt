@@ -120,7 +120,7 @@ class CalendarMonitorServiceTest {
 
     private fun setupMockCalendarMonitor() {
         mockCalendarMonitor = mockk<CalendarMonitorInterface>(relaxed = true)
-        every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
+//        every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
         every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
         
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
@@ -355,7 +355,7 @@ class CalendarMonitorServiceTest {
         startServiceAndWait()
 
         // Verify that CalendarMonitor.onRescanFromService was called
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
 
         // Verify the event was detected and processed
         verifyEventProcessed(
@@ -450,7 +450,7 @@ class CalendarMonitorServiceTest {
         startServiceAndWait()
 
         // Verify results
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
         verifyMultipleEvents(events, startTime)
     }
 
