@@ -39,7 +39,7 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
         get() = _timer
         set(value) { _timer = value }
 
-    override fun onHandleIntent(intent: Intent?) {
+    public override fun onHandleIntent(intent: Intent?) {
         if (intent == null) {
             DevLog.error(LOG_TAG, "Intent is null")
             return
@@ -137,6 +137,13 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
                 rescanMonitor: Boolean = true,   // should perform calendar monitor rescan
                 userActionUntil: Long = 0 // Time in millis - max deadline to treat as a user action
         ) {
+            DevLog.info(LOG_TAG, "startRescanService: " +
+                    "startDelay=$startDelay, " +
+                    "reloadCalendar=$reloadCalendar, " +
+                    "rescanMonitor=$rescanMonitor, " +
+                    "userActionUntil=$userActionUntil"
+            )
+            
             val intent = Intent(context, CalendarMonitorService::class.java)
 
             intent.putExtra(START_DELAY, startDelay)
