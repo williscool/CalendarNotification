@@ -75,7 +75,15 @@ class CalendarMonitorServiceTest {
 
         // Create spy of real service instead of mock
         mockService = spyk(CalendarMonitorService())
+        every { mockService.getSystemService(Context.POWER_SERVICE) } returns context.getSystemService(Context.POWER_SERVICE)
+        every { mockService.applicationContext } returns context
+        every { mockService.baseContext } returns context
         every { mockService.timer } returns mockTimer
+        every { mockService.getDatabasePath(any()) } answers { context.getDatabasePath(firstArg()) }
+        every { mockService.checkPermission(any(), any(), any()) } answers { context.checkPermission(firstArg(), secondArg(), thirdArg()) }
+        every { mockService.checkCallingOrSelfPermission(any()) } answers { context.checkCallingOrSelfPermission(firstArg()) }
+        every { mockService.getPackageName() } returns context.packageName
+        every { mockService.getContentResolver() } returns context.contentResolver
         
         // Mock static service method to use our spy
         mockkObject(CalendarMonitorService.Companion)
