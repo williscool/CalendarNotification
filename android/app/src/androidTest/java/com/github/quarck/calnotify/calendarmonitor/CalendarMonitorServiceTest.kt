@@ -31,6 +31,11 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.atomic.AtomicLong
 import android.app.AlarmManager
+import android.os.UserHandle
+import android.os.Process
+import com.github.quarck.calnotify.utils.detailed
+import android.app.PendingIntent
+import android.content.ComponentName
 
 @RunWith(AndroidJUnit4::class)
 class CalendarMonitorServiceTest {
@@ -76,17 +81,29 @@ class CalendarMonitorServiceTest {
             every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
             every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
             every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
-            
+//            every { startService(any()) } answers {
+//                val intent = firstArg<Intent>()
+//                DevLog.info(LOG_TAG, "startService called with intent: action=${intent.action}, extras=${intent.extras}")
+//                mockService.onHandleIntent(intent)
+//                ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
+//            }
+
             // Mock shared preferences for settings
             val sharedPrefs = realContext.getSharedPreferences("CalendarNotificationsPlusPrefs", Context.MODE_PRIVATE)
             every { getSharedPreferences(any(), any()) } returns sharedPrefs
         }
         
-        // Mock alarm manager
+        // Mock alarm manager with PendingIntent handling
         val mockAlarmManager = mockk<AlarmManager>(relaxed = true)
         every { context.getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
         every { mockAlarmManager.setInexactRepeating(any(), any(), any(), any()) } just Runs
-        
+
+        // Mock PendingIntent.getBroadcast directly
+        mockkStatic(PendingIntent::class)
+        every { 
+            PendingIntent.getBroadcast(any(), any(), any(), any()) 
+        } returns mockk(relaxed = true)
+
         // Configure mock timer
         val mockFuture = mockk<ScheduledFuture<*>>()
         every { 
@@ -100,43 +117,80 @@ class CalendarMonitorServiceTest {
             mockFuture
         }
 
-        // Mock ApplicationController singleton and its properties
-        DevLog.info(LOG_TAG, "Setting up ApplicationController mocking...")
+        // Mock ApplicationController singleton BEFORE creating other mocks
         mockkObject(ApplicationController)
         
-        // Create CalendarMonitor mock and verify it's properly mocked
+        // Create CalendarMonitor mock with relaxed behavior
         mockCalendarMonitor = mockk<CalendarMonitorInterface>(relaxed = true)
         
-        // Set up the mocks with object-level scope
+
+        // Mock the CalendarMonitor property getter
+        every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
         every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
-        every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
-            mockCalendarMonitor.onRescanFromService(firstArg())
+        
+        // Mock other ApplicationController methods that are called
+        every { 
+            ApplicationController.onCalendarReloadFromService(any(), any()) 
+        } answers {
+            val context = firstArg<Context>()
+            val userActionUntil = secondArg<Long>()
+            DevLog.info(LOG_TAG, "onCalendarReloadFromService called with userActionUntil=$userActionUntil")
+            mockCalendarMonitor.onRescanFromService(context)
+            DevLog.info(LOG_TAG, "onCalendarReloadFromService completed")
         }
-        every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
-            mockCalendarMonitor.onRescanFromService(firstArg())
+        
+        every { 
+            ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) 
+        } answers {
+            val context = firstArg<Context>()
+            val userActionUntil = secondArg<Long>()
+            DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
+            mockCalendarMonitor.onRescanFromService(context)
+            DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService completed")
         }
-        every { ApplicationController.onCalendarChanged(any()) } just Runs
+
+        // Mock AddEventMonitor
+        val mockAddEventMonitor = mockk<CalendarChangeRequestMonitorInterface>(relaxed = true)
+        every { ApplicationController.AddEventMonitorInstance } returns mockAddEventMonitor
+        every { mockAddEventMonitor.onRescanFromService(any()) } just Runs
+
+        // Additional ApplicationController mocks needed
         every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } returns false
         every { ApplicationController.registerNewEvent(any(), any()) } returns true
         every { ApplicationController.afterCalendarEventFired(any()) } just Runs
         every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } just Runs
 
-        // Mock AddEventMonitorInstance property and its methods
-        val mockAddEventMonitor = mockk<CalendarChangeRequestMonitorInterface>()
-        every { mockAddEventMonitor.onRescanFromService(any()) } answers {
-            val context = it.invocation.args[0] as Context
-            DevLog.info(LOG_TAG, "Mocked AddEventMonitorInstance.onRescanFromService called with context: ${context}")
-        }
-        every { ApplicationController.AddEventMonitorInstance } returns mockAddEventMonitor
+        // Create spy of real service
+        mockService = spyk(CalendarMonitorService())
+        every { mockService.getSystemService(Context.POWER_SERVICE) } returns context.getSystemService(Context.POWER_SERVICE)
+        every { mockService.applicationContext } returns context
+        every { mockService.baseContext } returns context
+        every { mockService.timer } returns mockTimer
+        every { mockService.getDatabasePath(any()) } answers { context.getDatabasePath(firstArg()) }
+        every { mockService.checkPermission(any(), any(), any()) } answers { context.checkPermission(firstArg(), secondArg(), thirdArg()) }
+        every { mockService.checkCallingOrSelfPermission(any()) } answers { context.checkCallingOrSelfPermission(firstArg()) }
+        every { mockService.getPackageName() } returns context.packageName
+        every { mockService.getContentResolver() } returns context.contentResolver
+//        every { mockService.onHandleIntent(any()) } answers {
+//            val intent = firstArg<Intent>()
+//            DevLog.info(LOG_TAG, "Service.onHandleIntent called with intent: extras=${intent.extras}")
+//            callOriginal()
+//        }
 
-        // Mock CalendarProvider
+        // Mock CalendarProvider more comprehensively
         mockkObject(CalendarProvider)
+        
+        // Mock getEventReminders to return reminders for test events
+        every { CalendarProvider.getEventReminders(any(), any()) } answers {
+            val eventId = secondArg<Long>()
+            listOf(EventReminderRecord(millisecondsBefore = 15 * 60 * 1000)) // 15 minutes before
+        }
+
         every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
             val context = firstArg<Context>()
             val scanFrom = secondArg<Long>()
             val scanTo = thirdArg<Long>()
             
-            // Return our test event if it's within range
             if (testEventId != -1L && eventStartTime >= scanFrom && eventStartTime <= scanTo) {
                 listOf(MonitorEventAlertEntry(
                     eventId = testEventId,
@@ -152,77 +206,35 @@ class CalendarMonitorServiceTest {
             }
         }
 
-        // Create spy of real service instead of mock
-        mockService = spyk(CalendarMonitorService())
-        every { mockService.getSystemService(Context.POWER_SERVICE) } returns context.getSystemService(Context.POWER_SERVICE)
-        every { mockService.applicationContext } returns context
-        every { mockService.baseContext } returns context
-        every { mockService.timer } returns mockTimer
-        every { mockService.getDatabasePath(any()) } answers { context.getDatabasePath(firstArg()) }
-        every { mockService.checkPermission(any(), any(), any()) } answers { context.checkPermission(firstArg(), secondArg(), thirdArg()) }
-        every { mockService.checkCallingOrSelfPermission(any()) } answers { context.checkCallingOrSelfPermission(firstArg()) }
-        every { mockService.getPackageName() } returns context.packageName
-        every { mockService.getContentResolver() } returns context.contentResolver
+        every { CalendarProvider.getEvent(any(), any()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            
+            if (eventId == testEventId) {
+                EventRecord(
+                    calendarId = testCalendarId,
+                    eventId = eventId,
+                    details = CalendarEventDetails(
+                        title = "Test Monitor Event",
+                        desc = "Test Description",
+                        location = "",
+                        timezone = "UTC",
+                        startTime = eventStartTime,
+                        endTime = eventStartTime + 60000,
+                        isAllDay = false,
+                        reminders = listOf(),
+                        repeatingRule = "",
+                        repeatingRDate = "",
+                        repeatingExRule = "",
+                        repeatingExRDate = "",
+                        color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
+                    ),
+                    eventStatus = EventStatus.Confirmed,
+                    attendanceStatus = AttendanceStatus.None
+                )
+            } else null
+        }
 
-        // Ensure service onCreate initializes with our mocked ApplicationController
-        every { mockService.onCreate() } answers {
-            // Set up the mock BEFORE calling original onCreate
-            every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
-            
-            // Call original onCreate
-            callOriginal()
-            
-            // Verify ApplicationController is still properly mocked
-            val testMonitor = ApplicationController.CalendarMonitor
-            assertSame("CalendarMonitor mock should be properly set up", mockCalendarMonitor, testMonitor)
-        }
-        
-        // Mock service method to use our spy
-        mockkObject(CalendarMonitorService.Companion)
-        every { 
-            CalendarMonitorService.startRescanService(
-                any(),
-                any(),
-                any(),
-                any(),
-                any()
-            )
-        } answers { call ->
-            val context = call.invocation.args[0] as Context
-            val startDelay = call.invocation.args[1] as Integer
-            val reloadCalendar = call.invocation.args[2] as Boolean
-            val rescanMonitor = call.invocation.args[3] as Boolean
-            val userActionUntil = call.invocation.args[4] as Long
-            
-            DevLog.info(LOG_TAG, "startRescanService called with reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor")
-            
-            // Ensure mock is set up before service starts
-            every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
-            every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
-                mockCalendarMonitor.onRescanFromService(firstArg())
-            }
-            every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
-                mockCalendarMonitor.onRescanFromService(firstArg())
-            }
-            
-            // Call the real service implementation with our spy
-            mockService.onCreate()
-            val result = mockService.onStartCommand(
-                Intent(context, CalendarMonitorService::class.java).apply {
-                    putExtra("start_delay", startDelay)
-                    putExtra("reload_calendar", reloadCalendar)
-                    putExtra("rescan_monitor", rescanMonitor)
-                    putExtra("user_action_until", userActionUntil)
-                },
-                0,
-                0
-            )
-            
-            DevLog.info(LOG_TAG, "Service onStartCommand completed with result: $result")
-            
-            mockService.onDestroy()
-        }
-        
         // Create test calendar
         testCalendarId = createTestCalendar(
             displayName = "Test Calendar",
@@ -240,7 +252,7 @@ class CalendarMonitorServiceTest {
             db.deleteAlertsMatching { true } // Delete all alerts
         }
 
-        // Enable calendar monitoring in settings - ensure we're using edit().commit()
+        // Enable calendar monitoring in settings
         val settings = Settings(context)
         settings.setBoolean("enable_manual_calendar_rescan", true)
         context.getSharedPreferences("CalendarNotificationsPlusPrefs", Context.MODE_PRIVATE)
@@ -249,7 +261,7 @@ class CalendarMonitorServiceTest {
             .commit()
     }
 
-    @After
+  @After
     fun cleanup() {
         unmockkAll()
         
@@ -334,30 +346,6 @@ class CalendarMonitorServiceTest {
         assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
         assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
 
-        // Set up mock behavior for onRescanFromService BEFORE starting service
-        every { mockCalendarMonitor.onRescanFromService(any()) } answers {
-            EventsStorage(context).classCustomUse { db ->
-                val event = EventAlertRecord(
-                    eventId = testEventId,
-                    calendarId = testCalendarId,
-                    title = "Test Monitor Event",
-                    desc = "Test Description",
-                    startTime = eventStartTime,
-                    endTime = eventStartTime + 60000,
-                    alertTime = reminderTime,
-                    instanceStartTime = eventStartTime,
-                    instanceEndTime = eventStartTime + 60000,
-                    isAllDay = false,
-                    isRepeating = false,
-                    displayStatus = EventDisplayStatus.Hidden,
-                    notificationId = 0,
-                    location = "",
-                    lastStatusChangeTime = currentTime.get()
-                )
-                db.addEvent(event)
-            }
-        }
-
         // Check monitor storage before service start
         MonitorStorage(context).classCustomUse { db ->
             val alerts = db.alerts
@@ -390,9 +378,7 @@ class CalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "Service wait complete")
 
         // Verify that CalendarMonitor.onRescanFromService was called
-        DevLog.info(LOG_TAG, "Verifying CalendarMonitor.onRescanFromService was called...")
         verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
-        DevLog.info(LOG_TAG, "Verification complete")
 
         // Check monitor storage after service
         MonitorStorage(context).classCustomUse { db ->
@@ -423,12 +409,108 @@ class CalendarMonitorServiceTest {
     fun testCalendarReload() {
         // Create multiple test events
         val events = createMultipleTestEvents(3)
+        DevLog.info(LOG_TAG, "Created ${events.size} test events: $events")
         
-        // Notify calendar change and wait a moment for propagation
+        // Mock CalendarProvider to return our test events
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            
+            DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
+            
+            events.mapIndexed { index, eventId ->
+                val alertTime = currentTime.get() + (3600000 * (index + 1)) - (15 * 60 * 1000)
+                val startTime = currentTime.get() + (3600000 * (index + 1))
+                val endTime = currentTime.get() + (3600000 * (index + 2))
+                
+                DevLog.info(LOG_TAG, "Returning alert for event $eventId: alertTime=$alertTime, startTime=$startTime")
+                
+                MonitorEventAlertEntry(
+                    eventId = eventId,
+                    isAllDay = false,
+                    alertTime = alertTime,
+                    instanceStartTime = startTime,
+                    instanceEndTime = endTime,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                )
+            }
+        }
+
+        // Mock event details for each test event
+        events.forEachIndexed { index, eventId ->
+            every { CalendarProvider.getEvent(any(), eq(eventId)) } answers {
+                val startTime = currentTime.get() + (3600000 * (index + 1))
+                val endTime = currentTime.get() + (3600000 * (index + 2))
+                
+                DevLog.info(LOG_TAG, "getEvent called for eventId=$eventId: startTime=$startTime")
+                
+                EventRecord(
+                    calendarId = testCalendarId,
+                    eventId = eventId,
+                    details = CalendarEventDetails(
+                        title = "Test Event $index",
+                        desc = "Test Description $index",
+                        location = "",
+                        timezone = "UTC",
+                        startTime = startTime,
+                        endTime = endTime,
+                        isAllDay = false,
+                        reminders = listOf(EventReminderRecord(millisecondsBefore = 15 * 60 * 1000)),
+                        repeatingRule = "",
+                        repeatingRDate = "",
+                        repeatingExRule = "",
+                        repeatingExRDate = "",
+                        color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
+                    ),
+                    eventStatus = EventStatus.Confirmed,
+                    attendanceStatus = AttendanceStatus.None
+                )
+            }
+        }
+
+        // Mock ApplicationController behavior for event registration
+        var registeredEvents = mutableListOf<EventAlertRecord>()
+        every { ApplicationController.registerNewEvent(any(), any()) } answers {
+            val context = firstArg<Context>()
+            val event = secondArg<EventAlertRecord>()
+            
+            DevLog.info(LOG_TAG, "registerNewEvent called for eventId=${event.eventId}, title=${event.title}")
+            registeredEvents.add(event)
+            
+            // Actually save the event to storage
+            EventsStorage(context).classCustomUse { db ->
+                db.addEvent(event)
+            }
+            
+            // Verify event was actually saved
+            EventsStorage(context).classCustomUse { db ->
+                val savedEvent = db.events.find { it.eventId == event.eventId }
+                assertNotNull("Event ${event.eventId} should be saved to storage", savedEvent)
+                DevLog.info(LOG_TAG, "Event ${event.eventId} saved to storage: ${savedEvent?.title}")
+            }
+            
+            true
+        }
+
+        // Log initial storage state
+        DevLog.info(LOG_TAG, "Initial storage state:")
+        EventsStorage(context).classCustomUse { db ->
+            val initialEvents = db.events
+            DevLog.info(LOG_TAG, "Events in storage before test: ${initialEvents.size}")
+            initialEvents.forEach { event ->
+                DevLog.info(LOG_TAG, "Initial event: id=${event.eventId}, title=${event.title}")
+            }
+        }
+
+        // Notify calendar change and wait for propagation
+        DevLog.info(LOG_TAG, "Notifying calendar change...")
         ApplicationController.onCalendarChanged(context)
         mockTimer.schedule({}, 1, TimeUnit.SECONDS)
         
         // Start service with reload
+        DevLog.info(LOG_TAG, "Starting service with reload...")
         val intent = Intent(context, CalendarMonitorService::class.java).apply {
             putExtra("start_delay", 0)
             putExtra("reload_calendar", true)
@@ -438,15 +520,41 @@ class CalendarMonitorServiceTest {
         context.startService(intent)
 
         // Wait for service to complete and process events
+        DevLog.info(LOG_TAG, "Waiting for service to complete...")
         mockTimer.schedule({}, 5, TimeUnit.SECONDS)
+
+        // Verify monitor rescan was called
+        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        DevLog.info(LOG_TAG, "Monitor rescan verified")
+
+        // Log registered events
+        DevLog.info(LOG_TAG, "Registered events during test: ${registeredEvents.size}")
+        registeredEvents.forEach { event ->
+            DevLog.info(LOG_TAG, "Registered event: id=${event.eventId}, title=${event.title}")
+        }
 
         // Verify all events were reloaded
         EventsStorage(context).classCustomUse { db ->
             val storedEvents = db.events.filter { it.calendarId == testCalendarId }
-            assertEquals("All test events should be reloaded", 
-                events.size, 
-                storedEvents.size
-            )
+            DevLog.info(LOG_TAG, "Found ${storedEvents.size} events in storage after test")
+            
+            storedEvents.forEach { event ->
+                DevLog.info(LOG_TAG, "Stored event: id=${event.eventId}, title=${event.title}, startTime=${event.startTime}")
+            }
+            
+            assertEquals("All test events should be reloaded", events.size, storedEvents.size)
+            
+            // Verify each event was stored correctly
+            events.forEachIndexed { index, eventId ->
+                val expectedStartTime = currentTime.get() + (3600000 * (index + 1))
+                val storedEvent = storedEvents.find { it.eventId == eventId }
+                
+                assertNotNull("Event $eventId should be in storage", storedEvent)
+                storedEvent?.let {
+                    assertEquals("Event $eventId should have correct title", "Test Event $index", it.title)
+                    assertEquals("Event $eventId should have correct start time", expectedStartTime, it.startTime)
+                }
+            }
         }
     }
 
