@@ -37,6 +37,8 @@ class CalendarMonitorServiceTest {
     private lateinit var context: Context
     private var testCalendarId: Long = -1
     private var testEventId: Long = -1
+    private var eventStartTime: Long = 0
+    private var reminderTime: Long = 0
     
     @MockK
     private lateinit var mockTimer: ScheduledExecutorService
@@ -126,6 +128,29 @@ class CalendarMonitorServiceTest {
             DevLog.info(LOG_TAG, "Mocked AddEventMonitorInstance.onRescanFromService called with context: ${context}")
         }
         every { ApplicationController.AddEventMonitorInstance } returns mockAddEventMonitor
+
+        // Mock CalendarProvider
+        mockkObject(CalendarProvider)
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            
+            // Return our test event if it's within range
+            if (testEventId != -1L && eventStartTime >= scanFrom && eventStartTime <= scanTo) {
+                listOf(MonitorEventAlertEntry(
+                    eventId = testEventId,
+                    isAllDay = false,
+                    alertTime = reminderTime,
+                    instanceStartTime = eventStartTime,
+                    instanceEndTime = eventStartTime + 60000,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                ))
+            } else {
+                emptyList()
+            }
+        }
 
         // Create spy of real service instead of mock
         mockService = spyk(CalendarMonitorService())
@@ -267,8 +292,8 @@ class CalendarMonitorServiceTest {
         monitorState.prevEventFireFromScan = currentTime.get()
         
         // Create a test event with reminder - use current time
-        val eventStartTime = currentTime.get() + 60000 // 1 minute from now
-        val reminderTime = eventStartTime - 30000 // 30 seconds before start
+        eventStartTime = currentTime.get() + 60000 // 1 minute from now
+        reminderTime = eventStartTime - 30000 // 30 seconds before start
         
         DevLog.info(LOG_TAG, "Creating test event: startTime=$eventStartTime, reminderTime=$reminderTime")
         
@@ -308,6 +333,30 @@ class CalendarMonitorServiceTest {
         val settings = Settings(context)
         assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
         assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
+
+        // Set up mock behavior for onRescanFromService BEFORE starting service
+        every { mockCalendarMonitor.onRescanFromService(any()) } answers {
+            EventsStorage(context).classCustomUse { db ->
+                val event = EventAlertRecord(
+                    eventId = testEventId,
+                    calendarId = testCalendarId,
+                    title = "Test Monitor Event",
+                    desc = "Test Description",
+                    startTime = eventStartTime,
+                    endTime = eventStartTime + 60000,
+                    alertTime = reminderTime,
+                    instanceStartTime = eventStartTime,
+                    instanceEndTime = eventStartTime + 60000,
+                    isAllDay = false,
+                    isRepeating = false,
+                    displayStatus = EventDisplayStatus.Hidden,
+                    notificationId = 0,
+                    location = "",
+                    lastStatusChangeTime = currentTime.get()
+                )
+                db.addEvent(event)
+            }
+        }
 
         // Check monitor storage before service start
         MonitorStorage(context).classCustomUse { db ->
@@ -361,7 +410,7 @@ class CalendarMonitorServiceTest {
             events.forEach { event ->
                 DevLog.info(LOG_TAG, "Event: id=${event.eventId}, title=${event.title}, start=${event.startTime}, alert=${event.alertTime}")
             }
-            
+
             assertTrue("Monitor should detect the new event", events.any { 
                 it.eventId == testEventId && 
                 it.title == "Test Monitor Event" &&
