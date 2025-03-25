@@ -154,14 +154,14 @@ class CalendarMonitorServiceTest {
         every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
         every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
         
-        // Mock other ApplicationController methods that are called
+        // Mock ApplicationController methods that are called
         every { 
             ApplicationController.onCalendarReloadFromService(any(), any()) 
         } answers {
             val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarReloadFromService called with userActionUntil=$userActionUntil")
-            mockCalendarMonitor.onRescanFromService(context)
+            // Don't call onRescanFromService here since it will be called by the service itself
             DevLog.info(LOG_TAG, "onCalendarReloadFromService completed")
         }
         
@@ -171,7 +171,7 @@ class CalendarMonitorServiceTest {
             val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
-            mockCalendarMonitor.onRescanFromService(context)
+            // Don't call onRescanFromService here since it will be called by the service itself
             DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService completed")
         }
 
@@ -369,8 +369,9 @@ class CalendarMonitorServiceTest {
         val monitorState = CalendarMonitorState(context)
         monitorState.firstScanEver = false
         currentTime.set(System.currentTimeMillis())
-        monitorState.prevEventScanTo = currentTime.get()
-        monitorState.prevEventFireFromScan = currentTime.get()
+        val startTime = currentTime.get() // Capture initial time
+        monitorState.prevEventScanTo = startTime
+        monitorState.prevEventFireFromScan = startTime
 
         // Create multiple test events with proper calendar setup
         val events = createMultipleTestEvents(3)
@@ -397,17 +398,17 @@ class CalendarMonitorServiceTest {
             DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange call #$getEventAlertsCallCount with scanFrom=$scanFrom, scanTo=$scanTo")
             
             events.mapIndexed { index, eventId ->
-                val alertTime = currentTime.get() + (3600000 * (index + 1)) - (15 * 60 * 1000)
-                val startTime = currentTime.get() + (3600000 * (index + 1))
-                val endTime = startTime + 3600000
+                val alertTime = startTime + (3600000 * (index + 1)) - (15 * 60 * 1000)
+                val eventStartTime = startTime + (3600000 * (index + 1))
+                val endTime = eventStartTime + 3600000
                 
-                DevLog.info(LOG_TAG, "Returning alert for event $eventId: alertTime=$alertTime, startTime=$startTime")
+                DevLog.info(LOG_TAG, "Returning alert for event $eventId: alertTime=$alertTime, startTime=$eventStartTime")
                 
                 MonitorEventAlertEntry(
                     eventId = eventId,
                     isAllDay = false,
                     alertTime = alertTime,
-                    instanceStartTime = startTime,
+                    instanceStartTime = eventStartTime,
                     instanceEndTime = endTime,
                     alertCreatedByUs = false,
                     wasHandled = false
@@ -418,11 +419,11 @@ class CalendarMonitorServiceTest {
         // Mock event details for each test event
         events.forEachIndexed { index, eventId ->
             every { CalendarProvider.getEvent(any(), eq(eventId)) } answers {
-                val startTime = currentTime.get() + (3600000 * (index + 1))
-                val endTime = startTime + 3600000
+                val eventStartTime = startTime + (3600000 * (index + 1))
+                val endTime = eventStartTime + 3600000
                 
                 getEventCallCount++
-                DevLog.info(LOG_TAG, "getEvent call #$getEventCallCount for eventId=$eventId: startTime=$startTime")
+                DevLog.info(LOG_TAG, "getEvent call #$getEventCallCount for eventId=$eventId: startTime=$eventStartTime")
                 
                 EventRecord(
                     calendarId = testCalendarId,
@@ -432,7 +433,7 @@ class CalendarMonitorServiceTest {
                         desc = "Test Description $index",
                         location = "",
                         timezone = "UTC",
-                        startTime = startTime,
+                        startTime = eventStartTime,
                         endTime = endTime,
                         isAllDay = false,
                         reminders = listOf(EventReminderRecord(millisecondsBefore = 15 * 60 * 1000)),
@@ -572,8 +573,8 @@ class CalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "Waiting for service to complete...")
         advanceTimer(5000) // Advance timer by 5 seconds
 
-        // Verify monitor rescan was called
-        verify(exactly = 3) { mockCalendarMonitor.onRescanFromService(any()) }
+        // Verify monitor rescan was called exactly once
+        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
         DevLog.info(LOG_TAG, "Monitor rescan verified")
 
         // Verify service flow
@@ -585,7 +586,7 @@ class CalendarMonitorServiceTest {
         // Verify alerts were found correctly
         assertEquals("Should find correct number of alerts", events.size, alertsFound.size)
         alertsFound.forEachIndexed { index, alert ->
-            val expectedStartTime = currentTime.get() + (3600000 * (index + 1))
+            val expectedStartTime = startTime + (3600000 * (index + 1))
             val expectedAlertTime = expectedStartTime - (15 * 60 * 1000)
             assertEquals("Alert ${alert.eventId} should have correct start time", expectedStartTime, alert.instanceStartTime)
             assertEquals("Alert ${alert.eventId} should have correct alert time", expectedAlertTime, alert.alertTime)
@@ -611,7 +612,7 @@ class CalendarMonitorServiceTest {
             
             // Verify each event was stored with correct data
             events.forEachIndexed { index, eventId ->
-                val expectedStartTime = currentTime.get() + (3600000 * (index + 1))
+                val expectedStartTime = startTime + (3600000 * (index + 1))
                 val storedEvent = storedEvents.find { it.eventId == eventId }
                 
                 assertNotNull("Event $eventId should be in storage", storedEvent)
@@ -745,8 +746,8 @@ class CalendarMonitorServiceTest {
 
     private fun createMultipleTestEvents(count: Int): List<Long> {
         val eventIds = mutableListOf<Long>()
+        val currentTime = this.currentTime.get() // Capture current time at start of creation
         repeat(count) { index ->
-            val currentTime = this.currentTime.get()
             val values = ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
                 put(CalendarContract.Events.TITLE, "Test Event $index")
