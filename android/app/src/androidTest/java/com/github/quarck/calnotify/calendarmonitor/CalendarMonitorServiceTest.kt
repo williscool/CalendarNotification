@@ -365,6 +365,54 @@ class CalendarMonitorServiceTest {
         )
     }
 
+    // Add these helper functions before the tests
+    private fun mockMultipleEventAlerts(events: List<Long>, startTime: Long) {
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            events.mapIndexed { index, eventId ->
+                val hourOffset = index + 1
+                val eventStartTime = startTime + (hourOffset * Consts.HOUR_IN_MILLISECONDS)
+                val alertTime = eventStartTime - (15 * Consts.MINUTE_IN_MILLISECONDS)
+                val endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS
+                
+                DevLog.info(LOG_TAG, "Returning alert for event $eventId: alertTime=$alertTime, startTime=$eventStartTime")
+                
+                MonitorEventAlertEntry(
+                    eventId = eventId,
+                    isAllDay = false,
+                    alertTime = alertTime,
+                    instanceStartTime = eventStartTime,
+                    instanceEndTime = endTime,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                )
+            }
+        }
+    }
+
+    private fun setupMultipleEventDetails(events: List<Long>, startTime: Long) {
+        events.forEachIndexed { index, eventId ->
+            val hourOffset = index + 1
+            val eventStartTime = startTime + (hourOffset * Consts.HOUR_IN_MILLISECONDS)
+            mockEventDetails(
+                eventId = eventId,
+                startTime = eventStartTime,
+                title = "Test Event $index"
+            )
+        }
+    }
+
+    private fun verifyMultipleEvents(events: List<Long>, startTime: Long) {
+        events.forEachIndexed { index, eventId ->
+            val hourOffset = index + 1
+            val expectedStartTime = startTime + (hourOffset * Consts.HOUR_IN_MILLISECONDS)
+            verifyEventProcessed(
+                eventId = eventId,
+                startTime = expectedStartTime,
+                title = "Test Event $index"
+            )
+        }
+    }
+
     /**
      * Tests calendar reload functionality with multiple events.
      * 
@@ -380,69 +428,30 @@ class CalendarMonitorServiceTest {
         val monitorState = CalendarMonitorState(context)
         monitorState.firstScanEver = false
         currentTime.set(System.currentTimeMillis())
-        val startTime = currentTime.get() // Capture initial time
+        val startTime = currentTime.get()
         monitorState.prevEventScanTo = startTime
         monitorState.prevEventFireFromScan = startTime
 
-        // Create multiple test events with proper calendar setup
+        // Create and setup test events
         val events = createMultipleTestEvents(3)
         DevLog.info(LOG_TAG, "Created ${events.size} test events: $events")
         
-        // Mock event details for each test event
-        events.forEachIndexed { index, eventId ->
-            val eventStartTime = startTime + (3600000 * (index + 1))
-            mockEventDetails(
-                eventId = eventId,
-                startTime = eventStartTime,
-                title = "Test Event $index"
-            )
-        }
+        // Setup mocks for event handling
+        setupMultipleEventDetails(events, startTime)
+        mockMultipleEventAlerts(events, startTime)
 
-        // Mock alerts for all events
-        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
-            val scanFrom = secondArg<Long>()
-            val scanTo = thirdArg<Long>()
-            
-            events.mapIndexed { index, eventId ->
-                val alertTime = startTime + (3600000 * (index + 1)) - (15 * 60 * 1000)
-                val eventStartTime = startTime + (3600000 * (index + 1))
-                val endTime = eventStartTime + 3600000
-                
-                DevLog.info(LOG_TAG, "Returning alert for event $eventId: alertTime=$alertTime, startTime=$eventStartTime")
-                
-                MonitorEventAlertEntry(
-                    eventId = eventId,
-                    isAllDay = false,
-                    alertTime = alertTime,
-                    instanceStartTime = eventStartTime,
-                    instanceEndTime = endTime,
-                    alertCreatedByUs = false,
-                    wasHandled = false
-                )
-            }
-        }
-
-        // Verify the calendar is handled and settings
+        // Verify calendar settings
         val settings = Settings(context)
         assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
         assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
 
-        // Notify calendar change and start service
+        // Execute test
         notifyCalendarChangeAndWait()
         startServiceAndWait()
 
-        // Verify that CalendarMonitor.onRescanFromService was called
+        // Verify results
         verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
-
-        // Verify all events were processed correctly
-        events.forEachIndexed { index, eventId ->
-            val expectedStartTime = startTime + (3600000 * (index + 1))
-            verifyEventProcessed(
-                eventId = eventId,
-                startTime = expectedStartTime,
-                title = "Test Event $index"
-            )
-        }
+        verifyMultipleEvents(events, startTime)
     }
 
     /**
