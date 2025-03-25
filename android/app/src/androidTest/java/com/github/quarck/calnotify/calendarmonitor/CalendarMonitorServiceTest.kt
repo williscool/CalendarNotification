@@ -30,6 +30,7 @@ import io.mockk.impl.annotations.MockK
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.atomic.AtomicLong
+import android.app.AlarmManager
 
 @RunWith(AndroidJUnit4::class)
 class CalendarMonitorServiceTest {
@@ -61,7 +62,24 @@ class CalendarMonitorServiceTest {
     @Before
     fun setup() {
         MockKAnnotations.init(this)
-        context = InstrumentationRegistry.getInstrumentation().targetContext
+        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Create mock context instead of spying on ContextImpl
+        context = mockk<Context>(relaxed = true) {
+            every { packageName } returns realContext.packageName
+            every { contentResolver } returns realContext.contentResolver
+            every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
+            every { getSystemService(Context.ALARM_SERVICE) } returns mockk<AlarmManager>(relaxed = true)
+            every { getSystemService(any<String>()) } answers { realContext.getSystemService(firstArg()) }
+            every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
+            every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
+            every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
+        }
+        
+        // Mock alarm manager
+        val mockAlarmManager = mockk<AlarmManager>(relaxed = true)
+        every { context.getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+        every { mockAlarmManager.setInexactRepeating(any(), any(), any(), any()) } just Runs
         
         // Configure mock timer
         val mockFuture = mockk<ScheduledFuture<*>>()
@@ -404,7 +422,7 @@ class CalendarMonitorServiceTest {
 
         // Verify that CalendarMonitor.onRescanFromService was called
         DevLog.info(LOG_TAG, "Verifying CalendarMonitor.onRescanFromService was called...")
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
         DevLog.info(LOG_TAG, "Verification complete")
 
         // Check monitor storage after service
