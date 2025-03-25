@@ -22,6 +22,7 @@ import android.Manifest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.calendareditor.CalendarChangeRequestMonitorInterface
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import io.mockk.*
@@ -40,6 +41,8 @@ class CalendarMonitorServiceTest {
     private lateinit var mockTimer: ScheduledExecutorService
     
     private lateinit var mockService: CalendarMonitorService
+    
+    private lateinit var mockCalendarMonitor: CalendarMonitorInterface
     
     private val currentTime = AtomicLong(0L)
 
@@ -73,6 +76,122 @@ class CalendarMonitorServiceTest {
             mockFuture
         }
 
+        // Mock ApplicationController singleton and its properties
+        DevLog.info(LOG_TAG, "Setting up ApplicationController mocking...")
+        mockkObject(ApplicationController)
+        
+        // Create CalendarMonitor mock and verify it's properly mocked
+        mockCalendarMonitor = mockk<CalendarMonitorInterface>(relaxed = true)
+        
+        // Verify mockk initialization and setup mocks
+        try {
+            // First verify no calls have been made yet
+            verify(exactly = 0) { ApplicationController.CalendarMonitor }
+            verify(exactly = 0) { ApplicationController.onCalendarChanged(any()) }
+            verify(exactly = 0) { ApplicationController.onCalendarReloadFromService(any(), any()) }
+            DevLog.info(LOG_TAG, "Verified no calls made to ApplicationController yet")
+            
+            // Set up the mocks
+            every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
+            
+            // Verify the mock returns our mock instance
+            val testMonitor = ApplicationController.CalendarMonitor
+            assertSame("CalendarMonitor mock should be properly set up", mockCalendarMonitor, testMonitor)
+            assertNotNull("CalendarMonitor should not be null", testMonitor)
+            
+            // Try making a test call to verify mocking
+            testMonitor.onRescanFromService(context)
+            verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+            
+            DevLog.info(LOG_TAG, "Successfully verified CalendarMonitor mock setup and test call")
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Mock verification failed: ${e.message}")
+            DevLog.error(LOG_TAG, "Stack trace: ${e.stackTrace.joinToString("\n")}")
+            throw e
+        }
+        
+        // Mock calendar monitor methods with verification
+        try {
+            clearMocks(mockCalendarMonitor) // Clear the test call we made above
+            
+            every { 
+                mockCalendarMonitor.onRescanFromService(any()) 
+            } answers {
+                val context = it.invocation.args[0] as Context
+                DevLog.info(LOG_TAG, "Mocked CalendarMonitor.onRescanFromService called with context: ${context}")
+            }
+            
+            // Verify the mock behavior
+            mockCalendarMonitor.onRescanFromService(context)
+            verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+            clearMocks(mockCalendarMonitor)
+            
+            DevLog.info(LOG_TAG, "Successfully verified onRescanFromService mock behavior")
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Failed to verify onRescanFromService mock: ${e.message}")
+            throw e
+        }
+
+        // Mock ApplicationController methods with verification
+        try {
+            every { 
+                ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) 
+            } just Runs
+            
+            every { 
+                ApplicationController.onCalendarReloadFromService(any(), any()) 
+            } answers { call ->
+                val context = call.invocation.args[0] as Context
+                val userActionUntil = call.invocation.args[1] as Long
+                DevLog.info(LOG_TAG, "Mocked onCalendarReloadFromService called")
+            }
+            
+            every {
+                ApplicationController.onCalendarChanged(any())
+            } answers {
+                DevLog.info(LOG_TAG, "Mocked onCalendarChanged called")
+            }
+            
+            // Verify the mocks work
+            ApplicationController.onCalendarChanged(context)
+            verify(exactly = 1) { ApplicationController.onCalendarChanged(any()) }
+            
+            ApplicationController.onCalendarReloadFromService(context, 0L)
+            verify(exactly = 1) { ApplicationController.onCalendarReloadFromService(any(), any()) }
+            
+            clearMocks(ApplicationController)
+            DevLog.info(LOG_TAG, "Successfully verified all ApplicationController method mocks")
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Failed to verify ApplicationController method mocks: ${e.message}")
+            throw e
+        }
+
+        // Mock AddEventMonitorInstance property and its methods
+        val mockAddEventMonitor = mockk<CalendarChangeRequestMonitorInterface>()
+        every { mockAddEventMonitor.onRescanFromService(any()) } answers {
+            val context = it.invocation.args[0] as Context
+            DevLog.info(LOG_TAG, "Mocked AddEventMonitorInstance.onRescanFromService called with context: ${context}")
+        }
+        every { ApplicationController.AddEventMonitorInstance } returns mockAddEventMonitor
+
+        // Mock event handling methods
+        every { 
+            ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) 
+        } returns false
+
+        every { 
+            ApplicationController.registerNewEvent(any(), any()) 
+        } returns true
+
+        // Mock additional ApplicationController methods
+        every {
+            ApplicationController.afterCalendarEventFired(any())
+        } just Runs
+
+        every {
+            ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>())
+        } just Runs
+
         // Create spy of real service instead of mock
         mockService = spyk(CalendarMonitorService())
         every { mockService.getSystemService(Context.POWER_SERVICE) } returns context.getSystemService(Context.POWER_SERVICE)
@@ -84,8 +203,21 @@ class CalendarMonitorServiceTest {
         every { mockService.checkCallingOrSelfPermission(any()) } answers { context.checkCallingOrSelfPermission(firstArg()) }
         every { mockService.getPackageName() } returns context.packageName
         every { mockService.getContentResolver() } returns context.contentResolver
+
+        // Ensure service onCreate initializes with our mocked ApplicationController
+        every { mockService.onCreate() } answers {
+            // Set up the mock BEFORE calling original onCreate
+            every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
+            
+            // Call original onCreate
+            callOriginal()
+            
+            // Verify ApplicationController is still properly mocked
+            val testMonitor = ApplicationController.CalendarMonitor
+            assertSame("CalendarMonitor mock should be properly set up", mockCalendarMonitor, testMonitor)
+        }
         
-        // Mock static service method to use our spy
+        // Mock service method to use our spy
         mockkObject(CalendarMonitorService.Companion)
         every { 
             CalendarMonitorService.startRescanService(
@@ -102,9 +234,20 @@ class CalendarMonitorServiceTest {
             val rescanMonitor = call.invocation.args[3] as Boolean
             val userActionUntil = call.invocation.args[4] as Long
             
+            DevLog.info(LOG_TAG, "startRescanService called with reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor")
+            
+            // Ensure mock is set up before service starts
+            every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
+            every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
+                mockCalendarMonitor.onRescanFromService(firstArg())
+            }
+            every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
+                mockCalendarMonitor.onRescanFromService(firstArg())
+            }
+            
             // Call the real service implementation with our spy
             mockService.onCreate()
-            mockService.onStartCommand(
+            val result = mockService.onStartCommand(
                 Intent(context, CalendarMonitorService::class.java).apply {
                     putExtra("start_delay", startDelay)
                     putExtra("reload_calendar", reloadCalendar)
@@ -114,6 +257,9 @@ class CalendarMonitorServiceTest {
                 0,
                 0
             )
+            
+            DevLog.info(LOG_TAG, "Service onStartCommand completed with result: $result")
+            
             mockService.onDestroy()
         }
         
@@ -235,10 +381,13 @@ class CalendarMonitorServiceTest {
         }
 
         // Notify calendar change and wait for propagation
+        DevLog.info(LOG_TAG, "Notifying calendar change...")
         ApplicationController.onCalendarChanged(context)
         mockTimer.schedule({}, 1, TimeUnit.SECONDS)
+        DevLog.info(LOG_TAG, "Calendar change notification complete")
 
         // Start the monitor service
+        DevLog.info(LOG_TAG, "Starting monitor service...")
         CalendarMonitorService.startRescanService(
             context = context,
             startDelay = 0,
@@ -246,9 +395,17 @@ class CalendarMonitorServiceTest {
             rescanMonitor = true,
             userActionUntil = currentTime.get() + 10000
         )
+        DevLog.info(LOG_TAG, "Monitor service started")
 
         // Wait for service to complete and process events
+        DevLog.info(LOG_TAG, "Waiting for service to complete...")
         mockTimer.schedule({}, 5, TimeUnit.SECONDS)
+        DevLog.info(LOG_TAG, "Service wait complete")
+
+        // Verify that CalendarMonitor.onRescanFromService was called
+        DevLog.info(LOG_TAG, "Verifying CalendarMonitor.onRescanFromService was called...")
+        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        DevLog.info(LOG_TAG, "Verification complete")
 
         // Check monitor storage after service
         MonitorStorage(context).classCustomUse { db ->
