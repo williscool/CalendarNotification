@@ -57,10 +57,12 @@ jobs:
           ~/.android/sdk/system-images/*
         key: avd-34
 
-    - name: Install System Images
-      if: steps.avd-cache.outputs.cache-hit != 'true'
-      run: |
-        yes | sdkmanager --install 'system-images;android-34;google_apis;x86_64' --channel=0
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        packages: 'tools platform-tools system-images;android-34;google_apis;x86_64'
+        accept-android-sdk-licenses: 'yes'
+        log-accepted-android-sdk-licenses: 'false'
 
     - name: create AVD and generate snapshot for caching
       if: steps.avd-cache.outputs.cache-hit != 'true'
