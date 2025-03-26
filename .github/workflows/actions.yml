@@ -24,8 +24,83 @@ on:
   workflow_dispatch:
 
 jobs:
+  test-coverage-report:
+    runs-on: ubuntu-latest
+    env:
+      ENTRY_FILE: "index.tsx"
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: "yarn"
+
+    - name: Expose yarn config as "$GITHUB_OUTPUT"
+      id: yarn-config
+      shell: bash
+      run: |
+        echo "CACHE_FOLDER=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+  
+    - name: Restore yarn cache
+      uses: actions/cache@v3
+      id: yarn-download-cache
+      with:
+        path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
+        key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
+        restore-keys: |
+          yarn-download-cache-
+
+    - name: Restore yarn install state
+      id: yarn-install-state-cache
+      uses: actions/cache@v3
+      with:
+        path: .yarn/ci-cache/
+        key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+
+    - run: yarn install --immutable --inline-builds
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: 'false'
+        YARN_NM_MODE: 'hardlinks-local'
+        YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz
+        HUSKY: '0'
+    
+    - name: Setup react-native-safe-area-context mock
+      run: node scripts/setup_safe_area_mock.js
+
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4.0.0
+      with:
+        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+        gradle-home-cache-cleanup: true
+
+    - name: Grant execute permission for gradlew
+      run: cd android && chmod +x gradlew
+
+    - name: Run Android Tests with Coverage
+      run: cd android && ./gradlew connectedAndroidTest jacocoAndroidTestReport
+
+    - name: Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-test-coverage-report
+        path: android/app/build/reports/jacoco/jacocoAndroidTestReport/
+        retention-days: 90
 
   install-and-build-android:
+    needs: test-coverage-report
     runs-on: ubuntu-latest
     env:
       ENTRY_FILE: "index.tsx"
