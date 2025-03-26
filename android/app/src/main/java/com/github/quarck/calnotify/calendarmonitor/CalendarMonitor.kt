@@ -332,6 +332,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
             DevLog.error(LOG_TAG, "onRescanFromService: exception, ${ex.detailed}")
         }
 
+        DevLog.info(LOG_TAG, "onRescanFromService: firedAnything=${firedAnything}")
         if (firedAnything)
             ApplicationController.afterCalendarEventFired(context)
     }
