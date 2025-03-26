@@ -97,7 +97,12 @@ class CalendarMonitorServiceTest {
             every { contentResolver } returns realContext.contentResolver
             every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
             every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
-            every { getSystemService(any<String>()) } answers { realContext.getSystemService(firstArg()) }
+            every { getSystemService(any<String>()) } answers { 
+                when (firstArg<String>()) {
+                    Context.ALARM_SERVICE -> mockAlarmManager
+                    else -> realContext.getSystemService(firstArg())
+                }
+            }
             every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
             every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
             every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
@@ -142,7 +147,20 @@ class CalendarMonitorServiceTest {
             val realCtx = firstArg<Context>()
             DevLog.info(LOG_TAG, "onRescanFromService called")
             
-            // Call the real implementation to process alerts
+            // Ensure the context is properly mocked before calling original
+            every { realCtx.getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+            every { realCtx.getSystemService(any<String>()) } answers { 
+                when (firstArg<String>()) {
+                    Context.ALARM_SERVICE -> mockAlarmManager
+                    else -> context.getSystemService(firstArg())
+                }
+            }
+            
+            // Mock SharedPreferences
+            val mockSharedPrefs = mockk<android.content.SharedPreferences>(relaxed = true)
+            every { realCtx.getSharedPreferences(any(), any()) } returns mockSharedPrefs
+            
+            // Call the real implementation
             callOriginal()
             
             // Verify the results
