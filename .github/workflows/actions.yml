@@ -41,6 +41,24 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: "yarn"
 
+    - name: Enable KVM
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Setup Android Virtual Device
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34
+        target: google_apis
+        arch: x86_64
+        profile: 7.6in Foldable
+        script: |
+          adb logcat -c
+          adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
+          adb logcat > emulator.log &
+    
     - name: Expose yarn config as "$GITHUB_OUTPUT"
       id: yarn-config
       shell: bash
@@ -88,18 +106,6 @@ jobs:
 
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
-
-    - name: Setup Android Virtual Device
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: 34
-        target: google_apis
-        arch: x86_64
-        profile: 7.6in Foldable
-        script: |
-          adb logcat -c
-          adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
-          adb logcat > emulator.log &
 
     - name: Run Android Tests with Coverage
       run: cd android && ./gradlew connectedAndroidTest jacocoAndroidTestReport
