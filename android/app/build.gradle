@@ -269,7 +269,7 @@ task jacocoTestReport(type: JacocoReport, dependsOn: ['testDebugUnitTest']) {
 }
 
 // Add task to generate coverage report for Android tests
-task jacocoAndroidTestReport(type: JacocoReport, dependsOn: ['connectedAndroidTest']) {
+task jacocoAndroidTestReport(type: JacocoReport) {
     reports {
         xml.required = true
         html.required = true
