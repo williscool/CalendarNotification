@@ -89,6 +89,18 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
+    - name: Setup Android Virtual Device
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34
+        target: google_apis
+        arch: x86_64
+        profile: 7.6in Foldable
+        script: |
+          adb logcat -c
+          adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
+          adb logcat > emulator.log &
+
     - name: Run Android Tests with Coverage
       run: cd android && ./gradlew connectedAndroidTest jacocoAndroidTestReport
 
@@ -97,6 +109,14 @@ jobs:
       with:
         name: android-test-coverage-report
         path: android/app/build/reports/jacoco/jacocoAndroidTestReport/
+        retention-days: 90
+
+    - name: Upload Emulator Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: emulator-log
+        path: emulator.log
         retention-days: 90
 
   install-and-build-android:
