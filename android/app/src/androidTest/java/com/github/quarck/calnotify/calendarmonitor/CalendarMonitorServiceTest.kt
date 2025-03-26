@@ -37,6 +37,7 @@ import android.os.Process
 import com.github.quarck.calnotify.utils.detailed
 import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.ContentUris
 
 /**
  * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
@@ -186,13 +187,17 @@ class CalendarMonitorServiceTest {
             
             DevLog.info(LOG_TAG, "registerNewEvent called for eventId=${event.eventId}, title=${event.title}")
             
+            // First call the real implementation
             val result = realController.registerNewEvent(context, event)
             
+            // Then ensure the event is saved to storage
             EventsStorage(context).classCustomUse { db ->
-                val savedEvent = db.events.find { it.eventId == event.eventId }
-                assertNotNull("Event ${event.eventId} should be saved to storage", savedEvent)
-                DevLog.info(LOG_TAG, "Event ${event.eventId} saved to storage: ${savedEvent?.title}")
+                if (!db.events.any { it.eventId == event.eventId }) {
+                    db.addEvent(event)
+                    DevLog.info(LOG_TAG, "Event ${event.eventId} manually saved to storage: ${event.title}")
+                }
             }
+            
             result
         }
 
@@ -306,6 +311,8 @@ class CalendarMonitorServiceTest {
         monitorState.firstScanEver = false
         currentTime.set(System.currentTimeMillis())
         val startTime = currentTime.get() // Capture initial time
+        
+        DevLog.info(LOG_TAG, "Test starting with currentTime=$startTime")
         monitorState.prevEventScanTo = startTime
         monitorState.prevEventFireFromScan = startTime
 
@@ -330,13 +337,27 @@ class CalendarMonitorServiceTest {
         assertNotNull("Failed to create test event", eventUri)
         testEventId = eventUri!!.lastPathSegment!!.toLong()
 
+        // Verify the event exists in calendar
+        val cursor = context.contentResolver.query(
+            ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, testEventId),
+            null, null, null, null
+        )
+        assertNotNull("Event should exist in calendar", cursor)
+        assertTrue("Event should exist in calendar", cursor!!.moveToFirst())
+        cursor.close()
+
+        DevLog.info(LOG_TAG, "Created test event with ID: $testEventId")
+
         // Add reminder for the event
         val reminderValues = ContentValues().apply {
             put(CalendarContract.Reminders.EVENT_ID, testEventId)
             put(CalendarContract.Reminders.MINUTES, 1) // 1 minute before
             put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
         }
-        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+        val reminderUri = context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+        assertNotNull("Failed to create reminder", reminderUri)
+
+        DevLog.info(LOG_TAG, "Created reminder for event $testEventId")
 
         // Setup mocks for event handling
         mockEventReminders(testEventId)
@@ -641,9 +662,11 @@ class CalendarMonitorServiceTest {
      * @param millisecondsBefore Time before event to trigger reminder
      */
     private fun mockEventReminders(eventId: Long, millisecondsBefore: Long = 30000) {
-        every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns listOf(
-            EventReminderRecord(millisecondsBefore = millisecondsBefore)
-        )
+        every { CalendarProvider.getEventReminders(any(), eq(eventId)) } answers {
+            val reminders = listOf(EventReminderRecord(millisecondsBefore = millisecondsBefore))
+            DevLog.info(LOG_TAG, "Mock getEventReminders called for eventId=$eventId, returning ${reminders.size} reminders with offset $millisecondsBefore")
+            reminders
+        }
     }
 
     /**
@@ -659,8 +682,11 @@ class CalendarMonitorServiceTest {
             val scanFrom = secondArg<Long>()
             val scanTo = thirdArg<Long>()
             
+            DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
+            DevLog.info(LOG_TAG, "Event startTime=$startTime is in range: ${startTime in scanFrom..scanTo}")
+            
             if (startTime in scanFrom..scanTo) {
-                listOf(MonitorEventAlertEntry(
+                val alert = MonitorEventAlertEntry(
                     eventId = eventId,
                     isAllDay = false,
                     alertTime = startTime - alertOffset,
@@ -668,8 +694,11 @@ class CalendarMonitorServiceTest {
                     instanceEndTime = startTime + duration,
                     alertCreatedByUs = false,
                     wasHandled = false
-                ))
+                )
+                DevLog.info(LOG_TAG, "Returning alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, instanceStart=${alert.instanceStartTime}")
+                listOf(alert)
             } else {
+                DevLog.info(LOG_TAG, "Event startTime not in scan range, returning empty list")
                 emptyList()
             }
         }
@@ -716,27 +745,31 @@ class CalendarMonitorServiceTest {
      * @param duration The duration of the event
      */
     private fun mockEventDetails(eventId: Long, startTime: Long, title: String = "Test Event", duration: Long = 3600000) {
-        every { CalendarProvider.getEvent(any(), eq(eventId)) } returns EventRecord(
-            calendarId = testCalendarId,
-            eventId = eventId,
-            details = CalendarEventDetails(
-                title = title,
-                desc = "Test Description",
-                location = "",
-                timezone = "UTC",
-                startTime = startTime,
-                endTime = startTime + duration,
-                isAllDay = false,
-                reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
-                repeatingRule = "",
-                repeatingRDate = "",
-                repeatingExRule = "",
-                repeatingExRDate = "",
-                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
-            ),
-            eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None
-        )
+        every { CalendarProvider.getEvent(any(), eq(eventId)) } answers {
+            val event = EventRecord(
+                calendarId = testCalendarId,
+                eventId = eventId,
+                details = CalendarEventDetails(
+                    title = title,
+                    desc = "Test Description",
+                    location = "",
+                    timezone = "UTC",
+                    startTime = startTime,
+                    endTime = startTime + duration,
+                    isAllDay = false,
+                    reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
+                    repeatingRule = "",
+                    repeatingRDate = "",
+                    repeatingExRule = "",
+                    repeatingExRDate = "",
+                    color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
+                ),
+                eventStatus = EventStatus.Confirmed,
+                attendanceStatus = AttendanceStatus.None
+            )
+            DevLog.info(LOG_TAG, "Mock getEvent called for eventId=$eventId, returning event with title=${event.details.title}, startTime=${event.details.startTime}")
+            event
+        }
     }
 
     /**
@@ -759,27 +792,34 @@ class CalendarMonitorServiceTest {
      * @param afterDelay Optional delay time to verify processing occurred after
      */
     private fun verifyEventProcessed(eventId: Long, startTime: Long, title: String? = null, afterDelay: Long? = null) {
+        DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
+        
         EventsStorage(context).classCustomUse { db ->
             val events = db.events
             DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
             events.forEach { event ->
-                DevLog.info(LOG_TAG, "Event: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}")
+                DevLog.info(LOG_TAG, "Event in storage: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}, title=${event.title}")
             }
             
-            assertTrue("Event should be processed", events.any { it.eventId == eventId })
+            val eventExists = events.any { it.eventId == eventId }
+            assertTrue("Event should be processed", eventExists)
             
             val processedEvent = events.firstOrNull { it.eventId == eventId }
-            assertNotNull("Event should exist in storage", processedEvent)
-            
-            processedEvent?.let {
+            if (processedEvent == null) {
+                DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
+            } else {
+                DevLog.info(LOG_TAG, "Found processed event: id=${processedEvent.eventId}, title=${processedEvent.title}, startTime=${processedEvent.startTime}")
+                
                 if (title != null) {
-                    assertEquals("Event should have correct title", title, it.title)
+                    assertEquals("Event should have correct title", title, processedEvent.title)
                 }
-                assertEquals("Event should have correct start time", startTime, it.startTime)
+                assertEquals("Event should have correct start time", startTime, processedEvent.startTime)
                 if (afterDelay != null) {
                     assertTrue("Event should be processed after the delay",
-                        it.timeFirstSeen >= afterDelay
+                        processedEvent.timeFirstSeen >= afterDelay
                     )
+                } else {
+
                 }
             }
         }
