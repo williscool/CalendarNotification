@@ -128,6 +128,9 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
+    - name: Make wait script executable
+      run: chmod +x scripts/wait_for_emulator.sh
+
     - name: Setup Emulator and Run Android Tests with Coverage
       uses: reactivecircus/android-emulator-runner@v2
       with:
@@ -139,30 +142,7 @@ jobs:
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
         disable-animations: true
         script: |
-          # Wait for emulator to be ready
-          adb wait-for-device
-          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;'
-          
-          # Set up logging
-          adb logcat -c
-          adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
-          adb logcat > emulator.log &
-          
-          # Wait for emulator to be fully responsive (10 minutes timeout)
-          retries=15  # 15 retries * 60 seconds = 900 seconds (15 minutes)
-          while [ $retries -gt 0 ]; do
-            if adb shell getprop sys.boot_completed | grep -m 1 '1'; then
-              break
-            fi
-            retries=$((retries-1))
-            sleep 60
-            echo "Waiting for emulator to be fully responsive... $retries retries remaining"
-          done
-          
-          if [ $retries -eq 0 ]; then
-            echo "Emulator failed to start after 15 minutes"
-            exit 1
-          fi
+          ./scripts/wait_for_emulator.sh
           
           # Run tests with increased timeout
           cd android && \
