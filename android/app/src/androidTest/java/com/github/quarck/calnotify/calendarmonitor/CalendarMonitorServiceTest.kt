@@ -122,6 +122,13 @@ class CalendarMonitorServiceTest {
         mockCalendarMonitor = mockk<CalendarMonitorInterface>(relaxed = true)
 //        every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
         every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
+
+        every { mockCalendarMonitor.launchRescanService(any(), any(), any(), any(), any()) } answers { call ->
+            startServiceAndWait(
+                startDelay = call.invocation.args[1] as Int,    
+                userActionOffset = call.invocation.args[4] as Long
+            )
+        }
         
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
             val ctx = firstArg<Context>()
@@ -352,10 +359,10 @@ class CalendarMonitorServiceTest {
 
         // Notify calendar change and start service
         notifyCalendarChangeAndWait()
-        startServiceAndWait()
+        // startServiceAndWait() called in launchRescanService of CalendarMonitor so in mock
 
         // Verify that CalendarMonitor.onRescanFromService was called
-        verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
 
         // Verify the event was detected and processed
         verifyEventProcessed(
@@ -447,10 +454,10 @@ class CalendarMonitorServiceTest {
 
         // Execute test
         notifyCalendarChangeAndWait()
-        startServiceAndWait()
+        // startServiceAndWait() called in launchRescanService of CalendarMonitor so in mock
 
         // Verify results
-        verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
         verifyMultipleEvents(events, startTime)
     }
 
@@ -486,7 +493,7 @@ class CalendarMonitorServiceTest {
 
         // Start service with delay
         notifyCalendarChangeAndWait()
-        startServiceAndWait(startDelay = startDelay)
+        // startServiceAndWait() called in launchRescanService of CalendarMonitor so in mock
 
         // Verify still no events before delay
         verifyNoEvents()
