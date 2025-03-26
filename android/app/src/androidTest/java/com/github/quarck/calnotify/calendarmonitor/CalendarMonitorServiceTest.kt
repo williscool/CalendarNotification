@@ -69,27 +69,6 @@ class CalendarMonitorServiceTest {
     
     private val currentTime = AtomicLong(0L)
 
-    /**
-     * Flag to prevent infinite recursion in calendar rescans.
-     * The real implementation might trigger additional rescans, which would cause infinite loops.
-     * This flag ensures we only process one rescan at a time.
-     */
-    private var isCalendarRescanInProgress = false
-
-    private var isCalendarReloadInProgress = false
-
-    /**
-     * Helper function to execute the real implementation of calendar rescan.
-     * This is separated from the mock to prevent lambda recursion.
-     */
-    private fun executeRealCalendarRescan(context: Context, userActionUntil: Long) {
-        DevLog.info(LOG_TAG, "Executing real calendar rescan implementation")
-        if(!isCalendarRescanInProgress){
-          realController.onCalendarRescanForRescheduledFromService(context, userActionUntil)
-        }
-        DevLog.info(LOG_TAG, "Real calendar rescan implementation completed")
-    }
-
     companion object {
         private const val LOG_TAG = "CalMonitorSvcTest"
     }
@@ -198,7 +177,7 @@ class CalendarMonitorServiceTest {
             val context = firstArg<Context>()
             val event = secondArg<EventAlertRecord>()
             DevLog.info(LOG_TAG, "shouldMarkEventAsHandledAndSkip called for eventId=${event.eventId}")
-            realController.shouldMarkEventAsHandledAndSkip(context, event)
+            callOriginal()
         }
 
         // Spy on registerNewEvent
@@ -211,7 +190,10 @@ class CalendarMonitorServiceTest {
             // First call the real implementation
             val result = realController.registerNewEvent(context, event)
             
-            // Then ensure the event is saved to storage
+            // Call the real implementation
+            val result = callOriginal()
+            
+            // Log the state after real implementation
             EventsStorage(context).classCustomUse { db ->
                 if (!db.events.any { it.eventId == event.eventId }) {
                     db.addEvent(event)
@@ -226,7 +208,7 @@ class CalendarMonitorServiceTest {
         every { ApplicationController.afterCalendarEventFired(any()) } answers {
             val context = firstArg<Context>()
             DevLog.info(LOG_TAG, "afterCalendarEventFired called for context=${context}")
-            realController.afterCalendarEventFired(context)
+            callOriginal()
         }
 
         // Spy on postEventNotifications
@@ -234,7 +216,7 @@ class CalendarMonitorServiceTest {
             val context = firstArg<Context>()
             val events = secondArg<Collection<EventAlertRecord>>()
             DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
-            realController.postEventNotifications(context, events)
+            callOriginal()
         }
 
         every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
@@ -243,56 +225,27 @@ class CalendarMonitorServiceTest {
           val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
 
           DevLog.info(LOG_TAG, "onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
-          DevLog.info(LOG_TAG, "onCalendarReloadFromService Current isCalendarRescanInProgress: $isCalendarReloadInProgress")
 
-          if (isCalendarReloadInProgress) {
-            DevLog.info(LOG_TAG, "onCalendarReloadFromService Preventing recursive calendar reload from $callerClass.$caller")
-            return@answers
-          }
-
-          isCalendarReloadInProgress = true
-
-            val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarReloadFromService called with userActionUntil=$userActionUntil")
-            // Call the real implementation
-            realController.onCalendarReloadFromService(context, userActionUntil)
+
+
+            val res = callOriginal()
             DevLog.info(LOG_TAG, "onCalendarReloadFromService completed")
+
+            res
         }
-        
-        /**
-         * Mock for calendar rescan that prevents infinite recursion.
-         * The real implementation might trigger additional rescans, which would cause infinite loops.
-         * We use isCalendarRescanInProgress to ensure we only process one rescan at a time.
-         */
+
         every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
             val stackTrace = Thread.currentThread().stackTrace
             val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
             val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
             
             DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService Rescan attempt from: $callerClass.$caller")
-            DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService Current isCalendarRescanInProgress: $isCalendarRescanInProgress")
-            
-            if (isCalendarRescanInProgress) {
-                DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService Preventing recursive calendar rescan from $callerClass.$caller")
-                return@answers
-            }
-            
-            val context = firstArg<Context>()
+
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
-            
-            isCalendarRescanInProgress = true
-            try {
-                // Call the real implementation through our helper function
-                executeRealCalendarRescan(context, userActionUntil)
-            } catch (e: Exception) {
-                DevLog.error(LOG_TAG, "Exception during rescan: ${e.message}")
-                throw e
-            } finally {
-//                isCalendarRescanInProgress = false
-                DevLog.info(LOG_TAG, "Would Reset isCalendarRescanInProgress to false here but not doing it")
-            }
+            callOriginal()
         }
     }
     
