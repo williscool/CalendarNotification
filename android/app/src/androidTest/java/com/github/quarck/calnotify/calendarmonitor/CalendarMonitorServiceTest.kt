@@ -130,28 +130,24 @@ class CalendarMonitorServiceTest {
     }
 
     private fun setupMockCalendarMonitor() {
-        mockCalendarMonitor = mockk<CalendarMonitorInterface>(relaxed = true)
-//      every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
+        val realMonitor = CalendarMonitor(CalendarProvider)
+        mockCalendarMonitor = spyk(realMonitor)
         every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
         
+        // Add logging to track what's happening
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
-            val ctx = firstArg<Context>()
+            val realCtx = firstArg<Context>()
             DevLog.info(LOG_TAG, "onRescanFromService called")
             
-            val alerts = CalendarProvider.getEventAlertsForInstancesInRange(
-                ctx,
-                currentTime.get() - Consts.MAX_SCAN_BACKWARD_DAYS * Consts.DAY_IN_MILLISECONDS,
-                currentTime.get() + 30 * Consts.DAY_IN_MILLISECONDS
-            )
+            // Call the real implementation
+            realMonitor.onRescanFromService(context)
             
-            DevLog.info(LOG_TAG, "Found ${alerts.size} alerts during rescan")
-            
-            alerts.forEach { alert ->
-                val event = CalendarProvider.getEvent(ctx, alert.eventId)
-                if (event != null) {
-                    val alertRecord = createEventAlertRecord(event, alert)
-                    DevLog.info(LOG_TAG, "Registering event: id=${event.eventId}, title=${event.title}")
-                    ApplicationController.registerNewEvent(ctx, alertRecord)
+            // Verify the results
+            EventsStorage(realCtx).classCustomUse { db ->
+                val events = db.events
+                DevLog.info(LOG_TAG, "Found ${events.size} events after rescan")
+                events.forEach { event ->
+                    DevLog.info(LOG_TAG, "Event: id=${event.eventId}, title=${event.title}, startTime=${event.startTime}")
                 }
             }
         }
@@ -171,23 +167,49 @@ class CalendarMonitorServiceTest {
     }
 
     private fun setupApplicationController() {
-        every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } returns false
+        // Create a spy on the real controller
+        val realController = ApplicationController
+        spyk(realController)
+
+        // Spy on shouldMarkEventAsHandledAndSkip
+        every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } answers {
+            val context = firstArg<Context>()
+            val event = secondArg<EventAlertRecord>()
+            DevLog.info(LOG_TAG, "shouldMarkEventAsHandledAndSkip called for eventId=${event.eventId}")
+            realController.shouldMarkEventAsHandledAndSkip(context, event)
+        }
+
+        // Spy on registerNewEvent
         every { ApplicationController.registerNewEvent(any(), any()) } answers {
             val context = firstArg<Context>()
             val event = secondArg<EventAlertRecord>()
             
             DevLog.info(LOG_TAG, "registerNewEvent called for eventId=${event.eventId}, title=${event.title}")
             
+            val result = realController.registerNewEvent(context, event)
+            
             EventsStorage(context).classCustomUse { db ->
-                db.addEvent(event)
                 val savedEvent = db.events.find { it.eventId == event.eventId }
                 assertNotNull("Event ${event.eventId} should be saved to storage", savedEvent)
                 DevLog.info(LOG_TAG, "Event ${event.eventId} saved to storage: ${savedEvent?.title}")
             }
-            true
+            result
         }
-        every { ApplicationController.afterCalendarEventFired(any()) } just Runs
-        every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } just Runs
+
+        // Spy on afterCalendarEventFired
+        every { ApplicationController.afterCalendarEventFired(any()) } answers {
+            val context = firstArg<Context>()
+            DevLog.info(LOG_TAG, "afterCalendarEventFired called for context=${context}")
+            realController.afterCalendarEventFired(context)
+        }
+
+        // Spy on postEventNotifications
+        every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
+            val context = firstArg<Context>()
+            val events = secondArg<Collection<EventAlertRecord>>()
+            DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
+            realController.postEventNotifications(context, events)
+        }
     }
 
     private fun setupCalendarServiceMocks() {
@@ -223,32 +245,6 @@ class CalendarMonitorServiceTest {
     private fun clearStorages() {
         EventsStorage(context).classCustomUse { db -> db.deleteAllEvents() }
         MonitorStorage(context).classCustomUse { db -> db.deleteAlertsMatching { true } }
-    }
-
-    private fun createEventAlertRecord(event: EventRecord, alert: MonitorEventAlertEntry): EventAlertRecord {
-        return EventAlertRecord(
-            calendarId = event.calendarId,
-            eventId = event.eventId,
-            isAllDay = event.isAllDay,
-            isRepeating = false,
-            alertTime = alert.alertTime,
-            notificationId = 0,
-            title = event.title,
-            desc = event.desc ?: "",
-            startTime = event.startTime,
-            endTime = event.endTime,
-            instanceStartTime = alert.instanceStartTime,
-            instanceEndTime = alert.instanceEndTime,
-            location = event.location ?: "",
-            lastStatusChangeTime = 0L,
-            color = event.color,
-            displayStatus = EventDisplayStatus.Hidden,
-            origin = EventOrigin.ProviderBroadcast,
-            timeFirstSeen = System.currentTimeMillis(),
-            eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None,
-            flags = 0L
-        )
     }
 
     @Before
@@ -363,7 +359,6 @@ class CalendarMonitorServiceTest {
 
         // Notify calendar change and start service
         notifyCalendarChangeAndWait()
-        // startServiceAndWait() called in launchRescanService of CalendarMonitor so in mock
 
         // Verify that CalendarMonitor.onRescanFromService was called
         verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
@@ -458,7 +453,6 @@ class CalendarMonitorServiceTest {
 
         // Execute test
         notifyCalendarChangeAndWait()
-        // startServiceAndWait() called in launchRescanService of CalendarMonitor so in mock
 
         // Verify results
         verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
@@ -497,7 +491,6 @@ class CalendarMonitorServiceTest {
 
         // Start service with delay
         notifyCalendarChangeAndWait()
-        // startServiceAndWait() called in launchRescanService of CalendarMonitor so in mock
 
         // Verify still no events before delay
         verifyNoEvents()
@@ -790,27 +783,6 @@ class CalendarMonitorServiceTest {
                 }
             }
         }
-    }
-
-    /**
-     * Starts the monitor service and waits for processing to complete.
-     * 
-     * @param startDelay Optional delay before service should start processing
-     * @param waitTime Time to wait for service processing to complete
-     * @param userActionOffset Time offset for user action window
-     */
-    private fun startServiceAndWait(startDelay: Int = 0, waitTime: Long = 5000, userActionOffset: Long = 10000) {
-        DevLog.info(LOG_TAG, "Starting service with delay $startDelay...")
-        CalendarMonitorService.startRescanService(
-            context = context,
-            startDelay = startDelay,
-            reloadCalendar = true,
-            rescanMonitor = true,
-            userActionUntil = currentTime.get() + userActionOffset
-        )
-        DevLog.info(LOG_TAG, "Service started, waiting $waitTime ms...")
-        advanceTimer(waitTime)
-        DevLog.info(LOG_TAG, "Service wait complete")
     }
 
     /**
