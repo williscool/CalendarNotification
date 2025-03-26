@@ -96,7 +96,7 @@ class CalendarMonitorServiceTest {
             every { startService(any()) } answers {
                 val intent = firstArg<Intent>()
                 DevLog.info(LOG_TAG, "startService called with intent: action=${intent.action}, extras=${intent.extras}")
-                mockService.onHandleIntent(intent)
+                mockService.handleIntentForTest(intent)
                 ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
             }
         }

@@ -39,7 +39,7 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
         get() = _timer
         set(value) { _timer = value }
 
-    public override fun onHandleIntent(intent: Intent?) {
+    override fun onHandleIntent(intent: Intent?) {
         if (intent == null) {
             DevLog.error(LOG_TAG, "Intent is null")
             return
@@ -116,6 +116,11 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
             }
         } catch (ex: Exception) {
         }
+    }
+
+    // Public method for testing purposes only
+    fun handleIntentForTest(intent: Intent?) {
+        onHandleIntent(intent)
     }
 
     companion object {
