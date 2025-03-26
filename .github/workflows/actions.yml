@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        node-version: [20.x, 22.x]
+        node-version: [22.x]
 
     steps:
     - uses: actions/checkout@v3
@@ -66,24 +66,9 @@ jobs:
         profile: 7.6in Foldable
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-        disable-animations: false
+        disable-animations: true
         script: echo "Generated AVD snapshot for caching."
 
-    - name: Setup Android Virtual Device
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: 34
-        target: google_apis
-        arch: x86_64
-        profile: 7.6in Foldable
-        force-avd-creation: false
-        emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-        disable-animations: true
-        script: |
-          adb logcat -c
-          adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
-          adb logcat > emulator.log &
-    
     - name: Expose yarn config as "$GITHUB_OUTPUT"
       id: yarn-config
       shell: bash
@@ -132,20 +117,26 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
-    - name: Run Android Tests with Coverage
+    - name: Setup Emulator and Run Android Tests with Coverage
       uses: reactivecircus/android-emulator-runner@v2
       with:
         api-level: 34
+        target: google_apis
+        arch: x86_64
+        profile: 7.6in Foldable
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
         disable-animations: true
         script: |
+          adb logcat -c
+          adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
+          adb logcat > emulator.log &
           cd android && ./gradlew connectedCheck && ./gradlew jacocoAndroidTestReport
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
       with:
-        name: android-test-coverage-report
+        name: android-test-coverage-report-${{ matrix.node-version }}
         path: android/app/build/reports/jacoco/jacocoAndroidTestReport/
         retention-days: 90
 
