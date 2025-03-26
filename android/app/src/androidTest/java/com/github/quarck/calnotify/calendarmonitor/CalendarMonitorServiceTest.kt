@@ -187,9 +187,6 @@ class CalendarMonitorServiceTest {
             
             DevLog.info(LOG_TAG, "registerNewEvent called for eventId=${event.eventId}, title=${event.title}")
             
-            // First call the real implementation
-            val result = realController.registerNewEvent(context, event)
-            
             // Call the real implementation
             val result = callOriginal()
             
