@@ -54,7 +54,13 @@ jobs:
         path: |
           ~/.android/avd/*
           ~/.android/adb*
+          ~/.android/sdk/system-images/*
         key: avd-34
+
+    - name: Install System Images
+      if: steps.avd-cache.outputs.cache-hit != 'true'
+      run: |
+        yes | sdkmanager --install 'system-images;android-34;google_apis;x86_64' --channel=0
 
     - name: create AVD and generate snapshot for caching
       if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -65,9 +71,12 @@ jobs:
         arch: x86_64
         profile: 7.6in Foldable
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
         disable-animations: true
-        script: echo "Generated AVD snapshot for caching."
+        script: |
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;'
+          echo "Generated AVD snapshot for caching."
 
     - name: Expose yarn config as "$GITHUB_OUTPUT"
       id: yarn-config
@@ -125,13 +134,34 @@ jobs:
         arch: x86_64
         profile: 7.6in Foldable
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
         disable-animations: true
         script: |
+          # Wait for emulator to be ready
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;'
+          
+          # Set up logging
           adb logcat -c
           adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
           adb logcat > emulator.log &
-          cd android && ./gradlew connectedCheck && ./gradlew jacocoAndroidTestReport
+          
+          # Wait for emulator to be fully responsive
+          retries=10
+          until adb shell getprop sys.boot_completed | grep -m 1 '1'; do
+            ((retries--))
+            if [ $retries -le 0 ]; then
+              echo "Emulator failed to start"
+              exit 1
+            fi
+            sleep 10
+          done
+          
+          # Run tests with increased timeout
+          cd android && \
+          ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=30 \
+          ./gradlew connectedCheck && \
+          ./gradlew jacocoAndroidTestReport
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
