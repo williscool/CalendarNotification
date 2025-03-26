@@ -62,6 +62,8 @@ class CalendarMonitorServiceTest {
     private lateinit var mockService: CalendarMonitorService
     
     private lateinit var mockCalendarMonitor: CalendarMonitorInterface
+
+    private lateinit var mockAlarmManager: AlarmManager
     
     private val currentTime = AtomicLong(0L)
 
@@ -80,8 +82,13 @@ class CalendarMonitorServiceTest {
     // Helper functions for setting up mocks and test data
     private fun setupMockContext() {
         val realContext = InstrumentationRegistry.getInstrumentation().targetContext
-        val mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
-            every { set(any(), any(), any()) } just Runs
+        mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
+            every { setExactAndAllowWhileIdle(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
+            every { setExact(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
+            every { setAlarmClock(any<AlarmManager.AlarmClockInfo>(), any<PendingIntent>()) } just Runs
+            every { set(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
+            every { setInexactRepeating(any<Int>(), any<Long>(), any<Long>(), any<PendingIntent>()) } just Runs
+            every { cancel(any<PendingIntent>()) } just Runs
         }
         context = mockk<Context>(relaxed = true) {
             every { packageName } returns realContext.packageName
@@ -124,15 +131,8 @@ class CalendarMonitorServiceTest {
 
     private fun setupMockCalendarMonitor() {
         mockCalendarMonitor = mockk<CalendarMonitorInterface>(relaxed = true)
-//        every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
+//      every { ApplicationController.calendarMonitorInternal } returns mockCalendarMonitor
         every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
-
-        every { mockCalendarMonitor.launchRescanService(any(), any(), any(), any(), any()) } answers { call ->
-            startServiceAndWait(
-                startDelay = call.invocation.args[1] as Int,    
-                userActionOffset = call.invocation.args[4] as Long
-            )
-        }
         
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
             val ctx = firstArg<Context>()
@@ -1091,7 +1091,13 @@ class CalendarMonitorServiceTest {
         
         // Verify alarm was cancelled (set to Long.MAX_VALUE)
         verify { 
-            mockService.getSystemService(Context.ALARM_SERVICE).set(
+//            mockService.getSystemService(Context.ALARM_SERVICE).set(
+//                eq(AlarmManager.RTC_WAKEUP),
+//                eq(Long.MAX_VALUE),
+//                any()
+//            )
+
+            mockAlarmManager.set(
                 eq(AlarmManager.RTC_WAKEUP),
                 eq(Long.MAX_VALUE),
                 any()
