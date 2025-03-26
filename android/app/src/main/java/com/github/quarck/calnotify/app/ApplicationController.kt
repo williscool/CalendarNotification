@@ -139,7 +139,7 @@ object ApplicationController : EventMovedHandler {
         notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
-        calendarMonitorInternal.launchRescanService(
+        this.CalendarMonitor.launchRescanService(
                 context,
                 reloadCalendar = true,
                 rescanMonitor = true
@@ -155,7 +155,7 @@ object ApplicationController : EventMovedHandler {
 
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
-        calendarMonitorInternal.launchRescanService(
+        this.CalendarMonitor.launchRescanService(
                 context,
                 reloadCalendar = true,
                 rescanMonitor = true
@@ -165,7 +165,7 @@ object ApplicationController : EventMovedHandler {
     fun onCalendarChanged(context: Context) {
 
         DevLog.info(LOG_TAG, "onCalendarChanged")
-        calendarMonitorInternal.launchRescanService(
+        this.CalendarMonitor.launchRescanService(
                 context,
                 delayed = 2000,
                 reloadCalendar = true,
@@ -840,7 +840,7 @@ object ApplicationController : EventMovedHandler {
 
             // this might fire new notifications
             // This would automatically launch the rescan of calendar and monitor
-            calendarMonitorInternal.onAppResumed(context, monitorSettingsChanged)
+            this.CalendarMonitor.onAppResumed(context, monitorSettingsChanged)
 
             //checkAndCleanupWasHandledCache(context)
         }
@@ -861,7 +861,7 @@ object ApplicationController : EventMovedHandler {
 
     fun onTimeChanged(context: Context) {
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
-        calendarMonitorInternal.onSystemTimeChange(context)
+        this.CalendarMonitor.onSystemTimeChange(context)
     }
 
     fun dismissEvents(
