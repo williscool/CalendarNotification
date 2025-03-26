@@ -148,16 +148,21 @@ jobs:
           adb logcat -s "ReactNativeJS" "ReactNative" "AndroidRuntime" "System.err" &
           adb logcat > emulator.log &
           
-          # Wait for emulator to be fully responsive
-          retries=10
-          until adb shell getprop sys.boot_completed | grep -m 1 '1'; do
-            ((retries--))
-            if [ $retries -le 0 ]; then
-              echo "Emulator failed to start"
-              exit 1
+          # Wait for emulator to be fully responsive (10 minutes timeout)
+          retries=15  # 15 retries * 60 seconds = 900 seconds (15 minutes)
+          while [ $retries -gt 0 ]; do
+            if adb shell getprop sys.boot_completed | grep -m 1 '1'; then
+              break
             fi
-            sleep 10
+            retries=$((retries-1))
+            sleep 60
+            echo "Waiting for emulator to be fully responsive... $retries retries remaining"
           done
+          
+          if [ $retries -eq 0 ]; then
+            echo "Emulator failed to start after 15 minutes"
+            exit 1
+          fi
           
           # Run tests with increased timeout
           cd android && \
