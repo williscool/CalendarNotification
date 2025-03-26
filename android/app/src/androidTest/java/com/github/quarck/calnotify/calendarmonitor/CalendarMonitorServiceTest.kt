@@ -56,6 +56,7 @@ class CalendarMonitorServiceTest {
     private var testEventId: Long = -1
     private var eventStartTime: Long = 0
     private var reminderTime: Long = 0
+    private val realController = ApplicationController
     
     @MockK
     private lateinit var mockTimer: ScheduledExecutorService
@@ -67,6 +68,27 @@ class CalendarMonitorServiceTest {
     private lateinit var mockAlarmManager: AlarmManager
     
     private val currentTime = AtomicLong(0L)
+
+    /**
+     * Flag to prevent infinite recursion in calendar rescans.
+     * The real implementation might trigger additional rescans, which would cause infinite loops.
+     * This flag ensures we only process one rescan at a time.
+     */
+    private var isCalendarRescanInProgress = false
+
+    private var isCalendarReloadInProgress = false
+
+    /**
+     * Helper function to execute the real implementation of calendar rescan.
+     * This is separated from the mock to prevent lambda recursion.
+     */
+    private fun executeRealCalendarRescan(context: Context, userActionUntil: Long) {
+        DevLog.info(LOG_TAG, "Executing real calendar rescan implementation")
+        if(!isCalendarRescanInProgress){
+          realController.onCalendarRescanForRescheduledFromService(context, userActionUntil)
+        }
+        DevLog.info(LOG_TAG, "Real calendar rescan implementation completed")
+    }
 
     companion object {
         private const val LOG_TAG = "CalMonitorSvcTest"
@@ -169,7 +191,6 @@ class CalendarMonitorServiceTest {
 
     private fun setupApplicationController() {
         // Create a spy on the real controller
-        val realController = ApplicationController
         spyk(realController)
 
         // Spy on shouldMarkEventAsHandledAndSkip
@@ -215,21 +236,67 @@ class CalendarMonitorServiceTest {
             DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
             realController.postEventNotifications(context, events)
         }
-    }
 
-    private fun setupCalendarServiceMocks() {
         every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
+          val stackTrace = Thread.currentThread().stackTrace
+          val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
+          val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
+
+          DevLog.info(LOG_TAG, "onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
+          DevLog.info(LOG_TAG, "onCalendarReloadFromService Current isCalendarRescanInProgress: $isCalendarReloadInProgress")
+
+          if (isCalendarReloadInProgress) {
+            DevLog.info(LOG_TAG, "onCalendarReloadFromService Preventing recursive calendar reload from $callerClass.$caller")
+            return@answers
+          }
+
+          isCalendarReloadInProgress = true
+
+            val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarReloadFromService called with userActionUntil=$userActionUntil")
+            // Call the real implementation
+            realController.onCalendarReloadFromService(context, userActionUntil)
             DevLog.info(LOG_TAG, "onCalendarReloadFromService completed")
         }
         
+        /**
+         * Mock for calendar rescan that prevents infinite recursion.
+         * The real implementation might trigger additional rescans, which would cause infinite loops.
+         * We use isCalendarRescanInProgress to ensure we only process one rescan at a time.
+         */
         every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
+            val stackTrace = Thread.currentThread().stackTrace
+            val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
+            val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
+            
+            DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService Rescan attempt from: $callerClass.$caller")
+            DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService Current isCalendarRescanInProgress: $isCalendarRescanInProgress")
+            
+            if (isCalendarRescanInProgress) {
+                DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService Preventing recursive calendar rescan from $callerClass.$caller")
+                return@answers
+            }
+            
+            val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
-            DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService completed")
+            
+            isCalendarRescanInProgress = true
+            try {
+                // Call the real implementation through our helper function
+                executeRealCalendarRescan(context, userActionUntil)
+            } catch (e: Exception) {
+                DevLog.error(LOG_TAG, "Exception during rescan: ${e.message}")
+                throw e
+            } finally {
+//                isCalendarRescanInProgress = false
+                DevLog.info(LOG_TAG, "Would Reset isCalendarRescanInProgress to false here but not doing it")
+            }
         }
     }
+    
+
 
     private fun setupTestCalendar() {
         testCalendarId = createTestCalendar(
@@ -266,7 +333,6 @@ class CalendarMonitorServiceTest {
         setupMockCalendarMonitor()
         setupMockService()
         setupApplicationController()
-        setupCalendarServiceMocks()
         setupTestCalendar()
         clearStorages()
     }
