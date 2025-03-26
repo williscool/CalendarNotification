@@ -32,6 +32,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.ContentUris
+import android.content.SharedPreferences
 
 /**
  * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
@@ -62,6 +63,8 @@ class CalendarMonitorServiceTest {
 
     private lateinit var fakeContext: Context
 
+    private lateinit var mockSharedPreferences: SharedPreferences
+
     private val currentTime = AtomicLong(0L)
 
     companion object {
@@ -78,6 +81,62 @@ class CalendarMonitorServiceTest {
 
     // Helper functions for setting up mocks and test data
     private fun setupMockContext() {
+        // Create a persistent mock SharedPreferences
+        val sharedPrefsMap = mutableMapOf<String, Any>()
+        mockSharedPreferences = mockk<SharedPreferences>(relaxed = true) {
+            every { edit() } returns mockk<SharedPreferences.Editor>(relaxed = true) {
+                every { putString(any(), any()) } answers {
+                    sharedPrefsMap[firstArg()] = secondArg()
+                    this@mockk
+                }
+                every { putBoolean(any(), any()) } answers {
+                    sharedPrefsMap[firstArg()] = secondArg()
+                    this@mockk
+                }
+                every { putInt(any(), any()) } answers {
+                    sharedPrefsMap[firstArg()] = secondArg()
+                    this@mockk
+                }
+                every { putLong(any(), any()) } answers {
+                    sharedPrefsMap[firstArg()] = secondArg()
+                    this@mockk
+                }
+                every { putFloat(any(), any()) } answers {
+                    sharedPrefsMap[firstArg()] = secondArg()
+                    this@mockk
+                }
+                every { remove(any()) } answers {
+                    sharedPrefsMap.remove(firstArg())
+                    this@mockk
+                }
+                every { clear() } answers {
+                    sharedPrefsMap.clear()
+                    this@mockk
+                }
+                every { apply() } just Runs
+                every { commit() } returns true
+            }
+            every { getString(any(), any()) } answers {
+                sharedPrefsMap[firstArg()] as? String ?: secondArg()
+            }
+            every { getBoolean(any(), any()) } answers {
+                sharedPrefsMap[firstArg()] as? Boolean ?: secondArg()
+            }
+            every { getInt(any(), any()) } answers {
+                sharedPrefsMap[firstArg()] as? Int ?: secondArg()
+            }
+            every { getLong(any(), any()) } answers {
+                sharedPrefsMap[firstArg()] as? Long ?: secondArg()
+            }
+            every { getFloat(any(), any()) } answers {
+                sharedPrefsMap[firstArg()] as? Float ?: secondArg()
+            }
+            every { contains(any()) } answers {
+                sharedPrefsMap.containsKey(firstArg())
+            }
+            every { getAll() } returns sharedPrefsMap
+        }
+
         val realContext = InstrumentationRegistry.getInstrumentation().targetContext
       
         mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
@@ -149,10 +208,29 @@ class CalendarMonitorServiceTest {
             val realCtx = firstArg<Context>()
             DevLog.info(LOG_TAG, "onRescanFromService called")
             
+            // Mock SharedPreferences for the context 
+            every { realCtx.getSharedPreferences(any(), any()) } returns mockSharedPreferences
+            every { realCtx.getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+            every { realCtx.getSystemService(any<String>()) } answers {
+              when (firstArg<String>()) {
+                Context.ALARM_SERVICE -> mockAlarmManager
+                else -> callOriginal()
+              }
+            }
+            every { realCtx.startService(any()) } answers {
+              val intent = firstArg<Intent>()
+              DevLog.info(LOG_TAG, "startService called with intent: action=${intent.action}, extras=${intent.extras}")
+              mockService.handleIntentForTest(intent)
+              ComponentName(realCtx.packageName, CalendarMonitorService::class.java.name)
+            }
+            
             // Log settings state
             val settings = Settings(realCtx)
-            DevLog.info(LOG_TAG, "Settings state: enable_manual_calendar_rescan=${settings.enableCalendarRescan}")
-            DevLog.info(LOG_TAG, "Settings state: calendar_is_handled_$testCalendarId=${settings.getCalendarIsHandled(testCalendarId)}")
+            settings.setBoolean("enable_manual_calendar_rescan", true)
+            settings.setBoolean("calendar_is_handled_$testCalendarId", true)
+            
+            DevLog.info(LOG_TAG, "Realctx Settings state: enable_manual_calendar_rescan=${settings.enableCalendarRescan}")
+            DevLog.info(LOG_TAG, "Realctx Settings state: calendar_is_handled_$testCalendarId=${settings.getCalendarIsHandled(testCalendarId)}")
             
             // Log current state before processing
             DevLog.info(LOG_TAG, "Current time: ${currentTime.get()}")
@@ -177,20 +255,6 @@ class CalendarMonitorServiceTest {
                 }
             }
 
-            every { realCtx.getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
-            every { realCtx.getSystemService(any<String>()) } answers {
-              when (firstArg<String>()) {
-                Context.ALARM_SERVICE -> mockAlarmManager
-                else -> callOriginal()
-              }
-            }
-            every { realCtx.startService(any()) } answers {
-              val intent = firstArg<Intent>()
-              DevLog.info(LOG_TAG, "startService called with intent: action=${intent.action}, extras=${intent.extras}")
-              mockService.handleIntentForTest(intent)
-              ComponentName(realCtx.packageName, CalendarMonitorService::class.java.name)
-            }
-            
             // Call the real implementation
             callOriginal()
             
@@ -374,14 +438,11 @@ class CalendarMonitorServiceTest {
         // Enable calendar monitoring in settings
         val settings = Settings(fakeContext)
         settings.setBoolean("enable_manual_calendar_rescan", true)
-        fakeContext.getSharedPreferences("CalendarNotificationsPlusPrefs", Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean("calendar_is_handled_$testCalendarId", true)
-            .commit()
+        settings.setBoolean("calendar_is_handled_$testCalendarId", true)
             
         DevLog.info(LOG_TAG, "Test calendar setup complete: id=$testCalendarId")
-        DevLog.info(LOG_TAG, "Settings after setup: enable_manual_calendar_rescan=${settings.enableCalendarRescan}")
-        DevLog.info(LOG_TAG, "Settings after setup: calendar_is_handled_$testCalendarId=${settings.getCalendarIsHandled(testCalendarId)}")
+        DevLog.info(LOG_TAG, "fakeContext Settings after setup: enable_manual_calendar_rescan=${settings.enableCalendarRescan}")
+        DevLog.info(LOG_TAG, "fakeContext Settings after setup: calendar_is_handled_$testCalendarId=${settings.getCalendarIsHandled(testCalendarId)}")
     }
 
     private fun clearStorages() {
@@ -412,8 +473,18 @@ class CalendarMonitorServiceTest {
         setupMockCalendarMonitor()
         setupMockService()
         setupApplicationController()
-        setupTestCalendar()
+        
+        // Clear storages first
         clearStorages()
+        
+        // Then setup test calendar and verify settings
+        setupTestCalendar()
+        
+        // Verify settings are correct before proceeding
+        val settings = Settings(fakeContext)
+        assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
+        assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
+        
         DevLog.info(LOG_TAG, "Test environment setup complete")
     }
 
