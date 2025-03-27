@@ -33,9 +33,11 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.SharedPreferences
-import com.github.quarck.calnotify.notification.EventNotificationManager
+import com.github.quarck.calnotify.app.ApplicationController.notificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
+import com.github.quarck.calnotify.textutils.EventFormatter
+import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import java.util.Locale
 
 /**
@@ -365,9 +367,36 @@ class CalendarMonitorServiceTest {
             putLong(ReminderState.REMINDER_LAST_FIRE_TIME_KEY, 0)
             apply()
         }
+        
+        // Create mock EventFormatter
+        val mockFormatter = mockk<EventFormatterInterface> {
+            every { formatNotificationSecondaryText(any()) } returns "Mock event time"
+            every { formatDateTimeTwoLines(any(), any()) } returns Pair("Mock date", "Mock time")
+            every { formatDateTimeOneLine(any(), any()) } returns "Mock date and time"
+            every { formatSnoozedUntil(any()) } returns "Mock snooze time"
+            every { formatTimePoint(any()) } returns "Mock time point"
+            every { formatTimeDuration(any(), any()) } returns "Mock duration"
+        }
 
         // Mock notification manager to prevent side effects
-        val mockNotificationManager = mockk<EventNotificationManagerInterface>(relaxed = true)
+        val mockNotificationManager = mockk<EventNotificationManagerInterface> {
+            every { onEventAdded(any(), any(), any()) } answers {
+                val ctx = firstArg<Context>()
+                val formatter = secondArg<EventFormatterInterface>()
+                val event = thirdArg<EventAlertRecord>()
+                DevLog.info(LOG_TAG, "Mock onEventAdded called for event ${event.eventId}")
+                postEventNotifications(ctx, mockFormatter, false, event.eventId)
+            }
+            
+            every { postEventNotifications(any(), any(), any(), any()) } answers {
+                val ctx = firstArg<Context>()
+                val formatter = secondArg<EventFormatterInterface>()
+                val force = thirdArg<Boolean>()
+                val primaryEventId = arg<Long?>(3)
+                DevLog.info(LOG_TAG, "Mock postEventNotifications called with force=$force, primaryEventId=$primaryEventId")
+            }
+        }
+        
         mockkObject(ApplicationController)
         every { ApplicationController.notificationManager } returns mockNotificationManager
 
@@ -448,13 +477,20 @@ class CalendarMonitorServiceTest {
             callOriginal()
         }
 
+
         // Spy on postEventNotifications
         every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
-            val context = firstArg<Context>()
-            val events = secondArg<Collection<EventAlertRecord>>()
-            DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
-            callOriginal()
+          val context = firstArg<Context>()
+          val events = secondArg<Collection<EventAlertRecord>>()
+          DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
+
+          if (events.size == 1)
+            mockNotificationManager.onEventAdded(context, mockFormatter, events.first())
+          else
+            mockNotificationManager.postEventNotifications(context, mockFormatter)
         }
+
+
 
         every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
             val stackTrace = Thread.currentThread().stackTrace
