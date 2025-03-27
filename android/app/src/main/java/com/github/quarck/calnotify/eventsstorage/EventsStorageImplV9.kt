@@ -419,6 +419,18 @@ class EventsStorageImplV9(val context: Context)
         return numRemoved
     }
 
+    override fun deleteAllEventsImpl(db: SQLiteDatabase): Boolean {
+        try {
+            db.beginTransaction()
+            db.delete(TABLE_NAME, null, null)
+            db.setTransactionSuccessful()
+            return true
+        }
+        finally {
+            db.endTransaction()
+        }
+    }
+
     private fun eventRecordToContentValues(event: EventAlertRecord, includeKeyValues: Boolean = false): ContentValues {
         val values = ContentValues()
 
