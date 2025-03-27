@@ -65,6 +65,7 @@ class CalendarMonitorServiceTest {
 
     private lateinit var mockSharedPreferences: SharedPreferences
     private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
+    private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
 
     private val currentTime = AtomicLong(0L)
 
@@ -82,7 +83,7 @@ class CalendarMonitorServiceTest {
 
     // Helper functions for setting up mocks and test data
     private fun createPersistentSharedPreferences(name: String): SharedPreferences {
-        val sharedPrefsMap = mutableMapOf<String, Any>()
+        val sharedPrefsMap = sharedPreferencesDataMap.getOrPut(name) { mutableMapOf() }
         return mockk<SharedPreferences>(relaxed = true) {
             every { edit() } returns mockk<SharedPreferences.Editor>(relaxed = true) {
                 every { putString(any(), any()) } answers {
@@ -164,8 +165,10 @@ class CalendarMonitorServiceTest {
             every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
             every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
             every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
+            every { checkMode(any()) } returns Context.MODE_PRIVATE
             every { getSharedPreferences(any(), any()) } answers {
                 val name = firstArg<String>()
+                // Always use MODE_PRIVATE regardless of what mode was passed in
                 sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
             }
             every { getApplicationInfo() } returns realContext.applicationInfo
