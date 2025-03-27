@@ -278,15 +278,7 @@ class CalendarMonitorServiceTest {
                     DevLog.info(LOG_TAG, "Event after processing: id=${event.eventId}, title=${event.title}, startTime=${event.startTime}")
                 }
             }
-            
-            // Verify the results
-            EventsStorage(realCtx).classCustomUse { db ->
-                val events = db.events
-                DevLog.info(LOG_TAG, "Found ${events.size} events after rescan")
-                events.forEach { event ->
-                    DevLog.info(LOG_TAG, "Event: id=${event.eventId}, title=${event.title}, startTime=${event.startTime}")
-                }
-            }
+
         }
     }
 
