@@ -165,7 +165,6 @@ class CalendarMonitorServiceTest {
             every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
             every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
             every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
-            every { checkMode(any()) } returns Context.MODE_PRIVATE
             every { getSharedPreferences(any(), any()) } answers {
                 val name = firstArg<String>()
                 // Always use MODE_PRIVATE regardless of what mode was passed in
