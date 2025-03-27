@@ -311,7 +311,6 @@ class CalendarMonitorServiceTest {
             val context = firstArg<Context>()
             val alertTime = secondArg<Long>()
             val skipDismissed = thirdArg<Boolean>()
-//            val skipExpiredEvents = fourthArg<Boolean>()
             
             DevLog.info(LOG_TAG, "Mock getAlertByTime called with alertTime=$alertTime, skipDismissed=$skipDismissed")
             
@@ -351,7 +350,7 @@ class CalendarMonitorServiceTest {
             result
         }
 
-        // Spy on registerNewEvent
+        // Spy on registerNewEvent with enhanced logging
         every { ApplicationController.registerNewEvent(any(), any()) } answers {
             val context = firstArg<Context>()
             val event = secondArg<EventAlertRecord>()
@@ -393,11 +392,11 @@ class CalendarMonitorServiceTest {
         }
 
         every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
-          val stackTrace = Thread.currentThread().stackTrace
-          val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
-          val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
+            val stackTrace = Thread.currentThread().stackTrace
+            val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
+            val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
 
-          DevLog.info(LOG_TAG, "onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
+            DevLog.info(LOG_TAG, "onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
 
             val userActionUntil = secondArg<Long>()
             DevLog.info(LOG_TAG, "onCalendarReloadFromService called with userActionUntil=$userActionUntil")
@@ -532,17 +531,14 @@ class CalendarMonitorServiceTest {
         monitorState.prevEventScanTo = startTime
         monitorState.prevEventFireFromScan = startTime
 
-
         // Reset monitor state and ensure firstScanEver is false
-
         val realContext = InstrumentationRegistry.getInstrumentation().targetContext
         val realMonitorState = CalendarMonitorState(realContext)
         realMonitorState.firstScanEver = false
         realMonitorState.prevEventScanTo = startTime
         realMonitorState.prevEventFireFromScan = startTime
 
-
-      // Create a test event with reminder - use captured time
+        // Create a test event with reminder - use captured time
         eventStartTime = startTime + 60000 // 1 minute from start time
         reminderTime = eventStartTime - 30000 // 30 seconds before start
 
@@ -607,11 +603,28 @@ class CalendarMonitorServiceTest {
         // Notify calendar change and start service
         notifyCalendarChangeAndWait()
 
+        // Advance time past the reminder time to trigger alert firing
+        DevLog.info(LOG_TAG, "Advancing time past reminder time...")
+        advanceTimer(reminderTime - startTime + Consts.ALARM_THRESHOLD)
+
+        // Simulate alarm broadcast
+        DevLog.info(LOG_TAG, "Simulating alarm broadcast...")
+        val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
+        val uri = ContentUris.withAppendedId(
+            CalendarContract.Events.CONTENT_URI,
+            reminderTime
+        )
+        intent.data = uri
+        mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, intent)
+
         // Add a small delay to allow event processing to complete
         Thread.sleep(1000)
 
         // Verify that CalendarMonitor.onRescanFromService was called
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+
+        // Verify that registerNewEvent was called
+        verify(exactly = 1) { ApplicationController.registerNewEvent(any(), any()) }
 
         // Verify the event was detected and processed
         verifyEventProcessed(
