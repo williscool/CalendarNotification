@@ -36,6 +36,7 @@ import android.content.SharedPreferences
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
+import java.util.Locale
 
 /**
  * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
@@ -49,8 +50,8 @@ import com.github.quarck.calnotify.reminders.ReminderState
  */
 @RunWith(AndroidJUnit4::class)
 class CalendarMonitorServiceTest {
-    private var testCalendarId: Long = -1
-    private var testEventId: Long = -1
+    private var testCalendarId: Long = 0
+    private var testEventId: Long = 0
     private var eventStartTime: Long = 0
     private var reminderTime: Long = 0
     private val realController = ApplicationController
@@ -313,7 +314,6 @@ class CalendarMonitorServiceTest {
                     DevLog.info(LOG_TAG, "Event after processing: id=${event.eventId}, title=${event.title}, startTime=${event.startTime}")
                 }
             }
-
         }
     }
 
@@ -494,6 +494,11 @@ class CalendarMonitorServiceTest {
             ownerAccount = "test@local"
         )
 
+        // Only proceed if we got a valid calendar ID
+        if (testCalendarId <= 0) {
+            throw IllegalStateException("Failed to create test calendar")
+        }
+
         // Enable calendar monitoring in settings
         val settings = Settings(fakeContext)
         settings.setBoolean("enable_manual_calendar_rescan", true)
@@ -524,6 +529,9 @@ class CalendarMonitorServiceTest {
         setupMockContext()
         setupMockTimer()
         
+        // Set default locale for date formatting
+        Locale.setDefault(Locale.US)
+        
         mockkObject(ApplicationController)
         mockkObject(CalendarProvider)
         mockkStatic(PendingIntent::class)
@@ -553,7 +561,7 @@ class CalendarMonitorServiceTest {
         unmockkAll()
         
         // Delete test events and calendar
-        if (testEventId != -1L) {
+        if (testEventId > 0) {
             val deleted = fakeContext.contentResolver.delete(
                 CalendarContract.Events.CONTENT_URI,
                 "${CalendarContract.Events._ID} = ?",
@@ -562,7 +570,7 @@ class CalendarMonitorServiceTest {
             DevLog.info(LOG_TAG, "Deleted test event: id=$testEventId, result=$deleted")
         }
         
-        if (testCalendarId != -1L) {
+        if (testCalendarId > 0) {
             val deleted = fakeContext.contentResolver.delete(
                 CalendarContract.Calendars.CONTENT_URI,
                 "${CalendarContract.Calendars._ID} = ?",
@@ -926,6 +934,7 @@ class CalendarMonitorServiceTest {
      * Creates a test event in the test calendar with default reminder settings.
      * 
      * @return The ID of the created event
+     * @throws IllegalStateException if event creation fails
      */
     private fun createTestEvent(): Long {
         val currentTime = this.currentTime.get()
@@ -940,7 +949,11 @@ class CalendarMonitorServiceTest {
         }
         
         val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-        val eventId = eventUri?.lastPathSegment?.toLong() ?: -1L
+        val eventId = eventUri?.lastPathSegment?.toLongOrNull() ?: 0L
+
+        if (eventId <= 0) {
+            throw IllegalStateException("Failed to create test event")
+        }
 
         // Add a reminder
         val reminderValues = ContentValues().apply {
@@ -965,48 +978,56 @@ class CalendarMonitorServiceTest {
         val currentTime = this.currentTime.get() // Capture current time at start of creation
         
         repeat(count) { index ->
-            val values = ContentValues().apply {
-                put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
-                put(CalendarContract.Events.TITLE, "Test Event $index")
-                put(CalendarContract.Events.DESCRIPTION, "Test Description $index")
-                put(CalendarContract.Events.DTSTART, currentTime + (3600000 * (index + 1)))
-                put(CalendarContract.Events.DTEND, currentTime + (3600000 * (index + 2)))
-                put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
-                put(CalendarContract.Events.HAS_ALARM, 1)
-            }
-            
-            val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            val eventId = eventUri?.lastPathSegment?.toLong() ?: -1L
-            
-            // Only add valid event IDs
-            if (eventId > 0) {
-                eventIds.add(eventId)
-                // Add a reminder for each event
-                val reminderValues = ContentValues().apply {
-                    put(CalendarContract.Reminders.EVENT_ID, eventId)
-                    put(CalendarContract.Reminders.MINUTES, 15)
-                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+            try {
+                val values = ContentValues().apply {
+                    put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
+                    put(CalendarContract.Events.TITLE, "Test Event $index")
+                    put(CalendarContract.Events.DESCRIPTION, "Test Description $index")
+                    put(CalendarContract.Events.DTSTART, currentTime + (3600000 * (index + 1)))
+                    put(CalendarContract.Events.DTEND, currentTime + (3600000 * (index + 2)))
+                    put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
+                    put(CalendarContract.Events.HAS_ALARM, 1)
                 }
-                val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
-                DevLog.info(LOG_TAG, "Created test event $index: id=$eventId, reminder=${reminderUri != null}")
                 
-                // Verify the event exists in calendar
-                val cursor = fakeContext.contentResolver.query(
-                    ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
-                    null, null, null, null
-                )
-                if (cursor != null && cursor.moveToFirst()) {
-                    DevLog.info(LOG_TAG, "Verified event $eventId exists in calendar")
+                val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+                val eventId = eventUri?.lastPathSegment?.toLongOrNull() ?: -1L
+                
+                // Only add valid event IDs
+                if (eventId > 0) {
+                    eventIds.add(eventId)
+                    // Add a reminder for each event
+                    val reminderValues = ContentValues().apply {
+                        put(CalendarContract.Reminders.EVENT_ID, eventId)
+                        put(CalendarContract.Reminders.MINUTES, 15)
+                        put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                    }
+                    val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+                    DevLog.info(LOG_TAG, "Created test event $index: id=$eventId, reminder=${reminderUri != null}")
+                    
+                    // Verify the event exists in calendar
+                    val cursor = fakeContext.contentResolver.query(
+                        ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                        null, null, null, null
+                    )
+                    if (cursor != null && cursor.moveToFirst()) {
+                        DevLog.info(LOG_TAG, "Verified event $eventId exists in calendar")
+                    } else {
+                        DevLog.error(LOG_TAG, "Failed to verify event $eventId in calendar")
+                    }
+                    cursor?.close()
                 } else {
-                    DevLog.error(LOG_TAG, "Failed to verify event $eventId in calendar")
+                    DevLog.error(LOG_TAG, "Failed to create event $index - invalid event ID")
                 }
-                cursor?.close()
-            } else {
-                DevLog.error(LOG_TAG, "Failed to create event $index")
+            } catch (ex: Exception) {
+                DevLog.error(LOG_TAG, "Error creating event $index: ${ex.message}")
             }
         }
         
-        DevLog.info(LOG_TAG, "Created ${eventIds.size} test events with IDs: $eventIds")
+        if (eventIds.isEmpty()) {
+            DevLog.error(LOG_TAG, "Failed to create any test events!")
+        } else {
+            DevLog.info(LOG_TAG, "Created ${eventIds.size} test events with IDs: $eventIds")
+        }
         return eventIds
     }
 
