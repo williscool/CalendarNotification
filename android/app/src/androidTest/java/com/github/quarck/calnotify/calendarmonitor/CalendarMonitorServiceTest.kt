@@ -1108,6 +1108,8 @@ class CalendarMonitorServiceTest {
     /**
      * Mocks event alerts for a specific event with timing parameters.
      * 
+     * This mock ensures there are always unhandled future alerts available by generating a continuous sequence of future alerts.
+     * 
      * @param eventId The ID of the event to mock alerts for
      * @param startTime The start time of the event
      * @param duration The duration of the event
@@ -1119,10 +1121,14 @@ class CalendarMonitorServiceTest {
             val scanTo = thirdArg<Long>()
             
             DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
-            DevLog.info(LOG_TAG, "Event startTime=$startTime is in range: ${startTime in scanFrom..scanTo}")
             
+            // Generate a series of future alerts
+            val currentTime = System.currentTimeMillis()
+            val alerts = mutableListOf<MonitorEventAlertEntry>()
+            
+            // Add current event alert if in range
             if (startTime in scanFrom..scanTo) {
-                val alert = MonitorEventAlertEntry(
+                alerts.add(MonitorEventAlertEntry(
                     eventId = eventId,
                     isAllDay = false,
                     alertTime = startTime - alertOffset,
@@ -1130,13 +1136,29 @@ class CalendarMonitorServiceTest {
                     instanceEndTime = startTime + duration,
                     alertCreatedByUs = false,
                     wasHandled = false
-                )
-                DevLog.info(LOG_TAG, "Returning alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, instanceStart=${alert.instanceStartTime}")
-                listOf(alert)
-            } else {
-                DevLog.info(LOG_TAG, "Event startTime not in scan range, returning empty list")
-                emptyList()
+                ))
             }
+            
+            // Add several future alerts at different times
+            // Ensure we have at least one unhandled alert in the future
+            val numFutureAlerts = 10
+            for (i in 1..numFutureAlerts) {
+                val futureTime = currentTime + (i * 3600000L) // Each alert 1 hour apart
+                if (futureTime in scanFrom..scanTo) {
+                    alerts.add(MonitorEventAlertEntry(
+                        eventId = eventId,
+                        isAllDay = false,
+                        alertTime = futureTime,
+                        instanceStartTime = futureTime + alertOffset,
+                        instanceEndTime = futureTime + alertOffset + duration,
+                        alertCreatedByUs = false,
+                        wasHandled = false // Keep these unhandled to ensure there's always a next alert
+                    ))
+                }
+            }
+            
+            DevLog.info(LOG_TAG, "Returning ${alerts.size} alerts spanning from ${alerts.firstOrNull()?.alertTime} to ${alerts.lastOrNull()?.alertTime}")
+            alerts
         }
     }
 
@@ -1239,6 +1261,7 @@ class CalendarMonitorServiceTest {
     ) {
         DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
         
+        // First verify event storage
         EventsStorage(fakeContext).classCustomUse { db ->
             val events = db.events
             DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
@@ -1281,6 +1304,17 @@ class CalendarMonitorServiceTest {
                 } else {
 
                 }
+            }
+        }
+
+        // Then verify monitor storage still has unhandled alerts
+        MonitorStorage(fakeContext).classCustomUse { db ->
+            val alerts = db.alerts
+            val unhandledAlerts = alerts.filter { !it.wasHandled }
+            DevLog.info(LOG_TAG, "Found ${unhandledAlerts.size} unhandled alerts out of ${alerts.size} total alerts")
+            assertTrue("Should have unhandled alerts available", unhandledAlerts.isNotEmpty())
+            unhandledAlerts.forEach { alert ->
+                DevLog.info(LOG_TAG, "Unhandled alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}")
             }
         }
     }
