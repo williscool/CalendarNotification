@@ -159,9 +159,11 @@ class CalendarMonitorServiceTest {
             every { contentResolver } returns realContext.contentResolver
             every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
             every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+            every { getSystemService(Context.POWER_SERVICE) } returns realContext.getSystemService(Context.POWER_SERVICE)
             every { getSystemService(any<String>()) } answers { 
                 when (firstArg<String>()) {
                     Context.ALARM_SERVICE -> mockAlarmManager
+                    Context.POWER_SERVICE -> realContext.getSystemService(Context.POWER_SERVICE)
                     else -> realContext.getSystemService(firstArg())
                 }
             }
@@ -288,16 +290,29 @@ class CalendarMonitorServiceTest {
     }
 
     private fun setupMockService() {
-        mockService = spyk(CalendarMonitorService())
-        every { mockService.getSystemService(Context.POWER_SERVICE) } returns fakeContext.getSystemService(Context.POWER_SERVICE)
-        every { mockService.applicationContext } returns fakeContext
-        every { mockService.baseContext } returns fakeContext
-        every { mockService.timer } returns mockTimer
-        every { mockService.getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
-        every { mockService.checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
-        every { mockService.checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
-        every { mockService.getPackageName() } returns fakeContext.packageName
-        every { mockService.getContentResolver() } returns fakeContext.contentResolver
+        mockService = spyk(CalendarMonitorService()) {
+            every { applicationContext } returns fakeContext
+            every { baseContext } returns fakeContext
+            every { timer } returns mockTimer
+            every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
+            every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
+            every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
+            every { getPackageName() } returns fakeContext.packageName
+            every { getContentResolver() } returns fakeContext.contentResolver
+            every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+            every { getSystemService(Context.POWER_SERVICE) } returns fakeContext.getSystemService(Context.POWER_SERVICE)
+            every { getSystemService(any<String>()) } answers { 
+                when (firstArg<String>()) {
+                    Context.ALARM_SERVICE -> mockAlarmManager
+                    Context.POWER_SERVICE -> fakeContext.getSystemService(Context.POWER_SERVICE)
+                    else -> fakeContext.getSystemService(firstArg())
+                }
+            }
+            every { getSharedPreferences(any(), any()) } answers {
+                val name = firstArg<String>()
+                sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
+            }
+        }
         
         // Add logging for handleIntentForTest
         every { mockService.handleIntentForTest(any()) } answers {
@@ -728,6 +743,21 @@ class CalendarMonitorServiceTest {
         val events = createMultipleTestEvents(3)
         DevLog.info(LOG_TAG, "Created ${events.size} test events: $events")
         
+        // Verify events were created successfully
+        assertTrue("Failed to create test events", events.isNotEmpty())
+        events.forEach { eventId ->
+            assertTrue("Invalid event ID: $eventId", eventId > 0)
+            
+            // Verify the event exists in calendar
+            val cursor = fakeContext.contentResolver.query(
+                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                null, null, null, null
+            )
+            assertNotNull("Event $eventId should exist in calendar", cursor)
+            assertTrue("Event $eventId should exist in calendar", cursor!!.moveToFirst())
+            cursor.close()
+        }
+        
         // Setup mocks for event handling
         setupMultipleEventDetails(events, startTime)
         mockMultipleEventAlerts(events, startTime)
@@ -745,6 +775,8 @@ class CalendarMonitorServiceTest {
             val hourOffset = index + 1
             val eventStartTime = startTime + (hourOffset * Consts.HOUR_IN_MILLISECONDS)
             val alertTime = eventStartTime - (15 * Consts.MINUTE_IN_MILLISECONDS)
+
+            DevLog.info(LOG_TAG, "Processing event $eventId: startTime=$eventStartTime, alertTime=$alertTime")
 
             // Advance time to just past this event's alert time
             DevLog.info(LOG_TAG, "Advancing time past alert time for event $eventId...")
@@ -903,6 +935,7 @@ class CalendarMonitorServiceTest {
     private fun createMultipleTestEvents(count: Int): List<Long> {
         val eventIds = mutableListOf<Long>()
         val currentTime = this.currentTime.get() // Capture current time at start of creation
+        
         repeat(count) { index ->
             val values = ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
@@ -915,19 +948,37 @@ class CalendarMonitorServiceTest {
             }
             
             val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            eventUri?.lastPathSegment?.toLong()?.let { 
-                eventIds.add(it)
+            val eventId = eventUri?.lastPathSegment?.toLong() ?: -1L
+            
+            // Only add valid event IDs
+            if (eventId > 0) {
+                eventIds.add(eventId)
                 // Add a reminder for each event
                 val reminderValues = ContentValues().apply {
-                    put(CalendarContract.Reminders.EVENT_ID, it)
+                    put(CalendarContract.Reminders.EVENT_ID, eventId)
                     put(CalendarContract.Reminders.MINUTES, 15)
                     put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
                 }
                 val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
-                DevLog.info(LOG_TAG, "Created test event $index: id=$it, reminder=${reminderUri != null}")
+                DevLog.info(LOG_TAG, "Created test event $index: id=$eventId, reminder=${reminderUri != null}")
+                
+                // Verify the event exists in calendar
+                val cursor = fakeContext.contentResolver.query(
+                    ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                    null, null, null, null
+                )
+                if (cursor != null && cursor.moveToFirst()) {
+                    DevLog.info(LOG_TAG, "Verified event $eventId exists in calendar")
+                } else {
+                    DevLog.error(LOG_TAG, "Failed to verify event $eventId in calendar")
+                }
+                cursor?.close()
+            } else {
+                DevLog.error(LOG_TAG, "Failed to create event $index")
             }
         }
-        DevLog.info(LOG_TAG, "Created ${eventIds.size} test events")
+        
+        DevLog.info(LOG_TAG, "Created ${eventIds.size} test events with IDs: $eventIds")
         return eventIds
     }
 
