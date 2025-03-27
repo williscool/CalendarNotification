@@ -154,8 +154,23 @@ class CalendarMonitorServiceTest {
             every { cancel(any<PendingIntent>()) } just Runs
         }
 
+        // Create mock package manager
+        val mockPackageManager = mockk<android.content.pm.PackageManager>(relaxed = true) {
+            every { resolveActivity(any(), any<Int>()) } answers {
+                val intent = firstArg<Intent>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.resolveActivity(intent, flags)
+            }
+            every { queryIntentActivities(any(), any<Int>()) } answers {
+                val intent = firstArg<Intent>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.queryIntentActivities(intent, flags)
+            }
+        }
+
         fakeContext = mockk<Context>(relaxed = true)  {
             every { packageName } returns realContext.packageName
+            every { packageManager } returns mockPackageManager
             every { contentResolver } returns realContext.contentResolver
             every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
             every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
@@ -185,6 +200,7 @@ class CalendarMonitorServiceTest {
                 mockService.handleIntentForTest(intent)
                 ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
             }
+            every { startActivity(any()) } just Runs
         }
     }
 
@@ -232,6 +248,18 @@ class CalendarMonitorServiceTest {
               DevLog.info(LOG_TAG, "startService called with intent: action=${intent.action}, extras=${intent.extras}")
               mockService.handleIntentForTest(intent)
               ComponentName(realCtx.packageName, CalendarMonitorService::class.java.name)
+            }
+            every { realCtx.packageManager } returns mockk<android.content.pm.PackageManager>(relaxed = true) {
+                every { resolveActivity(any(), any<Int>()) } answers {
+                    val intent = firstArg<Intent>()
+                    val flags = secondArg<Int>()
+                    fakeContext.packageManager.resolveActivity(intent, flags)
+                }
+                every { queryIntentActivities(any(), any<Int>()) } answers {
+                    val intent = firstArg<Intent>()
+                    val flags = secondArg<Int>()
+                    fakeContext.packageManager.queryIntentActivities(intent, flags)
+                }
             }
             
             // Log settings state
