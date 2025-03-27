@@ -68,7 +68,7 @@ object ApplicationController : EventMovedHandler {
         return settings!!
     }
 
-    private val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
+    val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
 
     private val alarmScheduler: AlarmSchedulerInterface = AlarmScheduler
 

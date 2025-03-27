@@ -33,6 +33,9 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.SharedPreferences
+import com.github.quarck.calnotify.notification.EventNotificationManager
+import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
+import com.github.quarck.calnotify.reminders.ReminderState
 
 /**
  * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
@@ -307,6 +310,23 @@ class CalendarMonitorServiceTest {
     private fun setupApplicationController() {
         // Create a spy on the real controller
         spyk(realController)
+
+        // Mock ReminderState using SharedPreferences like CalendarMonitorState
+        val reminderStatePrefs = createPersistentSharedPreferences(ReminderState.PREFS_NAME)
+        every { fakeContext.getSharedPreferences(ReminderState.PREFS_NAME, Context.MODE_PRIVATE) } returns reminderStatePrefs
+        
+        // Set only the essential initial values for ReminderState that are needed for testCalendarReload
+        reminderStatePrefs.edit().apply {
+            putInt(ReminderState.NUM_REMINDERS_FIRED_KEY, 0)
+            putBoolean(ReminderState.QUIET_HOURS_ONE_TIME_REMINDER_KEY, false)
+            putLong(ReminderState.REMINDER_LAST_FIRE_TIME_KEY, 0)
+            apply()
+        }
+
+        // Mock notification manager to prevent side effects
+        val mockNotificationManager = mockk<EventNotificationManagerInterface>(relaxed = true)
+        mockkObject(ApplicationController)
+        every { ApplicationController.notificationManager } returns mockNotificationManager
 
         // Mock CalendarProvider.getAlertByTime
         every { CalendarProvider.getAlertByTime(any(), any(), any(), any()) } answers {
@@ -720,8 +740,37 @@ class CalendarMonitorServiceTest {
         // Execute test
         notifyCalendarChangeAndWait()
 
-        // Verify results
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        // For each event, simulate its alarm broadcast
+        events.forEachIndexed { index, eventId ->
+            val hourOffset = index + 1
+            val eventStartTime = startTime + (hourOffset * Consts.HOUR_IN_MILLISECONDS)
+            val alertTime = eventStartTime - (15 * Consts.MINUTE_IN_MILLISECONDS)
+
+            // Advance time to just past this event's alert time
+            DevLog.info(LOG_TAG, "Advancing time past alert time for event $eventId...")
+            currentTime.set(alertTime + Consts.ALARM_THRESHOLD)
+
+            // Simulate alarm broadcast for this event
+            DevLog.info(LOG_TAG, "Simulating alarm broadcast for event $eventId...")
+            val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
+            val uri = ContentUris.withAppendedId(
+                CalendarContract.Events.CONTENT_URI,
+                alertTime
+            )
+            intent.data = uri
+            mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, intent)
+
+            // Small delay to allow processing
+            Thread.sleep(100)
+        }
+
+        // Verify that CalendarMonitor.onRescanFromService was called at least once
+        verify(atLeast = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+
+        // Verify that registerNewEvent was called for each event
+        verify(exactly = events.size) { ApplicationController.registerNewEvent(any(), any()) }
+
+        // Verify all events were processed
         verifyMultipleEvents(events, startTime)
     }
 
@@ -1046,7 +1095,12 @@ class CalendarMonitorServiceTest {
      * @param title Optional title to verify
      * @param afterDelay Optional delay time to verify processing occurred after
      */
-    private fun verifyEventProcessed(eventId: Long, startTime: Long, title: String? = null, afterDelay: Long? = null) {
+    private fun verifyEventProcessed(
+        eventId: Long,
+        startTime: Long,
+        title: String? = null,
+        afterDelay: Long? = null
+    ) {
         DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
         
         EventsStorage(fakeContext).classCustomUse { db ->
@@ -1056,6 +1110,7 @@ class CalendarMonitorServiceTest {
                 DevLog.info(LOG_TAG, "Event in storage: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}, title=${event.title}")
             }
             
+            // Find event by ID, ignoring display status since notification manager may have changed it
             val eventExists = events.any { it.eventId == eventId }
             if (!eventExists) {
                 DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
