@@ -64,6 +64,7 @@ class CalendarMonitorServiceTest {
     private lateinit var fakeContext: Context
 
     private lateinit var mockSharedPreferences: SharedPreferences
+    private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
 
     private val currentTime = AtomicLong(0L)
 
@@ -80,10 +81,9 @@ class CalendarMonitorServiceTest {
     )
 
     // Helper functions for setting up mocks and test data
-    private fun setupMockContext() {
-        // Create a persistent mock SharedPreferences
+    private fun createPersistentSharedPreferences(name: String): SharedPreferences {
         val sharedPrefsMap = mutableMapOf<String, Any>()
-        mockSharedPreferences = mockk<SharedPreferences>(relaxed = true) {
+        return mockk<SharedPreferences>(relaxed = true) {
             every { edit() } returns mockk<SharedPreferences.Editor>(relaxed = true) {
                 every { putString(any(), any()) } answers {
                     sharedPrefsMap[firstArg()] = secondArg()
@@ -136,7 +136,9 @@ class CalendarMonitorServiceTest {
             }
             every { getAll() } returns sharedPrefsMap
         }
+    }
 
+    private fun setupMockContext() {
         val realContext = InstrumentationRegistry.getInstrumentation().targetContext
       
         mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
@@ -162,7 +164,10 @@ class CalendarMonitorServiceTest {
             every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
             every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
             every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
-            every { getSharedPreferences(any(), any()) } answers { realContext.getSharedPreferences(firstArg(), secondArg()) }
+            every { getSharedPreferences(any(), any()) } answers {
+                val name = firstArg<String>()
+                sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
+            }
             every { getApplicationInfo() } returns realContext.applicationInfo
             every { getFilesDir() } returns realContext.filesDir
             every { getCacheDir() } returns realContext.cacheDir
@@ -174,11 +179,6 @@ class CalendarMonitorServiceTest {
                 ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
             }
         }
-        
-//        // Create a spy on the real context
-//        spyk(realContext)
-//            // Ensure the context is properly mocked before calling original
-
     }
 
     private fun setupMockTimer() {
@@ -207,9 +207,12 @@ class CalendarMonitorServiceTest {
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
             val realCtx = firstArg<Context>()
             DevLog.info(LOG_TAG, "onRescanFromService called")
-            
+
             // Mock SharedPreferences for the context 
-            every { realCtx.getSharedPreferences(any(), any()) } returns mockSharedPreferences
+            every { realCtx.getSharedPreferences(any(), any()) } answers {
+                val name = firstArg<String>()
+                sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
+            }
             every { realCtx.getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
             every { realCtx.getSystemService(any<String>()) } answers {
               when (firstArg<String>()) {
@@ -537,7 +540,17 @@ class CalendarMonitorServiceTest {
         monitorState.prevEventScanTo = startTime
         monitorState.prevEventFireFromScan = startTime
 
-        // Create a test event with reminder - use captured time
+
+        // Reset monitor state and ensure firstScanEver is false
+
+        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val realMonitorState = CalendarMonitorState(realContext)
+        realMonitorState.firstScanEver = false
+        realMonitorState.prevEventScanTo = startTime
+        realMonitorState.prevEventFireFromScan = startTime
+
+
+      // Create a test event with reminder - use captured time
         eventStartTime = startTime + 60000 // 1 minute from start time
         reminderTime = eventStartTime - 30000 // 30 seconds before start
 

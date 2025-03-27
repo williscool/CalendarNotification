@@ -310,6 +310,18 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
             val state = CalendarMonitorState(context)
 
+            val sharedPreferences = context.getSharedPreferences(CalendarMonitorState.PREFS_NAME, Context.MODE_PRIVATE)
+
+            DevLog.info(LOG_TAG, "Context CalendarMonitorState SharedPreferences contents:")
+            sharedPreferences.all.forEach { (key, value) ->
+                DevLog.info(LOG_TAG, "  $key = $value")
+            }
+
+            DevLog.info(LOG_TAG, "CalendarMonitorState: nextEventFireFromScan=${state.nextEventFireFromScan}, " +
+                    "prevEventFireFromScan=${state.prevEventFireFromScan}, " +
+                    "prevEventScanTo=${state.prevEventScanTo}, " +
+                    "firstScanEver=${state.firstScanEver}")
+
             val t1 = System.currentTimeMillis()
 
             val (nextAlarmFromManual, firedEventsManual) = manualScanner.scanNextEvent(context, state)
