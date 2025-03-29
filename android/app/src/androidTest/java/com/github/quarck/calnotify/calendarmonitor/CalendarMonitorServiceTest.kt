@@ -771,20 +771,20 @@ class CalendarMonitorServiceTest {
         advanceTimer(advanceAmount)
 
         // Simulate alarm broadcast
-        DevLog.info(LOG_TAG, "Simulating alarm broadcast...")
-        val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
-        val uri = ContentUris.withAppendedId(
-            CalendarContract.Events.CONTENT_URI,
-            reminderTime
-        )
-        intent.data = uri
-        // TODO: here is the issue
-        // technically this is the "right way" to get events
-        // but this is not how things work with enabled_calendar_rescan
-        // that should go through onRescanFromService
+        // DevLog.info(LOG_TAG, "Simulating alarm broadcast...")
+        // val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
+        // val uri = ContentUris.withAppendedId(
+        //     CalendarContract.Events.CONTENT_URI,
+        //     reminderTime
+        // )
+        // intent.data = uri
+        // // TODO: here is the issue
+        // // technically this is the "right way" to get events
+        // // but this is not how things work with enabled_calendar_rescan
+        // // that should go through onRescanFromService
 
-        // we want to test onProviderReminderBroadcast separately
-        mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, intent)
+        // // we want to test onProviderReminderBroadcast separately
+        // mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, intent)
 
         // Add a small delay to allow event processing to complete
         Thread.sleep(1000)
