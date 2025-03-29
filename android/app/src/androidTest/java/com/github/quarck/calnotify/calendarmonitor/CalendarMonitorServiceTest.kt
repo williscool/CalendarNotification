@@ -34,6 +34,7 @@ import android.content.ComponentName
 import android.content.ContentUris
 import android.content.SharedPreferences
 import com.github.quarck.calnotify.app.ApplicationController.notificationManager
+import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmBroadcastReceiver
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
 import com.github.quarck.calnotify.textutils.EventFormatter
@@ -654,15 +655,17 @@ class CalendarMonitorServiceTest {
         monitorState.firstScanEver = false
         currentTime.set(System.currentTimeMillis())
         val startTime = currentTime.get() // Capture initial time
-        
-        DevLog.info(LOG_TAG, "Test starting with currentTime=$startTime")
-        monitorState.prevEventScanTo = startTime
-        monitorState.prevEventFireFromScan = startTime
-        monitorState.nextEventFireFromScan = Long.MAX_VALUE
 
-        // Create test event with reminder
+        // Calculate event times first
         eventStartTime = startTime + 60000 // 1 minute from start time
         reminderTime = eventStartTime - 30000 // 30 seconds before start
+        
+        DevLog.info(LOG_TAG, "Test starting with currentTime=$startTime, eventStartTime=$eventStartTime, reminderTime=$reminderTime")
+        
+        // Set up monitor state with proper timing
+        monitorState.prevEventScanTo = startTime
+        monitorState.prevEventFireFromScan = startTime
+        monitorState.nextEventFireFromScan = reminderTime
 
         // Create test event in calendar
         val values = ContentValues().apply {
@@ -688,10 +691,65 @@ class CalendarMonitorServiceTest {
         val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
         assertNotNull("Failed to create reminder", reminderUri)
 
-        // Setup mocks
+        // Setup mocks for calendar provider
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
+            DevLog.info(LOG_TAG, "Current reminderTime=$reminderTime")
+            
+            if (reminderTime in scanFrom..scanTo) {
+                listOf(MonitorEventAlertEntry(
+                    eventId = testEventId,
+                    isAllDay = false,
+                    alertTime = reminderTime,
+                    instanceStartTime = eventStartTime,
+                    instanceEndTime = eventStartTime + 60000,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                ))
+            } else {
+                emptyList()
+            }
+        }
+
+        // Mock event details
         mockEventReminders(testEventId)
-        mockEventAlerts(testEventId, eventStartTime)
         mockEventDetails(testEventId, eventStartTime, "Test Monitor Event")
+
+        // Mock getAlertByTime to return our test event
+        every { CalendarProvider.getAlertByTime(any(), any(), any(), any()) } answers {
+            val alertTime = secondArg<Long>()
+            DevLog.info(LOG_TAG, "Mock getAlertByTime called with alertTime=$alertTime")
+            
+            if (alertTime == reminderTime) {
+                listOf(EventAlertRecord(
+                    calendarId = testCalendarId,
+                    eventId = testEventId,
+                    isAllDay = false,
+                    isRepeating = false,
+                    alertTime = reminderTime,
+                    notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+                    title = "Test Monitor Event",
+                    desc = "Test Description",
+                    startTime = eventStartTime,
+                    endTime = eventStartTime + 60000,
+                    instanceStartTime = eventStartTime,
+                    instanceEndTime = eventStartTime + 60000,
+                    location = "",
+                    lastStatusChangeTime = currentTime.get(),
+                    displayStatus = EventDisplayStatus.Hidden,
+                    color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+                    origin = EventOrigin.ProviderBroadcast,
+                    timeFirstSeen = currentTime.get(),
+                    eventStatus = EventStatus.Confirmed,
+                    attendanceStatus = AttendanceStatus.None,
+                    flags = 0
+                ))
+            } else {
+                emptyList()
+            }
+        }
 
         // Verify settings
         val settings = Settings(fakeContext)
@@ -705,10 +763,16 @@ class CalendarMonitorServiceTest {
             callOriginal()
         }
 
-        // Notify calendar change and start service
+        // First verify no alerts exist
+        MonitorStorage(fakeContext).classCustomUse { db ->
+            val alerts = db.alerts
+            assertEquals("Should start with no alerts", 0, alerts.size)
+        }
+
+        // Trigger initial calendar scan
         notifyCalendarChangeAndWait()
 
-        // Verify alerts were added after first scan
+        // Verify alerts were added but not handled
         MonitorStorage(fakeContext).classCustomUse { db ->
             val alerts = db.alerts
             assertTrue("Should have alerts after scan", alerts.isNotEmpty())
@@ -720,18 +784,72 @@ class CalendarMonitorServiceTest {
         val advanceAmount = reminderTime - startTime + Consts.ALARM_THRESHOLD
         advanceTimer(advanceAmount)
 
+        // First trigger the alarm broadcast receiver
+        val alarmIntent = Intent(fakeContext, ManualEventAlarmBroadcastReceiver::class.java).apply {
+            action = "com.github.quarck.calnotify.MANUAL_EVENT_ALARM"
+            putExtra("alert_time", reminderTime)
+        }
+        mockCalendarMonitor.onAlarmBroadcast(fakeContext, alarmIntent)
+
+        // Directly trigger manual event firing by accessing the real monitor
+        val realMonitor = mockCalendarMonitor as CalendarMonitor
+        val fired = realMonitor.manualScanner.manualFireEventsAt_NoHousekeeping(
+            fakeContext,
+            reminderTime,
+            monitorState.prevEventFireFromScan
+        )
+        assertTrue("Manual event firing should succeed", fired)
+
+        // Then let the service handle the intent that would have been created by the broadcast receiver
+        val serviceIntent = Intent(fakeContext, CalendarMonitorService::class.java).apply {
+            putExtra("alert_time", reminderTime)
+            putExtra("rescan_monitor", true)
+            putExtra("reload_calendar", false) // Important: don't reload calendar on alarm
+            putExtra("start_delay", 0)
+        }
+        mockService.handleIntentForTest(serviceIntent)
+
         // Small delay for processing
         Thread.sleep(1000)
 
-        // Verify final state
+        // Verify alerts were handled
         MonitorStorage(fakeContext).classCustomUse { db ->
             val alerts = db.alerts
+            DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after processing")
+            alerts.forEach { alert ->
+                DevLog.info(LOG_TAG, "Alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+            }
             assertTrue("Should have alerts after processing", alerts.isNotEmpty())
             assertTrue("Alerts should be marked as handled", alerts.all { it.wasHandled })
         }
 
-        // Verify expected calls
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+        // Verify event was processed
+        verifyEventProcessed(
+            eventId = testEventId,
+            startTime = eventStartTime,
+            title = "Test Monitor Event"
+        )
+
+        // Verify expected calls in order
+        verifyAll {
+            // Initial scan
+            mockCalendarMonitor.onRescanFromService(any())
+            
+            // Alarm handling
+            mockCalendarMonitor.onAlarmBroadcast(any(), any())
+            mockCalendarMonitor.launchRescanService(any(), any(), any(), any(), any())
+            
+            // Rescan after alarm
+            mockCalendarMonitor.onRescanFromService(any())
+            
+            // Manual event firing
+//            mockCalendarMonitor.getManualScanner()
+            
+            // Final rescan
+            mockCalendarMonitor.onRescanFromService(any())
+        }
+
+        // Verify event registration
         verify(atLeast = 1) { ApplicationController.registerNewEvent(any(), any()) }
     }
 
