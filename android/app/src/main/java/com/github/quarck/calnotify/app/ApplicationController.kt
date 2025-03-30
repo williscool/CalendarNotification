@@ -68,7 +68,7 @@ object ApplicationController : EventMovedHandler {
         return settings!!
     }
 
-    val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
+    open val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
 
     private val alarmScheduler: AlarmSchedulerInterface = AlarmScheduler
 
@@ -300,7 +300,7 @@ object ApplicationController : EventMovedHandler {
     }
 
 
-    fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean {
+    open fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean {
 
         var ret = false
 
