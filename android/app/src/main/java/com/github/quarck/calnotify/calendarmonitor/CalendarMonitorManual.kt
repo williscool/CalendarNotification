@@ -337,6 +337,17 @@ class CalendarMonitorManual(
         }
 
         // Finally - find the next nearest alert
+        // TODO: This code throws NoSuchElementException when all alerts are handled because minBy() 
+        // is called on an empty sequence (when the filter returns no results). This causes 
+        // "firedAnything=false" log messages in subsequent rescans after successful event handling.
+        // 
+        // While this doesn't affect core functionality (events are still properly fired and handled),
+        // it should be fixed by:
+        // 1. Using minByOrNull() instead of minBy()
+        // 2. Using the Elvis operator (?:) to default to Long.MAX_VALUE when no unhandled alerts exist
+        //
+        // This will eliminate the exception and make the logs cleaner/more accurate.
+        // Don't fix until test suite is complete to maintain existing behavior.
         val nextAlert = alertsMerged.filter { !it.wasHandled && it.alertTime > fireAlertsUpTo }
                 .minBy { it.alertTime }
 
