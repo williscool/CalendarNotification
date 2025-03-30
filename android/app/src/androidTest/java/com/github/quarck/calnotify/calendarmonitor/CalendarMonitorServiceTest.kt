@@ -94,30 +94,48 @@ class CalendarMonitorServiceTest {
         return mockk<SharedPreferences>(relaxed = true) {
             every { edit() } returns mockk<SharedPreferences.Editor>(relaxed = true) {
                 every { putString(any(), any()) } answers {
-                    sharedPrefsMap[firstArg()] = secondArg()
+                    val key = firstArg<String>()
+                    val value = secondArg<String>()
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putString($key, $value)")
+                    sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putBoolean(any(), any()) } answers {
-                    sharedPrefsMap[firstArg()] = secondArg()
+                    val key = firstArg<String>()
+                    val value = secondArg<Boolean>()
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putBoolean($key, $value)")
+                    sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putInt(any(), any()) } answers {
-                    sharedPrefsMap[firstArg()] = secondArg()
+                    val key = firstArg<String>()
+                    val value = secondArg<Int>()
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putInt($key, $value)")
+                    sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putLong(any(), any()) } answers {
-                    sharedPrefsMap[firstArg()] = secondArg()
+                    val key = firstArg<String>()
+                    val value = secondArg<Long>()
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putLong($key, $value)")
+                    sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putFloat(any(), any()) } answers {
-                    sharedPrefsMap[firstArg()] = secondArg()
+                    val key = firstArg<String>()
+                    val value = secondArg<Float>()
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putFloat($key, $value)")
+                    sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { remove(any()) } answers {
-                    sharedPrefsMap.remove(firstArg())
+                    val key = firstArg<String>()
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].remove($key)")
+                    sharedPrefsMap.remove(key)
                     this@mockk
                 }
                 every { clear() } answers {
+                    DevLog.info(LOG_TAG, "SharedPreferences[$name].clear()")
                     sharedPrefsMap.clear()
                     this@mockk
                 }
@@ -125,22 +143,45 @@ class CalendarMonitorServiceTest {
                 every { commit() } returns true
             }
             every { getString(any(), any()) } answers {
-                sharedPrefsMap[firstArg()] as? String ?: secondArg()
+                val key = firstArg<String>()
+                val defaultValue = secondArg<String>()
+                val value = sharedPrefsMap[key] as? String ?: defaultValue
+                DevLog.info(LOG_TAG, "SharedPreferences[$name].getString($key) = $value")
+                value
             }
             every { getBoolean(any(), any()) } answers {
-                sharedPrefsMap[firstArg()] as? Boolean ?: secondArg()
+                val key = firstArg<String>()
+                val defaultValue = secondArg<Boolean>()
+                val value = sharedPrefsMap[key] as? Boolean ?: defaultValue
+                DevLog.info(LOG_TAG, "SharedPreferences[$name].getBoolean($key) = $value")
+                value
             }
             every { getInt(any(), any()) } answers {
-                sharedPrefsMap[firstArg()] as? Int ?: secondArg()
+                val key = firstArg<String>()
+                val defaultValue = secondArg<Int>()
+                val value = sharedPrefsMap[key] as? Int ?: defaultValue
+                DevLog.info(LOG_TAG, "SharedPreferences[$name].getInt($key) = $value")
+                value
             }
             every { getLong(any(), any()) } answers {
-                sharedPrefsMap[firstArg()] as? Long ?: secondArg()
+                val key = firstArg<String>()
+                val defaultValue = secondArg<Long>()
+                val value = sharedPrefsMap[key] as? Long ?: defaultValue
+                DevLog.info(LOG_TAG, "SharedPreferences[$name].getLong($key) = $value")
+                value
             }
             every { getFloat(any(), any()) } answers {
-                sharedPrefsMap[firstArg()] as? Float ?: secondArg()
+                val key = firstArg<String>()
+                val defaultValue = secondArg<Float>()
+                val value = sharedPrefsMap[key] as? Float ?: defaultValue
+                DevLog.info(LOG_TAG, "SharedPreferences[$name].getFloat($key) = $value")
+                value
             }
             every { contains(any()) } answers {
-                sharedPrefsMap.containsKey(firstArg())
+                val key = firstArg<String>()
+                val value = sharedPrefsMap.containsKey(key)
+                DevLog.info(LOG_TAG, "SharedPreferences[$name].contains($key) = $value")
+                value
             }
             every { getAll() } returns sharedPrefsMap
         }
@@ -191,6 +232,7 @@ class CalendarMonitorServiceTest {
             every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
             every { getSharedPreferences(any(), any()) } answers {
                 val name = firstArg<String>()
+                DevLog.info(LOG_TAG, "Getting SharedPreferences for name: $name")
                 // Always use MODE_PRIVATE regardless of what mode was passed in
                 sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
             }
@@ -226,7 +268,10 @@ class CalendarMonitorServiceTest {
     }
 
     private fun setupMockCalendarMonitor() {
-        val realMonitor = CalendarMonitor(CalendarProvider)
+        val realMonitor = object : CalendarMonitor(CalendarProvider) {
+            override val currentTimeForTest: Long
+                get() = this@CalendarMonitorServiceTest.currentTime.get()
+        }
         mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
 
         // Set up mocks with simpler approach to avoid recursion
@@ -581,6 +626,28 @@ class CalendarMonitorServiceTest {
         monitorState.prevEventFireFromScan = startTime
         monitorState.nextEventFireFromScan = reminderTime
 
+        // Verify SharedPreferences state
+        val sharedPreferences = fakeContext.getSharedPreferences(CalendarMonitorState.PREFS_NAME, Context.MODE_PRIVATE)
+        DevLog.info(LOG_TAG, "SharedPreferences contents after state setup:")
+        sharedPreferences.all.forEach { (key, value) ->
+            DevLog.info(LOG_TAG, "  $key = $value")
+        }
+
+        // Verify state persistence by creating a new instance
+        val verifyState = CalendarMonitorState(fakeContext)
+        DevLog.info(LOG_TAG, "Verifying monitor state persistence:")
+        DevLog.info(LOG_TAG, "  prevEventScanTo: expected=${monitorState.prevEventScanTo}, actual=${verifyState.prevEventScanTo}")
+        DevLog.info(LOG_TAG, "  prevEventFireFromScan: expected=${monitorState.prevEventFireFromScan}, actual=${verifyState.prevEventFireFromScan}")
+        DevLog.info(LOG_TAG, "  nextEventFireFromScan: expected=${monitorState.nextEventFireFromScan}, actual=${verifyState.nextEventFireFromScan}")
+
+        assertEquals("prevEventScanTo should persist", monitorState.prevEventScanTo, verifyState.prevEventScanTo)
+        assertEquals("prevEventFireFromScan should persist", monitorState.prevEventFireFromScan, verifyState.prevEventFireFromScan)
+        assertEquals("nextEventFireFromScan should persist", monitorState.nextEventFireFromScan, verifyState.nextEventFireFromScan)
+
+        DevLog.info(LOG_TAG, "Monitor state setup: prevEventScanTo=${monitorState.prevEventScanTo}, " +
+                "prevEventFireFromScan=${monitorState.prevEventFireFromScan}, " +
+                "nextEventFireFromScan=${monitorState.nextEventFireFromScan}")
+
         // Create test event in calendar
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
@@ -690,6 +757,15 @@ class CalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "Advancing time past reminder time...")
         val advanceAmount = reminderTime - startTime + Consts.ALARM_THRESHOLD
         advanceTimer(advanceAmount)
+        
+        val currentTimeAfterAdvance = currentTime.get()
+        DevLog.info(LOG_TAG, "Current time after advance: $currentTimeAfterAdvance")
+        DevLog.info(LOG_TAG, "Time check: currentTime=$currentTimeAfterAdvance, nextEventFireFromScan=${monitorState.nextEventFireFromScan}, " +
+                "threshold=${currentTimeAfterAdvance + Consts.ALARM_THRESHOLD}")
+
+        // Verify timing condition will be met
+        assertTrue("Current time + threshold should be greater than nextEventFireFromScan",
+            currentTimeAfterAdvance + Consts.ALARM_THRESHOLD > monitorState.nextEventFireFromScan)
 
         // First trigger the alarm broadcast receiver
         val alarmIntent = Intent(fakeContext, ManualEventAlarmBroadcastReceiver::class.java).apply {
@@ -697,15 +773,6 @@ class CalendarMonitorServiceTest {
             putExtra("alert_time", reminderTime)
         }
         mockCalendarMonitor.onAlarmBroadcast(fakeContext, alarmIntent)
-
-        // Directly trigger manual event firing by accessing the real monitor
-        val realMonitor = mockCalendarMonitor as CalendarMonitor
-        val fired = realMonitor.manualScanner.manualFireEventsAt_NoHousekeeping(
-            fakeContext,
-            reminderTime,
-            monitorState.prevEventFireFromScan
-        )
-        assertTrue("Manual event firing should succeed", fired)
 
         // Then let the service handle the intent that would have been created by the broadcast receiver
         val serviceIntent = Intent(fakeContext, CalendarMonitorService::class.java).apply {

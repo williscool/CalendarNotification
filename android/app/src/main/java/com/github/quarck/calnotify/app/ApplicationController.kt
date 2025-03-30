@@ -1172,7 +1172,7 @@ object ApplicationController : EventMovedHandler {
 
 //        if (getSettings(context).debugAlarmDelays) {
 //
-            val warningMessage = "Expected: $alarmWasExpectedAt, " +
+            val warningMessage = "Expected:   $alarmWasExpectedAt, " +
                     "received: $currentTime, ${(currentTime - alarmWasExpectedAt) / 1000L}s late"
 
             DevLog.error(LOG_TAG, "Late snooze alarm detected: $warningMessage")
