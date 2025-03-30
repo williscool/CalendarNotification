@@ -3,6 +3,47 @@
 
 ## testCalendarMonitoringDirectReminder
 
+Calendar Provider EVENT_REMINDER Broadcast
+    │
+    ▼
+CalendarMonitor.onProviderReminderBroadcast
+    │
+    ├──► Extract alertTime from URI
+    │
+    ▼
+CalendarProvider.getAlertByTime
+    │
+    ├──► Returns EventAlertRecord
+    │
+    ▼
+Should mark event as handled and skip?
+    │
+    ├──► No ──────────────────────┐
+    │                             ▼
+    │                     ApplicationController.registerNewEvent
+    │                             │
+    │                             ▼
+    │                     EventsStorage.addEvent
+    │                             │
+    │                             ▼
+    │                     EventNotificationManager.postEventNotifications
+    │                             │
+    │                             ▼
+    │                     Mark alert as handled
+    │                             │
+    ├──► Yes ──────────────┐      │
+    │                      ▼      │
+    │              Mark as handled silently
+    │                      │      │
+    │                      ▼      ▼
+    └──────────────► CalendarProvider.dismissNativeEventAlert
+                            │
+                            ▼
+                    ApplicationController.afterCalendarEventFired
+                            │
+                            ▼
+                    Reschedule alarms and notify UI
+
 ``` mermaid
 flowchart TD
     A[Calendar Provider EVENT_REMINDER Broadcast] --> B[CalendarMonitor.onProviderReminderBroadcast]
