@@ -167,3 +167,76 @@ flowchart TD
     
     V[CalendarMonitorService final intent] -->|Parameters:<br/>alert_time=reminderTime<br/>rescan_monitor=true<br/>reload_calendar=false<br/>start_delay=0| D
 ```
+
+## Additional Calendar Monitoring Triggers
+
+Besides the two main flows above, the Calendar Monitor can be triggered through several other paths:
+
+### System Boot
+
+BOOT_COMPLETED Broadcast
+    │
+    ▼
+BootCompleteBroadcastReceiver.onReceive
+    │
+    ▼
+ApplicationController.onBootComplete
+    │
+    ├──► Post notifications for existing events
+    │
+    ├──► Reschedule alarms
+    │
+    ▼
+CalendarMonitor.launchRescanService
+    (Same flow as PROVIDER_CHANGED)
+
+### Application Update
+
+MY_PACKAGE_REPLACED Broadcast
+    │
+    ▼
+AppUpdatedBroadcastReceiver.onReceive
+    │
+    ▼
+ApplicationController.onAppUpdated
+    │
+    ├──► Post notifications for existing events
+    │
+    ├──► Reschedule alarms
+    │
+    ▼
+CalendarMonitor.launchRescanService
+    (Same flow as PROVIDER_CHANGED)
+
+### Time or Timezone Changes
+
+TIME_SET or TIMEZONE_CHANGED Broadcast
+    │
+    ▼
+TimeSetBroadcastReceiver.onReceive
+    │
+    ▼
+ApplicationController.onTimeChanged
+    │
+    ├──► Reschedule alarms
+    │
+    ▼
+CalendarMonitor.onSystemTimeChange
+    │
+    ▼
+CalendarMonitor.launchRescanService
+    (Same flow as PROVIDER_CHANGED)
+
+### Periodic Rescan
+
+System-scheduled Alarm
+    │
+    ▼
+ManualEventAlarmPeriodicRescanBroadcastReceiver.onReceive
+    │
+    ▼
+CalendarMonitor.onPeriodicRescanBroadcast
+    │
+    ▼
+CalendarMonitor.launchRescanService
+    (Same flow as PROVIDER_CHANGED)
