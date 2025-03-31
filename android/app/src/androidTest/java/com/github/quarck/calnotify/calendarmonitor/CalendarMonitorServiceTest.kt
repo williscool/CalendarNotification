@@ -448,63 +448,23 @@ class CalendarMonitorServiceTest {
       }
     })
 
-    // Create a mock ApplicationController with the needed functionality
-    val mockApplicationController = spyk(object {
-      val notificationManager: EventNotificationManagerInterface = mockNotificationManager
+    // // Create a mock ApplicationController with the needed functionality
+    // val mockApplicationController = spyk(ApplicationController) {
+    //   every { registerNewEvent(any(), any()) } answers {
+    //     DevLog.info(LOG_TAG, "Mock registerNewEvent called")
+    //     callOriginal()
+    //   }
 
-      fun registerNewEvent(ctx: Context, event: EventAlertRecord): Boolean {
-        DevLog.info(LOG_TAG, "Mock registerNewEvent called")
-        return true
-      }
+    // Spy on postEventNotifications
+    every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
+      val context = firstArg<Context>()
+      val events = secondArg<Collection<EventAlertRecord>>()
+      DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
 
-      fun postEventNotifications(ctx: Context, events: Collection<EventAlertRecord>) {
-        DevLog.info(LOG_TAG, "Mock postEventNotifications called with ${events.size} events")
-        if (events.size == 1) {
-          mockNotificationManager.onEventAdded(ctx, mockFormatter, events.first())
-        } else {
-          mockNotificationManager.postEventNotifications(ctx, mockFormatter)
-        }
-      }
-
-      fun shouldMarkEventAsHandledAndSkip(ctx: Context, event: EventAlertRecord): Boolean {
-        DevLog.info(LOG_TAG, "Mock shouldMarkEventAsHandledAndSkip called for event ${event.eventId}")
-        return false
-      }
-
-      fun afterCalendarEventFired(ctx: Context) {
-        DevLog.info(LOG_TAG, "Mock afterCalendarEventFired called")
-      }
-
-      fun onCalendarReloadFromService(ctx: Context, userActionUntil: Long): Boolean {
-        DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService called with userActionUntil=$userActionUntil")
-        return true
-      }
-
-      fun onCalendarRescanForRescheduledFromService(ctx: Context, userActionUntil: Long): Boolean {
-        DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
-        return true
-      }
-    })
-
-    // Mock the ApplicationController properties and methods
-    every { ApplicationController.notificationManager } returns mockApplicationController.notificationManager
-    every { ApplicationController.registerNewEvent(any(), any()) } answers {
-      mockApplicationController.registerNewEvent(firstArg(), secondArg())
-    }
-    every { ApplicationController.postEventNotifications(any(), any()) } answers {
-      mockApplicationController.postEventNotifications(firstArg(), secondArg())
-    }
-    every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } answers {
-      mockApplicationController.shouldMarkEventAsHandledAndSkip(firstArg(), secondArg())
-    }
-    every { ApplicationController.afterCalendarEventFired(any()) } answers {
-      mockApplicationController.afterCalendarEventFired(firstArg())
-    }
-    every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
-      mockApplicationController.onCalendarReloadFromService(firstArg(), secondArg())
-    }
-    every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
-      mockApplicationController.onCalendarRescanForRescheduledFromService(firstArg(), secondArg())
+      if (events.size == 1)
+        mockNotificationManager.onEventAdded(context, mockFormatter, events.first())
+      else
+        mockNotificationManager.postEventNotifications(context, mockFormatter)
     }
 
     // Mock ReminderState using SharedPreferences like CalendarMonitorState
@@ -572,32 +532,18 @@ class CalendarMonitorServiceTest {
     }
 
 
-    // Spy on postEventNotifications
-    every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
-      val context = firstArg<Context>()
-      val events = secondArg<Collection<EventAlertRecord>>()
-      DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
-
-      if (events.size == 1)
-        mockNotificationManager.onEventAdded(context, mockFormatter, events.first())
-      else
-        mockNotificationManager.postEventNotifications(context, mockFormatter)
-    }
-
-
-
     every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
       val stackTrace = Thread.currentThread().stackTrace
       val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
       val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
 
-      DevLog.info(LOG_TAG, "onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
+      DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
 
       val userActionUntil = secondArg<Long>()
-      DevLog.info(LOG_TAG, "onCalendarReloadFromService called with userActionUntil=$userActionUntil")
+      DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService called with userActionUntil=$userActionUntil")
 
       val res = callOriginal()
-      DevLog.info(LOG_TAG, "onCalendarReloadFromService completed")
+      DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService completed")
 
       res
     }
@@ -613,6 +559,8 @@ class CalendarMonitorServiceTest {
       DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
       callOriginal()
     }
+
+
   }
 
 
