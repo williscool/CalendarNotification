@@ -1,7 +1,8 @@
 # How Calendar Monitoring works
 
-
 ## testCalendarMonitoringDirectReminder
+
+Follows `android.intent.action.EVENT_REMINDER` through the code to registerNewEvent
 
 Calendar Provider EVENT_REMINDER Broadcast
     │
@@ -68,7 +69,12 @@ flowchart TD
     M --> J
 ```
 
+Note: The broadcast receiver for EVENT_REMINDER is registered with the highest possible priority (2147483647) to ensure reliable event handling.
+
 ## testCalendarMonitoringManualRescan
+
+Follows `android.intent.action.PROVIDER_CHANGED` through the code to registerNewEvent
+
 onCalendarChanged
     │
     ▼
@@ -129,6 +135,7 @@ CalendarMonitorService processes final intent
     - reload_calendar=false
     - start_delay=0
 
+Note: The CalendarMonitorService uses a wake lock during the rescan process to ensure reliable operation, especially when processing calendar changes and firing events.
 
 ``` mermaid
 flowchart TD
