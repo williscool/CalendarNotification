@@ -687,16 +687,15 @@ class CalendarMonitorServiceTest {
     // Set default locale for date formatting
     Locale.setDefault(Locale.US)
 
-    mockkObject(ApplicationController)
     mockkObject(CalendarProvider)
     mockkStatic(PendingIntent::class)
     every { PendingIntent.getBroadcast(any(), any(), any(), any()) } returns mockk(relaxed = true)
 
-    setupMockFormatter() // Add this line
-    setupMockCalendarMonitor()
-    setupMockService()
+    setupMockFormatter()
     setupApplicationController()
 
+    setupMockService()
+    setupMockCalendarMonitor()
     // Clear storages first
     clearStorages()
 
