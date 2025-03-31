@@ -4,15 +4,20 @@
  * Script to clean log files for sharing
  * 
  * This script:
- * 1. Removes lines before eventsv9 or first CalMonitorSvcTest log
+ * 1. Removes lines before eventsv9 or first test log (whichever comes first)
  * 2. Removes timestamps and other prefixes
- * 3. Trims stack traces to first CalMonitorSvcTest line in the stacktrace if it exists or the error line plus 10 if not
+ * 3. Trims stack traces to first test log line in the stacktrace if it exists or the error line plus 10 if not
  *    (except for important exceptions like AssertionError)
  * 
- * Usage: node scripts/clean_logs.js <input_file> [output_file]
+ * Usage: node scripts/clean_logs.js <test_name> <input_file> [output_file]
  */
 
+import { execa } from 'execa';
 import fs from 'fs';
+import path from 'path';
+
+// Constants
+const EVENTS_DB_NAME = 'eventsv9';
 
 // List of important exceptions that we want to keep in full
 const IMPORTANT_EXCEPTIONS = [
@@ -21,19 +26,20 @@ const IMPORTANT_EXCEPTIONS = [
     'Error:',
     'Exception:',
     'RuntimeException',
-    // 'NullPointerException',
+    'NullPointerException',
     'IllegalStateException',
     'IllegalArgumentException'
 ];
 
 // Check arguments
-if (process.argv.length < 3) {
-    console.error('Usage: node clean_logs.js <input_file> [output_file]');
+if (process.argv.length < 4) {
+    console.error('Usage: node clean_logs.js <test_name> <input_file> [output_file]');
     process.exit(1);
 }
 
-const inputFile = process.argv[2];
-const outputFile = process.argv[3] || inputFile + '.cleaned';
+const testName = process.argv[2];
+const inputFile = process.argv[3];
+const outputFile = process.argv[4] || inputFile + '.cleaned';
 
 function isImportantException(line) {
     return IMPORTANT_EXCEPTIONS.some(exception => line.includes(exception));
@@ -45,11 +51,31 @@ try {
     let content = fs.readFileSync(inputFile, 'utf8');
     let lines = content.split('\n');
 
-    // 1. Find starting point (eventsv9 or CalMonitorSvcTest)
-    let startIndex = lines.findIndex(line => 
-        line.includes('eventsv9') || line.includes('CalMonitorSvcTest')
-    );
-    if (startIndex === -1) startIndex = 0;
+    // First check if the test name exists in the log
+    const hasTestName = lines.some(line => line.includes(testName));
+    if (!hasTestName) {
+        console.error(`Error: Could not find any occurrences of test name '${testName}' in the log file`);
+        console.error('This might indicate you are cleaning logs for the wrong test.');
+        process.exit(1);
+    }
+
+    // 1. Find starting point (whichever comes first: eventsv9 or test name)
+    let eventsv9Index = lines.findIndex(line => line.includes(EVENTS_DB_NAME));
+    let testNameIndex = lines.findIndex(line => line.includes(testName));
+    
+    let startIndex;
+    if (eventsv9Index === -1 && testNameIndex === -1) {
+        console.error(`Error: Could not find either '${EVENTS_DB_NAME}' or '${testName}'`);
+        process.exit(1);
+    } else if (eventsv9Index === -1) {
+        startIndex = testNameIndex;
+    } else if (testNameIndex === -1) {
+        startIndex = eventsv9Index;
+    } else {
+        startIndex = Math.min(eventsv9Index, testNameIndex);
+    }
+    
+    console.log(`Starting at line ${startIndex + 1} (${eventsv9Index === startIndex ? EVENTS_DB_NAME : testName} found first)`);
     lines = lines.slice(startIndex);
 
     // 2. Clean timestamps and prefixes
@@ -75,7 +101,7 @@ try {
         } else if (inStackTrace) {
             errorLineCount++;
             
-            if (line.includes('CalMonitorSvcTest')) {
+            if (line.includes(testName)) {
                 cleanedLines.push(line);
                 inStackTrace = false;
             } else if (isImportantError || errorLineCount <= 10) {

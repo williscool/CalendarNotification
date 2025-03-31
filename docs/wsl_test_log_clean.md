@@ -23,8 +23,8 @@ Two scripts have been created to handle log cleaning:
 This script handles the actual log cleaning process with the following features:
 
 1. **Starting Point Detection**
-   - Removes all lines before the first occurrence of "eventsv9" or "CalMonitorSvcTest"
-   - If neither is found, starts from the beginning
+   - Removes all lines before the first occurrence of "eventsv9" or the specified test name
+   - Requires either "eventsv9" or the test name to be found (exits with error if neither is found)
 
 2. **Timestamp and Prefix Cleaning**
    - Removes timestamps and other log prefixes
@@ -33,7 +33,7 @@ This script handles the actual log cleaning process with the following features:
 3. **Stack Trace Handling**
    - For important exceptions (see list below), keeps the full stack trace
    - For other exceptions, trims to either:
-     - First CalMonitorSvcTest line in the stack trace, or
+     - First occurrence of the test name in the stack trace, or
      - Error line plus 10 lines
 
 #### Important Exceptions (Full Stack Trace Preserved)
@@ -70,14 +70,14 @@ This script provides a convenient way to clean logs directly from the clipboard:
 
 ### Direct File Processing
 ```bash
-node scripts/clean_logs.js <input_file> [output_file]
+node scripts/clean_logs.js <test_name> <input_file> [output_file]
 ```
 
 ### Clipboard Processing
 ```bash
-node scripts/clean_clipboard_logs.js
+node scripts/clean_clipboard_logs.js <test_name>
 # or
-yarn clean-logs
+yarn clean-logs <test_name>
 ```
 
 ## Dependencies

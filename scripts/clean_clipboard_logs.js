@@ -4,7 +4,7 @@
  * Script to clean logs from clipboard
  * Gets logs from clipboard, cleans them, and puts them back in clipboard
  * 
- * Usage: node scripts/clean_clipboard_logs.js
+ * Usage: node scripts/clean_clipboard_logs.js <test_name>
  */
 
 import { execa } from 'execa';
@@ -16,6 +16,14 @@ import { fileURLToPath } from 'url';
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Check arguments
+if (process.argv.length < 3) {
+    console.error('Usage: node scripts/clean_clipboard_logs.js <test_name>');
+    process.exit(1);
+}
+
+const testName = process.argv[2];
 
 // Temporary file paths
 const TEMP_INPUT = path.join(os.tmpdir(), 'clipboard_logs_input.txt');
@@ -39,7 +47,7 @@ async function main() {
         
         // Clean the logs using our existing script
         console.log('Cleaning logs...');
-        await execa('node', [path.join(__dirname, 'clean_logs.js'), TEMP_INPUT, TEMP_OUTPUT], {
+        await execa('node', [path.join(__dirname, 'clean_logs.js'), testName, TEMP_INPUT, TEMP_OUTPUT], {
             stdio: 'inherit'
         });
         
