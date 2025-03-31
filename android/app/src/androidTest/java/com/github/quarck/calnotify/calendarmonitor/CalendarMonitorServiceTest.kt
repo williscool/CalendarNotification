@@ -703,7 +703,7 @@ class CalendarMonitorServiceTest {
 
     // Mock the globalState extension property
     mockkStatic("com.github.quarck.calnotify.GlobalStateKt")
-    every { any<Context>().globalState } answers { 
+    every { any<Context>().globalState } answers {
       mockk {
         every { lastTimerBroadcastReceived } returns this@CalendarMonitorServiceTest.lastTimerBroadcastReceived!!
         every { lastTimerBroadcastReceived = any() } answers {
@@ -711,7 +711,7 @@ class CalendarMonitorServiceTest {
         }
       }
     }
-    
+
     // Set default locale for date formatting
     Locale.setDefault(Locale.US)
 
@@ -957,36 +957,14 @@ class CalendarMonitorServiceTest {
     val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
     assertNotNull("Failed to create reminder", reminderUri)
 
-    // Setup mocks for calendar provider
-    every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
-      val scanFrom = secondArg<Long>()
-      val scanTo = thirdArg<Long>()
-      DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
-      DevLog.info(LOG_TAG, "Current reminderTime=$reminderTime")
-
-      if (reminderTime in scanFrom..scanTo) {
-        listOf(MonitorEventAlertEntry(
-          eventId = testEventId,
-          isAllDay = false,
-          alertTime = reminderTime,
-          instanceStartTime = eventStartTime,
-          instanceEndTime = eventStartTime + 60000,
-          alertCreatedByUs = false,
-          wasHandled = false
-        ))
-      } else {
-        emptyList()
-      }
-    }
-
-    // Mock event reminders
-    mockEventReminders(testEventId)
+    // Mock event details
     mockEventDetails(testEventId, eventStartTime, "Test Reminder Event")
 
     // Mock getAlertByTime to return our test event
     every { CalendarProvider.getAlertByTime(any(), any(), any(), any()) } answers {
       val alertTime = secondArg<Long>()
-      DevLog.info(LOG_TAG, "Mock getAlertByTime called with alertTime=$alertTime")
+      val skipDismissed = thirdArg<Boolean>()
+      DevLog.info(LOG_TAG, "Mock getAlertByTime called with alertTime=$alertTime, skipDismissed=$skipDismissed")
 
       if (alertTime == reminderTime) {
         listOf(EventAlertRecord(
@@ -996,7 +974,7 @@ class CalendarMonitorServiceTest {
           isRepeating = false,
           alertTime = reminderTime,
           notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
-          title = "Test Monitor Event",
+          title = "Test Reminder Event",
           desc = "Test Description",
           startTime = eventStartTime,
           endTime = eventStartTime + 60000,
@@ -1017,92 +995,76 @@ class CalendarMonitorServiceTest {
       }
     }
 
+    // Mock dismissNativeEventAlert
+    every { CalendarProvider.dismissNativeEventAlert(any(), any()) } just Runs
+
     // Verify settings
     // Reuse the settings variable from above instead of creating a new one
     assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
-    assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
+    // Calendar monitoring should be disabled since we explicitly disabled it for this test
+    assertFalse("Calendar monitoring should be disabled for direct reminder test", settings.enableCalendarRescan)
 
-    // First verify no alerts exist
-    MonitorStorage(fakeContext).classCustomUse { db ->
-      val alerts = db.alerts
-      assertEquals("Should start with no alerts", 0, alerts.size)
+    // First verify no events exist
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      assertEquals("Should start with no events", 0, events.size)
     }
 
-    // Trigger initial calendar scan
-    notifyCalendarChangeAndWait()
+    // Advance time to the reminder time
+    DevLog.info(LOG_TAG, "Advancing time to reminder time...")
+    currentTime.set(reminderTime)
 
-    // Verify alerts were added but not handled
-    MonitorStorage(fakeContext).classCustomUse { db ->
-      val alerts = db.alerts
-      DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after scan")
-      alerts.forEach { alert ->
-        DevLog.info(LOG_TAG, "Alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
-      }
-      assertTrue("Should have alerts after scan", alerts.isNotEmpty())
-      assertFalse("Alerts should not be handled yet", alerts.any { it.wasHandled })
+    // Create a reminder broadcast intent like the system would send
+    val reminderIntent = Intent(CalendarContract.ACTION_EVENT_REMINDER).apply {
+      data = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, reminderTime)
     }
 
-    // Advance time past the reminder time
-    DevLog.info(LOG_TAG, "Advancing time past reminder time...")
-    val advanceAmount = reminderTime - startTime + Consts.ALARM_THRESHOLD
-    advanceTimer(advanceAmount)
-
-    val currentTimeAfterAdvance = currentTime.get()
-    DevLog.info(LOG_TAG, "Current time after advance: $currentTimeAfterAdvance")
-    DevLog.info(LOG_TAG, "Time check: currentTime=$currentTimeAfterAdvance, nextEventFireFromScan=${monitorState.nextEventFireFromScan}, " +
-      "threshold=${currentTimeAfterAdvance + Consts.ALARM_THRESHOLD}")
-
-    // Verify timing condition will be met
-    assertTrue("Current time + threshold should be greater than nextEventFireFromScan",
-      currentTimeAfterAdvance + Consts.ALARM_THRESHOLD > monitorState.nextEventFireFromScan)
-
-    // Set the last timer broadcast received to indicate an alarm happened
-    lastTimerBroadcastReceived = currentTimeAfterAdvance
-
-    // Use mocked extension property to provide global state
-
-    // First trigger the alarm broadcast receiver
-    val alarmIntent = Intent(fakeContext, ManualEventAlarmBroadcastReceiver::class.java).apply {
-      action = "com.github.quarck.calnotify.MANUAL_EVENT_ALARM"
-      putExtra("alert_time", reminderTime)
-    }
-    mockCalendarMonitor.onAlarmBroadcast(fakeContext, alarmIntent)
-
-    // Then let the service handle the intent that would have been created by the broadcast receiver
-    val serviceIntent = Intent(fakeContext, CalendarMonitorService::class.java).apply {
-      putExtra("alert_time", reminderTime)
-      putExtra("rescan_monitor", true)
-      putExtra("reload_calendar", false) // Important: don't reload calendar on alarm
-      putExtra("start_delay", 0)
-    }
-
-    mockService.handleIntentForTest(serviceIntent)
+    // This is the key test: directly call the onProviderReminderBroadcast which is what happens
+    // when a real calendar reminder is fired by the system
+    mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, reminderIntent)
 
     // Small delay for processing
-    Thread.sleep(1000)
+    Thread.sleep(500)
 
-    // Verify alerts were handled
-    MonitorStorage(fakeContext).classCustomUse { db ->
-      val alerts = db.alerts
-      DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after processing")
-      alerts.forEach { alert ->
-        DevLog.info(LOG_TAG, "Alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+    // Verify events were processed
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      DevLog.info(LOG_TAG, "Found ${events.size} events after reminder broadcast")
+      assertTrue("Should have events after reminder broadcast", events.isNotEmpty())
+
+      // Verify the event details
+      val event = events.firstOrNull { it.eventId == testEventId }
+      assertNotNull("Event should be found in storage", event)
+      event?.let {
+        assertEquals("Event should have correct title", "Test Reminder Event", it.title)
+        assertEquals("Event should have correct start time", eventStartTime, it.startTime)
+        assertEquals("Event should have correct origin", EventOrigin.ProviderBroadcast, it.origin)
       }
-      assertTrue("Should have alerts after processing", alerts.isNotEmpty())
-      assertTrue("Alerts should be marked as handled", alerts.all { it.wasHandled })
     }
 
-    // Verify event was processed
+    // Verify that native event alert was dismissed
+    verify { CalendarProvider.dismissNativeEventAlert(fakeContext, testEventId) }
+
+    // Verify that monitor storage has the alert marked as handled
+    MonitorStorage(fakeContext).classCustomUse { db ->
+      val alert = db.getAlert(testEventId, reminderTime, eventStartTime)
+      assertNotNull("Alert should exist in storage", alert)
+      alert?.let {
+        assertTrue("Alert should be marked as handled", it.wasHandled)
+      }
+    }
+
+    // Verify event was processed (a simpler check)
     verifyEventProcessed(
       eventId = testEventId,
       startTime = eventStartTime,
       title = "Test Reminder Event"
     )
 
-    // Verify no rescan was triggered
+    // Verify no rescan was triggered since we're testing direct reminder path
     verify(exactly = 0) { mockCalendarMonitor.onRescanFromService(any()) }
 
-    // Verify event was registered
+    // Verify event was registered through the direct path
     verify(exactly = 1) { ApplicationController.registerNewEvent(any(), any()) }
   }
 
