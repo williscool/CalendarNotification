@@ -91,11 +91,20 @@ export class Connector implements PowerSyncBackendConnector {
              * If protecting against data loss is important, save the failing records
              * elsewhere instead of discarding, and/or notify the user.
              */
+            // TODO: we should handle this better. 
+            // we should retry the transaction a few times
+            // and then if it still fails, we should save the updates and notify the user
+            // and then we should discard the transaction
             console.error('Data upload error - discarding:', lastOp, error);
             await transaction.complete();
           } else {
             // Error may be retryable - e.g. network error or temporary server error.
             // Throwing an error here causes this call to be retried after a delay.
+            
+            // TODO: if we get mulitple Network request failed isses we should save the update 
+            // and notify the user it means they may have put the wrong url in the settings
+            // ie. id.supabase.com instead of id.supabase.co
+            // Also TODO: we should have a way of seeing the logs in the app UI to debug this too
             throw ex;
           }
         }

@@ -71,7 +71,7 @@ const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<Root
 
 export const App = () => {
   Logger.useDefaults();
-  Logger.setLevel(Logger.INFO);
+  Logger.setLevel(Logger.DEBUG);
 
   return (
     <SettingsProvider>
