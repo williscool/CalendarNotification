@@ -2,6 +2,7 @@
   "name": "CNPlusSync",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "yarn react-native start",
     "postinstall": "node scripts/setup_safe_area_mock.js",
@@ -11,7 +12,8 @@
     "android:build:release": "yarn bundle:android && cd android && ./gradlew assembleRelease",
     "android:install:debug": "yarn bundle:android && cd android && ./gradlew installDebug",
     "android:sign:debug-apks": "node scripts/sign_android.js",
-    "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks"
+    "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks",
+    "clean-logs": "node scripts/clean_clipboard_logs.js"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
@@ -28,7 +30,7 @@
     "@swc/jest": "^0.2.29",
     "await-to-js": "^3.0.0",
     "dotenv": "^16.3.1",
-    "execa": "^8.0.1",
+    "execa": "^9.5.2",
     "expo": "^51.0.39",
     "expo-application": "^6.0.2",
     "js-logger": "^1.6.1",

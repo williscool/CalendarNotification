@@ -4855,7 +4855,7 @@ __metadata:
     eslint-plugin-node: latest
     eslint-plugin-prettier: latest
     eslint-plugin-react-hooks: ^5.2.0
-    execa: ^8.0.1
+    execa: ^9.5.2
     expo: ^51.0.39
     expo-application: ^6.0.2
     gts: ^5.0.0
@@ -8109,7 +8109,7 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"execa@npm:^8.0.0, execa@npm:^8.0.1":
+"execa@npm:^8.0.0":
   version: 8.0.1
   resolution: "execa@npm:8.0.1"
   dependencies:
@@ -8126,7 +8126,7 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"execa@npm:^9.0.0":
+"execa@npm:^9.0.0, execa@npm:^9.5.2":
   version: 9.5.2
   resolution: "execa@npm:9.5.2"
   dependencies:
