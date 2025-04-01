@@ -4,7 +4,7 @@
  * Script to clean logs from clipboard
  * Gets logs from clipboard, cleans them, and puts them back in clipboard
  * 
- * Usage: node scripts/clean_clipboard_logs.js <test_name>
+ * Usage: node scripts/clean_clipboard_logs.js <test_name> [-v|--verbose]
  */
 
 import { execa } from 'execa';
@@ -18,12 +18,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Check arguments
-if (process.argv.length < 3) {
-    console.error('Usage: node scripts/clean_clipboard_logs.js <test_name>');
+if (process.argv.length < 2) {
+    console.error('Usage: node scripts/clean_clipboard_logs.js <test_name> [-v|--verbose]');
     process.exit(1);
 }
 
 const testName = process.argv[2];
+const isVerbose = process.argv.includes('-v') || process.argv.includes('--verbose');
 
 // Temporary file paths
 const TEMP_INPUT = path.join(os.tmpdir(), 'clipboard_logs_input.txt');
@@ -66,12 +67,28 @@ async function main() {
         console.log('\nDone! Cleaned logs are now in your clipboard.');
 
     } catch (error) {
-        console.error('Failed to process clipboard:', error.message);
+        if (error.code === 'E2BIG') {
+            console.error(`Output too big for clip.exe. Get it from: ${TEMP_OUTPUT}`);
+            try {
+                console.log('Trying to open file in windows...');
+                await execa('wsl-open', [TEMP_OUTPUT]);
+            } catch (openError) {
+                console.error('Failed to open file:', openError.message);
+            }
+        } else {
+            console.error(`Error: ${error.code || 'Unknown error'}`);
+            if (isVerbose) {
+                console.error('Details:', error.message);
+            }
+        }
         process.exit(1);
     }
 }
 
 main().catch(error => {
-    console.error('Unhandled error:', error);
+    console.error(`Error: ${error.code || 'Unknown error'}`);
+    if (isVerbose) {
+        console.error('Details:', error.message);
+    }
     process.exit(1);
 }); 

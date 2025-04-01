@@ -26,7 +26,7 @@ const IMPORTANT_EXCEPTIONS = [
     'Error:',
     'Exception:',
     'RuntimeException',
-    'NullPointerException',
+    // 'NullPointerException',
     'IllegalStateException',
     'IllegalArgumentException'
 ];
