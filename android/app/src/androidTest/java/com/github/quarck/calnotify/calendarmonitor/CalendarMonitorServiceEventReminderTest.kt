@@ -252,7 +252,9 @@ class CalendarMonitorServiceEventReminderTest {
     every { CalendarProvider.dismissNativeEventAlert(any(), any()) } just Runs
 
     // Verify settings
+    // Reuse the settings variable from above instead of creating a new one
     assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
+    // Calendar monitoring should be disabled since we explicitly disabled it for this test
     assertFalse("Calendar monitoring should be disabled for direct reminder test", settings.enableCalendarRescan)
 
     // First verify no events exist
@@ -267,11 +269,15 @@ class CalendarMonitorServiceEventReminderTest {
 
     // Following the documented flow:
     // 1. Create a reminder broadcast intent like the system would send for EVENT_REMINDER
+
+    // Create a reminder broadcast intent like the system would send
     val reminderIntent = Intent(CalendarContract.ACTION_EVENT_REMINDER).apply {
       data = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, reminderTime)
     }
 
     // 2. Simulate the intent being received by CalendarMonitor.onProviderReminderBroadcast
+    // This is the key test: directly call the onProviderReminderBroadcast which is what happens
+    // when a real calendar reminder is fired by the system
     mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, reminderIntent)
 
     // 3. Simulate the service processing the intent to ensure afterCalendarEventFired is called
@@ -283,7 +289,8 @@ class CalendarMonitorServiceEventReminderTest {
     // Verify events were processed and that CalendarProvider.getAlertByTime was called
     verify(exactly = 1) { CalendarProvider.getAlertByTime(any(), reminderTime, any(), any()) }
 
-    // Verify events were added to storage
+
+    // Verify events were processed
     EventsStorage(fakeContext).classCustomUse { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Found ${events.size} events after reminder broadcast")
@@ -311,6 +318,13 @@ class CalendarMonitorServiceEventReminderTest {
       }
     }
 
+    // Following the documented flow:
+    // 1. Create a reminder broadcast intent like the system would send for EVENT_REMINDER
+    // 2. Simulate the intent being received by CalendarMonitor.onProviderReminderBroadcast
+
+    // Verify events were processed and that CalendarProvider.getAlertByTime was called
+    verify(exactly = 1) { CalendarProvider.getAlertByTime(any(), reminderTime, any(), any()) }
+
     // Verify event was processed through the registerNewEvent flow
     verify(exactly = 1) { ApplicationController.registerNewEvent(any(), any()) }
     verify(atLeast = 1) { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) }
@@ -323,8 +337,8 @@ class CalendarMonitorServiceEventReminderTest {
     // verify(atLeast = 1) { mockAlarmManager.cancelExactAndAlarm(any(), any<Class<*>>(), any<Class<*>>()) }
 
     // Verify 1 rescan was triggered (since manual rescanning is disabled) it just exits early
-
     verify(atLeast = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+
     // would do this test but setOrCancelAlarm is private
 //    verify(atLeast = 1) {
 //        mockCalendarMonitor.setOrCancelAlarm(any(), match { time -> time == Long.MAX_VALUE || time == 0L })
