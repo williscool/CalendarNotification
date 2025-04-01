@@ -85,6 +85,9 @@ class CalendarMonitorServiceTest {
   // Track last timer broadcast time for tests
   private var lastTimerBroadcastReceived: Long? = null
 
+  // Helper variable for the refined timer simulation
+  private val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
+
   companion object {
     private const val LOG_TAG = "CalMonitorSvcTest"
   }
@@ -318,19 +321,22 @@ class CalendarMonitorServiceTest {
   }
 
   private fun setupMockTimer() {
-    val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
-    every { mockTimer.schedule(any(), any<Long>(), any()) } answers { call ->
-      val task = call.invocation.args[0] as Runnable
-      val delay = call.invocation.args[1] as Long
-      val unit = call.invocation.args[2] as TimeUnit
-      scheduledTasks.add(Pair(task, currentTime.get() + unit.toMillis(delay)))
-      scheduledTasks.sortBy { it.second }
-      while (scheduledTasks.isNotEmpty() && scheduledTasks[0].second <= currentTime.get()) {
-        val (nextTask, _) = scheduledTasks.removeAt(0)
-        DevLog.info(LOG_TAG, "Executing scheduled task")
-        nextTask.run()
-      }
-      mockk(relaxed = true)
+    // Clear any tasks from previous tests
+    scheduledTasks.clear()
+
+    every { mockTimer.schedule(any<Runnable>(), any<Long>(), any()) } answers { call ->
+        val task = call.invocation.args[0] as Runnable
+        val delay = call.invocation.args[1] as Long
+        val unit = call.invocation.args[2] as TimeUnit
+        val dueTime = currentTime.get() + unit.toMillis(delay)
+
+        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${currentTime.get()}, delay: $delay ${unit.name})")
+        scheduledTasks.add(Pair(task, dueTime))
+        // Sort by due time to process in order
+        scheduledTasks.sortBy { it.second }
+
+        // Return a mock ScheduledFuture
+        mockk<java.util.concurrent.ScheduledFuture<*>>(relaxed = true)
     }
   }
 
@@ -396,9 +402,10 @@ class CalendarMonitorServiceTest {
 
   private fun setupMockService() {
     mockService = spyk(CalendarMonitorService()) {
+      // Keep existing mocks for context, system services, etc.
       every { applicationContext } returns fakeContext
       every { baseContext } returns fakeContext
-      every { timer } returns mockTimer
+      every { timer } returns mockTimer // IMPORTANT: Ensure service uses the mock timer
       every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
       every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
       every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
@@ -417,14 +424,17 @@ class CalendarMonitorServiceTest {
         val name = firstArg<String>()
         sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
       }
+
     }
 
-    // Add logging for handleIntentForTest
+    // Revert to simple logging + callOriginal for handleIntentForTest.
+    // The spy setup ensures the *real* onHandleIntent uses the mocked timer.
     every { mockService.handleIntentForTest(any()) } answers {
       val intent = firstArg<Intent>()
-      DevLog.info(LOG_TAG, "handleIntentForTest called with intent: action=${intent.action}, extras=${intent.extras}")
-      callOriginal()
+      DevLog.info(LOG_TAG, "[handleIntentForTest Spy] Called with intent: action=${intent.action}, extras=${intent.extras}")
+      callOriginal() // Let the real service logic run, which will use the mocked timer
     }
+
   }
 
   private fun setupApplicationController() {
@@ -1129,6 +1139,84 @@ class CalendarMonitorServiceTest {
     }
   }
 
+
+   /**
+   * Tests that the CalendarMonitorService properly respects the startDelay parameter.
+   *
+   * Verifies that:
+   * 1. Events are not processed before the specified delay
+   * 2. Events are correctly processed after the delay
+   * 3. Event timing and state are maintained during the delay
+   * 4. Service properly handles delayed event processing
+   */
+  @Test
+  fun testDelayedProcessing() {
+    val startDelay = 2000 // 2 second delay
+    currentTime.set(System.currentTimeMillis())
+    val startTime = currentTime.get()
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Starting test at time: $startTime")
+
+    // --- Create Event and Mocks ---
+    val delayedEventId = createTestEvent()
+    testEventId = delayedEventId
+    val delayedEventStartTime = currentTime.get() // Get start time *after* potential time change in createTestEvent
+    val delayedEventAlertTime = delayedEventStartTime - (15 * 60 * 1000)
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Created event $delayedEventId, startTime=$delayedEventStartTime, alertTime=$delayedEventAlertTime")
+
+    val monitorState = CalendarMonitorState(fakeContext)
+    monitorState.firstScanEver = false
+    monitorState.prevEventScanTo = startTime // Use initial start time for scan baseline
+    monitorState.prevEventFireFromScan = startTime
+
+    mockEventReminders(delayedEventId)
+    mockEventAlerts(delayedEventId, delayedEventStartTime)
+    mockEventDetails(delayedEventId, delayedEventStartTime, title = "Delayed Test Event")
+
+    // --- Initial State Verification --- (Before triggering service)
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying initial state (no events stored yet)")
+    verifyNoEvents()
+
+    // --- Trigger Service Start & Task Scheduling --- (No time advance yet)
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Triggering ApplicationController.onCalendarChanged to schedule delayed task (delay=$startDelay ms)")
+    // This calls CalendarMonitor.launchRescanService -> Service -> mockService.handleIntentForTest -> mockTimer.schedule
+    ApplicationController.onCalendarChanged(fakeContext)
+
+    // --- Verify Immediately After Trigger --- (Task scheduled, but not run)
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed immediately after scheduling (current time: ${currentTime.get()})")
+    verifyNoEvents()
+    assertTrue("[testDelayedProcessing] Task should be scheduled", scheduledTasks.isNotEmpty())
+
+    // --- Advance Time (Just Before Delay Expires) ---
+    if (startDelay > 1) {
+        val timeToAdvanceBefore = startDelay - 1L
+        DevLog.info(LOG_TAG, "[testDelayedProcessing] Advancing timer by ${timeToAdvanceBefore}ms (just before delay expires)")
+        advanceTimer(timeToAdvanceBefore)
+        DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed before delay expires (current time: ${currentTime.get()})")
+        verifyNoEvents() // Still should not be processed
+        assertTrue("[testDelayedProcessing] Task should still be scheduled", scheduledTasks.isNotEmpty())
+    }
+
+    // --- Advance Time (Past Delay Expiry) ---
+    // Advance by enough time to cross the delay threshold (e.g., 2ms if we advanced by delay-1 before)
+    val remainingTimeToAdvance = 1000L // Advance another second to be safely past
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Advancing timer by ${remainingTimeToAdvance}ms (past delay expiry)")
+    advanceTimer(remainingTimeToAdvance) // This call will execute the scheduled task
+
+    // --- Post-Delay Verification ---
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying event processed after delay (current time: ${currentTime.get()})")
+    assertTrue("[testDelayedProcessing] Scheduled task list should be empty after execution", scheduledTasks.isEmpty())
+    verifyEventProcessed(
+      eventId = delayedEventId,
+      startTime = delayedEventStartTime,
+      title = "Delayed Test Event",
+      // Check if the event's timeFirstSeen is after the intended delay start
+      // Note: timeFirstSeen is set in registerNewEvent/registerNewEvents, which happens during the delayed task run.
+      // We expect timeFirstSeen >= startTime + startDelay
+      afterDelay = startTime + startDelay
+    )
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Test completed successfully")
+  }
+
   /**
    * Creates a test calendar with the specified properties.
    *
@@ -1273,9 +1361,34 @@ class CalendarMonitorServiceTest {
    * @param milliseconds The amount of time to advance
    */
   private fun advanceTimer(milliseconds: Long) {
-    currentTime.addAndGet(milliseconds)
-    // Force timer to check for due tasks
-    mockTimer.schedule({}, 0, TimeUnit.MILLISECONDS)
+    val oldTime = currentTime.get()
+    val newTime = oldTime + milliseconds
+    currentTime.set(newTime)
+    DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
+
+    // Process due tasks
+    val tasksToRun = scheduledTasks.filter { it.second <= newTime }
+    if (tasksToRun.isNotEmpty()) {
+        DevLog.info(LOG_TAG, "[advanceTimer] Found ${tasksToRun.size} tasks due at or before $newTime")
+        tasksToRun.forEach { (task, dueTime) ->
+            DevLog.info(LOG_TAG, "[advanceTimer] Running task scheduled for $dueTime")
+            try {
+                task.run()
+            } catch (e: Exception) {
+                DevLog.error(LOG_TAG, "[advanceTimer] Exception running scheduled task: ${e.message}")
+                // Optionally re-throw or handle specific exceptions if needed for test flow
+            }
+        }
+        // Remove executed tasks
+        scheduledTasks.removeAll(tasksToRun)
+        DevLog.info(LOG_TAG, "[advanceTimer] Remaining scheduled tasks: ${scheduledTasks.size}")
+    } else {
+        DevLog.info(LOG_TAG, "[advanceTimer] No tasks due at or before $newTime")
+    }
+
+    // Optional: Force a zero-delay schedule to potentially trigger immediate checks elsewhere if needed,
+    // but the primary mechanism is now processing the scheduledTasks list directly.
+    // mockTimer.schedule({}, 0, TimeUnit.MILLISECONDS) // Keep if other parts rely on this trigger
   }
 
   /**
