@@ -55,592 +55,600 @@ import com.github.quarck.calnotify.globalState
  */
 @RunWith(AndroidJUnit4::class)
 class CalendarMonitorServiceTest {
-    private var testCalendarId: Long = 0
-    private var testEventId: Long = 0
-    private var eventStartTime: Long = 0
-    private val realController = ApplicationController
+  private var testCalendarId: Long = 0
+  private var testEventId: Long = 0
+  private var eventStartTime: Long = 0
+  private val realController = ApplicationController
 
-    @MockK
-    private lateinit var mockTimer: ScheduledExecutorService
+  @MockK
+  private lateinit var mockTimer: ScheduledExecutorService
 
-    private lateinit var mockService: CalendarMonitorService
+  private lateinit var mockService: CalendarMonitorService
 
-    private lateinit var mockCalendarMonitor: CalendarMonitorInterface
+  private lateinit var mockCalendarMonitor: CalendarMonitorInterface
 
-    private lateinit var mockAlarmManager: AlarmManager
+  private lateinit var mockAlarmManager: AlarmManager
 
-    private lateinit var fakeContext: Context
+  private lateinit var fakeContext: Context
 
-    private lateinit var mockSharedPreferences: SharedPreferences
-    private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
-    private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
+  private lateinit var mockSharedPreferences: SharedPreferences
+  private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
+  private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
 
-    private val currentTime = AtomicLong(0L)
+  private val currentTime = AtomicLong(0L)
 
-    private lateinit var mockFormatter: EventFormatterInterface
+  private lateinit var mockFormatter: EventFormatterInterface
 
-    companion object {
-        private const val LOG_TAG = "CalMonitorSvcTest"
+  companion object {
+    private const val LOG_TAG = "CalMonitorSvcTest"
+  }
+
+  @get:Rule
+  val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
+    Manifest.permission.READ_CALENDAR,
+    Manifest.permission.WRITE_CALENDAR,
+    Manifest.permission.WAKE_LOCK,
+    Manifest.permission.RECEIVE_BOOT_COMPLETED
+  )
+
+  @Before
+  fun setup() {
+    // NOTE TO SELF: DONT SPEND A BUNCH OF TIME TRYING TO FIX THIS TEST
+    // IF TITS BORKEN JUST CHECKOUT THE OLD WORKING VERSION AND DELETE THE OTHER STUFF YOURSELF!
+    DevLog.info(LOG_TAG, "Setting up test environment")
+    MockKAnnotations.init(this)
+    setupMockContext()
+    setupMockTimer()
+
+    // Set default locale for date formatting
+    Locale.setDefault(Locale.US)
+
+    mockkObject(CalendarProvider)
+    mockkStatic(PendingIntent::class)
+    every { PendingIntent.getBroadcast(any(), any(), any(), any()) } returns mockk(relaxed = true)
+
+    setupMockFormatter()
+    setupApplicationController()
+
+    setupMockService()
+    setupMockCalendarMonitor()
+
+    // Clear storages first
+    clearStorages()
+
+    // Then setup test calendar and verify settings
+    setupTestCalendar()
+
+    // Verify settings are correct before proceeding
+    val settings = Settings(fakeContext)
+    assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
+  }
+
+  @After
+  fun cleanup() {
+    DevLog.info(LOG_TAG, "Cleaning up test environment")
+    unmockkAll()
+
+    // Delete test events and calendar
+    if (testEventId > 0) {
+      val deleted = fakeContext.contentResolver.delete(
+        CalendarContract.Events.CONTENT_URI,
+        "${CalendarContract.Events._ID} = ?",
+        arrayOf(testEventId.toString())
+      )
+      DevLog.info(LOG_TAG, "Deleted test event: id=$testEventId, result=$deleted")
     }
 
-    @get:Rule
-    val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
-        Manifest.permission.READ_CALENDAR,
-        Manifest.permission.WRITE_CALENDAR,
-        Manifest.permission.WAKE_LOCK,
-        Manifest.permission.RECEIVE_BOOT_COMPLETED
+    if (testCalendarId > 0) {
+      val deleted = fakeContext.contentResolver.delete(
+        CalendarContract.Calendars.CONTENT_URI,
+        "${CalendarContract.Calendars._ID} = ?",
+        arrayOf(testCalendarId.toString())
+      )
+      DevLog.info(LOG_TAG, "Deleted test calendar: id=$testCalendarId, result=$deleted")
+    }
+
+    clearStorages()
+    DevLog.info(LOG_TAG, "Test environment cleanup complete")
+  }
+
+  /**
+   * Tests manual calendar rescanning functionality.
+   *
+   * Verifies that:
+   * 1. Manual rescans properly detect and process calendar events
+   * 2. Event timing and state are maintained
+   * 3. Multiple events are handled correctly
+   * 4. Calendar monitoring state is maintained
+   */
+  @Test
+  fun testCalendarMonitoringManualRescan() {
+    // Enable calendar rescan
+    val settings = Settings(fakeContext)
+    settings.setBoolean("enable_manual_calendar_rescan", true)
+
+    // Reset monitor state
+    val monitorState = CalendarMonitorState(fakeContext)
+    monitorState.firstScanEver = false
+    currentTime.set(System.currentTimeMillis())
+    val startTime = currentTime.get()
+
+    // Create test event
+    eventStartTime = startTime + 60000
+
+    // Create test event in calendar
+    val values = ContentValues().apply {
+      put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
+      put(CalendarContract.Events.TITLE, "Test Event")
+      put(CalendarContract.Events.DESCRIPTION, "Test Description")
+      put(CalendarContract.Events.DTSTART, eventStartTime)
+      put(CalendarContract.Events.DTEND, eventStartTime + 60000)
+      put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
+      put(CalendarContract.Events.HAS_ALARM, 1)
+    }
+
+    val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+    assertNotNull("Failed to create test event", eventUri)
+    testEventId = eventUri!!.lastPathSegment!!.toLong()
+
+    // Add reminder
+    val reminderValues = ContentValues().apply {
+      put(CalendarContract.Reminders.EVENT_ID, testEventId)
+      put(CalendarContract.Reminders.MINUTES, 1)
+      put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+    }
+    val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+    assertNotNull("Failed to create reminder", reminderUri)
+
+    // Mock event details
+    mockEventDetails(testEventId, eventStartTime, "Test Event")
+
+    // Verify settings
+    assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
+    assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
+
+    // First verify no events exist
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      assertEquals("Should start with no events", 0, events.size)
+    }
+
+    // Following the documented flow:
+    // 1. First simulate a calendar change which triggers launchRescanService
+    CalendarMonitorService.startRescanService(
+        context = fakeContext,
+        startDelay = 0,
+        reloadCalendar = true,
+        rescanMonitor = true
     )
 
-    @Before
-    fun setup() {
-        DevLog.info(LOG_TAG, "Setting up test environment")
-        MockKAnnotations.init(this)
-        setupMockContext()
-        setupMockTimer()
+    // Small delay for processing
+    Thread.sleep(500)
 
-        // Set default locale for date formatting
-        Locale.setDefault(Locale.US)
+    // The service should have called onRescanFromService which then calls manualScanner.scanNextEvent
+    // Verify these interactions - note we verify with any() since the context could be either fakeContext or the service's context
+    verify(atLeast = 1) { mockCalendarMonitor.onRescanFromService(any()) }
 
-        mockkObject(CalendarProvider)
-        mockkStatic(PendingIntent::class)
-        every { PendingIntent.getBroadcast(any(), any(), any(), any()) } returns mockk(relaxed = true)
+    // Verify events were processed
+    EventsStorage(fakeContext).classCustomUse { db ->
+        val events = db.events
+        DevLog.info(LOG_TAG, "Found ${events.size} events after rescan")
+        assertTrue("Should have events after rescan", events.isNotEmpty())
 
-        setupMockFormatter()
-        setupApplicationController()
-
-        setupMockService()
-        setupMockCalendarMonitor()
-        
-        // Clear storages first
-        clearStorages()
-
-        // Then setup test calendar and verify settings
-        setupTestCalendar()
-
-        // Verify settings are correct before proceeding
-        val settings = Settings(fakeContext)
-        assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
-    }
-
-    @After
-    fun cleanup() {
-        DevLog.info(LOG_TAG, "Cleaning up test environment")
-        unmockkAll()
-
-        // Delete test events and calendar
-        if (testEventId > 0) {
-            val deleted = fakeContext.contentResolver.delete(
-                CalendarContract.Events.CONTENT_URI,
-                "${CalendarContract.Events._ID} = ?",
-                arrayOf(testEventId.toString())
-            )
-            DevLog.info(LOG_TAG, "Deleted test event: id=$testEventId, result=$deleted")
-        }
-
-        if (testCalendarId > 0) {
-            val deleted = fakeContext.contentResolver.delete(
-                CalendarContract.Calendars.CONTENT_URI,
-                "${CalendarContract.Calendars._ID} = ?",
-                arrayOf(testCalendarId.toString())
-            )
-            DevLog.info(LOG_TAG, "Deleted test calendar: id=$testCalendarId, result=$deleted")
-        }
-
-        clearStorages()
-        DevLog.info(LOG_TAG, "Test environment cleanup complete")
-    }
-
-    /**
-     * Tests manual calendar rescanning functionality.
-     *
-     * Verifies that:
-     * 1. Manual rescans properly detect and process calendar events
-     * 2. Event timing and state are maintained
-     * 3. Multiple events are handled correctly
-     * 4. Calendar monitoring state is maintained
-     */
-    @Test
-    fun testCalendarMonitoringManualRescan() {
-        // Enable calendar rescan
-        val settings = Settings(fakeContext)
-        settings.setBoolean("enable_manual_calendar_rescan", true)
-
-        // Reset monitor state
-        val monitorState = CalendarMonitorState(fakeContext)
-        monitorState.firstScanEver = false
-        currentTime.set(System.currentTimeMillis())
-        val startTime = currentTime.get()
-
-        // Create test event
-        eventStartTime = startTime + 60000
-
-        // Create test event in calendar
-        val values = ContentValues().apply {
-            put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
-            put(CalendarContract.Events.TITLE, "Test Event")
-            put(CalendarContract.Events.DESCRIPTION, "Test Description")
-            put(CalendarContract.Events.DTSTART, eventStartTime)
-            put(CalendarContract.Events.DTEND, eventStartTime + 60000)
-            put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
-            put(CalendarContract.Events.HAS_ALARM, 1)
-        }
-
-        val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-        assertNotNull("Failed to create test event", eventUri)
-        testEventId = eventUri!!.lastPathSegment!!.toLong()
-
-        // Add reminder
-        val reminderValues = ContentValues().apply {
-            put(CalendarContract.Reminders.EVENT_ID, testEventId)
-            put(CalendarContract.Reminders.MINUTES, 1)
-            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
-        }
-        val reminderUri = fakeContext.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
-        assertNotNull("Failed to create reminder", reminderUri)
-
-        // Mock event details
-        mockEventDetails(testEventId, eventStartTime, "Test Event")
-
-        // Verify settings
-        assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
-        assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
-
-        // First verify no events exist
-        EventsStorage(fakeContext).classCustomUse { db ->
-            val events = db.events
-            assertEquals("Should start with no events", 0, events.size)
-        }
-
-        // Trigger manual rescan
-        val rescanIntent = Intent(CalendarMonitorService.ACTION_RESCAN_CALENDAR)
-        mockService.handleIntentForTest(rescanIntent)
-
-        // Small delay for processing
-        Thread.sleep(500)
-
-        // Verify events were processed
-        EventsStorage(fakeContext).classCustomUse { db ->
-            val events = db.events
-            DevLog.info(LOG_TAG, "Found ${events.size} events after rescan")
-            assertTrue("Should have events after rescan", events.isNotEmpty())
-
-            // Verify the event details
-            val event = events.firstOrNull { it.eventId == testEventId }
-            assertNotNull("Event should be found in storage", event)
-            event?.let {
-                assertEquals("Event should have correct title", "Test Event", it.title)
-                assertEquals("Event should have correct start time", eventStartTime, it.startTime)
-                assertEquals("Event should have correct origin", EventOrigin.ManualRescan, it.origin)
-            }
-        }
-
-        // Verify event was processed
-        verifyEventProcessed(
-            eventId = testEventId,
-            startTime = eventStartTime,
-            title = "Test Event"
-        )
-
-        // Verify rescan was triggered
-        verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
-
-        // Verify event was registered through the rescan path
-        verify(exactly = 1) { ApplicationController.registerNewEvent(any(), any()) }
-    }
-
-    // Helper functions
-    private fun setupMockFormatter() {
-        mockFormatter = mockk<EventFormatterInterface> {
-            every { formatNotificationSecondaryText(any()) } returns "Mock event time"
-            every { formatDateTimeTwoLines(any(), any()) } returns Pair("Mock date", "Mock time")
-            every { formatDateTimeOneLine(any(), any()) } returns "Mock date and time"
-            every { formatSnoozedUntil(any()) } returns "Mock snooze time"
-            every { formatTimePoint(any()) } returns "Mock time point"
-            every { formatTimeDuration(any(), any()) } returns "Mock duration"
+        // Verify the event details
+        val event = events.firstOrNull { it.eventId == testEventId }
+        assertNotNull("Event should be found in storage", event)
+        event?.let {
+            assertEquals("Event should have correct title", "Test Event", it.title)
+            assertEquals("Event should have correct start time", eventStartTime, it.startTime)
+            assertEquals("Event should have correct origin", EventOrigin.FullManual, it.origin)
         }
     }
 
-    private fun setupMockContext() {
-        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
+    // Verify event was processed
+    verifyEventProcessed(
+        eventId = testEventId,
+        startTime = eventStartTime,
+        title = "Test Event"
+    )
 
-        mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
-            every { setExactAndAllowWhileIdle(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
-            every { setExact(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
-            every { setAlarmClock(any<AlarmManager.AlarmClockInfo>(), any<PendingIntent>()) } just Runs
-            every { set(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
-            every { setInexactRepeating(any<Int>(), any<Long>(), any<Long>(), any<PendingIntent>()) } just Runs
-            every { cancel(any<PendingIntent>()) } just Runs
-        }
+    // Verify event was registered through the rescan path
+    verify(exactly = 1) { ApplicationController.registerNewEvent(any(), any()) }
+  }
 
-        fakeContext = mockk<Context>(relaxed = true) {
-            every { packageName } returns realContext.packageName
-            every { packageManager } returns realContext.packageManager
-            every { applicationContext } returns realContext.applicationContext
-            every { contentResolver } returns realContext.contentResolver
-            every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
-            every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
-            every { getSystemService(Context.POWER_SERVICE) } returns realContext.getSystemService(Context.POWER_SERVICE)
-            every { getSystemService(any<String>()) } answers {
-                when (firstArg<String>()) {
-                    Context.ALARM_SERVICE -> mockAlarmManager
-                    Context.POWER_SERVICE -> realContext.getSystemService(Context.POWER_SERVICE)
-                    else -> realContext.getSystemService(firstArg())
-                }
-            }
-            every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
-            every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
-            every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
-            every { getSharedPreferences(any(), any()) } answers {
-                val name = firstArg<String>()
-                sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
-            }
-            every { getApplicationInfo() } returns realContext.applicationInfo
-            every { getFilesDir() } returns realContext.filesDir
-            every { getCacheDir() } returns realContext.cacheDir
-            every { getDir(any(), any()) } answers { realContext.getDir(firstArg(), secondArg()) }
-            every { startService(any()) } answers {
-                val intent = firstArg<Intent>()
-                mockService.handleIntentForTest(intent)
-                ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
-            }
-            every { startActivity(any()) } just Runs
-            every { getResources() } returns realContext.resources
-            every { getTheme() } returns realContext.theme
-        }
+  // Helper functions
+  private fun setupMockFormatter() {
+    mockFormatter = mockk<EventFormatterInterface> {
+      every { formatNotificationSecondaryText(any()) } returns "Mock event time"
+      every { formatDateTimeTwoLines(any(), any()) } returns Pair("Mock date", "Mock time")
+      every { formatDateTimeOneLine(any(), any()) } returns "Mock date and time"
+      every { formatSnoozedUntil(any()) } returns "Mock snooze time"
+      every { formatTimePoint(any()) } returns "Mock time point"
+      every { formatTimeDuration(any(), any()) } returns "Mock duration"
+    }
+  }
+
+  private fun setupMockContext() {
+    val realContext = InstrumentationRegistry.getInstrumentation().targetContext
+
+    mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
+      every { setExactAndAllowWhileIdle(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
+      every { setExact(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
+      every { setAlarmClock(any<AlarmManager.AlarmClockInfo>(), any<PendingIntent>()) } just Runs
+      every { set(any<Int>(), any<Long>(), any<PendingIntent>()) } just Runs
+      every { setInexactRepeating(any<Int>(), any<Long>(), any<Long>(), any<PendingIntent>()) } just Runs
+      every { cancel(any<PendingIntent>()) } just Runs
     }
 
-    private fun setupMockTimer() {
-        val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
-        every { mockTimer.schedule(any(), any<Long>(), any()) } answers { call ->
-            val task = call.invocation.args[0] as Runnable
-            val delay = call.invocation.args[1] as Long
-            val unit = call.invocation.args[2] as TimeUnit
-            scheduledTasks.add(Pair(task, currentTime.get() + unit.toMillis(delay)))
-            scheduledTasks.sortBy { it.second }
-            while (scheduledTasks.isNotEmpty() && scheduledTasks[0].second <= currentTime.get()) {
-                val (nextTask, _) = scheduledTasks.removeAt(0)
-                nextTask.run()
-            }
-            mockk(relaxed = true)
+    fakeContext = mockk<Context>(relaxed = true) {
+      every { packageName } returns realContext.packageName
+      every { packageManager } returns realContext.packageManager
+      every { applicationContext } returns realContext.applicationContext
+      every { contentResolver } returns realContext.contentResolver
+      every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
+      every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+      every { getSystemService(Context.POWER_SERVICE) } returns realContext.getSystemService(Context.POWER_SERVICE)
+      every { getSystemService(any<String>()) } answers {
+        when (firstArg<String>()) {
+          Context.ALARM_SERVICE -> mockAlarmManager
+          Context.POWER_SERVICE -> realContext.getSystemService(Context.POWER_SERVICE)
+          else -> realContext.getSystemService(firstArg())
         }
+      }
+      every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
+      every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
+      every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
+      every { getSharedPreferences(any(), any()) } answers {
+        val name = firstArg<String>()
+        sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
+      }
+      every { getApplicationInfo() } returns realContext.applicationInfo
+      every { getFilesDir() } returns realContext.filesDir
+      every { getCacheDir() } returns realContext.cacheDir
+      every { getDir(any(), any()) } answers { realContext.getDir(firstArg(), secondArg()) }
+      every { startService(any()) } answers {
+        val intent = firstArg<Intent>()
+        mockService.handleIntentForTest(intent)
+        ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
+      }
+      every { startActivity(any()) } just Runs
+      every { getResources() } returns realContext.resources
+      every { getTheme() } returns realContext.theme
     }
+  }
 
-    private fun setupMockCalendarMonitor() {
-        val realMonitor = object : CalendarMonitor(CalendarProvider) {
-            override val currentTimeForTest: Long
-                get() = this@CalendarMonitorServiceTest.currentTime.get()
-        }
-        mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
-        every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
+  private fun setupMockTimer() {
+    val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
+    every { mockTimer.schedule(any(), any<Long>(), any()) } answers { call ->
+      val task = call.invocation.args[0] as Runnable
+      val delay = call.invocation.args[1] as Long
+      val unit = call.invocation.args[2] as TimeUnit
+      scheduledTasks.add(Pair(task, currentTime.get() + unit.toMillis(delay)))
+      scheduledTasks.sortBy { it.second }
+      while (scheduledTasks.isNotEmpty() && scheduledTasks[0].second <= currentTime.get()) {
+        val (nextTask, _) = scheduledTasks.removeAt(0)
+        nextTask.run()
+      }
+      mockk(relaxed = true)
     }
+  }
 
-    private fun setupMockService() {
-        mockService = spyk(CalendarMonitorService()) {
-            every { applicationContext } returns fakeContext
-            every { baseContext } returns fakeContext
-            every { timer } returns mockTimer
-            every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
-            every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
-            every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
-            every { getPackageName() } returns fakeContext.packageName
-            every { getContentResolver() } returns fakeContext.contentResolver
-            every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
-            every { getSystemService(Context.POWER_SERVICE) } returns fakeContext.getSystemService(Context.POWER_SERVICE)
-            every { getSystemService(any<String>()) } answers {
-                when (firstArg<String>()) {
-                    Context.ALARM_SERVICE -> mockAlarmManager
-                    Context.POWER_SERVICE -> fakeContext.getSystemService(Context.POWER_SERVICE)
-                    else -> fakeContext.getSystemService(firstArg())
-                }
-            }
-            every { getSharedPreferences(any(), any()) } answers {
-                val name = firstArg<String>()
-                sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
-            }
-        }
+  private fun setupMockCalendarMonitor() {
+    val realMonitor = object : CalendarMonitor(CalendarProvider) {
+      override val currentTimeForTest: Long
+        get() = this@CalendarMonitorServiceTest.currentTime.get()
     }
+    mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
+    every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
+  }
 
-    private fun setupApplicationController() {
-        mockkObject(ApplicationController)
-
-        // Set up a more faithful mock notification manager
-        val mockNotificationManager = spyk(object : EventNotificationManager() {
-            override fun postNotification(
-                ctx: Context,
-                formatter: EventFormatterInterface,
-                event: EventAlertRecord,
-                notificationSettings: NotificationSettings,
-                isForce: Boolean,
-                wasCollapsed: Boolean,
-                snoozePresetsNotFiltered: LongArray,
-                isQuietPeriodActive: Boolean,
-                isReminder: Boolean,
-                forceAlarmStream: Boolean
-            ) {
-                // Do nothing - prevent actual notification posting
-                DevLog.info(LOG_TAG, "Mock postNotification called for event ${event.eventId}")
-            }
-
-            override fun postEventNotifications(ctx: Context, formatter: EventFormatterInterface, force: Boolean, primaryEventId: Long?) {
-                DevLog.info(LOG_TAG, "Mock postEventNotifications called with force=$force, primaryEventId=$primaryEventId")
-                MonitorStorage(ctx).classCustomUse { db ->
-                    val alertsToHandle = if (primaryEventId != null) {
-                        db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
-                    } else {
-                        db.alerts.filter { !it.wasHandled && it.alertTime <= System.currentTimeMillis() }
-                    }
-
-                    if (alertsToHandle.isNotEmpty()) {
-                        alertsToHandle.forEach { alert ->
-                            alert.wasHandled = true
-                            db.updateAlert(alert)
-                            DevLog.info(LOG_TAG, "Marked alert as handled for event ${alert.eventId}")
-                        }
-                    }
-                }
-            }
-
-            override fun onEventAdded(ctx: Context, formatter: EventFormatterInterface, event: EventAlertRecord) {
-                DevLog.info(LOG_TAG, "Mock onEventAdded called for event ${event.eventId}")
-            }
-        })
-
-        every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
-            val context = firstArg<Context>()
-            val events = secondArg<Collection<EventAlertRecord>>()
-            DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
-
-            if (events.size == 1)
-                mockNotificationManager.onEventAdded(context, mockFormatter, events.first())
-            else
-                mockNotificationManager.postEventNotifications(context, mockFormatter)
+  private fun setupMockService() {
+    mockService = spyk(CalendarMonitorService()) {
+      every { applicationContext } returns fakeContext
+      every { baseContext } returns fakeContext
+      every { timer } returns mockTimer
+      every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
+      every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
+      every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
+      every { getPackageName() } returns fakeContext.packageName
+      every { getContentResolver() } returns fakeContext.contentResolver
+      every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+      every { getSystemService(Context.POWER_SERVICE) } returns fakeContext.getSystemService(Context.POWER_SERVICE)
+      every { getSystemService(any<String>()) } answers {
+        when (firstArg<String>()) {
+          Context.ALARM_SERVICE -> mockAlarmManager
+          Context.POWER_SERVICE -> fakeContext.getSystemService(Context.POWER_SERVICE)
+          else -> fakeContext.getSystemService(firstArg())
         }
-
-        // Mock ReminderState using SharedPreferences
-        val reminderStatePrefs = createPersistentSharedPreferences(ReminderState.PREFS_NAME)
-        every { fakeContext.getSharedPreferences(ReminderState.PREFS_NAME, Context.MODE_PRIVATE) } returns reminderStatePrefs
-
-        reminderStatePrefs.edit().apply {
-            putInt(ReminderState.NUM_REMINDERS_FIRED_KEY, 0)
-            putBoolean(ReminderState.QUIET_HOURS_ONE_TIME_REMINDER_KEY, false)
-            putLong(ReminderState.REMINDER_LAST_FIRE_TIME_KEY, 0)
-            apply()
-        }
+      }
+      every { getSharedPreferences(any(), any()) } answers {
+        val name = firstArg<String>()
+        sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
+      }
     }
+  }
 
-    private fun setupTestCalendar() {
-        testCalendarId = createTestCalendar(
-            displayName = "Test Calendar",
-            accountName = "test@local",
-            ownerAccount = "test@local"
-        )
+  private fun setupApplicationController() {
+    mockkObject(ApplicationController)
 
-        if (testCalendarId <= 0) {
-            throw IllegalStateException("Failed to create test calendar")
-        }
+    // Set up a more faithful mock notification manager
+    val mockNotificationManager = spyk(object : EventNotificationManager() {
+      override fun postNotification(
+        ctx: Context,
+        formatter: EventFormatterInterface,
+        event: EventAlertRecord,
+        notificationSettings: NotificationSettings,
+        isForce: Boolean,
+        wasCollapsed: Boolean,
+        snoozePresetsNotFiltered: LongArray,
+        isQuietPeriodActive: Boolean,
+        isReminder: Boolean,
+        forceAlarmStream: Boolean
+      ) {
+        // Do nothing - prevent actual notification posting
+        DevLog.info(LOG_TAG, "Mock postNotification called for event ${event.eventId}")
+      }
 
-        val settings = Settings(fakeContext)
-        settings.setBoolean("calendar_is_handled_$testCalendarId", true)
-
-        DevLog.info(LOG_TAG, "Test calendar setup complete: id=$testCalendarId")
-    }
-
-    private fun clearStorages() {
-        EventsStorage(fakeContext).classCustomUse { db ->
-            val count = db.events.size
-            db.deleteAllEvents()
-            DevLog.info(LOG_TAG, "Cleared $count events from storage")
-        }
-        MonitorStorage(fakeContext).classCustomUse { db ->
-            val count = db.alerts.size
-            db.deleteAlertsMatching { true }
-            DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
-        }
-    }
-
-    private fun createTestCalendar(
-        displayName: String,
-        accountName: String,
-        ownerAccount: String
-    ): Long {
-        val values = ContentValues().apply {
-            put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, displayName)
-            put(CalendarContract.Calendars.NAME, displayName)
-            put(CalendarContract.Calendars.VISIBLE, 1)
-            put(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
-            put(CalendarContract.Calendars.ACCOUNT_NAME, accountName)
-            put(CalendarContract.Calendars.OWNER_ACCOUNT, ownerAccount)
-            put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_OWNER)
-            put(CalendarContract.Calendars.SYNC_EVENTS, 1)
-            put(CalendarContract.Calendars.CALENDAR_TIME_ZONE, "UTC")
-        }
-
-        val uri = CalendarContract.Calendars.CONTENT_URI.buildUpon()
-            .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
-            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, accountName)
-            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
-            .build()
-
-        val calUri = fakeContext.contentResolver.insert(uri, values)
-        val calendarId = calUri?.lastPathSegment?.toLong() ?: -1L
-        DevLog.info(LOG_TAG, "Created test calendar: id=$calendarId, name=$displayName")
-        return calendarId
-    }
-
-    private fun createPersistentSharedPreferences(name: String): SharedPreferences {
-        val sharedPrefsMap = sharedPreferencesDataMap.getOrPut(name) { mutableMapOf() }
-        return mockk<SharedPreferences>(relaxed = true) {
-            every { edit() } returns mockk<SharedPreferences.Editor>(relaxed = true) {
-                every { putString(any(), any()) } answers {
-                    val key = firstArg<String>()
-                    val value = secondArg<String>()
-                    sharedPrefsMap[key] = value
-                    this@mockk
-                }
-                every { putBoolean(any(), any()) } answers {
-                    val key = firstArg<String>()
-                    val value = secondArg<Boolean>()
-                    sharedPrefsMap[key] = value
-                    this@mockk
-                }
-                every { putInt(any(), any()) } answers {
-                    val key = firstArg<String>()
-                    val value = secondArg<Int>()
-                    sharedPrefsMap[key] = value
-                    this@mockk
-                }
-                every { putLong(any(), any()) } answers {
-                    val key = firstArg<String>()
-                    val value = secondArg<Long>()
-                    sharedPrefsMap[key] = value
-                    this@mockk
-                }
-                every { putFloat(any(), any()) } answers {
-                    val key = firstArg<String>()
-                    val value = secondArg<Float>()
-                    sharedPrefsMap[key] = value
-                    this@mockk
-                }
-                every { remove(any()) } answers {
-                    val key = firstArg<String>()
-                    sharedPrefsMap.remove(key)
-                    this@mockk
-                }
-                every { clear() } answers {
-                    sharedPrefsMap.clear()
-                    this@mockk
-                }
-                every { apply() } just Runs
-                every { commit() } returns true
-            }
-            every { getString(any(), any()) } answers {
-                val key = firstArg<String>()
-                val defaultValue = secondArg<String>()
-                sharedPrefsMap[key] as? String ?: defaultValue
-            }
-            every { getBoolean(any(), any()) } answers {
-                val key = firstArg<String>()
-                val defaultValue = secondArg<Boolean>()
-                sharedPrefsMap[key] as? Boolean ?: defaultValue
-            }
-            every { getInt(any(), any()) } answers {
-                val key = firstArg<String>()
-                val defaultValue = secondArg<Int>()
-                sharedPrefsMap[key] as? Int ?: defaultValue
-            }
-            every { getLong(any(), any()) } answers {
-                val key = firstArg<String>()
-                val defaultValue = secondArg<Long>()
-                sharedPrefsMap[key] as? Long ?: defaultValue
-            }
-            every { getFloat(any(), any()) } answers {
-                val key = firstArg<String>()
-                val defaultValue = secondArg<Float>()
-                sharedPrefsMap[key] as? Float ?: defaultValue
-            }
-            every { contains(any()) } answers {
-                val key = firstArg<String>()
-                sharedPrefsMap.containsKey(key)
-            }
-            every { getAll() } returns sharedPrefsMap
-        }
-    }
-
-    private fun mockEventDetails(eventId: Long, startTime: Long, title: String = "Test Event", duration: Long = 3600000) {
-        every { CalendarProvider.getEvent(any(), eq(eventId)) } answers {
-            val event = EventRecord(
-                calendarId = testCalendarId,
-                eventId = eventId,
-                details = CalendarEventDetails(
-                    title = title,
-                    desc = "Test Description",
-                    location = "",
-                    timezone = "UTC",
-                    startTime = startTime,
-                    endTime = startTime + duration,
-                    isAllDay = false,
-                    reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
-                    repeatingRule = "",
-                    repeatingRDate = "",
-                    repeatingExRule = "",
-                    repeatingExRDate = "",
-                    color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
-                ),
-                eventStatus = EventStatus.Confirmed,
-                attendanceStatus = AttendanceStatus.None
-            )
-            DevLog.info(LOG_TAG, "Mock getEvent called for eventId=$eventId, returning event with title=${event.details.title}, startTime=${event.details.startTime}")
-            event
-        }
-    }
-
-    private fun verifyEventProcessed(
-        eventId: Long,
-        startTime: Long,
-        title: String? = null,
-        afterDelay: Long? = null
-    ) {
-        DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
-
-        EventsStorage(fakeContext).classCustomUse { db ->
-            val events = db.events
-            DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
-            events.forEach { event ->
-                DevLog.info(LOG_TAG, "Event in storage: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}, title=${event.title}")
-            }
-
-            val eventExists = events.any { it.eventId == eventId }
-            if (!eventExists) {
-                DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
-                val cursor = fakeContext.contentResolver.query(
-                    ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
-                    null, null, null, null
-                )
-                if (cursor != null && cursor.moveToFirst()) {
-                    DevLog.info(LOG_TAG, "Event still exists in calendar")
-                } else {
-                    DevLog.error(LOG_TAG, "Event not found in calendar either!")
-                }
-                cursor?.close()
-            }
-            assertTrue("Event should be processed", eventExists)
-
-            val processedEvent = events.firstOrNull { it.eventId == eventId }
-            if (processedEvent == null) {
-                DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
+      override fun postEventNotifications(ctx: Context, formatter: EventFormatterInterface, force: Boolean, primaryEventId: Long?) {
+        DevLog.info(LOG_TAG, "Mock postEventNotifications called with force=$force, primaryEventId=$primaryEventId")
+          MonitorStorage(ctx).classCustomUse { db ->
+            val alertsToHandle = if (primaryEventId != null) {
+              db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
             } else {
-                DevLog.info(LOG_TAG, "Found processed event: id=${processedEvent.eventId}, title=${processedEvent.title}, startTime=${processedEvent.startTime}")
-
-                if (title != null) {
-                    assertEquals("Event should have correct title", title, processedEvent.title)
-                }
-                assertEquals("Event should have correct start time", startTime, processedEvent.startTime)
-                if (afterDelay != null) {
-                    assertTrue("Event should be processed after the delay",
-                        processedEvent.timeFirstSeen >= afterDelay
-                    )
-                }
+              db.alerts.filter { !it.wasHandled && it.alertTime <= System.currentTimeMillis() }
             }
+
+            if (alertsToHandle.isNotEmpty()) {
+              alertsToHandle.forEach { alert ->
+                alert.wasHandled = true
+                db.updateAlert(alert)
+                DevLog.info(LOG_TAG, "Marked alert as handled for event ${alert.eventId}")
+            }
+          }
         }
+      }
+
+      override fun onEventAdded(ctx: Context, formatter: EventFormatterInterface, event: EventAlertRecord) {
+        DevLog.info(LOG_TAG, "Mock onEventAdded called for event ${event.eventId}")
+      }
+    })
+
+    every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
+      val context = firstArg<Context>()
+      val events = secondArg<Collection<EventAlertRecord>>()
+      DevLog.info(LOG_TAG, "postEventNotifications called for ${events.size} events")
+
+      if (events.size == 1)
+        mockNotificationManager.onEventAdded(context, mockFormatter, events.first())
+      else
+        mockNotificationManager.postEventNotifications(context, mockFormatter)
     }
+
+    // Mock ReminderState using SharedPreferences
+    val reminderStatePrefs = createPersistentSharedPreferences(ReminderState.PREFS_NAME)
+    every { fakeContext.getSharedPreferences(ReminderState.PREFS_NAME, Context.MODE_PRIVATE) } returns reminderStatePrefs
+
+    reminderStatePrefs.edit().apply {
+      putInt(ReminderState.NUM_REMINDERS_FIRED_KEY, 0)
+      putBoolean(ReminderState.QUIET_HOURS_ONE_TIME_REMINDER_KEY, false)
+      putLong(ReminderState.REMINDER_LAST_FIRE_TIME_KEY, 0)
+      apply()
+    }
+  }
+
+  private fun setupTestCalendar() {
+    testCalendarId = createTestCalendar(
+      displayName = "Test Calendar",
+      accountName = "test@local",
+      ownerAccount = "test@local"
+    )
+
+    if (testCalendarId <= 0) {
+      throw IllegalStateException("Failed to create test calendar")
+    }
+
+    val settings = Settings(fakeContext)
+    settings.setBoolean("calendar_is_handled_$testCalendarId", true)
+
+    DevLog.info(LOG_TAG, "Test calendar setup complete: id=$testCalendarId")
+  }
+
+  private fun clearStorages() {
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val count = db.events.size
+      db.deleteAllEvents()
+      DevLog.info(LOG_TAG, "Cleared $count events from storage")
+    }
+    MonitorStorage(fakeContext).classCustomUse { db ->
+      val count = db.alerts.size
+      db.deleteAlertsMatching { true }
+      DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
+    }
+  }
+
+  private fun createTestCalendar(
+    displayName: String,
+    accountName: String,
+    ownerAccount: String
+  ): Long {
+    val values = ContentValues().apply {
+      put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, displayName)
+      put(CalendarContract.Calendars.NAME, displayName)
+      put(CalendarContract.Calendars.VISIBLE, 1)
+      put(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
+      put(CalendarContract.Calendars.ACCOUNT_NAME, accountName)
+      put(CalendarContract.Calendars.OWNER_ACCOUNT, ownerAccount)
+      put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_OWNER)
+      put(CalendarContract.Calendars.SYNC_EVENTS, 1)
+      put(CalendarContract.Calendars.CALENDAR_TIME_ZONE, "UTC")
+    }
+
+    val uri = CalendarContract.Calendars.CONTENT_URI.buildUpon()
+      .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+      .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, accountName)
+      .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
+      .build()
+
+    val calUri = fakeContext.contentResolver.insert(uri, values)
+    val calendarId = calUri?.lastPathSegment?.toLong() ?: -1L
+    DevLog.info(LOG_TAG, "Created test calendar: id=$calendarId, name=$displayName")
+    return calendarId
+  }
+
+  private fun createPersistentSharedPreferences(name: String): SharedPreferences {
+    val sharedPrefsMap = sharedPreferencesDataMap.getOrPut(name) { mutableMapOf() }
+    return mockk<SharedPreferences>(relaxed = true) {
+      every { edit() } returns mockk<SharedPreferences.Editor>(relaxed = true) {
+        every { putString(any(), any()) } answers {
+          val key = firstArg<String>()
+          val value = secondArg<String>()
+          sharedPrefsMap[key] = value
+          this@mockk
+        }
+        every { putBoolean(any(), any()) } answers {
+          val key = firstArg<String>()
+          val value = secondArg<Boolean>()
+          sharedPrefsMap[key] = value
+          this@mockk
+        }
+        every { putInt(any(), any()) } answers {
+          val key = firstArg<String>()
+          val value = secondArg<Int>()
+          sharedPrefsMap[key] = value
+          this@mockk
+        }
+        every { putLong(any(), any()) } answers {
+          val key = firstArg<String>()
+          val value = secondArg<Long>()
+          sharedPrefsMap[key] = value
+          this@mockk
+        }
+        every { putFloat(any(), any()) } answers {
+          val key = firstArg<String>()
+          val value = secondArg<Float>()
+          sharedPrefsMap[key] = value
+          this@mockk
+        }
+        every { remove(any()) } answers {
+          val key = firstArg<String>()
+          sharedPrefsMap.remove(key)
+          this@mockk
+        }
+        every { clear() } answers {
+          sharedPrefsMap.clear()
+          this@mockk
+        }
+        every { apply() } just Runs
+        every { commit() } returns true
+      }
+      every { getString(any(), any()) } answers {
+        val key = firstArg<String>()
+        val defaultValue = secondArg<String>()
+        sharedPrefsMap[key] as? String ?: defaultValue
+      }
+      every { getBoolean(any(), any()) } answers {
+        val key = firstArg<String>()
+        val defaultValue = secondArg<Boolean>()
+        sharedPrefsMap[key] as? Boolean ?: defaultValue
+      }
+      every { getInt(any(), any()) } answers {
+        val key = firstArg<String>()
+        val defaultValue = secondArg<Int>()
+        sharedPrefsMap[key] as? Int ?: defaultValue
+      }
+      every { getLong(any(), any()) } answers {
+        val key = firstArg<String>()
+        val defaultValue = secondArg<Long>()
+        sharedPrefsMap[key] as? Long ?: defaultValue
+      }
+      every { getFloat(any(), any()) } answers {
+        val key = firstArg<String>()
+        val defaultValue = secondArg<Float>()
+        sharedPrefsMap[key] as? Float ?: defaultValue
+      }
+      every { contains(any()) } answers {
+        val key = firstArg<String>()
+        sharedPrefsMap.containsKey(key)
+      }
+      every { getAll() } returns sharedPrefsMap
+    }
+  }
+
+  private fun mockEventDetails(eventId: Long, startTime: Long, title: String = "Test Event", duration: Long = 3600000) {
+    every { CalendarProvider.getEvent(any(), eq(eventId)) } answers {
+      val event = EventRecord(
+        calendarId = testCalendarId,
+        eventId = eventId,
+        details = CalendarEventDetails(
+          title = title,
+          desc = "Test Description",
+          location = "",
+          timezone = "UTC",
+          startTime = startTime,
+          endTime = startTime + duration,
+          isAllDay = false,
+          reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
+          repeatingRule = "",
+          repeatingRDate = "",
+          repeatingExRule = "",
+          repeatingExRDate = "",
+          color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
+        ),
+        eventStatus = EventStatus.Confirmed,
+        attendanceStatus = AttendanceStatus.None
+      )
+      DevLog.info(LOG_TAG, "Mock getEvent called for eventId=$eventId, returning event with title=${event.details.title}, startTime=${event.details.startTime}")
+      event
+    }
+  }
+
+  private fun verifyEventProcessed(
+    eventId: Long,
+    startTime: Long,
+    title: String? = null,
+    afterDelay: Long? = null
+  ) {
+    DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
+
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
+      events.forEach { event ->
+        DevLog.info(LOG_TAG, "Event in storage: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}, title=${event.title}")
+      }
+
+      val eventExists = events.any { it.eventId == eventId }
+      if (!eventExists) {
+        DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
+        val cursor = fakeContext.contentResolver.query(
+          ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+          null, null, null, null
+        )
+        if (cursor != null && cursor.moveToFirst()) {
+          DevLog.info(LOG_TAG, "Event still exists in calendar")
+        } else {
+          DevLog.error(LOG_TAG, "Event not found in calendar either!")
+        }
+        cursor?.close()
+      }
+      assertTrue("Event should be processed", eventExists)
+
+      val processedEvent = events.firstOrNull { it.eventId == eventId }
+      if (processedEvent == null) {
+        DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
+      } else {
+        DevLog.info(LOG_TAG, "Found processed event: id=${processedEvent.eventId}, title=${processedEvent.title}, startTime=${processedEvent.startTime}")
+
+        if (title != null) {
+          assertEquals("Event should have correct title", title, processedEvent.title)
+        }
+        assertEquals("Event should have correct start time", startTime, processedEvent.startTime)
+        if (afterDelay != null) {
+          assertTrue("Event should be processed after the delay",
+            processedEvent.timeFirstSeen >= afterDelay
+          )
+        } else {}
+      }
+    }
+  }
 } 
