@@ -4,7 +4,7 @@
  * Script to clean logs from clipboard
  * Gets logs from clipboard, cleans them, and puts them back in clipboard
  * 
- * Usage: node scripts/clean_clipboard_logs.js <test_name> [-v|--verbose]
+ * Usage: node scripts/clean_clipboard_logs.js <test_log_tag> [-v|--verbose] [-t|--test-name <name>]
  */
 
 import { Command } from 'commander';
@@ -27,9 +27,10 @@ const program = new Command();
 program
     .name('clean-clipboard-logs')
     .description('Clean logs from clipboard and put them back')
-    .argument('<test_name>', 'name of the test to clean logs for')
+    .argument('<test_log_tag>', 'log tag to identify test logs')
     .option('-v, --verbose', 'show detailed error messages')
-    .action(async (testName, options) => {
+    .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalendarMonitorServiceTest)')
+    .action(async (testLogTag, options) => {
         console.log('Temporary files will be created at:');
         console.log('Input:', TEMP_INPUT);
         console.log('Output:', TEMP_OUTPUT);
@@ -47,7 +48,11 @@ program
             
             // Clean the logs using our existing script
             console.log('Cleaning logs...');
-            await execa('node', [path.join(__dirname, 'clean_logs.js'), testName, TEMP_INPUT, TEMP_OUTPUT], {
+            const cleanLogsArgs = [path.join(__dirname, 'clean_logs.js'), testLogTag, TEMP_INPUT, TEMP_OUTPUT];
+            if (options.testName) {
+                cleanLogsArgs.push('-t', options.testName);
+            }
+            await execa('node', cleanLogsArgs, {
                 stdio: 'inherit'
             });
             

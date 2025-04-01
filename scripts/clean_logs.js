@@ -27,8 +27,28 @@ const IMPORTANT_EXCEPTIONS = [
     'IllegalArgumentException'
 ];
 
-function isImportantException(line) {
-    return IMPORTANT_EXCEPTIONS.some(exception => line.includes(exception));
+// Test-specific exceptions to keep in full
+const TEST_SPECIFIC_EXCEPTIONS = {
+    'CalendarMonitorServiceTest': [
+        'NullPointerException',
+    ],
+    'CalendarMonitorServiceEventReminderTest': [
+        'NullPointerException',
+    ]
+};
+
+function isImportantException(line, testName) {
+    // Check common important exceptions
+    if (IMPORTANT_EXCEPTIONS.some(exception => line.includes(exception))) {
+        return true;
+    }
+    
+    // Check test-specific exceptions
+    if (testName && TEST_SPECIFIC_EXCEPTIONS[testName]) {
+        return TEST_SPECIFIC_EXCEPTIONS[testName].some(exception => line.includes(exception));
+    }
+    
+    return false;
 }
 
 const program = new Command();
@@ -40,6 +60,7 @@ program
     .argument('<input_file>', 'input log file to clean')
     .argument('[output_file]', 'output file for cleaned logs (defaults to input_file.cleaned)')
     .option('-v, --verbose', 'show detailed error messages')
+    .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalMonitorSvcTest)')
     .action(async (testLogTag, inputFile, outputFile, options) => {
         outputFile = outputFile || inputFile + '.cleaned';
 
@@ -94,7 +115,7 @@ program
                 if (line.includes('Exception') || line.includes('Error:')) {
                     inStackTrace = true;
                     errorLineCount = 0;
-                    isImportantError = isImportantException(line);
+                    isImportantError = isImportantException(line, options.testName);
                     cleanedLines.push(line);
                 } else if (inStackTrace) {
                     errorLineCount++;
