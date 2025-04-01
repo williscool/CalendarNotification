@@ -6,8 +6,10 @@
  * This script:
  * 1. Removes lines before eventsv9 or first test log tag (whichever comes first)
  * 2. Removes timestamps and other prefixes
- * 3. Trims stack traces to first test log tag line in the stacktrace if it exists or the error line plus 10 if not
- *    (except for important exceptions like AssertionError)
+ * 3. Trims stack traces based on exception type and test context:
+ *    - Collapses specific known exceptions to a single line.
+ *    - Keeps full stack traces for important common/test-specific exceptions.
+ *    - Trims others to the first test log tag line or 10 lines, indicating collapsed count.
  */
 
 import { Command } from 'commander';
@@ -21,21 +23,24 @@ const IMPORTANT_EXCEPTIONS = [
     'AssertionError',
     'TestFailure',
     'Error:',
-    'Exception:',
-    'RuntimeException',
-    'IllegalStateException',
-    'IllegalArgumentException'
+    'Exception:', // Keep general exceptions by default unless overridden
+    'RuntimeException'
 ];
 
 // Test-specific exceptions to keep in full
 const TEST_SPECIFIC_EXCEPTIONS = {
     'CalendarMonitorServiceTest': [
-        'NullPointerException',
+        'NullPointerException'
     ],
     'CalendarMonitorServiceEventReminderTest': [
-        'NullPointerException',
+        'NullPointerException'
     ]
 };
+
+// Exceptions to display only the first line for
+const ONE_LINE_EXCEPTIONS = [
+    'java.util.NoSuchElementException: null, stack: com.github.quarck.calnotify.calendarmonitor.CalendarMonitorManual.scanNextEvent'
+];
 
 function isImportantException(line, testName) {
     // Check common important exceptions
@@ -51,6 +56,10 @@ function isImportantException(line, testName) {
     return false;
 }
 
+function isOneLineException(line) {
+    return ONE_LINE_EXCEPTIONS.some(exception => line.includes(exception));
+}
+
 const program = new Command();
 
 program
@@ -60,7 +69,7 @@ program
     .argument('<input_file>', 'input log file to clean')
     .argument('[output_file]', 'output file for cleaned logs (defaults to input_file.cleaned)')
     .option('-v, --verbose', 'show detailed error messages')
-    .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalMonitorSvcTest)')
+    .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalendarMonitorServiceTest)')
     .action(async (testLogTag, inputFile, outputFile, options) => {
         outputFile = outputFile || inputFile + '.cleaned';
 
@@ -108,27 +117,63 @@ program
             let inStackTrace = false;
             let errorLineCount = 0;
             let isImportantError = false;
+            let linesToCollapse = 0; // Count lines collapsed due to limit
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 
-                if (line.includes('Exception') || line.includes('Error:')) {
-                    inStackTrace = true;
-                    errorLineCount = 0;
-                    isImportantError = isImportantException(line, options.testName);
-                    cleanedLines.push(line);
-                } else if (inStackTrace) {
+                // Start of a potential stack trace
+                if (!inStackTrace && (line.includes('Exception') || line.includes('Error:'))) {
+                    // Check if it's a known one-line exception first
+                    if (isOneLineException(line)) {
+                        cleanedLines.push(line + ' ... [stack trace collapsed]'); // Add only the first line
+                        // Don't set inStackTrace = true, effectively skipping the rest
+                    } else {
+                        // Start regular exception handling
+                        inStackTrace = true;
+                        errorLineCount = 0;
+                        linesToCollapse = 0; // Reset collapse count for this trace
+                        isImportantError = isImportantException(line, options.testName);
+                        cleanedLines.push(line);
+                    }
+                } 
+                // Inside a stack trace
+                else if (inStackTrace) {
                     errorLineCount++;
                     
+                    // Case 1: Found the test log tag - end trace here
                     if (line.includes(testLogTag)) {
                         cleanedLines.push(line);
-                        inStackTrace = false;
-                    } else if (isImportantError || errorLineCount <= 10) {
+                        // Collapse message handled when trace ends below
+                    } 
+                    // Case 2: Keep the line (important or within limit)
+                    else if (isImportantError || errorLineCount <= 10) {
                         cleanedLines.push(line);
-                    } else {
-                        inStackTrace = false;
+                    } 
+                    // Case 3: Collapse the line (past limit for non-important)
+                    else {
+                        linesToCollapse++;
                     }
-                } else {
+
+                    // Determine if the stack trace ends *after* this line
+                    const nextLineExists = i + 1 < lines.length;
+                    // Simple heuristic: ends if test tag found, or if next line doesn't look like a trace line
+                    const endTraceDetected = line.includes(testLogTag) || 
+                                            !nextLineExists || 
+                                            (nextLineExists && !/^\s+at|^Caused by:/.test(lines[i + 1]));
+
+                    if (endTraceDetected) {
+                        // If lines were collapsed, add the message
+                        if (linesToCollapse > 0) {
+                             cleanedLines.push(`        ... [${linesToCollapse} lines collapsed]`); // Indented message
+                        }
+                        // Reset state for the next potential trace
+                        inStackTrace = false;
+                        linesToCollapse = 0; 
+                    }
+                } 
+                // Regular line outside any stack trace
+                else {
                     cleanedLines.push(line);
                 }
             }
