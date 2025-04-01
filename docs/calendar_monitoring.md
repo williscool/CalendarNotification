@@ -7,66 +7,84 @@ Follows `android.intent.action.EVENT_REMINDER` through the code to registerNewEv
 Calendar Provider EVENT_REMINDER Broadcast
     │
     ▼
+EventReminderBroadcastReceiver.onReceive
+    │
+    ▼
 CalendarMonitor.onProviderReminderBroadcast
     │
-    ├──► Extract alertTime from URI
+    ├──► CalendarMonitor.onProviderReminderBroadcast: Extract alertTime from URI
     │
-    ▼
-CalendarProvider.getAlertByTime
+    ├──► CalendarMonitor.onProviderReminderBroadcast: Check calendar permissions via PermissionsManager.hasAllCalendarPermissionsNoCache
     │
-    ├──► Returns EventAlertRecord
+    ├──► CalendarMonitor.onProviderReminderBroadcast: Get events from CalendarProvider.getAlertByTime
     │
-    ▼
-Should mark event as handled and skip?
+    ├──► CalendarMonitor.onProviderReminderBroadcast: For each event:
+    │    │
+    │    ├──► CalendarMonitor.getAlertWasHandled: Check if already handled
+    │    │
+    │    ├──► CalendarMonitor.onProviderReminderBroadcast: Set origin to ProviderBroadcast
+    │    │
+    │    ├──► ApplicationController.shouldMarkEventAsHandledAndSkip: Check if should skip
+    │    │    │
+    │    │    ├──► Check if event is cancelled and user ignores cancelled events
+    │    │    ├──► Check if event is declined and user ignores declined events
+    │    │    └──► Check if event is all-day and user ignores all-day events
+    │    │
+    │    ├──► ApplicationController.registerNewEvent: If not skipped, register event
+    │    │    │
+    │    │    ├──► Check if calendar is handled by app
+    │    │    ├──► TagsManager.parseEventTags: Parse event tags
+    │    │    ├──► EventsStorage.addEvent: Store in EventsStorage
+    │    │    │    │
+    │    │    │    ├──► For repeating events: add directly
+    │    │    │    └──► For non-repeating: remove old instances first
+    │    │    │
+    │    │    └──► EventsStorage.getEvent: Verify event was stored correctly
+    │    │
+    │    └──► CalendarMonitor.onProviderReminderBroadcast: Add to eventsToPost or eventsToSilentlyDrop
     │
-    ├──► No ──────────────────────┐
-    │                             ▼
-    │                     ApplicationController.registerNewEvent
-    │                             │
-    │                             ▼
-    │                     EventsStorage.addEvent
-    │                             │
-    │                             ▼
-    │                     EventNotificationManager.postEventNotifications
-    │                             │
-    │                             ▼
-    │                     Mark alert as handled
-    │                             │
-    ├──► Yes ──────────────┐      │
-    │                      ▼      │
-    │              Mark as handled silently
-    │                      │      │
-    │                      ▼      ▼
-    └──────────────► CalendarProvider.dismissNativeEventAlert
-                            │
-                            ▼
-                    ApplicationController.afterCalendarEventFired
-                            │
-                            ▼
-                    Reschedule alarms and notify UI
+    ├──► ApplicationController.postEventNotifications: Post notifications for eventsToPost
+    │
+    ├──► CalendarMonitor.setAlertWasHandled: Mark all events as handled
+    │
+    ├──► CalendarProvider.dismissNativeEventAlert: Dismiss native calendar alerts
+    │
+    └──► ApplicationController.afterCalendarEventFired: Reschedule alarms and notify UI
 
 ``` mermaid
 flowchart TD
-    A[Calendar Provider EVENT_REMINDER Broadcast] --> B[CalendarMonitor.onProviderReminderBroadcast]
+    A[Calendar Provider EVENT_REMINDER Broadcast] --> B[EventReminderBroadcastReceiver.onReceive]
+    B --> C[CalendarMonitor.onProviderReminderBroadcast]
     
-    B --> C[Extract alertTime from URI]
+    C --> D[Extract alertTime from URI]
+    C --> E[Check calendar permissions]
+    C --> F[Get events from CalendarProvider.getAlertByTime]
     
-    C --> D[CalendarProvider.getAlertByTime]
-    D -->|Returns EventAlertRecord| E{Should mark event<br/>as handled and skip?}
+    F --> G[For each event]
+    G --> H{Already handled?}
+    H -->|Yes| I[Skip]
+    H -->|No| J[Set origin to ProviderBroadcast]
     
-    E -->|No| F[ApplicationController.registerNewEvent]
-    F --> G[EventsStorage.addEvent]
+    J --> K{Should skip?}
+    K -->|Yes| L[Add to eventsToSilentlyDrop]
+    K -->|No| M[Register event]
     
-    G --> H[EventNotificationManager.postEventNotifications]
+    M --> N[Check calendar handled]
+    N --> O[Parse event tags]
+    O --> P[Store in EventsStorage]
     
-    H --> I[Mark alert as handled]
-    I --> J[CalendarProvider.dismissNativeEventAlert]
+    P --> Q{Repeating event?}
+    Q -->|Yes| R[Add directly]
+    Q -->|No| S[Remove old instances]
+    S --> T[Add new instance]
     
-    J --> K[ApplicationController.afterCalendarEventFired]
-    K --> L[Reschedule alarms and notify UI]
-
-    E -->|Yes| M[Mark as handled silently]
-    M --> J
+    T --> U[Verify storage]
+    U --> V[Add to eventsToPost]
+    
+    V --> W[Post notifications]
+    W --> X[Mark as handled]
+    X --> Y[Dismiss native alerts]
+    Y --> Z[Reschedule alarms and notify UI]
 ```
 
 Note: The broadcast receiver for EVENT_REMINDER is registered with the highest possible priority (2147483647) to ensure reliable event handling.
