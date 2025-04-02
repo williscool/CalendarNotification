@@ -204,9 +204,8 @@ jobs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ github.sha }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
         restore-keys: |
-          ${{ runner.os }}-js-bundle-${{ github.sha }}-
           ${{ runner.os }}-js-bundle-
 
     # Generate JS bundle using our script
@@ -223,7 +222,7 @@ jobs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ github.sha }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
 
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
@@ -245,7 +244,7 @@ jobs:
           android/app/build/intermediates/instrumented_classes
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'android/app/**') }}
 
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
