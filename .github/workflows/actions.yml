@@ -162,6 +162,23 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
+    - name: Cache JS Bundle and Assets
+      uses: actions/cache@v4
+      id: js-bundle-cache
+      with:
+        path: |
+          android/app/src/main/assets/index.android.bundle
+          android/app/src/main/res/drawable-*
+          android/app/src/main/res/raw-*
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-js-bundle-
+
+    - name: Generate JS Bundle if needed
+      if: steps.js-bundle-cache.outputs.cache-hit != 'true'
+      run: |
+        cd android && ./gradlew createJSBundle
+
   test:
     name: Test Android App
     needs: build
