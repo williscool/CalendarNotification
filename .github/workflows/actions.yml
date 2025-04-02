@@ -134,15 +134,15 @@ jobs:
           ${{ runner.os }}-gradle-
 
     - name: Build with Gradle
-      run: cd android && ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
+      run: cd android && ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache --no-rerun-tasks
 
     # Create APK Debug and Release
     - name: Build app APKs (debug and release)
-      run: cd android && ./gradlew assembleDebug assembleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS}
+      run: cd android && ./gradlew assembleDebug assembleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS} --no-rerun-tasks
 
     # Create Bundle AAB Release
     - name: Build app bundle release (AAB)
-      run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS}
+      run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS} --no-rerun-tasks
 
   
     # Save the build artifacts to be used in other jobs
