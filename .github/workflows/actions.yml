@@ -230,7 +230,7 @@ jobs:
         ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
                   :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
                   :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:assembleDebugAndroidTest \
+                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
         --parallel --max-workers=4 --build-cache
 
     - name: Update Build Outputs Cache
@@ -583,7 +583,7 @@ jobs:
           # Run tests with increased timeout and specific architecture
           cd android && \
           ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} \
-          ./gradlew :${{ env.main_project_module }}:connectedAndroidTest \
+          ./gradlew :${{ env.main_project_module }}:connected${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}AndroidTest \
                     :${{ env.main_project_module }}:jacocoAndroidTestReport \
           --parallel --max-workers=4 --build-cache
 
