@@ -143,6 +143,9 @@ jobs:
           android/app/build/tmp
           android/app/build/generated
           android/app/build/outputs
+          android/app/build/intermediates/instrumented_classes
+          android/app/build/intermediates/test_apk
+          android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
@@ -184,7 +187,11 @@ jobs:
           ~/.android/ndk
           ~/.android/cmake
           android/app/.cxx
-        key: ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+          android/app/build/intermediates/transforms
+        key: ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp') }}
         restore-keys: |
           ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-
 
@@ -221,7 +228,10 @@ jobs:
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
         cd android && \
-        ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+        ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
+                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+                  :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+                  :${{ env.main_project_module }}:assembleDebugAndroidTest \
         --parallel --max-workers=4 --build-cache
 
     - name: Update Build Outputs Cache
@@ -232,6 +242,9 @@ jobs:
           android/app/build/tmp
           android/app/build/generated
           android/app/build/outputs
+          android/app/build/intermediates/instrumented_classes
+          android/app/build/intermediates/test_apk
+          android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
 
     # Save the build artifacts to be used in other jobs
@@ -357,9 +370,12 @@ jobs:
           android/app/build/tmp
           android/app/build/generated
           android/app/build/outputs
+          android/app/build/intermediates/instrumented_classes
+          android/app/build/intermediates/test_apk
+          android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
     - name: Enable KVM for Emulator
       run: |
@@ -422,7 +438,11 @@ jobs:
           ./scripts/wait_for_emulator.sh
           
           # Run tests with increased timeout and specific architecture
-          cd android && ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} ./gradlew connectedCheck --parallel --max-workers=4 --build-cache && ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache
+          cd android && \
+          ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} \
+          ./gradlew :${{ env.main_project_module }}:connectedAndroidTest \
+                    :${{ env.main_project_module }}:jacocoAndroidTestReport \
+          --parallel --max-workers=4 --build-cache
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
