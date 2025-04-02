@@ -119,8 +119,6 @@ jobs:
         # Allow daemon to be reused between processes
         echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
-        # Explicitly set file system watching
-        echo "android.enableDexingArtifactTransform.desugaring=false" >> ~/.gradle/gradle.properties
 
     - name: Build with Gradle
       run: cd android && ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
@@ -232,8 +230,6 @@ jobs:
         # Allow daemon to be reused between processes
         echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
-        # Explicitly set file system watching
-        echo "android.enableDexingArtifactTransform.desugaring=false" >> ~/.gradle/gradle.properties
 
     - name: Enable KVM for Emulator
       run: |
