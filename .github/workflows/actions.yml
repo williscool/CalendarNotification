@@ -27,8 +27,12 @@ jobs:
   build:
     name: Build Android App
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a, x86_64]
     env:
       ENTRY_FILE: "index.tsx"
+      GRADLE_ABI: ${{ matrix.arch }}
     timeout-minutes: 30
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
@@ -149,6 +153,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
+    # Cache NDK and CMake builds
+    - name: Cache NDK and CMake
+      uses: actions/cache@v4
+      id: ndk-cache
+      with:
+        path: |
+          ~/.android/ndk
+          ~/.android/cmake
+          android/app/.cxx
+        key: ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-
+
     - name: Build and Build Debug and Release APKs with Gradle
       run: |
         cd android && \
@@ -165,9 +182,10 @@ jobs:
           android/app/build/intermediates
           android/app/build/tmp
           android/app/build/generated
-        key: ${{ runner.os }}-build-outputs-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+          android/app/build/outputs
+        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
 
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
@@ -207,8 +225,12 @@ jobs:
     name: Test Android App
     needs: build
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [arm64-v8a, x86_64]
     env:
       ENTRY_FILE: "index.tsx"
+      GRADLE_ABI: ${{ matrix.arch }}
     timeout-minutes: 30
     
     steps:
@@ -337,7 +359,7 @@ jobs:
       with:
         api-level: 34
         target: google_apis
-        arch: x86_64
+        arch: ${{ matrix.arch }}
         profile: 7.6in Foldable
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
@@ -345,7 +367,7 @@ jobs:
         script: |
           ./scripts/wait_for_emulator.sh
           
-          # Run tests with increased timeout
+          # Run tests with increased timeout and specific architecture
           cd android && ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=15 ./gradlew connectedCheck --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache && ./gradlew jacocoAndroidTestReport --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
 
     - name: Upload Coverage Report
