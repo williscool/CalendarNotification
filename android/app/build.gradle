@@ -41,6 +41,11 @@ if (isCIBuild) {
         doFirst {
             new File("${projectDir}/src/main/assets").mkdirs()
         }
+
+        // Only run if bundle doesn't exist
+        onlyIf {
+            !new File("${projectDir}/src/main/assets/index.android.bundle").exists()
+        }
     }
 }
 
@@ -286,9 +291,16 @@ dependencies {
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
   entryFile = file("../../index.tsx")
-  // Only enable bundling on CI builds to avoid bundling during local development
-  // bundleInDebug = shouldBundleJS
-  // bundleInRelease = true
+}
+
+// Add task dependency check for bundle generation
+tasks.whenTaskAdded { task ->
+    if (task.name.contains('createBundle') && !isCIBuild) {
+        def bundleFile = new File("${projectDir}/src/main/assets/index.android.bundle")
+        if (bundleFile.exists()) {
+            task.enabled = false
+        }
+    }
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
