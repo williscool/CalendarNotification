@@ -2,7 +2,6 @@
   "name": "CNPlusSync",
   "version": "0.0.1",
   "private": true,
-  "type": "module",
   "scripts": {
     "start": "yarn react-native start",
     "postinstall": "node scripts/setup_safe_area_mock.js",
