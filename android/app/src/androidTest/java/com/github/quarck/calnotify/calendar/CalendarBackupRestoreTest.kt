@@ -18,9 +18,7 @@ import android.net.Uri
 import android.content.ContentUris
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
-import org.junit.Ignore
 
-@Ignore("Skipping all tests in this class because it works")
 @RunWith(AndroidJUnit4::class)
 class CalendarBackupRestoreTest {
     private lateinit var context: Context
