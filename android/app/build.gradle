@@ -234,7 +234,15 @@ dependencies {
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"
 
-    implementation 'com.github.requery:sqlite-android:3.45.0'
+    // SQLite
+    implementation('com.github.requery:sqlite-android:3.45.0') {
+        exclude group: 'com.android.support'
+        exclude module: 'support-v4'
+        // Force specific version to avoid dynamic version resolution
+        version {
+            strictly '3.45.0'
+        }
+    }
 
     // Test dependencies - use test-compatible versions
     androidTestImplementation "androidx.core:core:$android_core_test_version"
