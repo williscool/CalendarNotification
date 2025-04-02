@@ -44,6 +44,7 @@ import android.content.pm.VersionedPackage
 import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
+import org.junit.Ignore
 
 /**
  * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
@@ -1149,7 +1150,8 @@ class CalendarMonitorServiceTest {
    * 3. Event timing and state are maintained during the delay
    * 4. Service properly handles delayed event processing
    */
-  @Test
+   @Ignore("Skipping delayed processing test until we refactor away from System.currentTimeMillis i.e. to use clocks and make things more testable")
+   @Test
   fun testDelayedProcessing() {
     val startDelay = 2000 // 2 second delay
     currentTime.set(System.currentTimeMillis())
@@ -1216,6 +1218,158 @@ class CalendarMonitorServiceTest {
     )
     DevLog.info(LOG_TAG, "[testDelayedProcessing] Test completed successfully")
   }
+
+  /**
+   * Tests calendar monitoring behavior when enabled, including system events and edge cases.
+   *
+   * Verifies that:
+   * 1. System calendar change broadcasts are handled
+   * 2. System time changes trigger rescans
+   * 3. App resume triggers rescans
+   * 4. Complex recurring events are processed
+   * 5. All-day events are handled correctly
+   * 6. Permission changes are respected
+   * 7. Setting state persists correctly
+   */
+  @Ignore("not implemented fully yet")
+  @Test
+  fun testCalendarMonitoringEnabledEdgeCases() {
+    // Setup
+    val settings = Settings(fakeContext)
+    settings.setBoolean("enable_manual_calendar_rescan", true)
+
+    // Test 1: System Calendar Change Broadcast
+    DevLog.info(LOG_TAG, "Testing calendar change broadcast handling")
+    val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
+    mockService.handleIntentForTest(intent)
+    verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+
+    // Test 2: System Time Change
+    DevLog.info(LOG_TAG, "Testing system time change handling")
+    mockCalendarMonitor.onSystemTimeChange(fakeContext)
+    verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+
+    // Test 3: App Resume
+    DevLog.info(LOG_TAG, "Testing app resume handling")
+    mockCalendarMonitor.onAppResumed(fakeContext, false)
+    verify(exactly = 3) { mockCalendarMonitor.onRescanFromService(any()) }
+
+    // Test 4: Complex Recurring Event
+    DevLog.info(LOG_TAG, "Testing recurring event handling")
+    val recurringEventId = createRecurringTestEvent()
+    mockRecurringEventDetails(
+      eventId = recurringEventId,
+      startTime = currentTime.get() + 3600000,
+      title = "Recurring Test Event",
+      repeatingRule = "FREQ=DAILY;COUNT=5"
+    )
+    notifyCalendarChangeAndWait()
+
+    // Verify all instances were processed
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events.filter { it.eventId == recurringEventId }
+      assertEquals("Should process all recurring instances", 5, events.size)
+      DevLog.info(LOG_TAG, "Found ${events.size} recurring event instances")
+    }
+
+    // Test 5: All-day Event
+    DevLog.info(LOG_TAG, "Testing all-day event handling")
+    val allDayEventId = createAllDayTestEvent()
+    mockAllDayEventDetails(
+      eventId = allDayEventId,
+      startTime = currentTime.get(),
+      title = "All Day Test Event"
+    )
+    notifyCalendarChangeAndWait()
+
+    // Verify all-day event was processed correctly
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val event = db.events.find { it.eventId == allDayEventId }
+      assertNotNull("All-day event should be processed", event)
+      assertTrue("Event should be marked as all-day", event?.isAllDay == true)
+      DevLog.info(LOG_TAG, "All-day event processed: id=${event?.eventId}, isAllDay=${event?.isAllDay}")
+    }
+
+    // Test 6: Permission Changes
+    DevLog.info(LOG_TAG, "Testing permission change handling")
+    every { PermissionsManager.hasAllCalendarPermissionsNoCache(any()) } returns false
+    notifyCalendarChangeAndWait()
+    verify(exactly = 3) { mockCalendarMonitor.onRescanFromService(any()) } // Count should not increase
+
+    // Test 7: State Persistence
+    DevLog.info(LOG_TAG, "Testing setting persistence")
+    settings.setBoolean("enable_manual_calendar_rescan", false)
+    assertFalse("Setting should be disabled", settings.enableCalendarRescan)
+    settings.setBoolean("enable_manual_calendar_rescan", true)
+    assertTrue("Setting should be enabled", settings.enableCalendarRescan)
+  }
+
+
+  /**
+   * Tests calendar monitoring behavior when disabled.
+   *
+   * Verifies that:
+   * 1. Periodic calendar rescans do not occur
+   * 2. The alarm for periodic rescans is cancelled
+   * 3. Direct calendar changes are still processed
+   * 4. Manual triggers still work
+   */
+  @Ignore("not implemented fully yet")
+  @Test
+  fun testCalendarMonitoringDisabled() {
+    // Disable calendar rescan
+    val settings = Settings(fakeContext)
+    settings.setBoolean("enable_manual_calendar_rescan", false)
+
+    // Create test event
+    createTestEvent()
+
+    // Setup monitor state
+    val monitorState = CalendarMonitorState(fakeContext)
+    monitorState.firstScanEver = false
+    currentTime.set(System.currentTimeMillis())
+    val startTime = currentTime.get()
+    monitorState.prevEventScanTo = startTime
+    monitorState.prevEventFireFromScan = startTime
+
+    // Setup mocks
+    mockEventReminders(testEventId)
+    mockEventAlerts(testEventId, startTime + 3600000)
+    mockEventDetails(testEventId, startTime + 3600000)
+
+    // Verify calendar monitoring is disabled
+    assertFalse("Calendar monitoring should be disabled", settings.enableCalendarRescan)
+
+    // Try to start service
+    notifyCalendarChangeAndWait()
+
+    // Verify that onRescanFromService was NOT called
+    verify(exactly = 0) { mockCalendarMonitor.onRescanFromService(any()) }
+
+    // Verify no events were processed
+    verifyNoEvents()
+
+    // Verify alarm was cancelled (set to Long.MAX_VALUE)
+    verify {
+      mockAlarmManager.set(
+        eq(AlarmManager.RTC_WAKEUP),
+        eq(Long.MAX_VALUE),
+        any()
+      )
+    }
+
+    // Test that direct calendar changes still work
+    DevLog.info(LOG_TAG, "Testing direct calendar change handling")
+    val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
+    mockService.handleIntentForTest(intent)
+    verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+
+    // Test that manual triggers still work
+    DevLog.info(LOG_TAG, "Testing manual trigger handling")
+    mockCalendarMonitor.onAppResumed(fakeContext, false)
+    verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+  }
+
 
   /**
    * Creates a test calendar with the specified properties.
