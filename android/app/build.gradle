@@ -39,6 +39,8 @@ if (shouldBundleJS) {
                     "--entry-file", "index.tsx", 
                     "--bundle-output", "android/app/src/main/assets/index.android.bundle", 
                     "--assets-dest", "android/app/src/main/res/"
+        
+        // Create assets directory if it doesn't exist
         doFirst {
             new File("${projectDir}/src/main/assets").mkdirs()
         }
