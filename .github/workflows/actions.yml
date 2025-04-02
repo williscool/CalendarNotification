@@ -271,13 +271,157 @@ jobs:
         path: android/app/build/reports/jacoco/jacocoAndroidTestReport/
         retention-days: 90
 
-    - name: Upload Emulator Log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: emulator-log
-        path: emulator.log
-        retention-days: 90
+  sign:
+    name: Sign Android APKs and Bundles (${{ matrix.arch }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a, x86_64]
+    env:
+      ENTRY_FILE: "index.tsx"
+      GRADLE_ABI: ${{ matrix.arch }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      
+      # Import build variables from build job
+      - name: Set build variables
+        run: |
+          echo "build_datetime=${{ needs.build.outputs.build_datetime }}" >> $GITHUB_ENV
+          echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
+          
+      # Download build artifacts for current architecture
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk-artifacts-${{ matrix.arch }}
+          path: artifacts/apk/
+
+      - name: Download Bundle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-bundle-artifacts-${{ matrix.arch }}
+          path: artifacts/bundle/
+      
+      # Prepare directory structure for signing
+      - name: Prepare directories for signing
+        run: |
+          mkdir -p signing/apk/debug
+          mkdir -p signing/apk/release
+          mkdir -p signing/bundle/release
+          
+          # Organize APKs by type
+          find artifacts/apk/ -path "*/debug/*" -name "*.apk" -exec cp {} signing/apk/debug/ \;
+          find artifacts/apk/ -path "*/release/*" -name "*.apk" -exec cp {} signing/apk/release/ \;
+          find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          
+          # Verify contents
+          echo "Files to sign:"
+          find signing -type f | sort
+
+      # Sign the APKs and AAB
+      - uses: r0adkll/sign-android-release@v1
+        name: Sign debug app APKs
+        id: sign_debug_app
+        with:
+          releaseDirectory: signing/apk/debug/
+          signingKeyBase64: ${{ secrets.DEBUG_SIGNING_KEYSTORE }}
+          alias: ${{ secrets.DEBUG_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.DEBUG_KEYSTORE_ALIAS_PASS }}
+        env:
+          BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+
+      - uses: r0adkll/sign-android-release@v1
+        name: Sign RELEASE app APKs
+        id: sign_release_app
+        with:
+          releaseDirectory: signing/apk/release/
+          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
+          alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
+        env:
+          BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+      
+      - uses: r0adkll/sign-android-release@v1
+        name: Sign RELEASE app AABs
+        id: sign_release_aab
+        with:
+          releaseDirectory: signing/bundle/release/
+          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
+          alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
+        env:
+          BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+
+      # Rename APKs
+      - name: Rename and organize signed artifacts
+        run: |
+          mkdir -p renamed_apks
+          
+          sanitize_branch_name() {
+            echo "$1" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-20
+          }
+
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            # For tags
+            VERSION=${GITHUB_REF#refs/tags/v}
+            SUFFIX="-${VERSION}"
+          elif [[ $GITHUB_REF == refs/pull/* ]]; then
+            # For pull requests
+            PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
+            BRANCH_NAME=$(sanitize_branch_name "$GITHUB_HEAD_REF")
+            SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+            SUFFIX="-pr-${PR_NUMBER}-${BRANCH_NAME}-${SHORT_SHA}"
+          else
+            # For pushes to branches other than main
+            BRANCH_NAME=$(sanitize_branch_name "${GITHUB_REF#refs/heads/}")
+            SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+            SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
+          fi
+          
+          # Find and rename signed debug APKs
+          find signing/apk/debug/ -name "*-signed.apk" | while read apk; do
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
+          done
+          
+          # Find and rename signed release APKs
+          find signing/apk/release/ -name "*-signed.apk" | while read apk; do
+            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-release.apk
+          done
+          
+          # Find and rename signed AABs
+          find signing/bundle/release/ -name "*-signed.aab" | while read aab; do
+            cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}.aab
+          done
+          
+          # List all renamed files
+          echo "Renamed files:"
+          ls -la renamed_apks/
+
+      # Upload signed artifacts
+      - name: Upload SIGNED APK Debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
+          path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
+
+      - name: Upload SIGNED APK RELEASE
+        uses: actions/upload-artifact@v4
+        with:
+          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
+          path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
+
+      - name: Upload SIGNED AAB (App Bundle) Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
+          path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
   test:
     name: Test Android App
@@ -459,214 +603,61 @@ jobs:
         path: emulator.log
         retention-days: 90
 
-  upload:
-    name: Sign and Upload Artifacts
-    needs: build
+  comment-pr:
+    name: Comment on PR with build links
+    if: github.event_name == 'pull_request'
+    needs: sign
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [arm64-v8a, x86_64]
-      fail-fast: false
-    env:
-      ENTRY_FILE: "index.tsx"
-      GRADLE_ABI: ${{ matrix.arch }}
-    timeout-minutes: 10
-    
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
-    
-    # Set CPU count for Gradle (for any gradle operations in this job)
-    - name: Set CPU count
-      run: echo "GRADLE_MAX_WORKERS=4" >> $GITHUB_ENV
+      - name: Comment PR
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Build artifacts for this PR are available:
+
+              - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+              - [AAB](${workflowUrl}#artifacts)
+
+              You can download these artifacts from the "Artifacts" section of the workflow run.`
+            });
+
+  create-release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: sign
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       
-    - name: Use Node.js 22.x
-      uses: actions/setup-node@v3
-      with:
-        node-version: 22.x
-        cache: "yarn"
-
-    - name: Install dependencies
-      run: yarn install --immutable --inline-builds
-      env:
-        YARN_ENABLE_GLOBAL_CACHE: 'false'
-        YARN_NM_MODE: 'hardlinks-local'
-        HUSKY: '0'
-
-    - name: Setup react-native-safe-area-context mock
-      run: node scripts/setup_safe_area_mock.js
-
-    # Download build artifacts for current architecture
-    - name: Download APK artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-apk-artifacts-${{ matrix.arch }}
-        path: android/${{ env.main_project_module }}/build/outputs/apk/
-    
-    - name: Download Bundle artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-bundle-artifacts-${{ matrix.arch }}
-        path: android/${{ env.main_project_module }}/build/outputs/bundle/
-    
-    # Import build variables from build job
-    - name: Set build variables
-      run: |
-        echo "build_datetime=${{ needs.build.outputs.build_datetime }}" >> $GITHUB_ENV
-        echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
-
-    # Sign the binaries
-    - uses: r0adkll/sign-android-release@v1
-      name: Sign debug app APKs
-      id: sign_debug_app
-      with:
-        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/apk/
-        signingKeyBase64: ${{ secrets.DEBUG_SIGNING_KEYSTORE }}
-        alias: ${{ secrets.DEBUG_KEYSTORE_ALIAS }}
-        keyStorePassword: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
-        keyPassword: ${{ secrets.DEBUG_KEYSTORE_ALIAS_PASS }}
-      env:
-        BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-
-    - uses: r0adkll/sign-android-release@v1
-      name: Sign RELEASE app APKs
-      id: sign_release_app
-      with:
-        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/apk/release/
-        signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
-        alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
-        keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-        keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
-      env:
-        BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-    
-    - uses: r0adkll/sign-android-release@v1
-      name: Sign RELEASE app AABs
-      id: sign_release_aab
-      with:
-        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/bundle/release/
-        signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
-        alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
-        keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-        keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
-      env:
-        BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-
-    # Rename APKs
-    - name: Rename APKs
-      run: |
-        sanitize_branch_name() {
-          echo "$1" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-20
-        }
-
-        if [[ $GITHUB_REF == refs/tags/* ]]; then
-          # For tags
-          VERSION=${GITHUB_REF#refs/tags/v}
-          SUFFIX="-${VERSION}"
-        elif [[ $GITHUB_REF == refs/pull/* ]]; then
-          # For pull requests
-          PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
-          BRANCH_NAME=$(sanitize_branch_name "$GITHUB_HEAD_REF")
-          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
-          SUFFIX="-pr-${PR_NUMBER}-${BRANCH_NAME}-${SHORT_SHA}"
-        else
-          # For pushes to branches other than main
-          BRANCH_NAME=$(sanitize_branch_name "${GITHUB_REF#refs/heads/}")
-          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
-          SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
-        fi
-
-        # Handle multiple APKs including split APKs
-        mkdir -p renamed_apks
-        
-        # For debug APK
-        if [[ -f "${{steps.sign_debug_app.outputs.signedReleaseFile}}" ]]; then
-          echo "Copying signed debug APK..."
-          cp ${{steps.sign_debug_app.outputs.signedReleaseFile}} renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
-        fi
-        
-        # For debug APKs - Process architecture-specific debug builds
-        echo "Processing debug APKs for ${{ matrix.arch }}..."
-        for apk in $(find android/${{ env.main_project_module }}/build/outputs/apk/debug/ -name "*-signed.apk"); do
-          filename=$(basename "$apk")
-          echo "Processing debug APK: $filename"
-          cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
-        done
-        
-        # For release APKs
-        echo "Processing release APKs for ${{ matrix.arch }}..."
-        for apk in $(find android/${{ env.main_project_module }}/build/outputs/apk/release/ -name "*-signed.apk"); do
-          filename=$(basename "$apk")
-          echo "Processing APK: $filename"
-          cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-release.apk
-        done
-        
-        # For AAB (App Bundle)
-        for aab in $(find android/${{ env.main_project_module }}/build/outputs/bundle/release/ -name "*-signed.aab"); do
-          filename=$(basename "$aab")
-          echo "Processing AAB: $filename"
-          cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}.aab
-        done
-        
-        # List all renamed files for verification
-        echo "Renamed files:"
-        ls -la renamed_apks/
-
-    # Upload artifacts
-    - name: Upload SIGNED APK Debug
-      uses: actions/upload-artifact@v4
-      with:
-        name: "signed - ${build_datetime} - ${{ env.app_name }} - APK(s) debug"
-        path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
-
-    - name: Upload SIGNED APK RELEASE
-      uses: actions/upload-artifact@v4
-      with:
-        name: "signed - ${build_datetime} - ${{ env.app_name }} - APK(s) release"
-        path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
-
-    - name: Upload SIGNED AAB (App Bundle) Release
-      uses: actions/upload-artifact@v4
-      with:
-        name: "signed - ${build_datetime} - ${{ env.app_name }} - App bundle(s) AAB release"
-        path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
-
-    - name: Comment PR
-      uses: actions/github-script@v6
-      if: github.event_name == 'pull_request'
-      with:
-        github-token: ${{secrets.GITHUB_TOKEN}}
-        script: |
-          const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: `Build artifacts for this PR are available:
-
-            - [Debug APKs (universal, arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-            - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-            - [AAB](${workflowUrl}#artifacts)
-
-            You can download these artifacts from the "Artifacts" section of the workflow run.`
-          });
-
-    - name: Generate Changelog
-      if: startsWith(github.ref, 'refs/tags/v')
-      run: |
-        echo "# Release ${GITHUB_REF#refs/tags/}" > ${{ github.workspace }}-CHANGELOG.txt
-        echo "" >> ${{ github.workspace }}-CHANGELOG.txt
-        echo "## What's Changed" >> ${{ github.workspace }}-CHANGELOG.txt
-        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> ${{ github.workspace }}-CHANGELOG.txt
-
-    # Create a GitHub Release when a tag is pushed
-    - name: Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/v')
-      with:
-        body_path: ${{ github.workspace }}-CHANGELOG.txt
-        files: |
-          renamed_apks/${{env.app_file_name_prefix}}*-debug.apk
-          renamed_apks/${{env.app_file_name_prefix}}*-release.apk
-          renamed_apks/${{env.app_file_name_prefix}}*.aab
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: signed-*
+          path: artifacts
+      
+      - name: Generate Changelog
+        run: |
+          echo "# Release ${GITHUB_REF#refs/tags/}" > ${{ github.workspace }}-CHANGELOG.txt
+          echo "" >> ${{ github.workspace }}-CHANGELOG.txt
+          echo "## What's Changed" >> ${{ github.workspace }}-CHANGELOG.txt
+          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> ${{ github.workspace }}-CHANGELOG.txt
+      
+      - name: Organize release files
+        run: |
+          mkdir -p release_files
+          find artifacts/ -name "*.apk" -o -name "*.aab" | xargs -I{} cp {} release_files/
+      
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ${{ github.workspace }}-CHANGELOG.txt
+          files: release_files/*
