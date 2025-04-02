@@ -12,6 +12,14 @@ env:
   # Explicitly set CI flag to true for our Gradle task
   CI: true
 
+  # Android Emulator Configuration
+  ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
+  ANDROID_API_LEVEL: 34
+  ANDROID_TARGET: google_apis
+  ANDROID_ARCH: x86_64
+  ANDROID_PROFILE: 7.6in Foldable
+  ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
+
 on:
   push:
     tags:
@@ -115,17 +123,9 @@ jobs:
     - name: Configure Gradle properties for better performance
       run: |
         mkdir -p ~/.gradle
-        echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
-        echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+        cp android/gradle.properties ~/.gradle/gradle.properties
+        # Add dynamic worker count
         echo "org.gradle.workers.max=${GRADLE_MAX_WORKERS}" >> ~/.gradle/gradle.properties
-        echo "org.gradle.unsafe.configuration-cache=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.unsafe.parallel-configuration-cache=true" >> ~/.gradle/gradle.properties
-        # Allow daemon to be reused between processes
-        echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
 
     # Cache React Native specific files
     - name: Cache React Native files
@@ -295,17 +295,9 @@ jobs:
     - name: Configure Gradle properties for better performance
       run: |
         mkdir -p ~/.gradle
-        echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
-        echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+        cp android/gradle.properties ~/.gradle/gradle.properties
+        # Add dynamic worker count
         echo "org.gradle.workers.max=${GRADLE_MAX_WORKERS}" >> ~/.gradle/gradle.properties
-        echo "org.gradle.unsafe.configuration-cache=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.unsafe.parallel-configuration-cache=true" >> ~/.gradle/gradle.properties
-        # Allow daemon to be reused between processes
-        echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
-        echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
 
     - name: Enable KVM for Emulator
       run: |
@@ -330,7 +322,7 @@ jobs:
       if: steps.android-cache.outputs.cache-hit != 'true'
       uses: android-actions/setup-android@v3
       with:
-        packages: 'tools platform-tools system-images;android-34;google_apis;x86_64'
+        packages: 'tools platform-tools system-images;android-${{ env.ANDROID_API_LEVEL }};${{ env.ANDROID_TARGET }};${{ env.ANDROID_ARCH }}'
         accept-android-sdk-licenses: true
         log-accepted-android-sdk-licenses: false
 
@@ -338,10 +330,10 @@ jobs:
       if: steps.android-cache.outputs.cache-hit != 'true'
       uses: reactivecircus/android-emulator-runner@v2
       with:
-        api-level: 34
-        target: google_apis
-        arch: x86_64
-        profile: 7.6in Foldable
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        target: ${{ env.ANDROID_TARGET }}
+        arch: ${{ env.ANDROID_ARCH }}
+        profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
         disable-animations: true
@@ -357,10 +349,10 @@ jobs:
       id: run_tests
       uses: reactivecircus/android-emulator-runner@v2
       with:
-        api-level: 34
-        target: google_apis
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        target: ${{ env.ANDROID_TARGET }}
         arch: ${{ matrix.arch }}
-        profile: 7.6in Foldable
+        profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
         disable-animations: true
@@ -368,7 +360,7 @@ jobs:
           ./scripts/wait_for_emulator.sh
           
           # Run tests with increased timeout and specific architecture
-          cd android && ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=15 ./gradlew connectedCheck --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache && ./gradlew jacocoAndroidTestReport --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
+          cd android && ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} ./gradlew connectedCheck --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache && ./gradlew jacocoAndroidTestReport --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
@@ -446,7 +438,7 @@ jobs:
         keyStorePassword: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
         keyPassword: ${{ secrets.DEBUG_KEYSTORE_ALIAS_PASS }}
       env:
-        BUILD_TOOLS_VERSION: "34.0.0"
+        BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
 
     - uses: r0adkll/sign-android-release@v1
       name: Sign RELEASE app APKs
@@ -458,7 +450,7 @@ jobs:
         keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
         keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
       env:
-        BUILD_TOOLS_VERSION: "34.0.0"
+        BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
     
     - uses: r0adkll/sign-android-release@v1
       name: Sign RELEASE app AABs
@@ -470,7 +462,7 @@ jobs:
         keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
         keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
       env:
-        BUILD_TOOLS_VERSION: "34.0.0"
+        BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
 
     # Rename APKs
     - name: Rename APKs
