@@ -27,6 +27,9 @@ def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("
 // Combined flag to determine if we should bundle JS
 def shouldBundleJS = isCiBuild || isGitHubActions
 
+// Get the target ABI from environment or default to arm64-v8a
+def targetABI = System.getenv("GRADLE_ABI") ?: "arm64-v8a"
+
 // Task to generate React Native bundle for CI builds
 if (shouldBundleJS) {
     tasks.register("createJSBundle", Exec) {
@@ -125,14 +128,46 @@ android {
     }
   }
 
+  // Define specific build variants for each architecture
+  flavorDimensions "abi"
+  productFlavors {
+    arm64v8a {
+      dimension "abi"
+      ndk {
+        abiFilters "arm64-v8a"
+      }
+      versionNameSuffix "-arm64-v8a"
+    }
+    x8664 {
+      dimension "abi"
+      ndk {
+        abiFilters "x86_64"
+      }
+      versionNameSuffix "-x86_64"
+    }
+  }
+
   buildTypes {
     debug {
       testCoverageEnabled true
+      // Add dexOptions for faster builds
+      dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries true
+        threadCount = 4
+      }
     }
     release {
       testCoverageEnabled true
       minifyEnabled false
       proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+      
+      // Add dexOptions for faster builds
+      dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries true
+        threadCount = 4
+      }
 
       lintOptions {
         disable 'MissingTranslation'
@@ -156,6 +191,37 @@ android {
   }
   namespace 'com.github.quarck.calnotify'
 
+  // Add architecture-specific task names for easier targeting in CI
+  tasks.register("assembleArm64V8aDebug") {
+    dependsOn "assembleArm64v8aDebug"
+  }
+  
+  tasks.register("assembleArm64V8aRelease") {
+    dependsOn "assembleArm64v8aRelease"
+  }
+  
+  tasks.register("bundleArm64V8aRelease") {
+    dependsOn "bundleArm64v8aRelease"
+  }
+  
+  tasks.register("assembleX8664Debug") {
+    dependsOn "assembleX8664Debug"
+  }
+  
+  tasks.register("assembleX8664Release") {
+    dependsOn "assembleX8664Release"
+  }
+  
+  tasks.register("bundleX8664Release") {
+    dependsOn "bundleX8664Release"
+  }
+  
+  // Optimize for parallel execution with GitHub runners
+  dexOptions {
+    javaMaxHeapSize "4g"
+    preDexLibraries true
+    threadCount = 4
+  }
 }
 
 // Ensure the CI build generates the bundle before assembling
