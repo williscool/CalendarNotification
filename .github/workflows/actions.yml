@@ -102,7 +102,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4.0.0
       with:
-        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+        cache-read-only: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.number != 62) }}
         gradle-home-cache-cleanup: true
 
     - name: Grant execute permission for gradlew
@@ -219,6 +219,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: gradle
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4.0.0
+      with:
+        cache-read-only: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.number != 62) }}
+        gradle-home-cache-cleanup: true
 
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
