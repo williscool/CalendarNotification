@@ -56,6 +56,10 @@ android {
     jvmTarget = JavaVersion.VERSION_17.toString()
   }
 
+  buildFeatures {
+    buildConfig true
+  }
+
   configurations.all {
     exclude group: 'xmlpull', module: 'xmlpull'
     exclude group: 'xpp3', module: 'xpp3'
