@@ -254,21 +254,25 @@ tasks.withType(Test) {
 }
 
 // Add task to generate coverage report
-task jacocoTestReport(type: JacocoReport, dependsOn: ['testDebugUnitTest']) {
-    reports {
-        xml.required = true
-        html.required = true
-        csv.required = false
-    }
-    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
-    classDirectories.setFrom(files([
-        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
-    ]))
-    executionData.setFrom(fileTree(dir: 'build/reports', include: '**/*.html'))
-}
+// TODO: make some unit tests then update the below after that :D
+//task jacocoTestReport(type: JacocoReport, dependsOn: ['testDebugUnitTest']) {
+//    reports {
+//        xml.required = true
+//        html.required = true
+//        csv.required = false
+//    }
+//    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
+//    classDirectories.setFrom(files([
+//        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
+//        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+//    ]))
+//    executionData.setFrom(fileTree(dir: 'build/reports', include: '**/*.html'))
+//}
 
 // Add task to generate coverage report for Android tests
+// MUST run connectedAndroidTest before running this for it to work
+// but no need to force that to be run over again every time just to see the report
+// thus no dependsOn
 task jacocoAndroidTestReport(type: JacocoReport) {
     reports {
         xml.required = true
