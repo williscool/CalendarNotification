@@ -4,12 +4,18 @@
  * Script to manually generate the React Native bundle for Android
  * This is useful for local testing without using Android Studio
  * 
- * Usage: node scripts/bundle_android.js
+ * Usage: node scripts/bundle_android.js [--dev=true]
+ * Note: --dev=false is the default (production mode) and doesn't need to be specified
  */
 
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const devArg = args.find(arg => arg.startsWith('--dev='));
+const isDev = devArg ? devArg.split('=')[1] === 'true' : false;
 
 // Paths
 const ASSETS_DIR = path.join(__dirname, '../android/app/src/main/assets');
@@ -23,10 +29,9 @@ if (!fs.existsSync(ASSETS_DIR)) {
 }
 
 // Build command
-const command = `yarn react-native bundle --platform android --dev false --entry-file index.tsx --bundle-output ${BUNDLE_OUTPUT} --assets-dest ${ASSETS_DEST}`;
+const command = `yarn react-native bundle --platform android --dev ${isDev} --entry-file index.tsx --bundle-output ${BUNDLE_OUTPUT} --assets-dest ${ASSETS_DEST}`;
 
-console.log('Generating React Native bundle for Android...');
-console.log(command);
+console.log(`Generating React Native bundle for Android (dev mode: ${isDev})...`);
 
 try {
   execSync(command, { stdio: 'inherit' });

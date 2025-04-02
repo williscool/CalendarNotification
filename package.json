@@ -7,9 +7,9 @@
     "postinstall": "node scripts/setup_safe_area_mock.js",
     "build:crsqlite:arm64": "cd scripts && ./build_crsqlite_arm64.sh",
     "bundle:android": "node scripts/bundle_android.js",
-    "android:build:debug": "yarn bundle:android && cd android && ./gradlew assembleDebug",
+    "android:build:debug": "yarn bundle:android --dev=true && cd android && ./gradlew assembleDebug",
     "android:build:release": "yarn bundle:android && cd android && ./gradlew assembleRelease",
-    "android:install:debug": "yarn bundle:android && cd android && ./gradlew installDebug",
+    "android:install:debug": "yarn bundle:android --dev=true && cd android && ./gradlew installDebug",
     "android:sign:debug-apks": "node scripts/sign_android.js",
     "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks",
     "clean-logs": "node scripts/clean_clipboard_logs.js"

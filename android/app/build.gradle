@@ -31,7 +31,8 @@ def shouldBundleJS = isCiBuild || isGitHubActions
 if (shouldBundleJS) {
     tasks.register("createJSBundle", Exec) {
         workingDir "../../"
-        commandLine "yarn", "react-native", "bundle", "--platform", "android", "--dev", "false", 
+        commandLine "yarn", "react-native", "bundle", "--platform", "android", 
+                    "--dev", "${project.gradle.startParameter.taskNames.any { it.contains('Debug') } ? 'true' : 'false'}", 
                     "--entry-file", "index.tsx", 
                     "--bundle-output", "android/app/src/main/assets/index.android.bundle", 
                     "--assets-dest", "android/app/src/main/res/"
