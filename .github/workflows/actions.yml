@@ -443,8 +443,13 @@ jobs:
     name: Sign and Upload Artifacts
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a, x86_64]
+      fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
+      GRADLE_ABI: ${{ matrix.arch }}
     timeout-minutes: 10
     
     steps:
@@ -472,29 +477,17 @@ jobs:
     - name: Setup react-native-safe-area-context mock
       run: node scripts/setup_safe_area_mock.js
 
-    # Download build artifacts
-    - name: Download APK artifacts - arm64-v8a
+    # Download build artifacts for current architecture
+    - name: Download APK artifacts
       uses: actions/download-artifact@v4
       with:
-        name: android-apk-artifacts-arm64-v8a
+        name: android-apk-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/apk/
     
-    - name: Download APK artifacts - x86_64
+    - name: Download Bundle artifacts
       uses: actions/download-artifact@v4
       with:
-        name: android-apk-artifacts-x86_64
-        path: android/${{ env.main_project_module }}/build/outputs/apk/
-    
-    - name: Download Bundle artifacts - arm64-v8a
-      uses: actions/download-artifact@v4
-      with:
-        name: android-bundle-artifacts-arm64-v8a
-        path: android/${{ env.main_project_module }}/build/outputs/bundle/
-    
-    - name: Download Bundle artifacts - x86_64
-      uses: actions/download-artifact@v4
-      with:
-        name: android-bundle-artifacts-x86_64
+        name: android-bundle-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/bundle/
     
     # Import build variables from build job
@@ -508,7 +501,7 @@ jobs:
       name: Sign debug app APKs
       id: sign_debug_app
       with:
-        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/apk/debug/
+        releaseDirectory: android/${{ env.main_project_module }}/build/outputs/apk/
         signingKeyBase64: ${{ secrets.DEBUG_SIGNING_KEYSTORE }}
         alias: ${{ secrets.DEBUG_KEYSTORE_ALIAS }}
         keyStorePassword: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
@@ -570,64 +563,30 @@ jobs:
         # For debug APK
         if [[ -f "${{steps.sign_debug_app.outputs.signedReleaseFile}}" ]]; then
           echo "Copying signed debug APK..."
-          cp ${{steps.sign_debug_app.outputs.signedReleaseFile}} renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-debug.apk
+          cp ${{steps.sign_debug_app.outputs.signedReleaseFile}} renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
         fi
         
-        # For debug APKs - Process architecture-specific debug builds if they exist
-        # This handles APKs split by ABI (arm64-v8a, x86_64) due to the splits{} configuration in build.gradle
-        echo "Processing debug APKs including split APKs by architecture..."
+        # For debug APKs - Process architecture-specific debug builds
+        echo "Processing debug APKs for ${{ matrix.arch }}..."
         for apk in $(find android/${{ env.main_project_module }}/build/outputs/apk/debug/ -name "*-signed.apk"); do
           filename=$(basename "$apk")
           echo "Processing debug APK: $filename"
-          
-          # Extract architecture info if it exists in the filename
-          if [[ "$filename" == *"arm64-v8a"* ]]; then
-            echo "Detected arm64-v8a debug APK"
-            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-arm64-v8a-debug.apk
-          elif [[ "$filename" == *"x86_64"* ]]; then
-            echo "Detected x86_64 debug APK"
-            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-x86_64-debug.apk
-          fi
+          cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
         done
         
-        # For release APKs - Handle split APKs by architecture
-        # This handles APKs split by ABI (arm64-v8a, x86_64) due to the splits{} configuration in build.gradle
-        echo "Processing release APKs including split APKs by architecture..."
+        # For release APKs
+        echo "Processing release APKs for ${{ matrix.arch }}..."
         for apk in $(find android/${{ env.main_project_module }}/build/outputs/apk/release/ -name "*-signed.apk"); do
           filename=$(basename "$apk")
           echo "Processing APK: $filename"
-          
-          # Extract architecture info if it exists in the filename
-          if [[ "$filename" == *"arm64-v8a"* ]]; then
-            echo "Detected arm64-v8a APK"
-            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-arm64-v8a-release.apk
-          elif [[ "$filename" == *"x86_64"* ]]; then
-            echo "Detected x86_64 APK"
-            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-x86_64-release.apk
-          else
-            # For non-split or universal APK
-            echo "Detected universal APK (or APK without architecture in filename)"
-            cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-universal-release.apk
-          fi
+          cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-release.apk
         done
         
         # For AAB (App Bundle)
         for aab in $(find android/${{ env.main_project_module }}/build/outputs/bundle/release/ -name "*-signed.aab"); do
           filename=$(basename "$aab")
           echo "Processing AAB: $filename"
-          
-          # Extract architecture info if it exists in the filename
-          if [[ "$filename" == *"arm64-v8a"* ]]; then
-            echo "Detected arm64-v8a AAB"
-            cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-arm64-v8a.aab
-          elif [[ "$filename" == *"x86_64"* ]]; then
-            echo "Detected x86_64 AAB"
-            cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-x86_64.aab
-          else
-            # For non-split or universal AAB
-            echo "Detected universal AAB (or AAB without architecture in filename)"
-            cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}.aab
-          fi
+          cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}.aab
         done
         
         # List all renamed files for verification
