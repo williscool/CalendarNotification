@@ -146,15 +146,9 @@ class CalendarMonitorManual(
                             instanceStartTime = alert.instanceStartTime,
                             instanceEndTime = alert.instanceEndTime,
                             location = calEvent.location,
-                            lastStatusChangeTime = 0,
-                            snoozedUntil = 0L,
-                            displayStatus = EventDisplayStatus.Hidden,
                             color = calEvent.color,
-                            origin = EventOrigin.FullManual,
-                            timeFirstSeen = System.currentTimeMillis(),
-                            eventStatus = EventStatus.Confirmed,
-                            attendanceStatus = AttendanceStatus.None,
-                            flags = 0
+                            lastStatusChangeTime = 0,
+                            snoozedUntil = 0
                     )
                 }
             }
