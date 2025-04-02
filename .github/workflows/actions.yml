@@ -184,6 +184,7 @@ jobs:
       id: ndk-cache
       with:
         path: |
+          .cxx
           ~/.android/ndk
           ~/.android/cmake
           android/app/.cxx
@@ -267,7 +268,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: android-test-coverage-report
-        path: android/app/build/reports/jacoco/jacocoAndroidTestReport/
+        path: |
+          android/app/build/reports/jacoco/jacocoAndroidTestReport/
+          android/app/build/outputs/code_coverage/debugAndroidTest/connected/
         retention-days: 90
 
   sign:
@@ -566,6 +569,9 @@ jobs:
     - name: Make wait script executable
       run: chmod +x scripts/wait_for_emulator.sh
 
+    - name: Make test script executable
+      run: chmod +x scripts/run_android_tests.sh
+
     - name: Run Android Tests with Coverage
       id: run_tests
       uses: reactivecircus/android-emulator-runner@v2
@@ -578,20 +584,15 @@ jobs:
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
         disable-animations: true
         script: |
-          ./scripts/wait_for_emulator.sh
-          
-          # Run tests with increased timeout and specific architecture
-          cd android && \
-          ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} \
-          ./gradlew :${{ env.main_project_module }}:connected${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}AndroidTest \
-                    :${{ env.main_project_module }}:jacocoAndroidTestReport \
-          --parallel --max-workers=4 --build-cache
+          ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
       with:
         name: android-test-coverage-report
-        path: android/app/build/reports/jacoco/jacocoAndroidTestReport/
+        path: |
+          android/app/build/reports/jacoco/jacocoAndroidTestReport/
+          android/app/build/outputs/code_coverage/debugAndroidTest/connected/
         retention-days: 90
 
     - name: Upload Emulator Log
