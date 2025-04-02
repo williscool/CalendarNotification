@@ -116,9 +116,25 @@ jobs:
         echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
         echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.workers.max=${GRADLE_MAX_WORKERS}" >> ~/.gradle/gradle.properties
+        echo "org.gradle.unsafe.configuration-cache=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.unsafe.parallel-configuration-cache=true" >> ~/.gradle/gradle.properties
         # Allow daemon to be reused between processes
         echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
+
+    # Cache React Native specific files
+    - name: Cache React Native files
+      uses: actions/cache@v4
+      id: react-native-cache
+      with:
+        path: |
+          node_modules/.cache/react-native
+          node_modules/.cache/metro
+          node_modules/.cache/@react-native-community/cli
+        key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-react-native-
 
     # Cache Gradle files
     - name: Cache Gradle files
@@ -133,18 +149,26 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
-    - name: Build with Gradle
-      run: cd android && ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache --no-rerun-tasks
+    - name: Build and Build Debug and Release APKs with Gradle
+      run: |
+        cd android && \
+        ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache --no-rerun-tasks && \
+        ./gradlew assembleDebug assembleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS} --no-rerun-tasks && \
+        ./gradlew ${{ env.main_project_module }}:bundleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS} --no-rerun-tasks
 
-    # Create APK Debug and Release
-    - name: Build app APKs (debug and release)
-      run: cd android && ./gradlew assembleDebug assembleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS} --no-rerun-tasks
+    # Cache build outputs for test job
+    - name: Cache build outputs
+      uses: actions/cache@v4
+      id: build-outputs-cache
+      with:
+        path: |
+          android/app/build/intermediates
+          android/app/build/tmp
+          android/app/build/generated
+        key: ${{ runner.os }}-build-outputs-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-outputs-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
 
-    # Create Bundle AAB Release
-    - name: Build app bundle release (AAB)
-      run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS} --no-rerun-tasks
-
-  
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
       uses: actions/upload-artifact@v4
@@ -254,6 +278,9 @@ jobs:
         echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
         echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.workers.max=${GRADLE_MAX_WORKERS}" >> ~/.gradle/gradle.properties
+        echo "org.gradle.unsafe.configuration-cache=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.unsafe.parallel-configuration-cache=true" >> ~/.gradle/gradle.properties
         # Allow daemon to be reused between processes
         echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
