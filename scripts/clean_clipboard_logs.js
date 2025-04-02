@@ -7,6 +7,12 @@
  * Usage: node scripts/clean_clipboard_logs.js <test_log_tag> [-v|--verbose] [-t|--test-name <name>]
  */
 
+
+// WARNING: This script requires esm. plese update your package.json to type module but DO NOT COMMIT IT OR IT WILL BREAK THE BUILD
+// react itself does not support esm so react native defintely does not support it either.
+// This is a temporary solution to avoid breaking the build. I will fix this by making this script a cjs script.
+// and using await import for execa
+
 import { Command } from 'commander';
 import { execa } from 'execa';
 import fs from 'fs';
