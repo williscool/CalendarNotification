@@ -120,6 +120,19 @@ jobs:
         echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
         echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
 
+    # Cache Gradle files
+    - name: Cache Gradle files
+      uses: actions/cache@v4
+      id: gradle-cache
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          android/.gradle
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
     - name: Build with Gradle
       run: cd android && ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
 
@@ -149,17 +162,6 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-    # Cache Gradle files for other jobs
-    - name: Cache Gradle files
-      uses: actions/cache@v4
-      with:
-        path: |
-          android/.gradle
-          ~/.gradle
-        key: ${{ runner.os }}-gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/app/build.gradle') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-
   test:
     name: Test Android App
     needs: build
@@ -176,13 +178,15 @@ jobs:
       run: echo "GRADLE_MAX_WORKERS=$(nproc)" >> $GITHUB_ENV
       
     # Restore cached Gradle files
-    - name: Restore Gradle cache
+    - name: Cache Gradle files
       uses: actions/cache@v4
+      id: gradle-cache
       with:
         path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
           android/.gradle
-          ~/.gradle
-        key: ${{ runner.os }}-gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/app/build.gradle') }}
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: |
           ${{ runner.os }}-gradle-
 
@@ -237,17 +241,21 @@ jobs:
         sudo udevadm control --reload-rules
         sudo udevadm trigger --name-match=kvm
 
-    - name: AVD cache
+    - name: Cache Android SDK and AVD
       uses: actions/cache@v4
-      id: avd-cache
+      id: android-cache
       with:
         path: |
           ~/.android/avd/*
           ~/.android/adb*
-          ~/.android/sdk/system-images/*
-        key: avd-34
+          ~/.android/sdk/*
+          ~/.android/repositories.cfg
+        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-android-
 
     - name: Setup Android SDK
+      if: steps.android-cache.outputs.cache-hit != 'true'
       uses: android-actions/setup-android@v3
       with:
         packages: 'tools platform-tools system-images;android-34;google_apis;x86_64'
@@ -255,7 +263,7 @@ jobs:
         log-accepted-android-sdk-licenses: false
 
     - name: create AVD and generate snapshot for caching
-      if: steps.avd-cache.outputs.cache-hit != 'true'
+      if: steps.android-cache.outputs.cache-hit != 'true'
       uses: reactivecircus/android-emulator-runner@v2
       with:
         api-level: 34
