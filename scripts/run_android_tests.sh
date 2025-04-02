@@ -26,7 +26,7 @@ cd android
 export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=$ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL
 
 # Run the tests with the appropriate architecture suffix
-./gradlew :"$MAIN_PROJECT_MODULE":connected"$ARCH_SUFFIX"AndroidTest \
+./gradlew :"$MAIN_PROJECT_MODULE":connectedAndroidTest \
          :"$MAIN_PROJECT_MODULE":jacocoAndroidTestReport \
          --parallel --max-workers=4 --build-cache
 
