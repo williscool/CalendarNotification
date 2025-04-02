@@ -36,6 +36,11 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+    
+    # Set CPU count for Gradle
+    - name: Set CPU count
+      run: echo "GRADLE_MAX_WORKERS=$(nproc)" >> $GITHUB_ENV
+      
     - name: Use Node.js 22.x
       uses: actions/setup-node@v3
       with:
@@ -103,26 +108,30 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
-    # # Configure Gradle properties for better performance
-    # - name: Configure Gradle properties
-    #   run: |
-    #     mkdir -p ~/.gradle
-    #     echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
-    #     echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-    #     echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
-    #     echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
-    #     echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+    - name: Configure Gradle properties for better performance
+      run: |
+        mkdir -p ~/.gradle
+        echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+        echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+        # Allow daemon to be reused between processes
+        echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
+        # Explicitly set file system watching
+        echo "android.enableDexingArtifactTransform.desugaring=false" >> ~/.gradle/gradle.properties
 
     - name: Build with Gradle
-      run: cd android && ./gradlew build  --warning-mode all --parallel --max-workers=4 --configure-on-demand --build-cache
+      run: cd android && ./gradlew build --warning-mode all --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
 
     # Create APK Debug and Release
     - name: Build app APKs (debug and release)
-      run: cd android && ./gradlew assembleDebug assembleRelease --parallel --max-workers=4
+      run: cd android && ./gradlew assembleDebug assembleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS}
 
     # Create Bundle AAB Release
     - name: Build app bundle release (AAB)
-      run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease --parallel --max-workers=4
+      run: cd android && ./gradlew ${{ env.main_project_module }}:bundleRelease --parallel --max-workers=${GRADLE_MAX_WORKERS}
 
   
     # Save the build artifacts to be used in other jobs
@@ -164,6 +173,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    # Set CPU count for Gradle
+    - name: Set CPU count
+      run: echo "GRADLE_MAX_WORKERS=$(nproc)" >> $GITHUB_ENV
+      
     # Restore cached Gradle files
     - name: Restore Gradle cache
       uses: actions/cache@v4
@@ -186,6 +199,17 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: 22.x
+        cache: "yarn"
+
+    - name: Install dependencies
+      run: yarn install --immutable --inline-builds
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: 'false'
+        YARN_NM_MODE: 'hardlinks-local'
+        HUSKY: '0'
+
+    - name: Setup react-native-safe-area-context mock
+      run: node scripts/setup_safe_area_mock.js
 
     - name: set up JDK 17
       uses: actions/setup-java@v3
@@ -197,8 +221,19 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
-    - name: Setup react-native-safe-area-context mock
-      run: node scripts/setup_safe_area_mock.js
+    - name: Configure Gradle properties for better performance
+      run: |
+        mkdir -p ~/.gradle
+        echo "org.gradle.daemon=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+        echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.configureondemand=true" >> ~/.gradle/gradle.properties
+        # Allow daemon to be reused between processes
+        echo "org.gradle.vfs.watch=true" >> ~/.gradle/gradle.properties
+        echo "org.gradle.unsafe.watch-fs=true" >> ~/.gradle/gradle.properties
+        # Explicitly set file system watching
+        echo "android.enableDexingArtifactTransform.desugaring=false" >> ~/.gradle/gradle.properties
 
     - name: Enable KVM for Emulator
       run: |
@@ -257,7 +292,7 @@ jobs:
           ./scripts/wait_for_emulator.sh
           
           # Run tests with increased timeout
-          cd android && ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=15 ./gradlew connectedCheck && ./gradlew jacocoAndroidTestReport
+          cd android && ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=15 ./gradlew connectedCheck --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache && ./gradlew jacocoAndroidTestReport --parallel --max-workers=${GRADLE_MAX_WORKERS} --configure-on-demand --build-cache
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
@@ -284,6 +319,26 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+
+    # Set CPU count for Gradle (for any gradle operations in this job)
+    - name: Set CPU count
+      run: echo "GRADLE_MAX_WORKERS=$(nproc)" >> $GITHUB_ENV
+      
+    - name: Use Node.js 22.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: 22.x
+        cache: "yarn"
+
+    - name: Install dependencies
+      run: yarn install --immutable --inline-builds
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: 'false'
+        YARN_NM_MODE: 'hardlinks-local'
+        HUSKY: '0'
+
+    - name: Setup react-native-safe-area-context mock
+      run: node scripts/setup_safe_area_mock.js
 
     # Download build artifacts
     - name: Download APK artifacts
@@ -426,19 +481,19 @@ jobs:
     - name: Upload SIGNED APK Debug
       uses: actions/upload-artifact@v4
       with:
-        name: signed - ${{ env.build_datetime }} - ${{ env.app_name }} - APK(s) debug
+        name: "signed - ${build_datetime} - ${{ env.app_name }} - APK(s) debug"
         path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
     - name: Upload SIGNED APK RELEASE
       uses: actions/upload-artifact@v4
       with:
-        name: signed - ${{ env.build_datetime }} - ${{ env.app_name }} - APK(s) release
+        name: "signed - ${build_datetime} - ${{ env.app_name }} - APK(s) release"
         path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
     - name: Upload SIGNED AAB (App Bundle) Release
       uses: actions/upload-artifact@v4
       with:
-        name: signed - ${{ env.build_datetime }} - ${{ env.app_name }} - App bundle(s) AAB release
+        name: "signed - ${build_datetime} - ${{ env.app_name }} - App bundle(s) AAB release"
         path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
     - name: Comment PR
