@@ -133,8 +133,22 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
+    # Cache build outputs for test job
+    - name: Restore Build Outputs Cache
+      uses: actions/cache@v4
+      id: build-outputs-cache
+      with:
+        path: |
+          android/app/build/intermediates
+          android/app/build/tmp
+          android/app/build/generated
+          android/app/build/outputs
+        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+
     # Cache React Native specific files
-    - name: Cache React Native files
+    - name: Restore Cache React Native files
       uses: actions/cache@v4
       id: react-native-cache
       with:
@@ -147,7 +161,7 @@ jobs:
           ${{ runner.os }}-react-native-
 
     # Cache Gradle files
-    - name: Cache Gradle files
+    - name: Restore Cache Gradle files
       uses: actions/cache@v4
       id: gradle-cache
       with:
@@ -162,7 +176,7 @@ jobs:
           ${{ runner.os }}-gradle-
 
     # Cache NDK and CMake builds
-    - name: Cache NDK and CMake
+    - name: Restore NDK and CMake Cache
       uses: actions/cache@v4
       id: ndk-cache
       with:
@@ -175,7 +189,7 @@ jobs:
           ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-
 
     # Cache JS Bundle and Assets
-    - name: Cache JS Bundle and Assets
+    - name: Restore JS Bundle and Assets Cache
       uses: actions/cache@v4
       id: js-bundle-cache
       with:
@@ -183,8 +197,9 @@ jobs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        key: ${{ runner.os }}-js-bundle-${{ github.sha }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
         restore-keys: |
+          ${{ runner.os }}-js-bundle-${{ github.sha }}-
           ${{ runner.os }}-js-bundle-
 
     # Generate JS bundle using our script
@@ -193,16 +208,24 @@ jobs:
       run: |
         yarn bundle:android
 
+    - name: Update JS Bundle and Assets Cache
+      if: steps.js-bundle-cache.outputs.cache-hit != 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          android/app/src/main/assets/index.android.bundle
+          android/app/src/main/res/drawable-*
+          android/app/src/main/res/raw-*
+        key: ${{ runner.os }}-js-bundle-${{ github.sha }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
         cd android && \
         ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
         --parallel --max-workers=4 --build-cache
 
-    # Cache build outputs for test job
-    - name: Cache build outputs
+    - name: Update Build Outputs Cache
       uses: actions/cache@v4
-      id: build-outputs-cache
       with:
         path: |
           android/app/build/intermediates
@@ -210,8 +233,6 @@ jobs:
           android/app/build/generated
           android/app/build/outputs
         key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
 
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
