@@ -1,10 +1,5 @@
 #!/usr/bin/env node
 
-// WARNING: This script requires esm. plese update your package.json to type module but DO NOT COMMIT IT OR IT WILL BREAK THE BUILD
-// react itself does not support esm so react native defintely does not support it either.
-// This is a temporary solution to avoid breaking the build. I will fix this by making this script a cjs script.
-// and using await import for execa
-
 /**
  * Script to clean log files for sharing
  * 
@@ -18,7 +13,7 @@
  */
 
 import { Command } from 'commander';
-import fs from 'fs';
+import * as fs from 'fs';
 
 // Constants
 const EVENTS_DB_NAME = 'eventsv9';
@@ -33,7 +28,7 @@ const IMPORTANT_EXCEPTIONS = [
 ];
 
 // Test-specific exceptions to keep in full
-const TEST_SPECIFIC_EXCEPTIONS = {
+const TEST_SPECIFIC_EXCEPTIONS: Record<string, string[]> = {
     'CalendarMonitorServiceTest': [
         'NullPointerException'
     ],
@@ -47,7 +42,7 @@ const ONE_LINE_EXCEPTIONS = [
     'java.util.NoSuchElementException: null, stack: com.github.quarck.calnotify.calendarmonitor.CalendarMonitorManual.scanNextEvent'
 ];
 
-function isImportantException(line, testName) {
+function isImportantException(line: string, testName?: string): boolean {
     // Check common important exceptions
     if (IMPORTANT_EXCEPTIONS.some(exception => line.includes(exception))) {
         return true;
@@ -61,8 +56,13 @@ function isImportantException(line, testName) {
     return false;
 }
 
-function isOneLineException(line) {
+function isOneLineException(line: string): boolean {
     return ONE_LINE_EXCEPTIONS.some(exception => line.includes(exception));
+}
+
+interface ProgramOptions {
+    verbose?: boolean;
+    testName?: string;
 }
 
 const program = new Command();
@@ -75,7 +75,7 @@ program
     .argument('[output_file]', 'output file for cleaned logs (defaults to input_file.cleaned)')
     .option('-v, --verbose', 'show detailed error messages')
     .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalendarMonitorServiceTest)')
-    .action(async (testLogTag, inputFile, outputFile, options) => {
+    .action((testLogTag: string, inputFile: string, outputFile: string | undefined, options: ProgramOptions) => {
         outputFile = outputFile || inputFile + '.cleaned';
 
         try {
@@ -96,7 +96,7 @@ program
             let eventsv9Index = lines.findIndex(line => line.includes(EVENTS_DB_NAME));
             let testLogTagIndex = lines.findIndex(line => line.includes(testLogTag));
             
-            let startIndex;
+            let startIndex: number;
             if (eventsv9Index === -1 && testLogTagIndex === -1) {
                 console.error(`Error: Could not find either '${EVENTS_DB_NAME}' or '${testLogTag}'`);
                 process.exit(1);
@@ -118,7 +118,7 @@ program
             });
 
             // 3. Handle stack traces
-            let cleanedLines = [];
+            let cleanedLines: string[] = [];
             let inStackTrace = false;
             let errorLineCount = 0;
             let isImportantError = false;
@@ -188,7 +188,7 @@ program
             fs.writeFileSync(outputFile, cleanedLines.join('\n'));
             console.log('Log cleaning completed successfully!');
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error: ${error.code || 'Unknown error'}`);
             if (options.verbose) {
                 console.error('Details:', error.message);
@@ -197,4 +197,6 @@ program
         }
     });
 
-program.parse(); 
+if (require.main === module) {
+    program.parse();
+} 

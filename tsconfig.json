@@ -1,26 +1,28 @@
 {
-  "extends": ["./node_modules/gts/tsconfig-google.json", "@tsconfig/react-native/tsconfig.json"],
+  "extends": "@tsconfig/react-native/tsconfig.json",
   "compilerOptions": {
-    // "verbatimModuleSyntax": true, // https://swc.rs/docs/migrating-from-tsc
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "types": [
-      "jest"
+      "jest",
+      "node"
     ],
     "baseUrl": ".",
     "paths": {
       "@lib/*": ["lib/*"],
     },
+    "esModuleInterop": true
   },
-  "include": ["src/**/*", "test/**/*", "index.tsx", "lib/**/*" ],
+  "include": ["src/**/*", "test/**/*", "index.tsx", "lib/**/*", "scripts/**/*.ts"],
   "exclude": ["node_modules", "build"],
   "typeRoots": ["./node_modules/@types"],
-  "ts-node": { // https://github.com/TypeStrong/ts-node#native-ecmascript-modules
+  "ts-node": {
     "transpileOnly": true,
     "files": true,
-    "experimentalResolver": true,
-    // "esm": true,
+    "experimentalResolver": true
   }
 }
