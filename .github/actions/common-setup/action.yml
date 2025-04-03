@@ -93,8 +93,9 @@ runs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
         restore-keys: |
+          ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
           ${{ runner.os }}-js-bundle-
 
     # Generate JS bundle if needed
@@ -112,7 +113,7 @@ runs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
     
     - name: Setup react-native-safe-area-context mock
       if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
@@ -142,7 +143,7 @@ runs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4.0.0
       with:
-        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+        cache-read-only: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.number != 62) }}
         gradle-home-cache-cleanup: true
         gradle-home-cache-includes: |
           caches
@@ -152,6 +153,13 @@ runs:
 
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
+      shell: bash
+      
+    # List all available Gradle tasks (warms up Gradle cache)
+    - name: List Gradle Tasks
+      run: |
+        cd android && \
+        ./gradlew tasks --all
       shell: bash
       
     # Cache React Native specific files
@@ -203,9 +211,9 @@ runs:
           android/app/build/intermediates/instrumented_classes
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           
     # Android SDK and AVD cache for emulator tests
     - name: Cache Android SDK and AVD

@@ -81,6 +81,7 @@ jobs:
     # Note: All caches are now handled in common-setup
 
     - name: Build CMake components first
+      if: steps.ndk-cache.outputs.cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew externalNativeBuildDebug \
@@ -88,6 +89,7 @@ jobs:
         --parallel --max-workers=4 --build-cache
 
     - name: Build Android APKs (Debug and Release) with Gradle
+      if: steps.build-outputs-cache.outputs.cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
@@ -133,7 +135,7 @@ jobs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', 'package.json', 'yarn.lock') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
         
     - name: Update CMake Cache
       if: always()
@@ -165,7 +167,7 @@ jobs:
           android/app/build/intermediates/instrumented_classes
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'android/app/**') }}
+        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
 
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
@@ -447,7 +449,7 @@ jobs:
         
     # Update Android SDK and AVD cache
     - name: Update Android SDK and AVD Cache
-      if: always()
+      if: always() && steps.android-cache.outputs.cache-hit != 'true'
       uses: actions/cache@v4
       with:
         path: |
