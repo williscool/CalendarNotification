@@ -333,10 +333,11 @@ class CalendarMonitorServiceEventReminderTest {
     // Verify 1 rescan was triggered (since manual rescanning is disabled) it just exits early
     verify(atLeast = 1) { mockCalendarMonitor.onRescanFromService(any()) }
 
-    // would do this test but setOrCancelAlarm is private
-//    verify(atLeast = 1) {
-//        mockCalendarMonitor.setOrCancelAlarm(any(), match { time -> time == Long.MAX_VALUE || time == 0L })
-//    }
+    // Verify the observable effects of setOrCancelAlarm by checking that AlarmManager was called
+    // setOrCancelAlarm would either cancel existing alarms or set new ones depending on parameters
+    verify(atLeast = 1) { 
+      mockAlarmManager.setExactAndAllowWhileIdle(any(), any(), any()) 
+    }
   }
 
   /**
