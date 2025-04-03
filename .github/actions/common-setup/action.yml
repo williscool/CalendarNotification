@@ -186,28 +186,6 @@ runs:
         restore-keys: |
           ${{ runner.os }}-react-native-
     
-    # Cache NDK and CMake builds if arch is specified
-    - name: Restore NDK and CMake Cache
-      if: inputs.arch != ''
-      uses: actions/cache@v4
-      id: ndk-cache
-      with:
-        path: |
-          .cxx
-          ~/.android/ndk
-          ~/.android/cmake
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/app/build/intermediates/transforms
-          android/app/build/intermediates/prefab
-          android/app/build/intermediates/prefab_package
-          android/app/build/intermediates/prefab_metadata
-        key: ${{ runner.os }}-cmake-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp', '**/*.so') }}
-        restore-keys: |
-          ${{ runner.os }}-cmake-${{ inputs.arch }}-
-          
     # Add build outputs cache steps if arch is specified
     - name: Restore Build Outputs Cache
       if: inputs.arch != ''

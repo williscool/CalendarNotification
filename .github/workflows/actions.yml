@@ -82,13 +82,34 @@ jobs:
     # Note: All caches are now handled in common-setup
 
     # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
-    - name: Build CMake components first
+    - name: Build Native aka CMake Components first
       if: steps.common-setup.outputs.ndk-cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew externalNativeBuildDebug \
                   externalNativeBuildRelease \
         --parallel --max-workers=4 --build-cache
+
+    # Cache NDK and CMake builds if arch is specified
+    - name: Update NDK and CMake Cache
+      uses: actions/cache@v4
+      id: ndk-cache
+      with:
+        path: |
+          .cxx
+          ~/.android/ndk
+          ~/.android/cmake
+          android/app/.cxx
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+          android/app/build/intermediates/transforms
+          android/app/build/intermediates/prefab
+          android/app/build/intermediates/prefab_package
+          android/app/build/intermediates/prefab_metadata
+        key: ${{ runner.os }}-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp', '**/*.so') }}
+        restore-keys: |
+          ${{ runner.os }}-cmake-${{ matrix.arch }}-
 
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
