@@ -351,16 +351,6 @@ jobs:
                   :${{ env.main_project_module }}:jacocoAndroidTestReport \
         --continue
 
-    # Create test report
-    - name: Publish Test Report
-      uses: dorny/test-reporter@v1
-      if: always()  # Run even if tests fail
-      with:
-        name: Unit Test Results
-        path: android/app/build/test-results/testDebugUnitTest/**/*.xml
-        reporter: java-junit
-        fail-on-error: false
-
     # Upload test results
     - name: Upload Unit Test Results
       if: always() # Always upload results even if tests fail
@@ -368,9 +358,9 @@ jobs:
       with:
         name: unit-test-results
         path: |
-          android/app/build/reports/tests/testDebugUnitTest/
-          android/app/build/test-results/testDebugUnitTest/
-          android/app/build/reports/jacoco/jacocoTestDebugUnitTestReport/
+          android/app/build/reports/
+          android/app/build/test-results/
+          android/app/build/outputs/logs/
         retention-days: 90
         
   integration-test:
@@ -446,8 +436,11 @@ jobs:
         name: android-test-coverage-report
         path: |
           android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/debugAndroidTest/connected/
+          android/app/build/reports/
+          android/app/build/test-results/
+          android/app/build/outputs/logs/
         retention-days: 90
+    
 
     - name: Upload Emulator Log
       if: always()
