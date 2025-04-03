@@ -250,8 +250,11 @@ dependencies {
             strictly '3.45.0'
         }
     }
+    
+    // Unit test dependencies
+    testImplementation 'junit:junit:4.13.2'
 
-    // Test dependencies - use test-compatible versions
+  // Test dependencies - use test-compatible versions
     androidTestImplementation "androidx.core:core:$android_core_test_version"
     androidTestImplementation "androidx.core:core-ktx:$android_core_test_version"
     androidTestImplementation "androidx.appcompat:appcompat:$androidx_test_version"
