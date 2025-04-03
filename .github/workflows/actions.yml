@@ -250,7 +250,9 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cmake-${{ matrix.arch }}-
 
+    # Build CMake components first
     - name: Build CMake components first
+      if: steps.cmake-cache.outputs.cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew externalNativeBuildDebug \
@@ -258,6 +260,7 @@ jobs:
         --parallel --max-workers=4 --build-cache
 
     - name: Update External Native aka CMake Build Cache
+      if: steps.cmake-cache.outputs.cache-hit != 'true'
       uses: actions/cache@v4
       with:
         path: |
