@@ -138,7 +138,7 @@ runs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Cache Gradle files
+    - name: Restore Cache Gradle files
       uses: actions/cache@v4
       id: gradle-cache
       with:
@@ -166,7 +166,7 @@ runs:
       run: cd android && chmod +x gradlew
       shell: bash
       
-    # List all available Gradle tasks (warms up Gradle cache)
+    # List all available Gradle tasks (also warms up Gradle cache)
     - name: List Gradle Tasks
       run: |
         cd android && \
@@ -227,7 +227,7 @@ runs:
           ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           
     # Android SDK and AVD cache for emulator tests
-    - name: Cache Android SDK and AVD
+    - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'
       uses: actions/cache@v4
       id: android-cache
@@ -249,6 +249,17 @@ runs:
         packages: 'tools platform-tools system-images;android-${{ inputs.android_api_level }};${{ inputs.android_target }};${{ inputs.arch }}'
         accept-android-sdk-licenses: true
         log-accepted-android-sdk-licenses: false
+    
+    # Enable KVM for Emulator
+    - name: Enable KVM for Emulator
+      # Only run if run_emulator_setup is true BUT MUST HAPPEN REGARDLESS OF WHETHER CACHE IS HIT OR NOT. 
+      # Emulator needs these steps to be run every time
+      if: inputs.run_emulator_setup == 'true'
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+      shell: bash
         
     # Create AVD and generate snapshot for caching
     - name: Create AVD and generate snapshot for caching
