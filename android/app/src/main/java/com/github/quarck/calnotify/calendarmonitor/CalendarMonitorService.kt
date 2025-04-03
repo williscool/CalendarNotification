@@ -30,11 +30,16 @@ import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.partialWakeLocked
 import com.github.quarck.calnotify.utils.powerManager
 import com.github.quarck.calnotify.utils.wakeLocked
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 class CalendarMonitorService : IntentService("CalendarMonitorService") {
+    private var _timer: ScheduledExecutorService? = null
+    var timer: ScheduledExecutorService?
+        get() = _timer
+        set(value) { _timer = value }
 
     override fun onHandleIntent(intent: Intent?) {
-
         if (intent == null) {
             DevLog.error(LOG_TAG, "Intent is null")
             return
@@ -53,7 +58,6 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
         )
 
         partialWakeLocked(this, Consts.CALENDAR_RESCAN_TIMEOUT, WAKE_LOCK_NAME) {
-
             if (shouldReloadCalendar && startDelay > MAX_TIME_WITHOUT_QUICK_RESCAN) {
                 try {
                     sleep(QUICK_RESCAN_SLEEP_BEFORE)
@@ -83,7 +87,6 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
                 }
             }
 
-
             // Always rescan CalendarChangeRequestMonitor
             try {
                 ApplicationController.AddEventMonitorInstance.onRescanFromService(this)
@@ -100,15 +103,24 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
                 }
             }
         }
-
     }
 
     fun sleep(time: Int) {
         try {
-            Thread.sleep(time.toLong())
+            if (timer != null) {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                timer?.schedule({ latch.countDown() }, time.toLong(), TimeUnit.MILLISECONDS)
+                latch.await(time.toLong(), TimeUnit.MILLISECONDS)
+            } else {
+                Thread.sleep(time.toLong())
+            }
+        } catch (ex: Exception) {
         }
-        catch (ex: Exception) {
-        }
+    }
+
+    // Public method for testing purposes only
+    fun handleIntentForTest(intent: Intent?) {
+        onHandleIntent(intent)
     }
 
     companion object {
@@ -130,6 +142,13 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
                 rescanMonitor: Boolean = true,   // should perform calendar monitor rescan
                 userActionUntil: Long = 0 // Time in millis - max deadline to treat as a user action
         ) {
+            DevLog.info(LOG_TAG, "startRescanService: " +
+                    "startDelay=$startDelay, " +
+                    "reloadCalendar=$reloadCalendar, " +
+                    "rescanMonitor=$rescanMonitor, " +
+                    "userActionUntil=$userActionUntil"
+            )
+            
             val intent = Intent(context, CalendarMonitorService::class.java)
 
             intent.putExtra(START_DELAY, startDelay)

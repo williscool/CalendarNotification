@@ -41,14 +41,19 @@ import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.setExactAndAlarm
 
 
-class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
+
+open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
         CalendarMonitorInterface {
 
-    private val manualScanner: CalendarMonitorManual by lazy {
+    public val manualScanner: CalendarMonitorManual by lazy {
         CalendarMonitorManual(calendarProvider, this)
     }
 
     private var lastScan = 0L
+
+    // For testing only - allows injection of current time
+    protected open val currentTimeForTest: Long
+        get() = System.currentTimeMillis()
 
     override fun onSystemTimeChange(context: Context) {
 
@@ -60,7 +65,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         DevLog.info(LOG_TAG, "onPeriodicRescanBroadcast");
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = currentTimeForTest
         if (currentTime - lastScan < Consts.ALARM_THRESHOLD / 4)
             return
 
@@ -72,14 +77,14 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         DevLog.info(LOG_TAG, "onAppResumed")
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = currentTimeForTest
         val doMonitorRescan = monitorSettingsChanged || (currentTime - lastScan >= Consts.ALARM_THRESHOLD / 4)
 
         launchRescanService(
                 context,
                 reloadCalendar = true,
                 rescanMonitor = doMonitorRescan,
-                userActionUntil = System.currentTimeMillis() + Consts.MAX_USER_ACTION_DELAY
+                userActionUntil = currentTimeForTest + Consts.MAX_USER_ACTION_DELAY
         )
     }
 
@@ -100,14 +105,15 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
         DevLog.info(LOG_TAG, "onAlarmBroadcast")
 
         try {
-
             val state = CalendarMonitorState(context)
-
-            val currentTime = System.currentTimeMillis()
-
+            val currentTime = currentTimeForTest
             val nextEventFireFromScan = state.nextEventFireFromScan
-            if (nextEventFireFromScan < currentTime + Consts.ALARM_THRESHOLD) {
+            
+            DevLog.info(LOG_TAG, "onAlarmBroadcast: currentTime=$currentTime, nextEventFireFromScan=$nextEventFireFromScan, " +
+                    "threshold=${currentTime + Consts.ALARM_THRESHOLD}")
+            DevLog.info(LOG_TAG, "onAlarmBroadcast: condition check: ${nextEventFireFromScan < currentTime + Consts.ALARM_THRESHOLD}")
 
+            if (nextEventFireFromScan < currentTime + Consts.ALARM_THRESHOLD) {
                 DevLog.info(LOG_TAG, "onAlarmBroadcast: nextEventFireFromScan $nextEventFireFromScan is less than current" +
                         " time $currentTime + THRS, checking what to fire")
 
@@ -310,6 +316,18 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
             val state = CalendarMonitorState(context)
 
+            val sharedPreferences = context.getSharedPreferences(CalendarMonitorState.PREFS_NAME, Context.MODE_PRIVATE)
+
+            DevLog.info(LOG_TAG, "Context CalendarMonitorState SharedPreferences contents:")
+            sharedPreferences.all.forEach { (key, value) ->
+                DevLog.info(LOG_TAG, "  $key = $value")
+            }
+
+            DevLog.info(LOG_TAG, "CalendarMonitorState: nextEventFireFromScan=${state.nextEventFireFromScan}, " +
+                    "prevEventFireFromScan=${state.prevEventFireFromScan}, " +
+                    "prevEventScanTo=${state.prevEventScanTo}, " +
+                    "firstScanEver=${state.firstScanEver}")
+
             val t1 = System.currentTimeMillis()
 
             val (nextAlarmFromManual, firedEventsManual) = manualScanner.scanNextEvent(context, state)
@@ -332,6 +350,7 @@ class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
             DevLog.error(LOG_TAG, "onRescanFromService: exception, ${ex.detailed}")
         }
 
+        DevLog.info(LOG_TAG, "onRescanFromService: firedAnything=${firedAnything}")
         if (firedAnything)
             ApplicationController.afterCalendarEventFired(context)
     }

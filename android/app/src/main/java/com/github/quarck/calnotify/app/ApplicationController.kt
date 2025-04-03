@@ -52,8 +52,41 @@ import com.github.quarck.calnotify.utils.detailed
 
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
+interface ApplicationControllerInterface {
+    fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean
+    fun registerNewEvents(context: Context, pairs: List<Pair<MonitorEventAlertEntry, EventAlertRecord>>): ArrayList<Pair<MonitorEventAlertEntry, EventAlertRecord>>
+    fun postEventNotifications(context: Context, events: Collection<EventAlertRecord>)
+    fun hasActiveEventsToRemind(context: Context): Boolean
+    fun onEventAlarm(context: Context)
+    fun onAppUpdated(context: Context)
+    fun onBootComplete(context: Context)
+    fun onCalendarChanged(context: Context)
+    fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long)
+    fun onCalendarReloadFromService(context: Context, userActionUntil: Long)
+    fun onCalendarEventMovedWithinApp(context: Context, oldEvent: EventRecord, newEvent: EventRecord)
+    fun afterCalendarEventFired(context: Context)
+    fun shouldMarkEventAsHandledAndSkip(context: Context, event: EventAlertRecord): Boolean
+    fun onMainActivityCreate(context: Context?)
+    fun onMainActivityStarted(context: Context?)
+    fun onMainActivityResumed(context: Context?, shouldRepost: Boolean, monitorSettingsChanged: Boolean)
+    fun onTimeChanged(context: Context)
+    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean)
+    fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord)
+    fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean
+    fun dismissEvent(context: Context, dismissType: EventDismissType, eventId: Long, instanceStartTime: Long, notificationId: Int, notifyActivity: Boolean)
+    fun restoreEvent(context: Context, event: EventAlertRecord)
+    fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
+    fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
+    fun forceRepostNotifications(context: Context)
+    fun postNotificationsAutoDismissedDebugMessage(context: Context)
+    fun postNearlyMissedNotificationDebugMessage(context: Context)
+    fun isCustomQuietHoursActive(ctx: Context): Boolean
+    fun applyCustomQuietHoursForSeconds(ctx: Context, quietForSeconds: Int)
+    fun onReminderAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long)
+    fun onSnoozeAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long)
+}
 
-object ApplicationController : EventMovedHandler {
+object ApplicationController : ApplicationControllerInterface, EventMovedHandler {
 
     private const val LOG_TAG = "App"
 
@@ -68,9 +101,9 @@ object ApplicationController : EventMovedHandler {
         return settings!!
     }
 
-    private val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
+    val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
 
-    private val alarmScheduler: AlarmSchedulerInterface = AlarmScheduler
+    val alarmScheduler: AlarmSchedulerInterface = AlarmScheduler
 
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
     private fun getQuietHoursManager(ctx: Context): QuietHoursManagerInterface {
@@ -107,14 +140,14 @@ object ApplicationController : EventMovedHandler {
 //                it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
 //            }
 
-    fun hasActiveEventsToRemind(context: Context) =
+    override fun hasActiveEventsToRemind(context: Context) =
             EventsStorage(context).classCustomUse {
                 //val settings = Settings(context)
                 it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
             }
 
 
-    fun onEventAlarm(context: Context) {
+    override fun onEventAlarm(context: Context) {
 
         DevLog.info(LOG_TAG, "onEventAlarm at ${System.currentTimeMillis()}");
 
@@ -131,7 +164,7 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun onAppUpdated(context: Context) {
+    override fun onAppUpdated(context: Context) {
 
         DevLog.info(LOG_TAG, "Application updated")
 
@@ -139,14 +172,14 @@ object ApplicationController : EventMovedHandler {
         notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
-        calendarMonitorInternal.launchRescanService(
+        this.CalendarMonitor.launchRescanService(
                 context,
                 reloadCalendar = true,
                 rescanMonitor = true
         )
     }
 
-    fun onBootComplete(context: Context) {
+    override fun onBootComplete(context: Context) {
 
         DevLog.info(LOG_TAG, "OS boot is complete")
 
@@ -155,17 +188,17 @@ object ApplicationController : EventMovedHandler {
 
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
-        calendarMonitorInternal.launchRescanService(
+        this.CalendarMonitor.launchRescanService(
                 context,
                 reloadCalendar = true,
                 rescanMonitor = true
         )
     }
 
-    fun onCalendarChanged(context: Context) {
+    override fun onCalendarChanged(context: Context) {
 
         DevLog.info(LOG_TAG, "onCalendarChanged")
-        calendarMonitorInternal.launchRescanService(
+        this.CalendarMonitor.launchRescanService(
                 context,
                 delayed = 2000,
                 reloadCalendar = true,
@@ -173,7 +206,7 @@ object ApplicationController : EventMovedHandler {
         )
     }
 
-    fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {
+    override fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {
 
         DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService")
 
@@ -197,7 +230,7 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun onCalendarReloadFromService(context: Context, userActionUntil: Long) {
+    override fun onCalendarReloadFromService(context: Context, userActionUntil: Long) {
 
         DevLog.info(LOG_TAG, "calendarReloadFromService")
 
@@ -224,8 +257,9 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun onCalendarEventMovedWithinApp(context: Context, oldEvent: EventRecord, newEvent: EventRecord) {
+  override fun onCalendarEventMovedWithinApp(context: Context, oldEvent: EventRecord, newEvent: EventRecord) {
 
+        //  TODO: MAKE SURE YOU MAKE THIS TIME AN OVERRIDEABLE PROPERTY FOR TESTS!
         val newAlertTime = newEvent.nextAlarmTime(System.currentTimeMillis())
 
         val shouldAutoDismiss =
@@ -238,14 +272,11 @@ object ApplicationController : EventMovedHandler {
                 )
 
         if (shouldAutoDismiss) {
-
             EventsStorage(context).classCustomUse {
                 db ->
-
                 val alertRecord = db.getEvent(oldEvent.eventId, oldEvent.startTime)
 
                 if (alertRecord != null) {
-
                     dismissEvent(
                             context,
                             db,
@@ -261,13 +292,13 @@ object ApplicationController : EventMovedHandler {
     }
 
     // some housekeeping that we have to do after firing calendar event
-    fun afterCalendarEventFired(context: Context) {
+    override fun afterCalendarEventFired(context: Context) {
 
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
         UINotifier.notify(context, false)
     }
 
-    fun postEventNotifications(context: Context, events: Collection<EventAlertRecord>) {
+    override fun postEventNotifications(context: Context, events: Collection<EventAlertRecord>) {
 
         if (events.size == 1)
             notificationManager.onEventAdded(context, EventFormatter(context), events.first())
@@ -275,7 +306,7 @@ object ApplicationController : EventMovedHandler {
             notificationManager.postEventNotifications(context, EventFormatter(context))
     }
 
-    fun shouldMarkEventAsHandledAndSkip(context: Context, event: EventAlertRecord): Boolean {
+    override fun shouldMarkEventAsHandledAndSkip(context: Context, event: EventAlertRecord): Boolean {
 
         val settings = getSettings(context)
 
@@ -300,7 +331,7 @@ object ApplicationController : EventMovedHandler {
     }
 
 
-    fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean {
+    override fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean {
 
         var ret = false
 
@@ -396,7 +427,7 @@ object ApplicationController : EventMovedHandler {
         return ret
     }
 
-    fun registerNewEvents(
+    override fun registerNewEvents(
             context: Context,
             //wasHandledCache: WasHandledCacheInterface,
             pairs: List<Pair<MonitorEventAlertEntry, EventAlertRecord>>
@@ -806,7 +837,7 @@ object ApplicationController : EventMovedHandler {
         notificationManager.cleanupEventReminder(context);
     }
 
-    fun onMainActivityCreate(context: Context?) {
+    override fun onMainActivityCreate(context: Context?) {
         if (context != null) {
             val settings = getSettings(context)
 
@@ -818,10 +849,10 @@ object ApplicationController : EventMovedHandler {
     }
 
     @Suppress("UNUSED_PARAMETER")
-    fun onMainActivityStarted(context: Context?) {
+    override fun onMainActivityStarted(context: Context?) {
     }
 
-    fun onMainActivityResumed(
+    override fun onMainActivityResumed(
             context: Context?,
             shouldRepost: Boolean,
             monitorSettingsChanged: Boolean
@@ -840,7 +871,7 @@ object ApplicationController : EventMovedHandler {
 
             // this might fire new notifications
             // This would automatically launch the rescan of calendar and monitor
-            calendarMonitorInternal.onAppResumed(context, monitorSettingsChanged)
+            this.CalendarMonitor.onAppResumed(context, monitorSettingsChanged)
 
             //checkAndCleanupWasHandledCache(context)
         }
@@ -859,12 +890,12 @@ object ApplicationController : EventMovedHandler {
 //        prState.lastWasHandledCacheCleanup = now
 //    }
 
-    fun onTimeChanged(context: Context) {
+    override fun onTimeChanged(context: Context) {
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
-        calendarMonitorInternal.onSystemTimeChange(context)
+        this.CalendarMonitor.onSystemTimeChange(context)
     }
 
-    fun dismissEvents(
+    override fun dismissEvents(
             context: Context,
             db: EventsStorageInterface,
             events: Collection<EventAlertRecord>,
@@ -988,14 +1019,14 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord) {
+    override fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord) {
         EventsStorage(context).classCustomUse {
             db ->
             dismissEvent(context, db, event, dismissType, false)
         }
     }
 
-    fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean {
+    override fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean {
         var ret = false
 
         if (calendarProvider.deleteEvent(context, event.eventId)) {
@@ -1007,13 +1038,13 @@ object ApplicationController : EventMovedHandler {
     }
 
     @Suppress("UNUSED_PARAMETER")
-    fun dismissEvent(
+    override fun dismissEvent(
             context: Context,
             dismissType: EventDismissType,
             eventId: Long,
             instanceStartTime: Long,
             notificationId: Int,
-            notifyActivity: Boolean = true
+            notifyActivity: Boolean
     ) {
 
         EventsStorage(context).classCustomUse {
@@ -1034,7 +1065,7 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun restoreEvent(context: Context, event: EventAlertRecord) {
+    override fun restoreEvent(context: Context, event: EventAlertRecord) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
         
@@ -1071,7 +1102,7 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean {
+    override fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean {
 
         val moved = calendarChangeManager.moveEvent(context, event, addTime)
 
@@ -1093,7 +1124,7 @@ object ApplicationController : EventMovedHandler {
         return moved
     }
 
-    fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long {
+    override fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long {
 
         val eventId = calendarChangeManager.moveRepeatingAsCopy(context, calendar, event, addTime)
 
@@ -1120,26 +1151,26 @@ object ApplicationController : EventMovedHandler {
 
     // used for debug purpose
     @Suppress("unused")
-    fun forceRepostNotifications(context: Context) {
+    override fun forceRepostNotifications(context: Context) {
         notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)
     }
 
     // used for debug purpose
     @Suppress("unused")
-    fun postNotificationsAutoDismissedDebugMessage(context: Context) {
+    override fun postNotificationsAutoDismissedDebugMessage(context: Context) {
         notificationManager.postNotificationsAutoDismissedDebugMessage(context)
     }
 
-    fun postNearlyMissedNotificationDebugMessage(context: Context) {
+    override fun postNearlyMissedNotificationDebugMessage(context: Context) {
         notificationManager.postNearlyMissedNotificationDebugMessage(context)
     }
 
-    fun isCustomQuietHoursActive(ctx: Context): Boolean {
+    override fun isCustomQuietHoursActive(ctx: Context): Boolean {
         return getQuietHoursManager(ctx).isCustomQuietHoursActive(getSettings(ctx))
     }
 
     /// Set quietForSeconds to 0 to disable
-    fun applyCustomQuietHoursForSeconds(ctx: Context, quietForSeconds: Int) {
+    override fun applyCustomQuietHoursForSeconds(ctx: Context, quietForSeconds: Int) {
 
         val settings = getSettings(ctx)
         val quietHoursManager = getQuietHoursManager(ctx)
@@ -1156,7 +1187,7 @@ object ApplicationController : EventMovedHandler {
         }
     }
 
-    fun onReminderAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long) {
+    override fun onReminderAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long) {
 
 //        if (getSettings(context).debugAlarmDelays) {
 //
@@ -1168,11 +1199,11 @@ object ApplicationController : EventMovedHandler {
 //        }
     }
 
-    fun onSnoozeAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long) {
+    override fun onSnoozeAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long) {
 
 //        if (getSettings(context).debugAlarmDelays) {
 //
-            val warningMessage = "Expected: $alarmWasExpectedAt, " +
+            val warningMessage = "Expected:   $alarmWasExpectedAt, " +
                     "received: $currentTime, ${(currentTime - alarmWasExpectedAt) / 1000L}s late"
 
             DevLog.error(LOG_TAG, "Late snooze alarm detected: $warningMessage")

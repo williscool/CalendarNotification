@@ -1166,6 +1166,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@commander-js/extra-typings@npm:^13.1.0":
+  version: 13.1.0
+  resolution: "@commander-js/extra-typings@npm:13.1.0"
+  peerDependencies:
+    commander: ~13.1.0
+  checksum: c4c9b0bd3bd62a0d4b713d2e5a543986134ef87d29edfd15298a8c51de74df25265814789d49371ce28d84282b0abfed53452fe6dfdb939219343bb64a0dfb2c
+  languageName: node
+  linkType: hard
+
 "@commitlint/cli@npm:^19.5.0":
   version: 19.8.0
   resolution: "@commitlint/cli@npm:19.8.0"
@@ -4824,6 +4833,7 @@ __metadata:
     "@azure/core-asynciterator-polyfill": ^1.0.2
     "@babel/plugin-transform-async-generator-functions": ^7.26.8
     "@babel/plugin-transform-private-property-in-object": ^7.25.9
+    "@commander-js/extra-typings": ^13.1.0
     "@commitlint/cli": ^19.5.0
     "@commitlint/config-conventional": ^19.5.0
     "@jest/globals": ^29.6.4
@@ -4849,15 +4859,16 @@ __metadata:
     "@typescript-eslint/eslint-plugin": ^6.6.0
     await-to-js: ^3.0.0
     babel-plugin-module-resolver: ^5.0.2
+    commander: ^13.1.0
     dotenv: ^16.3.1
     drizzle-kit: ^0.19.13
     eslint: ^8.48.0
     eslint-plugin-node: latest
     eslint-plugin-prettier: latest
     eslint-plugin-react-hooks: ^5.2.0
-    execa: ^8.0.1
+    execa: ^9.5.2
     expo: ^51.0.39
-    expo-application: ^6.0.2
+    expo-application: 5.9.1
     gts: ^5.0.0
     husky: ^9.1.6
     jest: ^29.6.2
@@ -6359,6 +6370,13 @@ __metadata:
   version: 1.2.9
   resolution: "command-exists@npm:1.2.9"
   checksum: 729ae3d88a2058c93c58840f30341b7f82688a573019535d198b57a4d8cb0135ced0ad7f52b591e5b28a90feb2c675080ce916e56254a0f7c15cb2395277cac3
+  languageName: node
+  linkType: hard
+
+"commander@npm:^13.1.0":
+  version: 13.1.0
+  resolution: "commander@npm:13.1.0"
+  checksum: 8ca2fcb33caf2aa06fba3722d7a9440921331d54019dabf906f3603313e7bf334b009b862257b44083ff65d5a3ab19e83ad73af282bd5319f01dc228bdf87ef0
   languageName: node
   linkType: hard
 
@@ -8109,7 +8127,7 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"execa@npm:^8.0.0, execa@npm:^8.0.1":
+"execa@npm:^8.0.0":
   version: 8.0.1
   resolution: "execa@npm:8.0.1"
   dependencies:
@@ -8126,7 +8144,7 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"execa@npm:^9.0.0":
+"execa@npm:^9.0.0, execa@npm:^9.5.2":
   version: 9.5.2
   resolution: "execa@npm:9.5.2"
   dependencies:
@@ -8175,12 +8193,12 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"expo-application@npm:^6.0.2":
-  version: 6.0.2
-  resolution: "expo-application@npm:6.0.2"
+"expo-application@npm:5.9.1":
+  version: 5.9.1
+  resolution: "expo-application@npm:5.9.1"
   peerDependencies:
     expo: "*"
-  checksum: b88ec09d5377604dd99849741970c3abe453689fad2c10ab4a0a32c1c0dfad74b00ec6a1923daf845935c6672a70f3c6f072b232cdcc9663ffc0b7918c2355c4
+  checksum: aef23ecf4a4ecee95f345679e84f3b6a6d3bef6f8dad345bd9f0a1e8272e0da1d7047740af979a5e80721a97cb9ed02b2b166242c1244161c80d9ac534ff3cb9
   languageName: node
   linkType: hard
 

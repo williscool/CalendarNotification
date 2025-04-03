@@ -113,6 +113,33 @@ adb shell input keyevent 82
 adb shell input text "${WSL_VM_IP_ADDRESS}:8081"
 ```
 
+
+### If you even need to connect to your wsl running react server from your real phone on the same wifi
+
+```bash
+
+# get wsl hostname
+
+$(wsl hostname -I)
+
+# portforward host port to wsl vm
+
+netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8080 connectaddress=$(wsl hostname -I) connectport=8081
+
+# open firewall
+New-NetFirewallRule -DisplayName 'WSL Web Server' -Direction Inbound -Protocol TCP -LocalPort 8081 -Action Allow
+
+# get your host ip address
+Get-NetIPAddress | Where-Object { $_.AddressFamily -eq 'IPv4' -and $_.PrefixOrigin -eq 'Dhcp' } | Select-Object -ExpandProperty IPAddress
+
+x# get rid of all rules when done if you want
+netsh interface portproxy reset
+
+```
+
+
+New-NetFirewallRule -DisplayName 'WSL Web Server' -Direction Inbound -Protocol TCP -LocalPort 8081 -Action Allow
+
 ## Building Release Versions
 
 ### Local Release Build

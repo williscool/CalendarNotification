@@ -1,6 +1,7 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: "com.facebook.react"
+apply plugin: 'jacoco'
 
 //
 // SDK-level codes / values cheat sheet:
@@ -24,18 +25,26 @@ def isCiBuild = System.getenv("CI") != null && System.getenv("CI").toBoolean()
 // Alternatively, you can also check for GitHub Actions specifically
 def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("GITHUB_ACTIONS").toBoolean()
 // Combined flag to determine if we should bundle JS
-def shouldBundleJS = isCiBuild || isGitHubActions
+def isCIBuild = isCiBuild || isGitHubActions
 
 // Task to generate React Native bundle for CI builds
-if (shouldBundleJS) {
+if (isCIBuild) {
     tasks.register("createJSBundle", Exec) {
         workingDir "../../"
-        commandLine "yarn", "react-native", "bundle", "--platform", "android", "--dev", "false", 
+        commandLine "yarn", "react-native", "bundle", "--platform", "android", 
+                    "--dev", "${project.gradle.startParameter.taskNames.any { it.contains('Debug') } ? 'true' : 'false'}", 
                     "--entry-file", "index.tsx", 
                     "--bundle-output", "android/app/src/main/assets/index.android.bundle", 
                     "--assets-dest", "android/app/src/main/res/"
+        
+        // Create assets directory if it doesn't exist
         doFirst {
             new File("${projectDir}/src/main/assets").mkdirs()
+        }
+
+        // Only run if bundle doesn't exist
+        onlyIf {
+            !new File("${projectDir}/src/main/assets/index.android.bundle").exists()
         }
     }
 }
@@ -54,6 +63,35 @@ android {
   kotlinOptions {
     jvmTarget = JavaVersion.VERSION_17.toString()
   }
+
+  buildFeatures {
+    buildConfig true
+  }
+
+  configurations.all {
+    exclude group: 'xmlpull', module: 'xmlpull'
+    exclude group: 'xpp3', module: 'xpp3'
+    exclude group: 'xpp3', module: 'xpp3_min'
+    
+    resolutionStrategy {
+      force 'org.objenesis:objenesis:3.3'
+      force 'net.bytebuddy:byte-buddy:1.14.11'
+      force 'net.bytebuddy:byte-buddy-agent:1.14.11'
+    }
+  }
+
+  packagingOptions {
+    resources {
+      excludes += ['META-INF/LICENSE.md']
+      excludes += ['META-INF/LICENSE-notice.md']
+      excludes += ['META-INF/NOTICE.md']
+      excludes += ['META-INF/*.kotlin_module']
+      excludes += ['META-INF/AL2.0']
+      excludes += ['META-INF/LGPL2.1']
+    }
+    pickFirst '**/*.so'
+  }
+
   defaultConfig {
     applicationId "com.github.quarck.calnotify"
     minSdkVersion 24
@@ -77,6 +115,11 @@ android {
     packagingOptions {
       pickFirst '**/*.so'
     }
+
+  }
+
+  configurations {
+    all*.exclude group: 'xpp3', module: 'xpp3'
   }
 
   // Add splits configuration for APK size optimization
@@ -84,15 +127,48 @@ android {
     abi {
       enable true
       reset()
-      include 'x86_64', 'arm64-v8a'
+      // In CI, build both architectures. Locally, only build x86_64
+      include isCIBuild ? "x86_64,arm64-v8a" : "x86_64"
       universalApk false
     }
   }
 
+  // Define specific build variants for each architecture
+  flavorDimensions "abi"
+  productFlavors {
+    if (isCIBuild) {
+      arm64v8a {
+        dimension "abi"
+        versionNameSuffix "-arm64-v8a"
+      }
+    }
+    x8664 {
+      dimension "abi"
+      versionNameSuffix "-x86_64"
+    }
+  }
+
   buildTypes {
+    debug {
+      testCoverageEnabled true
+      // Add dexOptions for faster builds
+      dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries true
+        threadCount = 4
+      }
+    }
     release {
+      testCoverageEnabled true
       minifyEnabled false
       proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+      
+      // Add dexOptions for faster builds
+      dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries true
+        threadCount = 4
+      }
 
       lintOptions {
         disable 'MissingTranslation'
@@ -116,10 +192,16 @@ android {
   }
   namespace 'com.github.quarck.calnotify'
 
+  // Optimize for parallel execution with GitHub runners
+  dexOptions {
+    javaMaxHeapSize "4g"
+    preDexLibraries true
+    threadCount = 4
+  }
 }
 
 // Ensure the CI build generates the bundle before assembling
-if (shouldBundleJS) {
+if (isCIBuild) {
     tasks.whenTaskAdded { task ->
         if (task.name.contains('assemble') || task.name.contains('bundle')) {
             task.dependsOn createJSBundle
@@ -157,7 +239,15 @@ dependencies {
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"
 
-    implementation 'com.github.requery:sqlite-android:3.45.0'
+    // SQLite
+    implementation('com.github.requery:sqlite-android:3.45.0') {
+        exclude group: 'com.android.support'
+        exclude module: 'support-v4'
+        // Force specific version to avoid dynamic version resolution
+        version {
+            strictly '3.45.0'
+        }
+    }
 
     // Test dependencies - use test-compatible versions
     androidTestImplementation "androidx.core:core:$android_core_test_version"
@@ -185,14 +275,76 @@ dependencies {
     androidTestImplementation 'androidx.test:core:1.5.0'
     androidTestImplementation 'androidx.test:core-ktx:1.5.0'
     androidTestImplementation 'androidx.test.ext:junit-ktx:1.1.5'
+
+    // Mockito dependencies
+    androidTestImplementation 'org.mockito:mockito-core:5.16.1'
+    androidTestImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
+    
+    // MockK for Kotlin mocking
+    androidTestImplementation 'io.mockk:mockk-android:1.13.9'
+    androidTestImplementation 'io.mockk:mockk-agent:1.13.9'
+
+    // Jacoco
+    androidTestImplementation 'org.jacoco:org.jacoco.core:0.8.12'
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
   entryFile = file("../../index.tsx")
-  // Only enable bundling on CI builds to avoid bundling during local development
-  // bundleInDebug = shouldBundleJS
-  // bundleInRelease = true
+}
+
+// Add task dependency check for bundle generation
+tasks.whenTaskAdded { task ->
+    if (task.name.contains('createBundle') && !isCIBuild) {
+        def bundleFile = new File("${projectDir}/src/main/assets/index.android.bundle")
+        if (bundleFile.exists()) {
+            task.enabled = false
+        }
+    }
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
+
+// Add JaCoCo task configuration
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+tasks.withType(Test) {
+    jacoco.includeNoLocationClasses = true
+    jacoco.excludes = ['jdk.internal.*']
+}
+
+// Add task to generate coverage report
+// TODO: make some unit tests then update the below after that :D
+//task jacocoTestReport(type: JacocoReport, dependsOn: ['testDebugUnitTest']) {
+//    reports {
+//        xml.required = true
+//        html.required = true
+//        csv.required = false
+//    }
+//    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
+//    classDirectories.setFrom(files([
+//        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
+//        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+//    ]))
+//    executionData.setFrom(fileTree(dir: 'build/reports', include: '**/*.html'))
+//}
+
+// Add task to generate coverage report for Android tests
+// MUST run connectedAndroidTest before running this for it to work
+// but no need to force that to be run over again every time just to see the report
+// thus no dependsOn
+task jacocoAndroidTestReport(type: JacocoReport) {
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
+    classDirectories.setFrom(files([
+        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
+        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+    ]))
+    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/debugAndroidTest/connected', include: '**/*.ec'))
+}

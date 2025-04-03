@@ -46,7 +46,7 @@ import com.github.quarck.calnotify.utils.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 @Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
-class EventNotificationManager : EventNotificationManagerInterface {
+open class EventNotificationManager : EventNotificationManagerInterface {
 
     private var lastSoundTimestamp = 0L
     private var lastVibrationTimestamp = 0L
@@ -370,7 +370,7 @@ class EventNotificationManager : EventNotificationManagerInterface {
         context.notificationManager.cancel(Consts.NOTIFICATION_ID_REMINDER)
     }
 
-    private fun postEverythingCollapsed(
+    fun postEverythingCollapsed(
             context: Context,
             db: EventsStorage,
             events: List<EventAlertRecord>,
@@ -617,7 +617,7 @@ class EventNotificationManager : EventNotificationManagerInterface {
 
     // force - if true - would re-post all active notifications. Normally only new notifications are posted to
     // avoid excessive blinking in the notifications area. Forced notifications are posted without sound or vibra
-    private fun postDisplayedEventNotifications(
+    fun postDisplayedEventNotifications(
             context: Context,
             db: EventsStorage,
             settings: Settings,
@@ -1029,7 +1029,7 @@ class EventNotificationManager : EventNotificationManagerInterface {
         }
     }
 
-    private fun postNotification(
+    open fun postNotification(
             ctx: Context,
             formatter: EventFormatterInterface,
             event: EventAlertRecord,
@@ -1572,7 +1572,6 @@ class EventNotificationManager : EventNotificationManagerInterface {
 
         PebbleUtils.forwardNotificationToPebble(context, title, text, false)
     }
-
 
     companion object {
         private const val LOG_TAG = "EventNotificationManager"

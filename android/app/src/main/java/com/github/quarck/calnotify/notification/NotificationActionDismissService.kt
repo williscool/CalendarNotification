@@ -48,7 +48,8 @@ class NotificationActionDismissService : IntentService("NotificationActionDismis
                             EventDismissType.ManuallyDismissedFromNotification,
                             eventId,
                             instanceStartTime,
-                            notificationId)
+                            notificationId,
+                            true)
                     DevLog.info(LOG_TAG, "ServiceNotificationActionDismiss: event dismissed by user: $eventId")
 
                     UINotifier.notify(this, true)

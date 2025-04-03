@@ -2,5 +2,17 @@ include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
 apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
 
-apply from: new File(["node", "--print", "require.resolve('expo/package.json')"].execute(null, rootDir).text.trim(), "../scripts/autolinking.gradle")
+// Use static path resolution instead of Node.js execution
+apply from: file("../node_modules/expo/scripts/autolinking.gradle")
 useExpoModules()
+
+// Ensure proper module resolution
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://jitpack.io" }
+        maven { url "https://maven.google.com" }
+    }
+}

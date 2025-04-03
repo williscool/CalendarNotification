@@ -76,7 +76,22 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }
+        maven { 
+            url "https://jitpack.io"
+            content {
+                includeGroup "com.github.requery"
+            }
+        }
+        maven { url "https://maven.google.com" }
+    }
+    
+    configurations.all {
+        resolutionStrategy {
+            // Cache dynamic versions for 10 minutes
+            cacheDynamicVersionsFor 10 * 60, 'seconds'
+            // Cache changing modules for 10 minutes
+            cacheChangingModulesFor 10 * 60, 'seconds'
+        }
     }
 }
 

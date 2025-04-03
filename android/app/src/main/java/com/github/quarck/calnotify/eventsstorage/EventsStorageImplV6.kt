@@ -266,7 +266,11 @@ class EventsStorageImplV6() : EventsStorageImplInterface {
         throw NotImplementedError("Don't suppose to use this for V6")
     }
 
-    override fun addEventsImpl(db: SQLiteDatabase, events: List<EventAlertRecord>): Boolean {
+  override fun deleteAllEventsImpl(db: SQLiteDatabase): Boolean {
+    TODO("Not yet implemented")
+  }
+
+  override fun addEventsImpl(db: SQLiteDatabase, events: List<EventAlertRecord>): Boolean {
         throw NotImplementedError("Don't suppose to use this for V6")
     }
 
