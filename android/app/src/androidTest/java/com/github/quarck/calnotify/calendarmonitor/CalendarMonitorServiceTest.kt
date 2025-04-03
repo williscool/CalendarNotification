@@ -904,7 +904,7 @@ class CalendarMonitorServiceTest {
     mockService.handleIntentForTest(serviceIntent)
 
     // Small delay for processing
-    Thread.sleep(1000)
+    advanceTimer(1000)
 
     // Verify alerts were handled
     MonitorStorage(fakeContext).classCustomUse { db ->
@@ -1097,7 +1097,7 @@ class CalendarMonitorServiceTest {
       // --- Wait for Processing ---
       // Use a sleep similar to the working test to allow simulated background work
       DevLog.info(LOG_TAG, "[testCalendarReload] Waiting for processing...")
-      Thread.sleep(1000) // Allow time for simulated processing
+      advanceTimer(1000) // Allow time for simulated processing
 
 
       // --- Verify Alert Handled ---
@@ -1254,7 +1254,7 @@ class CalendarMonitorServiceTest {
     mockCalendarMonitor.onAppResumed(fakeContext, false)
     
     // Wait for service operations to complete
-    Thread.sleep(500)
+    advanceTimer(500)
 
 
     // will update this to atleast 3 once we do the timing mocks refactor
@@ -2043,7 +2043,7 @@ class CalendarMonitorServiceTest {
     mockService.handleIntentForTest(serviceIntent)
 
     // Small delay for processing
-    Thread.sleep(1000)
+    advanceTimer(1000)
 
     // Verify alerts for second event were marked as handled
     MonitorStorage(fakeContext).classCustomUse { db ->

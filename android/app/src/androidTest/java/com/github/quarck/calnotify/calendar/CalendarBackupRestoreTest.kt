@@ -211,7 +211,7 @@ class CalendarBackupRestoreTest {
         ApplicationController.restoreEvent(context, originalEvent)
         
         // Wait a short moment for the change to propagate
-        Thread.sleep(1000)
+        advanceTimer(1000)
         
         // Get the restored event from our local storage
         val restoredEvent = EventsStorage(context).classCustomUse { db ->
@@ -285,5 +285,21 @@ class CalendarBackupRestoreTest {
             attendanceStatus = AttendanceStatus.None,
             flags = 0L
         )
+    }
+    
+    /**
+     * Advances the system time for test purposes.
+     * 
+     * @param milliseconds The amount of time to advance
+     */
+    private fun advanceTimer(milliseconds: Long) {
+        // In this test we don't have a currentTime variable to manipulate
+        // So we just wait the specified time
+        try {
+            //TODO: replace with a mock
+            Thread.sleep(milliseconds)
+        } catch (e: InterruptedException) {
+            // Ignore
+        }
     }
 } 

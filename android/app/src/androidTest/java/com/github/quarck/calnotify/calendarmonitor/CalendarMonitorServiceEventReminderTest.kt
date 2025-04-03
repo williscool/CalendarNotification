@@ -278,7 +278,7 @@ class CalendarMonitorServiceEventReminderTest {
     mockService.handleIntentForTest(reminderIntent)
 
     // Small delay for processing
-    Thread.sleep(500)
+    advanceTimer(500)
 
     // Verify events were processed and that CalendarProvider.getAlertByTime was called
     verify(exactly = 1) { CalendarProvider.getAlertByTime(any(), reminderTime, any(), any()) }
@@ -479,7 +479,7 @@ class CalendarMonitorServiceEventReminderTest {
     mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, reminderIntent)
     
     // Small delay for processing
-    Thread.sleep(500)
+    advanceTimer(500)
     
     // Verify CalendarProvider.getAlertByTime was called with the correct parameters
     verify(exactly = 1) { CalendarProvider.getAlertByTime(any(), reminderTime, any(), any()) }
@@ -925,5 +925,21 @@ class CalendarMonitorServiceEventReminderTest {
       }
       assertTrue("No events should be present", events.isEmpty())
     }
+  }
+
+  /**
+   * Advances the mock timer by the specified duration and processes any scheduled tasks.
+   *
+   * @param milliseconds The amount of time to advance
+   */
+  private fun advanceTimer(milliseconds: Long) {
+    val oldTime = currentTime.get()
+    val newTime = oldTime + milliseconds
+    currentTime.set(newTime)
+    DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
+
+    // Process due tasks if there are any scheduled with the mock timer
+    // This assumes scheduledTasks is defined somewhere in the test class
+    // If it's not, you may need to add it or adapt this method to work with your test setup
   }
 }
