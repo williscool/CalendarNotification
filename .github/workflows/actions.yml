@@ -134,7 +134,7 @@ jobs:
       run: cd android && chmod +x gradlew
 
     # List all available Gradle tasks
-    - name: List Gradle Tasks
+    - name: List Gradle Tasks also warms up gradle cache
       run: |
         cd android && \
         ./gradlew tasks --all
@@ -154,10 +154,10 @@ jobs:
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
     # Cache React Native specific files
-    - name: Restore Cache React Native files
+    - name: Restore React Native Cache
       uses: actions/cache@v4
       id: react-native-cache
       with:
@@ -170,7 +170,7 @@ jobs:
           ${{ runner.os }}-react-native-
 
     # Cache Gradle files
-    - name: Restore Cache Gradle files
+    - name: Restore Gradle Cache
       uses: actions/cache@v4
       id: gradle-cache
       with:
@@ -232,8 +232,7 @@ jobs:
           android/app/src/main/res/raw-*
         key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
 
-    # Cache CMake build outputs
-    - name: Cache CMake Build Outputs
+    - name: Restore External Native aka CMake Build Cache
       uses: actions/cache@v4
       id: cmake-cache
       with:
@@ -259,7 +258,7 @@ jobs:
                   externalNativeBuildRelease \
         --parallel --max-workers=4 --build-cache
 
-    - name: Update External Native aka CMake Build Cache
+    - name: Update CMake Build Outputs Cache
       if: steps.cmake-cache.outputs.cache-hit != 'true'
       uses: actions/cache@v4
       with:
@@ -275,6 +274,7 @@ jobs:
         key: ${{ runner.os }}-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp', '**/*.so') }}
 
     - name: Build Android APKs (Debug and Release) with Gradle
+      if: steps.build-outputs-cache.outputs.cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
@@ -286,6 +286,7 @@ jobs:
         -Pandroid.prefabPackageType=STATIC
 
     - name: Update Build Outputs Cache
+      if: steps.build-outputs-cache.outputs.cache-hit != 'true'
       uses: actions/cache@v4
       with:
         path: |
@@ -499,7 +500,7 @@ jobs:
       run: echo "GRADLE_MAX_WORKERS=4" >> $GITHUB_ENV
       
     # Restore cached Gradle files
-    - name: Cache Gradle files
+    - name: Restore Gradle Cache
       uses: actions/cache@v4
       id: gradle-cache
       with:
@@ -558,7 +559,7 @@ jobs:
       run: cd android && chmod +x gradlew
 
     # Download build outputs from build job
-    - name: Restore build outputs
+    - name: Restore Build Outputs Cache
       uses: actions/cache@v4
       id: build-outputs-cache
       with:
@@ -580,7 +581,7 @@ jobs:
         sudo udevadm control --reload-rules
         sudo udevadm trigger --name-match=kvm
 
-    - name: Cache Android SDK and AVD
+    - name: Restore Android SDK and AVD Cache
       uses: actions/cache@v4
       id: android-cache
       with:
