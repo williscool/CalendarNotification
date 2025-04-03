@@ -472,7 +472,85 @@ jobs:
           name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
-  test:
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 1 # Shallow clone for faster checkout
+    
+    # Set CPU count for Gradle
+    - name: Set CPU count
+      run: echo "GRADLE_MAX_WORKERS=4" >> $GITHUB_ENV
+      
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    # Cache Gradle files
+    - name: Cache Gradle files
+      uses: actions/cache@v4
+      id: gradle-cache
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          android/.gradle
+          android/build-cache
+        key: ${{ runner.os }}-gradle-unit-test-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-unit-test-
+          ${{ runner.os }}-gradle-
+    
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4.0.0
+      with:
+        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+        gradle-home-cache-cleanup: true
+        gradle-home-cache-includes: |
+          caches
+          notifications
+          jdks
+          wrapper
+
+    - name: Grant execute permission for gradlew
+      run: cd android && chmod +x gradlew
+    
+    # Run the unit tests
+    - name: Run Unit Tests
+      run: |
+        cd android && \
+        ./gradlew :app:testDebugUnitTest :app:jacocoTestDebugUnitTestReport --continue
+
+    # Create test report
+    - name: Publish Test Report
+      uses: dorny/test-reporter@v1
+      if: always()  # Run even if tests fail
+      with:
+        name: Unit Test Results
+        path: android/app/build/test-results/testDebugUnitTest/**/*.xml
+        reporter: java-junit
+        fail-on-error: false
+
+    # Upload test results
+    - name: Upload Unit Test Results
+      if: always() # Always upload results even if tests fail
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results
+        path: |
+          android/app/build/reports/tests/testDebugUnitTest/
+          android/app/build/test-results/testDebugUnitTest/
+          android/app/build/reports/jacoco/jacocoTestDebugUnitTestReport/
+        retention-days: 90
+
+
+  integration-test:
     name: Test Android App
     needs: build
     runs-on: ubuntu-latest
@@ -634,6 +712,7 @@ jobs:
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
 
     - name: Upload Coverage Report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: android-test-coverage-report
