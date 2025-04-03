@@ -133,6 +133,12 @@ jobs:
     - name: Grant execute permission for gradlew
       run: cd android && chmod +x gradlew
 
+    # List all available Gradle tasks
+    - name: List Gradle Tasks
+      run: |
+        cd android && \
+        ./gradlew tasks --all
+
     # Cache build outputs for test job
     - name: Restore Build Outputs Cache
       uses: actions/cache@v4
@@ -246,11 +252,11 @@ jobs:
     - name: Build CMake components first
       run: |
         cd android && \
-        ./gradlew :${{ env.main_project_module }}:buildCMakeDebug \
-                  :${{ env.main_project_module }}:buildCMakeRelease \
+        ./gradlew externalNativeBuildDebug \
+                  externalNativeBuildRelease \
         --parallel --max-workers=4 --build-cache
 
-    - name: Update CMake Cache
+    - name: Update External Native aka CMake Build Cache
       uses: actions/cache@v4
       with:
         path: |
