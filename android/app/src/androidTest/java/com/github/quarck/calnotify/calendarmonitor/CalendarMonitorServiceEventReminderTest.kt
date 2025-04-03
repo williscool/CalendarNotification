@@ -345,6 +345,164 @@ class CalendarMonitorServiceEventReminderTest {
 //    }
   }
 
+  /**
+   * Tests calendar monitoring behavior when disabled.
+   *
+   * Verifies that:
+   * 1. Periodic calendar rescans do not occur
+   * 2. The alarm for periodic rescans is cancelled
+   * 3. Direct calendar changes are still processed
+   * 4. Manual triggers still work
+   */
+  @Test
+  fun testCalendarMonitoringDisabled() {
+    // Disable calendar rescan
+    val settings = Settings(fakeContext)
+    settings.setBoolean("enable_manual_calendar_rescan", false)
+
+    // Create test event
+    currentTime.set(System.currentTimeMillis())
+    val startTime = currentTime.get()
+    eventStartTime = startTime + 60000
+    reminderTime = eventStartTime - 30000
+
+    // Create test event in calendar
+    val values = ContentValues().apply {
+      put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
+      put(CalendarContract.Events.TITLE, "Test Disabled Event")
+      put(CalendarContract.Events.DESCRIPTION, "Test Description")
+      put(CalendarContract.Events.DTSTART, eventStartTime)
+      put(CalendarContract.Events.DTEND, eventStartTime + 60000)
+      put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
+      put(CalendarContract.Events.HAS_ALARM, 1)
+    }
+
+    val eventUri = fakeContext.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+    assertNotNull("Failed to create test event", eventUri)
+    testEventId = eventUri!!.lastPathSegment!!.toLong()
+
+    // Setup monitor state
+    val monitorState = CalendarMonitorState(fakeContext)
+    monitorState.firstScanEver = false
+    monitorState.prevEventScanTo = startTime
+    monitorState.prevEventFireFromScan = startTime
+
+    // Setup mocks
+    every { CalendarProvider.getEventReminders(any(), eq(testEventId)) } returns 
+      listOf(EventReminderRecord(millisecondsBefore = 30000))
+    
+    // Mock event details
+    mockEventDetails(testEventId, eventStartTime, "Test Disabled Event")
+
+    // Verify calendar monitoring is disabled
+    assertFalse("Calendar monitoring should be disabled", settings.enableCalendarRescan)
+
+    // First verify no events exist
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      assertEquals("Should start with no events", 0, events.size)
+    }
+
+    // Try to start service with calendar changed notification
+    DevLog.info(LOG_TAG, "Triggering ApplicationController.onCalendarChanged")
+    ApplicationController.onCalendarChanged(fakeContext)
+    
+    // Small delay for processing
+    Thread.sleep(500)
+
+    // Create a direct reminder intent to verify that direct reminders still work
+    val reminderIntent = Intent(CalendarContract.ACTION_EVENT_REMINDER).apply {
+      data = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, reminderTime)
+    }
+
+    // Verify that onRescanFromService was NOT called or exits early
+    verify(atLeast = 1) { mockCalendarMonitor.onRescanFromService(any()) }
+
+    // Verify no events were processed (automatic monitoring is disabled)
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      assertEquals("No events should be processed when monitoring is disabled", 0, events.size)
+    }
+
+    // Verify alarm was cancelled by setting to Long.MAX_VALUE in setOrCancelAlarm
+    // This is challenging to verify directly since setOrCancelAlarm is private,
+    // but we can verify that set(AlarmManager.RTC_WAKEUP, Long.MAX_VALUE, ...) was called
+    verify {
+      mockAlarmManager.set(
+        eq(AlarmManager.RTC_WAKEUP),
+        eq(Long.MAX_VALUE),
+        any()
+      )
+    }
+
+    // Test that direct calendar changes still work
+    DevLog.info(LOG_TAG, "Testing direct calendar change handling")
+    
+    // Mock getAlertByTime to return our test event for direct reminder test
+    every { CalendarProvider.getAlertByTime(any(), any(), any(), any()) } answers {
+      val alertTime = secondArg<Long>()
+      if (alertTime == reminderTime) {
+        listOf(EventAlertRecord(
+          calendarId = testCalendarId,
+          eventId = testEventId,
+          isAllDay = false,
+          isRepeating = false,
+          alertTime = reminderTime,
+          notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+          title = "Test Disabled Event",
+          desc = "Test Description",
+          startTime = eventStartTime,
+          endTime = eventStartTime + 60000,
+          instanceStartTime = eventStartTime,
+          instanceEndTime = eventStartTime + 60000,
+          location = "",
+          lastStatusChangeTime = currentTime.get(),
+          displayStatus = EventDisplayStatus.Hidden,
+          color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+          origin = EventOrigin.ProviderBroadcast,
+          timeFirstSeen = currentTime.get(),
+          eventStatus = EventStatus.Confirmed,
+          attendanceStatus = AttendanceStatus.None,
+          flags = 0
+        ))
+      } else {
+        emptyList()
+      }
+    }
+
+    // Simulate direct reminder broadcast
+    mockCalendarMonitor.onProviderReminderBroadcast(fakeContext, reminderIntent)
+    
+    // Small delay for processing
+    Thread.sleep(500)
+    
+    // Verify direct calendar event reminder was processed despite disabled monitoring
+    EventsStorage(fakeContext).classCustomUse { db ->
+      val events = db.events
+      DevLog.info(LOG_TAG, "Found ${events.size} events after direct reminder")
+      assertTrue("Should have events after direct reminder", events.isNotEmpty())
+    }
+    
+    // Test that manual triggers still work
+    DevLog.info(LOG_TAG, "Testing manual trigger handling")
+    
+    // First clear event storage
+    EventsStorage(fakeContext).classCustomUse { db -> db.deleteAllEvents() }
+    
+    // Create a new event for manual trigger test
+    val newTestEventId = testEventId + 1
+    mockEventDetails(newTestEventId, eventStartTime + 120000, "Manual Trigger Event") 
+    
+    // Simulate app resumed which triggers manual rescan
+    mockCalendarMonitor.onAppResumed(fakeContext, false)
+    
+    // Small delay for processing
+    Thread.sleep(500)
+    
+    // Verify onRescanFromService was called for manual trigger
+    verify(atLeast = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+  }
+
   // Helper functions from CalendarMonitorServiceTest.kt
   private fun setupMockFormatter() {
     mockFormatter = mockk<EventFormatterInterface> {

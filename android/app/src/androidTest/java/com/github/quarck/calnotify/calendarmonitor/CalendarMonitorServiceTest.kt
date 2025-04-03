@@ -1312,66 +1312,6 @@ class CalendarMonitorServiceTest {
    * 1. Periodic calendar rescans do not occur
    * 2. The alarm for periodic rescans is cancelled
    * 3. Direct calendar changes are still processed
-   * 4. Manual triggers still work
-   */
-  @Ignore("not implemented fully yet")
-  @Test
-  fun testCalendarMonitoringDisabled() {
-    // Disable calendar rescan
-    val settings = Settings(fakeContext)
-    settings.setBoolean("enable_manual_calendar_rescan", false)
-
-    // Create test event
-    createTestEvent()
-
-    // Setup monitor state
-    val monitorState = CalendarMonitorState(fakeContext)
-    monitorState.firstScanEver = false
-    currentTime.set(System.currentTimeMillis())
-    val startTime = currentTime.get()
-    monitorState.prevEventScanTo = startTime
-    monitorState.prevEventFireFromScan = startTime
-
-    // Setup mocks
-    mockEventReminders(testEventId)
-    mockEventAlerts(testEventId, startTime + 3600000)
-    mockEventDetails(testEventId, startTime + 3600000)
-
-    // Verify calendar monitoring is disabled
-    assertFalse("Calendar monitoring should be disabled", settings.enableCalendarRescan)
-
-    // Try to start service
-    notifyCalendarChangeAndWait()
-
-    // Verify that onRescanFromService was NOT called
-    verify(exactly = 0) { mockCalendarMonitor.onRescanFromService(any()) }
-
-    // Verify no events were processed
-    verifyNoEvents()
-
-    // Verify alarm was cancelled (set to Long.MAX_VALUE)
-    verify {
-      mockAlarmManager.set(
-        eq(AlarmManager.RTC_WAKEUP),
-        eq(Long.MAX_VALUE),
-        any()
-      )
-    }
-
-    // Test that direct calendar changes still work
-    DevLog.info(LOG_TAG, "Testing direct calendar change handling")
-    val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
-    mockService.handleIntentForTest(intent)
-    verify(exactly = 1) { mockCalendarMonitor.onRescanFromService(any()) }
-
-    // Test that manual triggers still work
-    DevLog.info(LOG_TAG, "Testing manual trigger handling")
-    mockCalendarMonitor.onAppResumed(fakeContext, false)
-    verify(exactly = 2) { mockCalendarMonitor.onRescanFromService(any()) }
-  }
-
-
-  /**
    * Creates a test calendar with the specified properties.
    *
    * @param displayName The display name for the calendar
