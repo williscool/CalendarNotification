@@ -1231,7 +1231,6 @@ class CalendarMonitorServiceTest {
    * 6. Permission changes are respected
    * 7. Setting state persists correctly
    */
-  @Ignore("not implemented fully yet")
   @Test
   fun testCalendarMonitoringEnabledEdgeCases() {
     // Setup
