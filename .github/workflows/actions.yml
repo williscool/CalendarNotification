@@ -347,7 +347,8 @@ jobs:
       run: |
         cd android && \
         ./gradlew :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
-                  :${{ env.main_project_module }}:jacocoTestDebugUnitTestReport \
+                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
+                  :${{ env.main_project_module }}:jacocoAndroidTestReport \
         --continue
 
     # Create test report
