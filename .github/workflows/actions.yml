@@ -484,6 +484,20 @@ jobs:
     # Set CPU count for Gradle
     - name: Set CPU count
       run: echo "GRADLE_MAX_WORKERS=4" >> $GITHUB_ENV
+
+
+    - name: Use Node.js 22.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: 22.x
+        cache: "yarn"
+
+    - name: Install dependencies
+      run: yarn install --immutable --inline-builds
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: 'false'
+        YARN_NM_MODE: 'hardlinks-local'
+        HUSKY: '0'
       
     - name: set up JDK 17
       uses: actions/setup-java@v3
