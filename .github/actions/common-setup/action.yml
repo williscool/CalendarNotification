@@ -39,6 +39,17 @@ inputs:
     required: false
     default: "false"
 
+outputs:
+  ndk-cache-hit:
+    description: 'Whether the NDK cache was hit'
+    value: ${{ steps.ndk-cache.outputs.cache-hit }}
+  build-outputs-cache-hit:
+    description: 'Whether the build outputs cache was hit'
+    value: ${{ steps.build-outputs-cache.outputs.cache-hit }}
+  android-cache-hit:
+    description: 'Whether the Android SDK and AVD cache was hit'
+    value: ${{ steps.android-cache.outputs.cache-hit }}
+
 runs:
   using: "composite"
   steps:

@@ -61,7 +61,6 @@ jobs:
     - name: Set current date as env variable
       id: set_date
       run: |
-        echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_ENV
         echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_OUTPUT
 
     - name: Set repository name as env variable
@@ -72,6 +71,7 @@ jobs:
     
     # Execute the common setup
     - name: Common Setup
+      id: common-setup
       uses: ./.github/actions/common-setup
       with:
         gradle_max_workers: "4"
@@ -81,15 +81,14 @@ jobs:
     # Note: All caches are now handled in common-setup
 
     - name: Build CMake components first
-      if: steps.ndk-cache.outputs.cache-hit != 'true'
+      if: steps.common-setup.outputs.ndk-cache-hit != 'true'
       run: |
         cd android && \
-        ./gradlew externalNativeBuildDebug \
-                  externalNativeBuildRelease \
+        ./gradlew externalNativeBuild${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
+                  externalNativeBuild${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
         --parallel --max-workers=4 --build-cache
 
     - name: Build Android APKs (Debug and Release) with Gradle
-      if: steps.build-outputs-cache.outputs.cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
@@ -306,19 +305,19 @@ jobs:
       - name: Upload SIGNED APK Debug
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
+          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
       - name: Upload SIGNED APK RELEASE
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
+          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
       - name: Upload SIGNED AAB (App Bundle) Release
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
+          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
   unit-tests:
@@ -385,6 +384,7 @@ jobs:
     
     # Execute the common setup with emulator configuration
     - name: Common Setup
+      id: common-setup
       uses: ./.github/actions/common-setup
       with:
         gradle_max_workers: "4"
@@ -449,7 +449,7 @@ jobs:
         
     # Update Android SDK and AVD cache
     - name: Update Android SDK and AVD Cache
-      if: always() && steps.android-cache.outputs.cache-hit != 'true'
+      if: always()
       uses: actions/cache@v4
       with:
         path: |
