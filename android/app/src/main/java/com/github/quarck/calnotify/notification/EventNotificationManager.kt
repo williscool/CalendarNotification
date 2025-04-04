@@ -47,6 +47,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 @Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
 open class EventNotificationManager : EventNotificationManagerInterface {
+    override val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     private var lastSoundTimestamp = 0L
     private var lastVibrationTimestamp = 0L
@@ -111,7 +112,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             return
 
         val settings = Settings(context)
-        val quietHoursManager = QuietHoursManager(context)
+        val quietHoursManager = QuietHoursManager(context, clock)
 
         val notificationSettings = settings.loadNotificationSettings()
         val notificationsSettingsQuiet = notificationSettings.toQuiet()
@@ -201,9 +202,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         //
         val settings = Settings(context)
         val behaviorSettings = settings.loadNotificationBehaviorSettings()
-        val quietHoursManager = QuietHoursManager(context)
+        val quietHoursManager = QuietHoursManager(context, clock)
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val isQuietPeriodActive = quietHoursManager.getSilentUntil(settings) != 0L
 
@@ -277,7 +278,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
     override fun fireEventReminder(context: Context, itIsAfterQuietHoursReminder: Boolean, hasActiveAlarms: Boolean) {
 
         val settings = Settings(context)
-        val quietHoursManager = QuietHoursManager(context)
+        val quietHoursManager = QuietHoursManager(context, clock)
         val isQuietPeriodActive = !hasActiveAlarms && (quietHoursManager.getSilentUntil(settings) != 0L)
 
         EventsStorage(context).classCustomUse {
@@ -287,7 +288,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 it.copy(ringtoneUri = it.reminderRingtoneUri, vibration = it.reminderVibration)
             }
 
-            //val currentTime = System.currentTimeMillis()
+            //val currentTime = clock.currentTimeMillis()
 
             val activeEvents = db.events.filter { it.isNotSnoozed && it.isNotSpecial && !it.isTask  && !it.isMuted}
 
@@ -395,7 +396,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         var shouldPlayAndVibrate = false
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
 
         // make sure we remove full notifications
@@ -561,7 +562,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         val reminderState = ReminderState(context)
 
         if (shouldPlayAndVibrate) {
-            context.persistentState.notificationLastFireTime = System.currentTimeMillis()
+            context.persistentState.notificationLastFireTime = currentTime
             reminderState.numRemindersFired = 0
         }
 
@@ -657,7 +658,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             }
         }
 
-        var currentTime = System.currentTimeMillis()
+        var currentTime = clock.currentTimeMillis()
 
         for (event in events) {
 
@@ -774,7 +775,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         val reminderState = ReminderState(context)
 
         if (playedAnySound) {
-            context.persistentState.notificationLastFireTime = System.currentTimeMillis()
+            context.persistentState.notificationLastFireTime = currentTime
             reminderState.numRemindersFired = 0
         }
 
@@ -1065,7 +1066,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 )
 
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val notificationText = StringBuilder()
         notificationText.append(formatter.formatNotificationSecondaryText(event))
@@ -1115,9 +1116,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setStyle(
                         NotificationCompat.BigTextStyle().bigText(notificationTextString)
                 )
-                .setWhen(
-                        event.lastStatusChangeTime
-                )
+                .setWhen(event.lastStatusChangeTime)
                 .setShowWhen(false)
                 .setSortKey(
                         sortKey
@@ -1249,7 +1248,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
             if (snoozePreset <= 0L) {
                 val targetTime = event.displayedStartTime - Math.abs(snoozePreset)
-                if (targetTime - System.currentTimeMillis() < 5 * 60 * 1000L) // at least minutes left until target
+                if (targetTime - currentTime < 5 * 60 * 1000L) // at least minutes left until target
                     continue
             }
 

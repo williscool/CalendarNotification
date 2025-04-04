@@ -24,11 +24,16 @@ import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.bluetooth.BTDeviceManager
 import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.addDays
 import java.util.*
 
-class QuietHoursManager (val ctx: Context) : QuietHoursManagerInterface {
+class QuietHoursManager(
+    val ctx: Context,
+    override val clock: CNPlusClockInterface = CNPlusSystemClock()
+) : QuietHoursManagerInterface {
 
     private val btDeviceManager: BTDeviceManager by lazy { BTDeviceManager(ctx) }
 
@@ -50,7 +55,7 @@ class QuietHoursManager (val ctx: Context) : QuietHoursManagerInterface {
             getSilentUntil(settings, currentTimes).map { it -> it > 0L }.toBooleanArray()
 
     override fun isCustomQuietHoursActive(settings: Settings): Boolean =
-            (settings.manualQuietPeriodUntil > System.currentTimeMillis())
+            (settings.manualQuietPeriodUntil > clock.currentTimeMillis())
 
     // returns time in millis, when silent period ends,
     // or 0 if we are not on silent
@@ -58,7 +63,7 @@ class QuietHoursManager (val ctx: Context) : QuietHoursManagerInterface {
 
         var ret = 0L
 
-        val currentTime = if (time != 0L) time else System.currentTimeMillis()
+        val currentTime = if (time != 0L) time else clock.currentTimeMillis()
         var manualEnd = Math.max(settings.manualQuietPeriodUntil, btDeviceManager.carModeSilentUntil)
         if (manualEnd < currentTime) {
             manualEnd = 0L

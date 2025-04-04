@@ -24,6 +24,7 @@ import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
 interface EventMovedHandler {
     fun checkShouldRemoveMovedEvent(
@@ -43,6 +44,7 @@ interface EventMovedHandler {
 }
 
 interface CalendarReloadManagerInterface {
+    val clock: CNPlusClockInterface
 
     // returns true if any changed detected
     fun reloadCalendar(

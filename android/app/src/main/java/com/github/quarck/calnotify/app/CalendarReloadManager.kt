@@ -26,9 +26,12 @@ import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventWithNewInstanceTime
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.detailed
 
 object CalendarReloadManager : CalendarReloadManagerInterface {
+    override val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     private const val LOG_TAG = "CalendarReloadManager"
 
@@ -61,7 +64,7 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
 
         DevLog.debug(LOG_TAG, "Reloading calendar")
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val eventsToAutoDismiss = arrayListOf<ReloadCalendarResult>()
         val eventsToUpdate = arrayListOf<ReloadCalendarResult>()
@@ -177,7 +180,7 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
                     && !event.isRepeating
         }
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         var autoDismissEvents = mutableListOf<EventAlertRecord>()
 
