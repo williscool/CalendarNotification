@@ -91,11 +91,8 @@ class CalendarMonitorServiceTestFirstScanEver {
   // Track last timer broadcast time for tests
   private var lastTimerBroadcastReceived: Long? = null
 
-  // Helper variable for the refined timer simulation
-  private val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
-
   companion object {
-    private const val LOG_TAG = "CalMonitorSvcTest"
+    private const val LOG_TAG = "CalMonitorSvcFirstScanTest"
   }
 
   @get:Rule
@@ -327,26 +324,11 @@ class CalendarMonitorServiceTestFirstScanEver {
   }
 
   private fun setupMockTimer() {
-    // Create CNPlusTestClock with mockTimer - use current time as starting point
+    // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
     testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
     
-    // Clear any tasks from previous tests
-    scheduledTasks.clear()
-
-    every { mockTimer.schedule(any<Runnable>(), any<Long>(), any()) } answers { call ->
-        val task = call.invocation.args[0] as Runnable
-        val delay = call.invocation.args[1] as Long
-        val unit = call.invocation.args[2] as TimeUnit
-        val dueTime = testClock.currentTimeMillis() + unit.toMillis(delay)
-
-        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${testClock.currentTimeMillis()}, delay: $delay ${unit.name})")
-        scheduledTasks.add(Pair(task, dueTime))
-        // Sort by due time to process in order
-        scheduledTasks.sortBy { it.second }
-
-        // Return a mock ScheduledFuture
-        mockk<java.util.concurrent.ScheduledFuture<*>>(relaxed = true)
-    }
+    // No need to manually configure mockTimer's schedule behavior anymore
+    // as this is now handled by CNPlusTestClock's init block
   }
 
   private fun setupMockCalendarMonitor() {
@@ -383,9 +365,12 @@ class CalendarMonitorServiceTestFirstScanEver {
         
         // Check if alerts were marked as handled
         MonitorStorage(context).classCustomUse { db ->
-          val alerts = db.alerts.filter { !it.wasHandled }
-          DevLog.info(LOG_TAG, "Found ${alerts.size} unhandled alerts after firstScanEver processing")
-          assertTrue("All alerts should be marked as handled after firstScanEver", alerts.isEmpty())
+          val allAlerts = db.alerts
+          val currentTime = testClock.currentTimeMillis()
+          val dueAlerts = allAlerts.filter { !it.wasHandled && it.alertTime <= currentTime + Consts.ALARM_THRESHOLD }
+          
+          DevLog.info(LOG_TAG, "Found ${dueAlerts.size} unhandled due alerts after firstScanEver processing")
+          assertTrue("All due alerts should be marked as handled after firstScanEver", dueAlerts.isEmpty())
         }
       }
     }
@@ -1048,28 +1033,14 @@ class CalendarMonitorServiceTestFirstScanEver {
    */
   private fun advanceTimer(milliseconds: Long) {
     val oldTime = testClock.currentTimeMillis()
-    val newTime = oldTime + milliseconds
-    testClock.setCurrentTime(newTime)
+    val executedTasks = testClock.advanceAndExecuteTasks(milliseconds)
+    val newTime = testClock.currentTimeMillis()
     
-    // Remove the update to currentTime.set() as we're only using testClock now
     DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
 
-    // Process due tasks
-    val tasksToRun = scheduledTasks.filter { it.second <= newTime }
-    if (tasksToRun.isNotEmpty()) {
-        DevLog.info(LOG_TAG, "[advanceTimer] Found ${tasksToRun.size} tasks due at or before $newTime")
-        tasksToRun.forEach { (task, dueTime) ->
-            DevLog.info(LOG_TAG, "[advanceTimer] Running task scheduled for $dueTime")
-            try {
-                task.run()
-            } catch (e: Exception) {
-                DevLog.error(LOG_TAG, "[advanceTimer] Exception running scheduled task: ${e.message}")
-                // Optionally re-throw or handle specific exceptions if needed for test flow
-            }
-        }
-        // Remove executed tasks
-        scheduledTasks.removeAll(tasksToRun)
-        DevLog.info(LOG_TAG, "[advanceTimer] Remaining scheduled tasks: ${scheduledTasks.size}")
+    if (executedTasks.isNotEmpty()) {
+        DevLog.info(LOG_TAG, "[advanceTimer] Executed ${executedTasks.size} tasks due at or before $newTime")
+        DevLog.info(LOG_TAG, "[advanceTimer] Remaining scheduled tasks: ${testClock.scheduledTasks.size}")
     } else {
         DevLog.info(LOG_TAG, "[advanceTimer] No tasks due at or before $newTime")
     }
@@ -1522,7 +1493,13 @@ class CalendarMonitorServiceTestFirstScanEver {
     reminderTime = eventStartTime - 30000 // 30 seconds before start
     testEventId = 2555 // Set a consistent test event ID
 
+    // Add a second event with a future alert time
+    val futureEventId = 2556L
+    val futureEventStartTime = startTime + 3600000 // 1 hour from start time
+    val futureReminderTime = futureEventStartTime - 900000 // 15 minutes before start (but still future)
+
     DevLog.info(LOG_TAG, "Test starting with currentTime=$startTime, eventStartTime=$eventStartTime, reminderTime=$reminderTime")
+    DevLog.info(LOG_TAG, "Future test event: startTime=$futureEventStartTime, reminderTime=$futureReminderTime")
     DevLog.info(LOG_TAG, "Initial firstScanEver state=${monitorState.firstScanEver}")
 
     // Set up monitor state with proper timing
@@ -1549,6 +1526,10 @@ class CalendarMonitorServiceTestFirstScanEver {
 
     // Set up mock event reminders
     mockEventReminders(testEventId)
+    
+    // Also set up mocks for the future event
+    mockEventReminders(futureEventId)
+    mockEventDetails(futureEventId, futureEventStartTime, "Future Test Event")
 
     // Set up mock event alerts to return appropriate alerts based on which event is being queried
     every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
@@ -1562,27 +1543,43 @@ class CalendarMonitorServiceTestFirstScanEver {
       
       DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo, firstScanEver=$isFirstScan")
       
-      // Track currently active test event
-      val currentTestEvent = testEventId
-      val currentReminderTime = reminderTime
+      val results = mutableListOf<MonitorEventAlertEntry>()
       
-      // Check if we're in the scan range for the current event
-      if (currentReminderTime in scanFrom..scanTo) {
+      // Check if the due event is in the scan range
+      if (reminderTime in scanFrom..scanTo) {
         val alert = MonitorEventAlertEntry(
-          eventId = currentTestEvent,
+          eventId = testEventId,
           isAllDay = false,
-          alertTime = currentReminderTime,
+          alertTime = reminderTime,
           instanceStartTime = eventStartTime,
           instanceEndTime = eventStartTime + 60000,
           alertCreatedByUs = false,
           wasHandled = false
         )
-        DevLog.info(LOG_TAG, "Returning alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}, firstScanEver=$isFirstScan")
-        listOf(alert)
-      } else {
-        DevLog.info(LOG_TAG, "No alerts in range for current test event $currentTestEvent, returning empty list")
-        emptyList()
+        DevLog.info(LOG_TAG, "Adding due alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+        results.add(alert)
       }
+      
+      // Check if the future event is in the scan range
+      if (futureReminderTime in scanFrom..scanTo) {
+        val futureAlert = MonitorEventAlertEntry(
+          eventId = futureEventId,
+          isAllDay = false,
+          alertTime = futureReminderTime,
+          instanceStartTime = futureEventStartTime,
+          instanceEndTime = futureEventStartTime + 60000,
+          alertCreatedByUs = false,
+          wasHandled = false
+        )
+        DevLog.info(LOG_TAG, "Adding future alert: eventId=${futureAlert.eventId}, alertTime=${futureAlert.alertTime}, wasHandled=${futureAlert.wasHandled}")
+        results.add(futureAlert)
+      }
+      
+      if (results.isEmpty()) {
+        DevLog.info(LOG_TAG, "No alerts in range for test events, returning empty list")
+      }
+      
+      results
     }
 
     // Set up mock event details
@@ -1619,7 +1616,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     val stateAfterScan = CalendarMonitorState(fakeContext)
     DevLog.info(LOG_TAG, "Calendar monitor state after scan: firstScanEver=${stateAfterScan.firstScanEver}")
 
-    // Verify alerts were added and MARKED as handled due to firstScanEver=true
+    // Verify alerts were added and only DUE alerts MARKED as handled due to firstScanEver=true
     MonitorStorage(fakeContext).classCustomUse { db ->
       val alerts = db.alerts
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after scan")
@@ -1627,7 +1624,24 @@ class CalendarMonitorServiceTestFirstScanEver {
         DevLog.info(LOG_TAG, "Alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
       }
       assertTrue("Should have alerts after scan", alerts.isNotEmpty())
-      assertTrue("Alerts should be marked as handled (firstScanEver)", alerts.all { it.wasHandled })
+      
+      // Only due alerts (alertTime <= currentTime + ALARM_THRESHOLD) should be marked as handled
+      // This matches the actual app behavior in CalendarMonitorManual.kt
+      val currentTime = testClock.currentTimeMillis()
+      val dueAlerts = alerts.filter { it.alertTime <= currentTime + Consts.ALARM_THRESHOLD }
+      val futureAlerts = alerts.filter { it.alertTime > currentTime + Consts.ALARM_THRESHOLD }
+      
+      DevLog.info(LOG_TAG, "Due alerts (should be marked handled): ${dueAlerts.size}, Future alerts: ${futureAlerts.size}")
+      
+      // Verify due alerts are all marked as handled
+      assertTrue("Due alerts should be marked as handled in firstScanEver", 
+                dueAlerts.all { it.wasHandled })
+                
+      // If we have future alerts, verify they're NOT marked as handled
+      if (futureAlerts.isNotEmpty()) {
+          assertFalse("Future alerts should NOT be marked as handled in firstScanEver", 
+                     futureAlerts.all { it.wasHandled })
+      }
     }
 
     // Verify firstScanEver flag was set to false
@@ -1639,7 +1653,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     // Rest of the test remains unchanged...
     // Create a new event to verify normal behavior after firstScanEver
     notificationsPosted = false
-    testEventId = 2556
+    testEventId = 2557 // Use a completely new event ID to avoid conflicts
     eventStartTime = startTime + 120000 // 2 minutes from start time
     reminderTime = eventStartTime - 30000 // 30 seconds before start
 

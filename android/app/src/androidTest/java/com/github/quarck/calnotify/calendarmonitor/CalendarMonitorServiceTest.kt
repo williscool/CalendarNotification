@@ -91,9 +91,6 @@ class CalendarMonitorServiceTest {
   // Track last timer broadcast time for tests
   private var lastTimerBroadcastReceived: Long? = null
 
-  // Helper variable for the refined timer simulation
-  private val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
-
   companion object {
     private const val LOG_TAG = "CalMonitorSvcTest"
   }
@@ -327,26 +324,11 @@ class CalendarMonitorServiceTest {
   }
 
   private fun setupMockTimer() {
-    // Create CNPlusTestClock with mockTimer - use current time as starting point
+    // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
     testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
     
-    // Clear any tasks from previous tests
-    scheduledTasks.clear()
-
-    every { mockTimer.schedule(any<Runnable>(), any<Long>(), any()) } answers { call ->
-        val task = call.invocation.args[0] as Runnable
-        val delay = call.invocation.args[1] as Long
-        val unit = call.invocation.args[2] as TimeUnit
-        val dueTime = testClock.currentTimeMillis() + unit.toMillis(delay)
-
-        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${testClock.currentTimeMillis()}, delay: $delay ${unit.name})")
-        scheduledTasks.add(Pair(task, dueTime))
-        // Sort by due time to process in order
-        scheduledTasks.sortBy { it.second }
-
-        // Return a mock ScheduledFuture
-        mockk<java.util.concurrent.ScheduledFuture<*>>(relaxed = true)
-    }
+    // No need to manually configure mockTimer's schedule behavior anymore
+    // as this is now handled by CNPlusTestClock's init block
   }
 
   private fun setupMockCalendarMonitor() {
@@ -1266,7 +1248,7 @@ class CalendarMonitorServiceTest {
     // --- Verify Immediately After Trigger --- (Task scheduled, but not run)
     DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed immediately after scheduling (current time: ${testClock.currentTimeMillis()})")
     verifyNoEvents()
-    assertTrue("[testDelayedProcessing] Task should be scheduled", scheduledTasks.isNotEmpty())
+    assertTrue("[testDelayedProcessing] Task should be scheduled", testClock.scheduledTasks.isNotEmpty())
 
     // --- Advance Time (Just Before Delay Expires) ---
     if (startDelay > 1) {
@@ -1275,7 +1257,7 @@ class CalendarMonitorServiceTest {
         advanceTimer(timeToAdvanceBefore)
         DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed before delay expires (current time: ${testClock.currentTimeMillis()})")
         verifyNoEvents() // Still should not be processed
-        assertTrue("[testDelayedProcessing] Task should still be scheduled", scheduledTasks.isNotEmpty())
+        assertTrue("[testDelayedProcessing] Task should still be scheduled", testClock.scheduledTasks.isNotEmpty())
     }
 
     // --- Advance Time (Past Delay Expiry) ---
@@ -1286,7 +1268,7 @@ class CalendarMonitorServiceTest {
 
     // --- Post-Delay Verification ---
     DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying event processed after delay (current time: ${testClock.currentTimeMillis()})")
-    assertTrue("[testDelayedProcessing] Scheduled task list should be empty after execution", scheduledTasks.isEmpty())
+    assertTrue("[testDelayedProcessing] Scheduled task list should be empty after execution", testClock.scheduledTasks.isEmpty())
     verifyEventProcessed(
       eventId = delayedEventId,
       startTime = delayedEventStartTime,
@@ -1542,28 +1524,14 @@ class CalendarMonitorServiceTest {
    */
   private fun advanceTimer(milliseconds: Long) {
     val oldTime = testClock.currentTimeMillis()
-    val newTime = oldTime + milliseconds
-    testClock.setCurrentTime(newTime)
+    val executedTasks = testClock.advanceAndExecuteTasks(milliseconds)
+    val newTime = testClock.currentTimeMillis()
     
-    // Remove the update to currentTime.set() as we're only using testClock now
     DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
 
-    // Process due tasks
-    val tasksToRun = scheduledTasks.filter { it.second <= newTime }
-    if (tasksToRun.isNotEmpty()) {
-        DevLog.info(LOG_TAG, "[advanceTimer] Found ${tasksToRun.size} tasks due at or before $newTime")
-        tasksToRun.forEach { (task, dueTime) ->
-            DevLog.info(LOG_TAG, "[advanceTimer] Running task scheduled for $dueTime")
-            try {
-                task.run()
-            } catch (e: Exception) {
-                DevLog.error(LOG_TAG, "[advanceTimer] Exception running scheduled task: ${e.message}")
-                // Optionally re-throw or handle specific exceptions if needed for test flow
-            }
-        }
-        // Remove executed tasks
-        scheduledTasks.removeAll(tasksToRun)
-        DevLog.info(LOG_TAG, "[advanceTimer] Remaining scheduled tasks: ${scheduledTasks.size}")
+    if (executedTasks.isNotEmpty()) {
+        DevLog.info(LOG_TAG, "[advanceTimer] Executed ${executedTasks.size} tasks due at or before $newTime")
+        DevLog.info(LOG_TAG, "[advanceTimer] Remaining scheduled tasks: ${testClock.scheduledTasks.size}")
     } else {
         DevLog.info(LOG_TAG, "[advanceTimer] No tasks due at or before $newTime")
     }

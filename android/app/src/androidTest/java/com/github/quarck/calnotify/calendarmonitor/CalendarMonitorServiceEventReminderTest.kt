@@ -80,7 +80,7 @@ class CalendarMonitorServiceEventReminderTest {
   private val currentTime = AtomicLong(0L)
   
   private lateinit var testClock: CNPlusTestClock
-
+  
   private lateinit var mockFormatter: EventFormatterInterface
 
   companion object {
@@ -602,22 +602,12 @@ class CalendarMonitorServiceEventReminderTest {
   }
 
   private fun setupMockTimer() {
-    // Create CNPlusTestClock with mockTimer
-    testClock = CNPlusTestClock(0L, mockTimer)
+    // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
+    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    currentTime.set(testClock.currentTimeMillis())
     
-    val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
-    every { mockTimer.schedule(any(), any<Long>(), any()) } answers { call ->
-      val task = call.invocation.args[0] as Runnable
-      val delay = call.invocation.args[1] as Long
-      val unit = call.invocation.args[2] as TimeUnit
-      scheduledTasks.add(Pair(task, currentTime.get() + unit.toMillis(delay)))
-      scheduledTasks.sortBy { it.second }
-      while (scheduledTasks.isNotEmpty() && scheduledTasks[0].second <= currentTime.get()) {
-        val (nextTask, _) = scheduledTasks.removeAt(0)
-        nextTask.run()
-      }
-      mockk(relaxed = true)
-    }
+    // No need to manually configure mockTimer's schedule behavior anymore
+    // as this is now handled by CNPlusTestClock's init block
   }
 
   private fun setupMockCalendarMonitor() {
@@ -940,13 +930,17 @@ class CalendarMonitorServiceEventReminderTest {
    */
   private fun advanceTimer(milliseconds: Long) {
     val oldTime = testClock.currentTimeMillis()
-    val newTime = oldTime + milliseconds
-    testClock.setCurrentTime(newTime)
+    val executedTasks = testClock.advanceAndExecuteTasks(milliseconds)
+    val newTime = testClock.currentTimeMillis()
     currentTime.set(newTime)
+    
     DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
 
-    // Process due tasks if there are any scheduled with the mock timer
-    // This assumes scheduledTasks is defined somewhere in the test class
-    // If it's not, you may need to add it or adapt this method to work with your test setup
+    if (executedTasks.isNotEmpty()) {
+        DevLog.info(LOG_TAG, "[advanceTimer] Executed ${executedTasks.size} tasks due at or before $newTime")
+        DevLog.info(LOG_TAG, "[advanceTimer] Remaining scheduled tasks: ${testClock.scheduledTasks.size}")
+    } else {
+        DevLog.info(LOG_TAG, "[advanceTimer] No tasks due at or before $newTime")
+    }
   }
 }

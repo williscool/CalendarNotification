@@ -54,16 +54,15 @@ class CNPlusTestClock(
     override fun currentTimeMillis(): Long = currentTimeMs
     
     override fun sleep(millis: Long) {
+        // Always advance the clock by the sleep duration
+        currentTimeMs += millis
+        refreshClock()
+        
         if (mockTimer != null) {
-            // Use timer-based sleep with the provided executor
+            // If we have a mock timer, schedule a task to simulate the passage of time
+            // but don't actually wait for real time to pass
             val latch = CountDownLatch(1)
-            val task = Runnable { latch.countDown() }
-            mockTimer.schedule(task, millis, TimeUnit.MILLISECONDS)
-            latch.await(millis, TimeUnit.MILLISECONDS)
-        } else {
-            // Advance the clock by the sleep duration
-            currentTimeMs += millis
-            refreshClock()
+            mockTimer.schedule({ latch.countDown() }, 0, TimeUnit.MILLISECONDS)
         }
     }
     
