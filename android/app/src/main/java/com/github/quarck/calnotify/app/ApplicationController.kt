@@ -108,7 +108,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
 
-    val alarmScheduler: AlarmSchedulerInterface = AlarmScheduler
+    val alarmScheduler: AlarmSchedulerInterface by lazy { AlarmScheduler(clock) }
 
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
     private fun getQuietHoursManager(ctx: Context): QuietHoursManagerInterface {
