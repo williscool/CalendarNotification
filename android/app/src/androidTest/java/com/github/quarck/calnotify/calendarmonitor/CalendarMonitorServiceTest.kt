@@ -1234,7 +1234,6 @@ class CalendarMonitorServiceTest {
    * 3. Event timing and state are maintained during the delay
    * 4. Service properly handles delayed event processing
    */
-   @Ignore("Skipping delayed processing test until we refactor away from System.currentTimeMillis i.e. to use clocks and make things more testable")
    @Test
   fun testDelayedProcessing() {
     val startDelay = 2000 // 2 second delay
@@ -1315,7 +1314,6 @@ class CalendarMonitorServiceTest {
    * 6. Permission changes are respected
    * 7. Setting state persists correctly
    */
-  @Ignore("Skipping until we refactor away from System.currentTimeMillis i.e. to use clocks and make things more testable")
   @Test
   fun testCalendarMonitoringEnabledEdgeCases() {
     // Setup
