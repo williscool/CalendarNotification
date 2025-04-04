@@ -1262,7 +1262,7 @@ class CalendarMonitorServiceTest {
     monitorState.prevEventFireFromScan = startTime
 
     mockEventReminders(delayedEventId)
-    mockEventAlerts(delayedEventId, delayedEventStartTime)
+    mockEventAlerts(delayedEventId, delayedEventStartTime, startDelay = startDelay)  // Pass startDelay to mock
     mockEventDetails(delayedEventId, delayedEventStartTime, title = "Delayed Test Event")
 
     // --- Initial State Verification --- (Before triggering service)
@@ -1603,7 +1603,7 @@ class CalendarMonitorServiceTest {
    * @param duration The duration of the event
    * @param alertOffset Time before event start to trigger alert
    */
-  private fun mockEventAlerts(eventId: Long, startTime: Long, duration: Long = 60000, alertOffset: Long = 30000) {
+  private fun mockEventAlerts(eventId: Long, startTime: Long, duration: Long = 60000, alertOffset: Long = 30000, startDelay: Long = 0) {
     every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
       val scanFrom = secondArg<Long>()
       val scanTo = thirdArg<Long>()
@@ -1612,7 +1612,7 @@ class CalendarMonitorServiceTest {
       DevLog.info(LOG_TAG, "Current test time: ${testClock.currentTimeMillis()}")
 
       // Only return alerts if we're past the delay
-      if (testClock.currentTimeMillis() >= startTime) {
+      if (testClock.currentTimeMillis() >= startTime + startDelay) {  // Use startDelay for processing delay
         val alerts = mutableListOf<MonitorEventAlertEntry>()
 
         val alertTime = startTime - alertOffset
@@ -1625,7 +1625,7 @@ class CalendarMonitorServiceTest {
             isAllDay = false,
             alertTime = alertTime,
             instanceStartTime = startTime,
-            instanceEndTime = startTime + duration,
+            instanceEndTime = startTime + duration,  // Keep using duration for event length
             alertCreatedByUs = false,
             wasHandled = false
           )
