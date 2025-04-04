@@ -49,10 +49,15 @@ import com.github.quarck.calnotify.calendareditor.CalendarChangeManager
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 interface ApplicationControllerInterface {
+    // Clock interface for time-related operations
+    val clock: CNPlusClockInterface
+    
     fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean
     fun registerNewEvents(context: Context, pairs: List<Pair<MonitorEventAlertEntry, EventAlertRecord>>): ArrayList<Pair<MonitorEventAlertEntry, EventAlertRecord>>
     fun postEventNotifications(context: Context, events: Collection<EventAlertRecord>)
@@ -134,6 +139,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     val AddEventMonitorInstance: CalendarChangeRequestMonitorInterface
         get() = addEventMonitor
 
+    // Clock interface for time-related operations
+    override val clock: CNPlusClockInterface = CNPlusSystemClock()
+
 //    fun hasActiveEvents(context: Context) =
 //            EventsStorage(context).classCustomUse {
 //                val settings = Settings(context)
@@ -149,12 +157,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     override fun onEventAlarm(context: Context) {
 
-        DevLog.info(LOG_TAG, "onEventAlarm at ${System.currentTimeMillis()}");
+        DevLog.info(LOG_TAG, "onEventAlarm at ${clock.currentTimeMillis()}");
 
         val alarmWasExpectedAt = context.persistentState.nextSnoozeAlarmExpectedAt
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
-        context.globalState?.lastTimerBroadcastReceived = System.currentTimeMillis()
+        context.globalState?.lastTimerBroadcastReceived = clock.currentTimeMillis()
 
         notificationManager.postEventNotifications(context, EventFormatter(context), false, null)
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
@@ -222,7 +230,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
-            val isUserAction = (System.currentTimeMillis() < userActionUntil)
+            val isUserAction = (clock.currentTimeMillis() < userActionUntil)
             UINotifier.notify(context, isUserAction)
         }
         else {
@@ -249,7 +257,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
-            val isUserAction = (System.currentTimeMillis() < userActionUntil)
+            val isUserAction = (clock.currentTimeMillis() < userActionUntil)
             UINotifier.notify(context, isUserAction)
         }
         else {
@@ -260,7 +268,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
   override fun onCalendarEventMovedWithinApp(context: Context, oldEvent: EventRecord, newEvent: EventRecord) {
 
         //  TODO: MAKE SURE YOU MAKE THIS TIME AN OVERRIDEABLE PROPERTY FOR TESTS!
-        val newAlertTime = newEvent.nextAlarmTime(System.currentTimeMillis())
+        val newAlertTime = newEvent.nextAlarmTime(clock.currentTimeMillis())
 
         val shouldAutoDismiss =
                 ApplicationController.checkShouldRemoveMovedEvent(
@@ -351,7 +359,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             db ->
 
             if (event.isNotSpecial)
-                event.lastStatusChangeTime = System.currentTimeMillis()
+                event.lastStatusChangeTime = clock.currentTimeMillis()
             else
                 event.lastStatusChangeTime = Long.MAX_VALUE
 
@@ -500,7 +508,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             if (!pairsToAdd.isEmpty()) {
 
-                var currentTime = System.currentTimeMillis()
+                var currentTime = clock.currentTimeMillis()
                 for ((_, event) in pairsToAdd)
                     event.lastStatusChangeTime = currentTime++
 
@@ -587,7 +595,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //        if (newTime - oldTime > Consts.EVENT_MOVE_THRESHOLD) {
 //            DevLog.info(context, LOG_TAG, "Event ${oldEvent.eventId} moved by ${newTime - oldTime} ms")
 //
-//            if (newAlertTime > System.currentTimeMillis() + Consts.ALARM_THRESHOLD) {
+//            if (newAlertTime > clock.currentTimeMillis() + Consts.ALARM_THRESHOLD) {
 //
 //                DevLog.info(context, LOG_TAG, "Event ${oldEvent.eventId} - alarm in the future confirmed, at $newAlertTime, auto-dismissing notification")
 //
@@ -634,7 +642,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         DevLog.info(LOG_TAG, "Event ${eventId} - checking if should auto remove, oldStartTime $oldStartTime,  newStartTime $newStartTime,  newAlertTime $newAlertTime, ")
 
         if (newStartTime - oldStartTime > Consts.EVENT_MOVE_THRESHOLD) {
-            if (newAlertTime > System.currentTimeMillis() + Consts.ALARM_THRESHOLD) {
+            if (newAlertTime > clock.currentTimeMillis() + Consts.ALARM_THRESHOLD) {
 
                 DevLog.info(LOG_TAG, "Event ${eventId} - alarm in the future confirmed, at $newAlertTime, marking for auto-dismissal")
                 ret = true
@@ -651,7 +659,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         var ret: Boolean = false
 
-        //val currentTime = System.currentTimeMillis()
+        //val currentTime = clock.currentTimeMillis()
 
         val mutedEvent: EventAlertRecord? =
                 EventsStorage(context).classCustomUse {
@@ -672,7 +680,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             notificationManager.onEventMuteToggled(context, EventFormatter(context), mutedEvent)
 
-            ReminderState(context).onUserInteraction(System.currentTimeMillis())
+            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
@@ -689,7 +697,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         var ret: SnoozeResult? = null
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val snoozedEvent: EventAlertRecord? =
                 EventsStorage(context).classCustomUse {
@@ -722,7 +730,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (snoozedEvent != null) {
             notificationManager.onEventSnoozed(context, EventFormatter(context), snoozedEvent.eventId, snoozedEvent.notificationId);
 
-            ReminderState(context).onUserInteraction(System.currentTimeMillis())
+            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             val quietHoursManager = getQuietHoursManager(context)
 
@@ -745,7 +753,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         var ret: SnoozeResult? = null
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         var snoozedUntil = 0L
 
@@ -864,7 +872,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             if (shouldRepost) {
                 notificationManager.postEventNotifications(context, EventFormatter(context), isRepost = true)
-                context.globalState?.lastNotificationRePost = System.currentTimeMillis()
+                context.globalState?.lastNotificationRePost = clock.currentTimeMillis()
             }
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
@@ -880,7 +888,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //    fun checkAndCleanupWasHandledCache(context: Context) {
 //
 //        val prState = context.persistentState
-//        val now = System.currentTimeMillis()
+//        val now = clock.currentTimeMillis()
 //
 //        if (now - prState.lastWasHandledCacheCleanup < Consts.WAS_HANDLED_CACHE_CLEANUP_INTERVALS)
 //            return
@@ -919,7 +927,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             notificationManager.onEventsDismissed(context, EventFormatter(context), events, true, hasActiveEvents);
 
-            ReminderState(context).onUserInteraction(System.currentTimeMillis())
+            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
@@ -930,7 +938,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     fun anyForDismissAllButRecentAndSnoozed(events: Array<EventAlertRecord>): Boolean {
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val ret = events.any {
             event ->
@@ -943,7 +951,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     fun dismissAllButRecentAndSnoozed(context: Context, dismissType: EventDismissType) {
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         EventsStorage(context).classCustomUse {
             db ->
@@ -974,7 +982,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 for (mutedEvent in mutedEvents)
                     notificationManager.onEventMuteToggled(context, formatter, mutedEvent)
 
-                ReminderState(context).onUserInteraction(System.currentTimeMillis())
+                ReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
                 alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
             }
@@ -1003,7 +1011,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             notificationManager.onEventDismissed(context, EventFormatter(context), event.eventId, event.notificationId);
 
-            ReminderState(context).onUserInteraction(System.currentTimeMillis())
+            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
@@ -1178,7 +1186,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (quietForSeconds > 0) {
             quietHoursManager.startManualQuietPeriod(
                     settings,
-                    System.currentTimeMillis() + quietForSeconds*1000L
+                    clock.currentTimeMillis() + quietForSeconds*1000L
             )
             alarmScheduler.rescheduleAlarms(ctx, getSettings(ctx), quietHoursManager)
         } else {
