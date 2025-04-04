@@ -18,12 +18,15 @@ import android.net.Uri
 import android.content.ContentUris
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 
 @RunWith(AndroidJUnit4::class)
 class CalendarBackupRestoreTest {
     private lateinit var context: Context
     private var testCalendarId1: Long = -1
     private var testCalendarId2: Long = -1
+    private lateinit var testClock: CNPlusTestClock
 
     @get:Rule
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
@@ -34,6 +37,8 @@ class CalendarBackupRestoreTest {
     @Before
     fun setup() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
+        // Initialize with a fixed timestamp for deterministic test behavior
+        testClock = CNPlusTestClock(1635724800000) // 2021-11-01 00:00:00 UTC
         
         // Create calendar 1 as the source calendar
         testCalendarId1 = createTestCalendar(
@@ -137,7 +142,7 @@ class CalendarBackupRestoreTest {
     @Test
     fun testRestoreEvent_WithMatchingCalendar() {
         // First create a real calendar event
-        val currentTime = System.currentTimeMillis()
+        val currentTime = testClock.currentTimeMillis()
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, testCalendarId1)
             put(CalendarContract.Events.TITLE, "Test Event")
@@ -260,7 +265,7 @@ class CalendarBackupRestoreTest {
     }
 
     private fun createTestEvent(calendarId: Long): EventAlertRecord {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = testClock.currentTimeMillis()
         return EventAlertRecord(
             calendarId = calendarId,
             eventId = currentTime,
@@ -293,13 +298,7 @@ class CalendarBackupRestoreTest {
      * @param milliseconds The amount of time to advance
      */
     private fun advanceTimer(milliseconds: Long) {
-        // In this test we don't have a currentTime variable to manipulate
-        // So we just wait the specified time
-        try {
-            //TODO: replace with a mock
-            Thread.sleep(milliseconds)
-        } catch (e: InterruptedException) {
-            // Ignore
-        }
+        // Use test clock to advance time
+        testClock.advanceBy(milliseconds)
     }
 } 

@@ -176,7 +176,7 @@ class CalendarMonitorServiceEventReminderTest {
     // Reset monitor state
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = false
-    currentTime.set(System.currentTimeMillis())
+    currentTime.set(testClock.currentTimeMillis())
     testClock.setCurrentTime(currentTime.get())
     val startTime = currentTime.get()
 
@@ -364,7 +364,7 @@ class CalendarMonitorServiceEventReminderTest {
     settings.setBoolean("enable_manual_calendar_rescan", false)
 
     // Create test event
-    currentTime.set(System.currentTimeMillis())
+    currentTime.set(testClock.currentTimeMillis())
     testClock.setCurrentTime(currentTime.get())
     val startTime = currentTime.get()
     eventStartTime = startTime + 60000
