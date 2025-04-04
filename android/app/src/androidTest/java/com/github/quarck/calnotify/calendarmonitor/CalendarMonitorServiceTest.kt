@@ -365,65 +365,29 @@ class CalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "In onRescanFromService: SharedPreferences[${CalendarMonitorState.PREFS_NAME}].getBoolean(F) = $firstScanEverPref")
       }
       
-      // Check if this is the first scan ever
-      if (monitorState.firstScanEver) {
-        DevLog.info(LOG_TAG, "This is the first scan ever, will mark alerts as handled")
-        
-        // Get alerts from the mock provider
-        val scanFrom = testClock.currentTimeMillis() - Consts.ALERTS_DB_REMOVE_AFTER
-        val scanTo = testClock.currentTimeMillis() + Settings(context).manualCalWatchScanWindow
-        
-        DevLog.info(LOG_TAG, "Getting alerts for range: $scanFrom - $scanTo")
-        val alerts = CalendarProvider.getEventAlertsForInstancesInRange(context, scanFrom, scanTo)
-        DevLog.info(LOG_TAG, "Found ${alerts.size} alerts to process for firstScanEver")
-        
-        if (alerts.isEmpty()) {
-          DevLog.info(LOG_TAG, "No alerts found for firstScanEver")
-        } else {
-          // Log all alerts
-          alerts.forEach { alert ->
-            DevLog.info(LOG_TAG, "Alert to handle: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
-          }
-          
-          // Mark all due alerts as handled directly in the DB
-          MonitorStorage(context).classCustomUse { db ->
-            // First add any new alerts to the database
-            val knownAlerts = db.alerts.associateBy { it.key }
-            val newAlerts = alerts.filter { it.key !in knownAlerts.keys }
-            
-            if (newAlerts.isNotEmpty()) {
-              DevLog.info(LOG_TAG, "Adding ${newAlerts.size} new alerts to database")
-              db.addAlerts(newAlerts)
-            }
-            
-            // Then set wasHandled=true for all alerts
-            for (alert in alerts) {
-              alert.wasHandled = true
-            }
-            
-            // Update alerts in the database
-            DevLog.info(LOG_TAG, "Updating ${alerts.size} alerts to set wasHandled=true")
-            db.updateAlerts(alerts)
-            
-            // Verify the update worked
-            val verifiedAlerts = db.alerts
-            DevLog.info(LOG_TAG, "After update: ${verifiedAlerts.size} alerts in database")
-            verifiedAlerts.forEach { alert ->
-              DevLog.info(LOG_TAG, "Verified alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
-            }
-          }
-        }
-        
-        // Set firstScanEver to false like the real implementation would
-        DevLog.info(LOG_TAG, "Setting firstScanEver to false")
-        monitorState.firstScanEver = false
-        
-        // Verify the flag was updated
-        DevLog.info(LOG_TAG, "firstScanEver after update: ${monitorState.firstScanEver}")
-      }
+      // Rather than handling firstScanEver here (which bypasses the real scanNextEvent implementation),
+      // we'll let the original scanNextEvent method handle it properly which is more consistent
+      // with the real implementation
       
-      // Call original to handle other functionality
+      // We still need to capture if the original firstScanEver was true for verification
+      val wasFirstScanEver = monitorState.firstScanEver
+      
+      // Call original first so scanNextEvent gets called with the current firstScanEver state
       callOriginal()
+      
+      // Add verification logs after the callOriginal
+      if (wasFirstScanEver) {
+        DevLog.info(LOG_TAG, "Verifying firstScanEver was processed correctly")
+        // Check if state was updated properly by the scanNextEvent call
+        assertFalse("firstScanEver should be set to false after scan", monitorState.firstScanEver)
+        
+        // Check if alerts were marked as handled
+        MonitorStorage(context).classCustomUse { db ->
+          val alerts = db.alerts.filter { !it.wasHandled }
+          DevLog.info(LOG_TAG, "Found ${alerts.size} unhandled alerts after firstScanEver processing")
+          assertTrue("All alerts should be marked as handled after firstScanEver", alerts.isEmpty())
+        }
+      }
     }
 
     every { mockCalendarMonitor.onAlarmBroadcast(any(), any()) } answers {
@@ -806,6 +770,10 @@ class CalendarMonitorServiceTest {
 
     setupMockService()
     setupMockCalendarMonitor()
+    
+    // Clear any state from previous tests
+    resetCalendarMonitorState()
+    
     // Clear storages first
     clearStorages()
 
@@ -818,6 +786,24 @@ class CalendarMonitorServiceTest {
     assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
 
     DevLog.info(LOG_TAG, "Test environment setup complete")
+  }
+  
+  private fun resetCalendarMonitorState() {
+    val monitorState = CalendarMonitorState(fakeContext)
+    DevLog.info(LOG_TAG, "Resetting CalendarMonitorState before test, current state: firstScanEver=${monitorState.firstScanEver}, " +
+      "nextEventFireFromScan=${monitorState.nextEventFireFromScan}, prevEventFireFromScan=${monitorState.prevEventFireFromScan}, " +
+      "prevEventScanTo=${monitorState.prevEventScanTo}")
+      
+    // Reset to default values
+    monitorState.firstScanEver = true
+    monitorState.nextEventFireFromScan = Long.MAX_VALUE
+    monitorState.prevEventFireFromScan = Long.MAX_VALUE
+    monitorState.prevEventScanTo = Long.MAX_VALUE
+    
+    // Verify reset was successful
+    DevLog.info(LOG_TAG, "CalendarMonitorState after reset: firstScanEver=${monitorState.firstScanEver}, " +
+      "nextEventFireFromScan=${monitorState.nextEventFireFromScan}, prevEventFireFromScan=${monitorState.prevEventFireFromScan}, " +
+      "prevEventScanTo=${monitorState.prevEventScanTo}")
   }
 
   @After
@@ -845,6 +831,17 @@ class CalendarMonitorServiceTest {
     }
 
     clearStorages()
+    
+    // Reset monitor state to avoid state leakage between tests
+    if (::fakeContext.isInitialized) {
+      val monitorState = CalendarMonitorState(fakeContext)
+      monitorState.firstScanEver = true // Default value is true
+      monitorState.nextEventFireFromScan = Long.MAX_VALUE // Default values
+      monitorState.prevEventFireFromScan = Long.MAX_VALUE
+      monitorState.prevEventScanTo = Long.MAX_VALUE
+      DevLog.info(LOG_TAG, "Reset CalendarMonitorState to default values")
+    }
+    
     DevLog.info(LOG_TAG, "Test environment cleanup complete")
   }
 
@@ -1818,11 +1815,18 @@ class CalendarMonitorServiceTest {
     }
     
     // Trigger the notification
+    DevLog.info(LOG_TAG, "Calling ApplicationController.onCalendarChanged")
     ApplicationController.onCalendarChanged(fakeContext)
+    
+    // This should trigger CalendarMonitor.launchRescanService, which triggers CalendarMonitorService, 
+    // which calls onRescanFromService, which will set firstScanEver=false if it's currently true
     
     // Advance the timer to allow for processing
     DevLog.info(LOG_TAG, "Waiting for $waitTime ms for change propagation...")
     advanceTimer(waitTime)
+    
+    // Find executed tasks for debugging
+    DevLog.info(LOG_TAG, "Tasks executed during waitTime: ${waitTime}ms")
     
     // Check state after processing
     val postState = CalendarMonitorState(fakeContext)
@@ -1832,6 +1836,12 @@ class CalendarMonitorServiceTest {
                "prevEventFireFromScan=${postState.prevEventFireFromScan}, " +
                "prevEventScanTo=${postState.prevEventScanTo}")
                
+    // Directly check the shared preferences after processing
+    fakeContext.getSharedPreferences(CalendarMonitorState.PREFS_NAME, Context.MODE_PRIVATE).let { prefs ->
+      val firstScanEverPref = prefs.getBoolean("F", false)
+      DevLog.info(LOG_TAG, "After processing: SharedPreferences[${CalendarMonitorState.PREFS_NAME}].getBoolean(F) = $firstScanEverPref")
+    }
+    
     DevLog.info(LOG_TAG, "Calendar change notification complete")
   }
 
@@ -2031,27 +2041,37 @@ class CalendarMonitorServiceTest {
     // Set up mock event reminders
     mockEventReminders(testEventId)
 
-    // Set up mock event alerts to return our test alert
+    // Set up mock event alerts to return appropriate alerts based on which event is being queried
     every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+      val context = firstArg<Context>()
       val scanFrom = secondArg<Long>()
       val scanTo = thirdArg<Long>()
-      DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
-      DevLog.info(LOG_TAG, "Current reminderTime=$reminderTime")
-
-      if (reminderTime in scanFrom..scanTo) {
+      
+      // Get the current state to determine which phase of the test we're in
+      val currentState = CalendarMonitorState(context)
+      val isFirstScan = currentState.firstScanEver
+      
+      DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo, firstScanEver=$isFirstScan")
+      
+      // Track currently active test event
+      val currentTestEvent = testEventId
+      val currentReminderTime = reminderTime
+      
+      // Check if we're in the scan range for the current event
+      if (currentReminderTime in scanFrom..scanTo) {
         val alert = MonitorEventAlertEntry(
-          eventId = testEventId,
+          eventId = currentTestEvent,
           isAllDay = false,
-          alertTime = reminderTime,
+          alertTime = currentReminderTime,
           instanceStartTime = eventStartTime,
           instanceEndTime = eventStartTime + 60000,
           alertCreatedByUs = false,
           wasHandled = false
         )
-        DevLog.info(LOG_TAG, "Returning alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+        DevLog.info(LOG_TAG, "Returning alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}, firstScanEver=$isFirstScan")
         listOf(alert)
       } else {
-        DevLog.info(LOG_TAG, "No alerts in range, returning empty list")
+        DevLog.info(LOG_TAG, "No alerts in range for current test event $currentTestEvent, returning empty list")
         emptyList()
       }
     }
@@ -2087,7 +2107,8 @@ class CalendarMonitorServiceTest {
     notifyCalendarChangeAndWait(5000) // Increased wait time to ensure processing completes
 
     // Log calendar monitor state after the scan
-    DevLog.info(LOG_TAG, "Calendar monitor state after scan: firstScanEver=${monitorState.firstScanEver}")
+    val stateAfterScan = CalendarMonitorState(fakeContext)
+    DevLog.info(LOG_TAG, "Calendar monitor state after scan: firstScanEver=${stateAfterScan.firstScanEver}")
 
     // Verify alerts were added and MARKED as handled due to firstScanEver=true
     MonitorStorage(fakeContext).classCustomUse { db ->
@@ -2101,7 +2122,7 @@ class CalendarMonitorServiceTest {
     }
 
     // Verify firstScanEver flag was set to false
-    assertFalse("firstScanEver should be set to false after scan", monitorState.firstScanEver)
+    assertFalse("firstScanEver should be set to false after scan", stateAfterScan.firstScanEver)
     
     // Verify that no notifications were posted
     assertFalse("No notifications should be posted during first scan", notificationsPosted)
@@ -2129,6 +2150,36 @@ class CalendarMonitorServiceTest {
     // Update mocks for the new event
     mockEventReminders(testEventId)
     mockEventDetails(testEventId, eventStartTime, "Second Event After First Scan")
+    
+    // Explicitly override the mock for getEventAlertsForInstancesInRange for the second event
+    // This ensures we don't reuse the same mock logic from the first part of the test
+    every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+      val context = firstArg<Context>()
+      val scanFrom = secondArg<Long>()
+      val scanTo = thirdArg<Long>()
+      
+      DevLog.info(LOG_TAG, "Second mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
+      DevLog.info(LOG_TAG, "Second test: currentTestEvent=$testEventId, reminderTime=$reminderTime")
+      
+      // We're explicitly in the second part of the test with firstScanEver=false
+      // Only return alert for our specific second test event
+      if (reminderTime in scanFrom..scanTo) {
+        val alert = MonitorEventAlertEntry(
+          eventId = testEventId,
+          isAllDay = false,
+          alertTime = reminderTime,
+          instanceStartTime = eventStartTime,
+          instanceEndTime = eventStartTime + 60000,
+          alertCreatedByUs = false,
+          wasHandled = false
+        )
+        DevLog.info(LOG_TAG, "Returning second alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+        listOf(alert)
+      } else {
+        DevLog.info(LOG_TAG, "No alerts in range for second test, returning empty list")
+        emptyList()
+      }
+    }
 
     // Trigger second calendar scan
     notifyCalendarChangeAndWait()
@@ -2138,9 +2189,15 @@ class CalendarMonitorServiceTest {
       val alerts = db.alerts.filter { it.eventId == testEventId }
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts for second event after scan")
       assertTrue("Should have alerts for second event", alerts.isNotEmpty())
+      
+      // Debug log all alerts to see their state
+      alerts.forEach { alert ->
+        DevLog.info(LOG_TAG, "Second event alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+      }
+      
       assertFalse("Alerts for second event should NOT be marked as handled", alerts.all { it.wasHandled })
     }
-
+    
     // Advance time past the reminder time
     DevLog.info(LOG_TAG, "Advancing time past reminder time...")
     val advanceAmount = reminderTime - testClock.currentTimeMillis() + Consts.ALARM_THRESHOLD
@@ -2148,6 +2205,43 @@ class CalendarMonitorServiceTest {
 
     // Set the last timer broadcast received to indicate an alarm happened
     lastTimerBroadcastReceived = testClock.currentTimeMillis()
+
+    // Mock getAlertByEventIdAndTime to return our second test event
+    every { CalendarProvider.getAlertByEventIdAndTime(any(), any(), any()) } answers {
+      val context = firstArg<Context>()
+      val eventId = secondArg<Long>()
+      val alertTime = thirdArg<Long>()
+
+      DevLog.info(LOG_TAG, "Mock getAlertByEventIdAndTime called with eventId=$eventId, alertTime=$alertTime")
+
+      if (eventId == testEventId && alertTime == reminderTime) {
+        EventAlertRecord(
+          calendarId = testCalendarId,
+          eventId = testEventId,
+          isAllDay = false,
+          isRepeating = false,
+          alertTime = reminderTime,
+          notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+          title = "Second Event After First Scan",
+          desc = "Test Description",
+          startTime = eventStartTime,
+          endTime = eventStartTime + 3600000,
+          instanceStartTime = eventStartTime,
+          instanceEndTime = eventStartTime + 3600000,
+          location = "",
+          lastStatusChangeTime = testClock.currentTimeMillis(),
+          displayStatus = EventDisplayStatus.Hidden,
+          color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+          origin = EventOrigin.ProviderBroadcast,
+          timeFirstSeen = testClock.currentTimeMillis(),
+          eventStatus = EventStatus.Confirmed,
+          attendanceStatus = AttendanceStatus.None,
+          flags = 0
+        )
+      } else {
+        null
+      }
+    }
 
     // Trigger the alarm broadcast receiver for the second event
     val alarmIntent = Intent(fakeContext, ManualEventAlarmBroadcastReceiver::class.java).apply {
@@ -2169,12 +2263,18 @@ class CalendarMonitorServiceTest {
     // Small delay for processing
     advanceTimer(1000)
 
-    // Verify alerts for second event were marked as handled
+    // Verify alerts for second event were marked as handled after alarm processing
     MonitorStorage(fakeContext).classCustomUse { db ->
       val alerts = db.alerts.filter { it.eventId == testEventId }
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts for second event after processing")
+      
+      // Debug log all alerts to see their state after alarm processing
+      alerts.forEach { alert ->
+        DevLog.info(LOG_TAG, "Second event alert after alarm: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
+      }
+      
       assertTrue("Should have alerts for second event after processing", alerts.isNotEmpty())
-      assertTrue("Alerts for second event should be marked as handled", alerts.all { it.wasHandled })
+      assertTrue("Alerts for second event should be marked as handled after alarm processing", alerts.all { it.wasHandled })
     }
 
     // Verify that notifications were posted for the second event (normal behavior)
