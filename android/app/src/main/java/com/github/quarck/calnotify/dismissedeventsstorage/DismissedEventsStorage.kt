@@ -25,12 +25,16 @@ import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.detailed
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 //import com.github.quarck.calnotify.logs.Logger
 import java.io.Closeable
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
-class DismissedEventsStorage(val context: Context)
-    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, DismissedEventsStorageInterface {
+class DismissedEventsStorage(
+    val context: Context,
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, DismissedEventsStorageInterface {
 
     private var impl: DismissedEventsStorageImplInterface
 
@@ -87,13 +91,13 @@ class DismissedEventsStorage(val context: Context)
     }
 
     override fun addEvent(type: EventDismissType, event: EventAlertRecord)
-            = addEvent(type, System.currentTimeMillis(), event)
+            = addEvent(type, clock.currentTimeMillis(), event)
 
     override fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord)
             = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventImpl(it, type, changeTime, event) } }
 
     override fun addEvents(type: EventDismissType, events: Collection<EventAlertRecord>)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventsImpl(it, type, System.currentTimeMillis(), events) } }
+            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventsImpl(it, type, clock.currentTimeMillis(), events) } }
 
     override fun deleteEvent(entry: DismissedEventAlertRecord)
             = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.deleteEventImpl(it, entry) } }

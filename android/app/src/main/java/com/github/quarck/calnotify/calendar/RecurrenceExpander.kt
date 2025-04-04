@@ -1,12 +1,28 @@
 package com.github.quarck.calnotify.calendar
 
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import java.util.*
 
 /**
  * Utility class that expands recurring events based on their recurrence rules.
  */
-class RecurrenceExpander {
+class RecurrenceExpander(private val clock: CNPlusClockInterface = CNPlusSystemClock()) {
+    /**
+     * Expands a recurring event into multiple EventAlertRecord instances based on its recurrence rule.
+     *
+     * @param event The base event to expand
+     * @param maxInstances Maximum number of instances to generate (default 100)
+     * @return List of EventAlertRecord instances generated from the recurring event
+     */
+    fun expandRecurringEvent(
+        event: EventRecord, 
+        maxInstances: Int = 100
+    ): List<EventAlertRecord> {
+        return expandRecurringEvent(event, maxInstances, clock.currentTimeMillis())
+    }
+    
     /**
      * Expands a recurring event into multiple EventAlertRecord instances based on its recurrence rule.
      *
@@ -18,7 +34,7 @@ class RecurrenceExpander {
     fun expandRecurringEvent(
         event: EventRecord, 
         maxInstances: Int = 100,
-        currentTimeMillis: Long = System.currentTimeMillis()
+        currentTimeMillis: Long
     ): List<EventAlertRecord> {
         val rule = event.repeatingRule
         

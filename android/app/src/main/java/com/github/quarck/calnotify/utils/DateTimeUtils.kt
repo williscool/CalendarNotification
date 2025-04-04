@@ -87,12 +87,12 @@ object DateTimeUtils {
     // are stored in UTC format, so to check if event is today we have to
     // convert current date in local time zone into year / day of year and compare
     // it with event time in UTC converted to year / day of year
-    fun isUTCToday(timeInUTC: Long) =
-            calendarDayEquals(createUTCCalendarTime(timeInUTC), createCalendarTime(System.currentTimeMillis()))
+    fun isUTCToday(timeInUTC: Long, clock: CNPlusClockInterface = CNPlusSystemClock()) =
+            calendarDayEquals(createUTCCalendarTime(timeInUTC), createCalendarTime(clock.currentTimeMillis()))
 
-    fun isUTCTodayOrInThePast(timeInUTC: Long): Boolean {
+    fun isUTCTodayOrInThePast(timeInUTC: Long, clock: CNPlusClockInterface = CNPlusSystemClock()): Boolean {
         val time = createUTCCalendarTime(timeInUTC)
-        val now = createCalendarTime(System.currentTimeMillis())
+        val now = createCalendarTime(clock.currentTimeMillis())
         return calendarDayEqualsOrLess(time, now)
     }
 }

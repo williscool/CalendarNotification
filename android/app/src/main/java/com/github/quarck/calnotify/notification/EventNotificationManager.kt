@@ -979,7 +979,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setCategory(
                         NotificationCompat.CATEGORY_EVENT
                 )
-                .setWhen(System.currentTimeMillis())
+                .setWhen(clock.currentTimeMillis())
                 .setShowWhen(false)
                 .setNumber(numTotalEvents)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

@@ -20,6 +20,8 @@
 package com.github.quarck.calnotify.calendareditor
 
 import com.github.quarck.calnotify.calendar.CalendarEventDetails
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 
 enum class EventChangeStatus(val code: Int) {
@@ -59,9 +61,9 @@ data class CalendarChangeRequest(
         var numRetries: Int = 0,
         var lastRetryTime: Long = 0
 ) {
-    fun onValidated(success: Boolean) {
+    fun onValidated(success: Boolean, clock: CNPlusClockInterface = CNPlusSystemClock()) {
 
-        lastStatusUpdate = System.currentTimeMillis()
+        lastStatusUpdate = clock.currentTimeMillis()
 
         status = if (success) EventChangeStatus.Synced else EventChangeStatus.Dirty
     }
