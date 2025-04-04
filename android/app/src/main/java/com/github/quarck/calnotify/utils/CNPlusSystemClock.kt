@@ -8,7 +8,7 @@ import java.time.Clock
 /**
  * Default implementation of Clock that uses system time
  */
-class CNPlusSystemClock : CNPlusClock {
+class CNPlusSystemClock : CNPlusClockInterface {
     private val clock: Clock = Clock.systemUTC()
     
     override fun currentTimeMillis(): Long = clock.millis()

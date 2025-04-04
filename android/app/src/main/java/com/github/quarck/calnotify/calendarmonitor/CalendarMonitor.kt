@@ -39,14 +39,14 @@ import com.github.quarck.calnotify.utils.alarmManager
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.setExactAndAlarm
-import com.github.quarck.calnotify.utils.CNPlusClock
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 
 
 open class CalendarMonitor(
         val calendarProvider: CalendarProviderInterface,
-        override val clock: CNPlusClock = CNPlusSystemClock()
+        override val clock: CNPlusClockInterface = CNPlusSystemClock()
 ) : CalendarMonitorInterface {
 
     public val manualScanner: CalendarMonitorManual by lazy {

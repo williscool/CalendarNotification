@@ -32,14 +32,14 @@ import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.detailed
 import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
-import com.github.quarck.calnotify.utils.CNPlusClock
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 
 class CalendarMonitorManual(
         val calendarProvider: CalendarProviderInterface,
         val calendarMonitor: CalendarMonitorInterface,
-        val clock: CNPlusClock = CNPlusSystemClock()
+        val clock: CNPlusClockInterface = CNPlusSystemClock()
 ) {
 
     private fun manualFireAlertList(context: Context, alerts: List<MonitorEventAlertEntry>): Boolean {

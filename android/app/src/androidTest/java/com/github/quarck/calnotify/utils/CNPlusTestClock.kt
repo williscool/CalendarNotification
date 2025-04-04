@@ -10,50 +10,18 @@ package com.github.quarck.calnotify.utils
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
-
-/**
- * Interface extending functionality of java.time.Clock
- */
-interface CNPlusClock {
-    /**
-     * Returns the current time in milliseconds
-     */
-    fun currentTimeMillis(): Long
-    
-    /**
-     * Sleeps for the specified time in milliseconds
-     */
-    fun sleep(millis: Long)
-    
-    /**
-     * Gets the underlying java.time.Clock
-     */
-    fun underlying(): Clock
-}
-
-/**
- * Default implementation of Clock that uses system time
- */
-class CNPlusSystemClock : CNPlusClock {
-    private val clock: Clock = Clock.systemUTC()
-    
-    override fun currentTimeMillis(): Long = clock.millis()
-    
-    override fun sleep(millis: Long) {
-        try {
-            Thread.sleep(millis)
-        } catch (e: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
-    }
-    
-    override fun underlying(): Clock = clock
-}
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Test implementation of CNPlusClock that allows controlling the time
+ * and supports timer-based sleep through a ScheduledExecutorService if provided
  */
-class CNPlusTestClock(private var currentTimeMs: Long = 0L) : CNPlusClock {
+class CNPlusTestClock(
+    private var currentTimeMs: Long = 0L,
+    private val mockTimer: ScheduledExecutorService? = null
+) : CNPlusClockInterface {
     /**
      * The mutable clock implementation that can be replaced in tests
      */
@@ -86,9 +54,17 @@ class CNPlusTestClock(private var currentTimeMs: Long = 0L) : CNPlusClock {
     override fun currentTimeMillis(): Long = currentTimeMs
     
     override fun sleep(millis: Long) {
-        // Advance the clock by the sleep duration
-        currentTimeMs += millis
-        refreshClock()
+        if (mockTimer != null) {
+            // Use timer-based sleep with the provided executor
+            val latch = CountDownLatch(1)
+            val task = Runnable { latch.countDown() }
+            mockTimer.schedule(task, millis, TimeUnit.MILLISECONDS)
+            latch.await(millis, TimeUnit.MILLISECONDS)
+        } else {
+            // Advance the clock by the sleep duration
+            currentTimeMs += millis
+            refreshClock()
+        }
     }
     
     override fun underlying(): Clock = fixedClock

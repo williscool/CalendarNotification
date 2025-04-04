@@ -42,6 +42,7 @@ import java.util.Locale
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.ui.UINotifier
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 
 
 /**
@@ -77,6 +78,8 @@ class CalendarMonitorServiceEventReminderTest {
   private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
 
   private val currentTime = AtomicLong(0L)
+  
+  private lateinit var testClock: CNPlusTestClock
 
   private lateinit var mockFormatter: EventFormatterInterface
 
@@ -174,6 +177,7 @@ class CalendarMonitorServiceEventReminderTest {
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = false
     currentTime.set(System.currentTimeMillis())
+    testClock.setCurrentTime(currentTime.get())
     val startTime = currentTime.get()
 
     // Create test event with reminder
@@ -228,11 +232,11 @@ class CalendarMonitorServiceEventReminderTest {
           instanceStartTime = eventStartTime,
           instanceEndTime = eventStartTime + 60000,
           location = "",
-          lastStatusChangeTime = currentTime.get(),
+          lastStatusChangeTime = testClock.currentTimeMillis(),
           displayStatus = EventDisplayStatus.Hidden,
           color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
           origin = EventOrigin.ProviderBroadcast,
-          timeFirstSeen = currentTime.get(),
+          timeFirstSeen = testClock.currentTimeMillis(),
           eventStatus = EventStatus.Confirmed,
           attendanceStatus = AttendanceStatus.None,
           flags = 0
@@ -260,6 +264,7 @@ class CalendarMonitorServiceEventReminderTest {
     // Advance time to the reminder time
     DevLog.info(LOG_TAG, "Advancing time to reminder time...")
     currentTime.set(reminderTime)
+    testClock.setCurrentTime(reminderTime)
 
     // Following the documented flow:
     // 1. Create a reminder broadcast intent like the system would send for EVENT_REMINDER
@@ -360,6 +365,7 @@ class CalendarMonitorServiceEventReminderTest {
 
     // Create test event
     currentTime.set(System.currentTimeMillis())
+    testClock.setCurrentTime(currentTime.get())
     val startTime = currentTime.get()
     eventStartTime = startTime + 60000
     reminderTime = eventStartTime - 30000
@@ -459,11 +465,11 @@ class CalendarMonitorServiceEventReminderTest {
         instanceStartTime = eventStartTime,
         instanceEndTime = eventStartTime + 60000,
         location = "",
-        lastStatusChangeTime = currentTime.get(),
+        lastStatusChangeTime = testClock.currentTimeMillis(),
         displayStatus = EventDisplayStatus.Hidden,
         color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
         origin = EventOrigin.ProviderBroadcast,
-        timeFirstSeen = currentTime.get(),
+        timeFirstSeen = testClock.currentTimeMillis(),
         eventStatus = EventStatus.Confirmed,
         attendanceStatus = AttendanceStatus.None,
         flags = 0
@@ -596,6 +602,9 @@ class CalendarMonitorServiceEventReminderTest {
   }
 
   private fun setupMockTimer() {
+    // Create CNPlusTestClock with mockTimer
+    testClock = CNPlusTestClock(0L, mockTimer)
+    
     val scheduledTasks = mutableListOf<Pair<Runnable, Long>>()
     every { mockTimer.schedule(any(), any<Long>(), any()) } answers { call ->
       val task = call.invocation.args[0] as Runnable
@@ -612,10 +621,7 @@ class CalendarMonitorServiceEventReminderTest {
   }
 
   private fun setupMockCalendarMonitor() {
-    val realMonitor = object : CalendarMonitor(CalendarProvider) {
-      override val currentTimeForTest: Long
-        get() = this@CalendarMonitorServiceEventReminderTest.currentTime.get()
-    }
+    val realMonitor = CalendarMonitor(CalendarProvider, testClock)
     mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
     
     // Add explicit mocking for onRescanFromService and onSystemTimeChange to prevent verification issues
@@ -652,7 +658,7 @@ class CalendarMonitorServiceEventReminderTest {
     mockService = spyk(CalendarMonitorService()) {
       every { applicationContext } returns fakeContext
       every { baseContext } returns fakeContext
-      every { timer } returns mockTimer
+      every { clock } returns testClock
       every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
       every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
       every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
@@ -933,8 +939,9 @@ class CalendarMonitorServiceEventReminderTest {
    * @param milliseconds The amount of time to advance
    */
   private fun advanceTimer(milliseconds: Long) {
-    val oldTime = currentTime.get()
+    val oldTime = testClock.currentTimeMillis()
     val newTime = oldTime + milliseconds
+    testClock.setCurrentTime(newTime)
     currentTime.set(newTime)
     DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
 

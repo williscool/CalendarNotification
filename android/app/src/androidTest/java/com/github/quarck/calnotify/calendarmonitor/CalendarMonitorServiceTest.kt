@@ -45,7 +45,7 @@ import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
 import org.junit.Ignore
-import com.github.quarck.calnotify.utils.CNPlusClock
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 
 /**
@@ -84,7 +84,7 @@ class CalendarMonitorServiceTest {
   private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
   private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
 
-  private val testClock = CNPlusTestClock(0L)
+  private lateinit var testClock: CNPlusTestClock
 
   private lateinit var mockFormatter: EventFormatterInterface
 
@@ -327,6 +327,9 @@ class CalendarMonitorServiceTest {
   }
 
   private fun setupMockTimer() {
+    // Create CNPlusTestClock with mockTimer
+    testClock = CNPlusTestClock(0L, mockTimer)
+    
     // Clear any tasks from previous tests
     scheduledTasks.clear()
 
@@ -334,9 +337,9 @@ class CalendarMonitorServiceTest {
         val task = call.invocation.args[0] as Runnable
         val delay = call.invocation.args[1] as Long
         val unit = call.invocation.args[2] as TimeUnit
-        val dueTime = testClock.getCurrentTime() + unit.toMillis(delay)
+        val dueTime = testClock.currentTimeMillis() + unit.toMillis(delay)
 
-        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${testClock.getCurrentTime()}, delay: $delay ${unit.name})")
+        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${testClock.currentTimeMillis()}, delay: $delay ${unit.name})")
         scheduledTasks.add(Pair(task, dueTime))
         // Sort by due time to process in order
         scheduledTasks.sortBy { it.second }
@@ -408,7 +411,7 @@ class CalendarMonitorServiceTest {
       // Keep existing mocks for context, system services, etc.
       every { applicationContext } returns fakeContext
       every { baseContext } returns fakeContext
-      every { timer } returns mockTimer // IMPORTANT: Ensure service uses the mock timer
+      every { clock } returns testClock // Set the test clock
       every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
       every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
       every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
@@ -427,7 +430,6 @@ class CalendarMonitorServiceTest {
         val name = firstArg<String>()
         sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
       }
-
     }
 
     // Revert to simple logging + callOriginal for handleIntentForTest.
@@ -477,7 +479,7 @@ class CalendarMonitorServiceTest {
               db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
             } else {
               // Handle all pending alerts if this is a broadcast-triggered notification
-              db.alerts.filter { !it.wasHandled && it.alertTime <= testClock.getCurrentTime() }
+              db.alerts.filter { !it.wasHandled && it.alertTime <= testClock.currentTimeMillis() }
             }
 
             if (alertsToHandle.isNotEmpty()) {
@@ -548,11 +550,11 @@ class CalendarMonitorServiceTest {
         instanceStartTime = eventStartTime,
         instanceEndTime = eventStartTime + 3600000,
         location = "",
-        lastStatusChangeTime = testClock.getCurrentTime(), // Use current test time
+        lastStatusChangeTime = testClock.currentTimeMillis(), // Use current test time
         displayStatus = EventDisplayStatus.Hidden,
         color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
         origin = EventOrigin.ProviderBroadcast,
-        timeFirstSeen = testClock.getCurrentTime(), // Use current test time
+        timeFirstSeen = testClock.currentTimeMillis(), // Use current test time
         eventStatus = EventStatus.Confirmed,
         attendanceStatus = AttendanceStatus.None,
         flags = 0
@@ -1465,8 +1467,9 @@ class CalendarMonitorServiceTest {
    * @param milliseconds The amount of time to advance
    */
   private fun advanceTimer(milliseconds: Long) {
-    val oldTime = currentTime.get()
+    val oldTime = testClock.currentTimeMillis()
     val newTime = oldTime + milliseconds
+    testClock.setCurrentTime(newTime)
     currentTime.set(newTime)
     DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
 

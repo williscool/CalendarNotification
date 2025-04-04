@@ -12,7 +12,7 @@ import java.time.Clock
 /**
  * Interface extending functionality of java.time.Clock
  */
-interface CNPlusClock {
+interface CNPlusClockInterface {
     /**
      * Returns the current time in milliseconds
      */
