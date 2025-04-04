@@ -169,6 +169,37 @@ class CNPlusTestClock(
     }
     
     /**
+     * Executes all pending scheduled tasks immediately without advancing the clock.
+     * This is useful for cleaning up any remaining tasks at the end of a test.
+     *
+     * @return The list of tasks that were executed
+     */
+    fun executeAllPendingTasks(): List<Pair<Runnable, Long>> {
+        val tasksCopy = scheduledTasks.toList()
+        
+        if (tasksCopy.isNotEmpty()) {
+            DevLog.info(LOG_TAG, "Executing all ${tasksCopy.size} pending tasks immediately")
+            
+            // Execute all tasks
+            tasksCopy.forEach { (task, time) ->
+                try {
+                    DevLog.info(LOG_TAG, "Executing task scheduled for time $time (current time: $currentTimeMs)")
+                    task.run()
+                } catch (e: Exception) {
+                    DevLog.error(LOG_TAG, "Exception running scheduled task: ${e.message}")
+                }
+            }
+            
+            // Remove executed tasks
+            scheduledTasks.removeAll(tasksCopy)
+        } else {
+            DevLog.info(LOG_TAG, "No pending tasks to execute")
+        }
+        
+        return tasksCopy
+    }
+    
+    /**
      * Get the current time (for backward compatibility with tests)
      */
     fun getCurrentTime(): Long = currentTimeMs

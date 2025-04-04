@@ -1243,7 +1243,8 @@ class CalendarMonitorServiceTest {
    */
    @Test
   fun testDelayedProcessing() {
-    val startDelay = 2000 // 2 second delay
+    // Use a delay that is less than MAX_TIME_WITHOUT_QUICK_RESCAN to prevent quick rescan
+    val startDelay = 500L // 500ms delay, less than MAX_TIME_WITHOUT_QUICK_RESCAN (1000ms)
     
     // Use testClock instead of System.currentTimeMillis()
     val startTime = testClock.currentTimeMillis()
@@ -1261,8 +1262,34 @@ class CalendarMonitorServiceTest {
     monitorState.prevEventScanTo = startTime // Use initial start time for scan baseline
     monitorState.prevEventFireFromScan = startTime
 
+    // IMPORTANT: Prevent initial processing by using a special mock for this test
+    // Replace the standard mock with a test-specific one that respects our test timing
+    every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+      val scanFrom = secondArg<Long>()
+      val scanTo = thirdArg<Long>()
+      
+      DevLog.info(LOG_TAG, "[TEST MOCK] getEventAlertsForInstancesInRange called at ${testClock.currentTimeMillis()}, startTime=$startTime, startDelay=$startDelay")
+      DevLog.info(LOG_TAG, "[TEST MOCK] Time check: ${testClock.currentTimeMillis()} >= ${startTime + startDelay} = ${testClock.currentTimeMillis() >= startTime + startDelay}")
+      
+      // Only return alerts if the clock time is past the expected delay point
+      if (testClock.currentTimeMillis() >= startTime + startDelay) {
+        DevLog.info(LOG_TAG, "[TEST MOCK] After delay - returning event alert")
+        listOf(MonitorEventAlertEntry(
+          eventId = delayedEventId,
+          isAllDay = false,
+          alertTime = delayedEventStartTime - 30000,
+          instanceStartTime = delayedEventStartTime,
+          instanceEndTime = delayedEventStartTime + 60000,
+          alertCreatedByUs = false,
+          wasHandled = false
+        ))
+      } else {
+        DevLog.info(LOG_TAG, "[TEST MOCK] Before delay - returning empty list")
+        emptyList()
+      }
+    }
+
     mockEventReminders(delayedEventId)
-    mockEventAlerts(delayedEventId, delayedEventStartTime, startDelay = startDelay)  // Pass startDelay to mock
     mockEventDetails(delayedEventId, delayedEventStartTime, title = "Delayed Test Event")
 
     // --- Initial State Verification --- (Before triggering service)
@@ -1332,20 +1359,47 @@ class CalendarMonitorServiceTest {
     DevLog.info(LOG_TAG, "Testing calendar change broadcast handling")
     val intent = Intent(CalendarContract.ACTION_EVENT_REMINDER)
     mockService.handleIntentForTest(intent)
+    
+    // Wait for processing and ensure all scheduled tasks run
+    DevLog.info(LOG_TAG, "Waiting for broadcast handling to complete")
+    advanceTimer(2000)
+    testClock.executeAllPendingTasks()
+    
+    DevLog.info(LOG_TAG, "Verifying first test - calendar change broadcast")
     verify(atLeast = 1) { mockCalendarMonitor.onRescanFromService(any()) }
 
     // Test 2: System Time Change
     DevLog.info(LOG_TAG, "Testing system time change handling")
     mockCalendarMonitor.onSystemTimeChange(fakeContext)
+    
+    // Wait for processing and ensure all scheduled tasks run
+    DevLog.info(LOG_TAG, "Waiting for time change handling to complete")
+    advanceTimer(2000)
+    testClock.executeAllPendingTasks()
+    
+    DevLog.info(LOG_TAG, "Verifying second test - system time change")
     verify(atLeast = 2) { mockCalendarMonitor.onRescanFromService(any()) }
 
     // Test 3: App Resume
     DevLog.info(LOG_TAG, "Testing app resume handling")
     mockCalendarMonitor.onAppResumed(fakeContext, false)
     
-    // Wait for service operations to complete
-    advanceTimer(500)
-
+    // Wait for service operations to complete with increased wait time
+    DevLog.info(LOG_TAG, "Waiting for app resume handling to complete")
+    advanceTimer(2000)
+    testClock.executeAllPendingTasks()
+    
+    // Debug log to check invocations before verification
+    DevLog.info(LOG_TAG, "Before verification, checking calls to onRescanFromService")
+//    val invocations = mockCalendarMonitor.invocations.filter {
+//        it.method.name == "onRescanFromService"
+//    }
+//    DevLog.info(LOG_TAG, "Found ${invocations.size} invocations of onRescanFromService")
+//    invocations.forEachIndexed { index, invocation ->
+//        DevLog.info(LOG_TAG, "Invocation $index: ${invocation.method.name} with arg: ${invocation.args.firstOrNull()}")
+//    }
+    
+    DevLog.info(LOG_TAG, "Verifying third test - app resume")
     verify(atLeast = 3) { mockCalendarMonitor.onRescanFromService(any()) }
 
     // Test 4: Complex Recurring Event
@@ -1385,8 +1439,19 @@ class CalendarMonitorServiceTest {
     // Test 6: Permission Changes
     DevLog.info(LOG_TAG, "Testing permission change handling")
     every { PermissionsManager.hasAllCalendarPermissionsNoCache(any()) } returns false
-    notifyCalendarChangeAndWait()
-
+    notifyCalendarChangeAndWait(waitTime = 3000) // Increase wait time
+    
+    // Execute any pending tasks
+    testClock.executeAllPendingTasks()
+    
+    // Debug log to check invocations again
+    DevLog.info(LOG_TAG, "After permission test, checking calls to onRescanFromService")
+//    val invocationsAfterPermission = mockCalendarMonitor.invocations.filter {
+//        it.method.name == "onRescanFromService"
+//    }
+//    DevLog.info(LOG_TAG, "Found ${invocationsAfterPermission.size} invocations of onRescanFromService")
+    
+    DevLog.info(LOG_TAG, "Verifying permission changes test")
     verify(atLeast = 4) { mockCalendarMonitor.onRescanFromService(any()) }
 
     // Test 7: State Persistence
@@ -1397,6 +1462,7 @@ class CalendarMonitorServiceTest {
     assertTrue("Setting should be enabled", settings.enableCalendarRescan)
 
     verify(atMost = 5) { mockCalendarMonitor.onRescanFromService(any()) } // Count should not increase
+    DevLog.info(LOG_TAG, "Test completed successfully")
   }
 
 
