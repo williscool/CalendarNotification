@@ -31,11 +31,13 @@ import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.find
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 class ReportABugActivity : AppCompatActivity() {
     private var easterEggCount = 0;
     private var firstClick = 0L;
-
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,11 +129,11 @@ class ReportABugActivity : AppCompatActivity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonEasterEgg(v: View) {
         if (easterEggCount == 0) {
-            firstClick = System.currentTimeMillis();
+            firstClick = clock.currentTimeMillis();
         }
 
         if (++easterEggCount > 13) {
-            if (System.currentTimeMillis() - firstClick < 5000L) {
+            if (clock.currentTimeMillis() - firstClick < 5000L) {
                 Settings(this).devModeEnabled = true
                 Toast.makeText(this, "Developer Mode Enabled", Toast.LENGTH_LONG).show()
             }

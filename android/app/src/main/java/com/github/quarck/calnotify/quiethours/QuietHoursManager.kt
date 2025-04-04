@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.quiethours
 
 import android.content.Context
+import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.bluetooth.BTDeviceManager
 import com.github.quarck.calnotify.logs.DevLog
@@ -29,11 +30,9 @@ import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.addDays
 import java.util.*
+import android.text.format.DateUtils
 
-class QuietHoursManager(
-    val ctx: Context,
-    override val clock: CNPlusClockInterface = CNPlusSystemClock()
-) : QuietHoursManagerInterface {
+class QuietHoursManager(private val ctx: Context, private val clock: CNPlusClockInterface = CNPlusSystemClock()) : QuietHoursManagerInterface {
 
     private val btDeviceManager: BTDeviceManager by lazy { BTDeviceManager(ctx) }
 

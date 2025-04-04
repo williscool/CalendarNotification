@@ -69,6 +69,8 @@ import com.github.quarck.calnotify.utils.powerManager
 import org.jetbrains.annotations.NotNull
 import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -112,8 +114,9 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     private val undoManager by lazy { UndoManager }
 
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
 
-  override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         DevLog.debug(LOG_TAG, "onCreateView")
@@ -125,7 +128,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         //supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
 
-        shouldForceRepost = (System.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
+        shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
 
         refreshLayout = find<SwipeRefreshLayout?>(R.id.cardview_refresh_layout)
 
@@ -175,7 +178,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     private fun refreshReminderLastFired() {
         // avoid firing reminders when UI is active and user is interacting with it
-        ReminderState(applicationContext).reminderLastFireTime = System.currentTimeMillis()
+        ReminderState(applicationContext).reminderLastFireTime = clock.currentTimeMillis()
     }
 
     public override fun onStop() {
@@ -531,60 +534,67 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     }
 
     private fun reloadData() {
+        DevLog.debug(LOG_TAG, "reloadListView")
 
-        background {
+        shouldForceRepost = true
 
-            DismissedEventsStorage(this).classCustomUse { it.purgeOld(System.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
+        val events: Array<EventAlertRecord>
 
-            val events =
+        val quietHoursManager = QuietHoursManager(this)
+        val quietPeriodUntil = quietHoursManager.getSilentUntil(settings)
+
+        events =
+            try {
+                DismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
+
+                val events =
                     EventsStorage(this).classCustomUse {
-
                         db ->
-
                         db.events.sortedWith(
-                                Comparator<EventAlertRecord> {
-                                    lhs, rhs ->
+                            Comparator<EventAlertRecord> {
+                                lhs, rhs ->
+                                if (lhs.snoozedUntil < rhs.snoozedUntil)
+                                    return@Comparator -1;
+                                else if (lhs.snoozedUntil > rhs.snoozedUntil)
+                                    return@Comparator 1;
 
-                                    if (lhs.snoozedUntil < rhs.snoozedUntil)
-                                        return@Comparator -1;
-                                    else if (lhs.snoozedUntil > rhs.snoozedUntil)
-                                        return@Comparator 1;
+                                if (lhs.lastStatusChangeTime > rhs.lastStatusChangeTime)
+                                    return@Comparator -1;
+                                else if (lhs.lastStatusChangeTime < rhs.lastStatusChangeTime)
+                                    return@Comparator 1;
 
-                                    if (lhs.lastStatusChangeTime > rhs.lastStatusChangeTime)
-                                        return@Comparator -1;
-                                    else if (lhs.lastStatusChangeTime < rhs.lastStatusChangeTime)
-                                        return@Comparator 1;
-
-                                    return@Comparator 0;
-
-                                }).toTypedArray()
-
-
+                                return@Comparator 0;
+                            }
+                        ).toTypedArray()
                     }
 
-            val quietPeriodUntil = QuietHoursManager(this).getSilentUntil(settings)
-
-            runOnUiThread {
-                adapter.setEventsToDisplay(events);
-                onNumEventsUpdated()
-
-                if (quietPeriodUntil > 0L) {
-                    quietHoursTextView.text =
-                            String.format(resources.getString(R.string.quiet_hours_main_activity_status),
-                                    DateUtils.formatDateTime(this, quietPeriodUntil,
-                                            if (DateUtils.isToday(quietPeriodUntil))
-                                                DateUtils.FORMAT_SHOW_TIME
-                                            else
-                                                DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE))
-
-                    quietHoursLayout.visibility = View.VISIBLE;
-                }
-                else {
-                    quietHoursLayout.visibility = View.GONE;
-                }
-
-                refreshLayout?.isRefreshing = false
+                events
             }
+            catch (ex: Exception) {
+                DevLog.error(LOG_TAG, "Exception while loading events: ${ex.message}")
+                emptyArray()
+            }
+
+        runOnUiThread {
+            adapter.setEventsToDisplay(events);
+            onNumEventsUpdated()
+
+            if (quietPeriodUntil > 0L) {
+                quietHoursTextView.text =
+                        String.format(resources.getString(R.string.quiet_hours_main_activity_status),
+                                DateUtils.formatDateTime(this, quietPeriodUntil,
+                                        if (DateUtils.isToday(quietPeriodUntil))
+                                            DateUtils.FORMAT_SHOW_TIME
+                                        else
+                                            DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE))
+
+                quietHoursLayout.visibility = View.VISIBLE;
+            }
+            else {
+                quietHoursLayout.visibility = View.GONE;
+            }
+
+            refreshLayout?.isRefreshing = false
         }
     }
 

@@ -44,6 +44,11 @@ import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 @Suppress("VARIABLE_WITH_REDUNDANT_INITIALIZER")
 open class EventNotificationManager : EventNotificationManagerInterface {
@@ -142,7 +147,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             background {
                 wakeLocked(ctx.powerManager, Consts.WAKE_SCREEN_DURATION*2/3,
                         PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, SCREEN_WAKE_LOCK_NAME) {
-                    Thread.sleep(Consts.WAKE_SCREEN_DURATION)
+                    clock.sleep(Consts.WAKE_SCREEN_DURATION)
                 }
             }
         }
@@ -834,7 +839,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 //
 //        val persistentState = ctx.persistentState
 //
-//        val currentTime = System.currentTimeMillis()
+//        val currentTime = clock.currentTimeMillis()
 //        val msAgo: Long = (currentTime - persistentState.notificationLastFireTime)
 //
 //        val resources = ctx.resources

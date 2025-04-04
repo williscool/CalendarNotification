@@ -1120,7 +1120,7 @@ object CalendarProvider : CalendarProviderInterface {
 //        try {
 //            val values = ContentValues();
 //
-//            val currentTime = System.currentTimeMillis()
+//            val currentTime = clock.currentTimeMillis()
 //
 //            val newStartTime: Long
 //            val newEndTime: Long
