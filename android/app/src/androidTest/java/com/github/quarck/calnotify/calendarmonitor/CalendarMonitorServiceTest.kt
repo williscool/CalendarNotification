@@ -751,15 +751,26 @@ class CalendarMonitorServiceTest {
   }
 
   private fun clearStorages() {
-    EventsStorage(fakeContext).classCustomUse { db ->
-      val count = db.events.size
-      db.deleteAllEvents()
-      DevLog.info(LOG_TAG, "Cleared $count events from storage")
+    try {
+      EventsStorage(fakeContext).classCustomUse { db ->
+        val count = db.events.size
+        db.deleteAllEvents()
+        DevLog.info(LOG_TAG, "Cleared $count events from storage")
+      }
+    } catch (e: NullPointerException) {
+      // Handle case where database path might be null
+      DevLog.error(LOG_TAG, "Failed to clear events storage: ${e.message}")
     }
-    MonitorStorage(fakeContext).classCustomUse { db ->
-      val count = db.alerts.size
-      db.deleteAlertsMatching { true }
-      DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
+    
+    try {
+      MonitorStorage(fakeContext).classCustomUse { db ->
+        val count = db.alerts.size
+        db.deleteAlertsMatching { true }
+        DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
+      }
+    } catch (e: NullPointerException) {
+      // Handle case where database path might be null
+      DevLog.error(LOG_TAG, "Failed to clear monitor storage: ${e.message}")
     }
   }
 
@@ -813,25 +824,34 @@ class CalendarMonitorServiceTest {
     unmockkAll()
 
     // Delete test events and calendar
-    if (testEventId > 0) {
-      val deleted = fakeContext.contentResolver.delete(
-        CalendarContract.Events.CONTENT_URI,
-        "${CalendarContract.Events._ID} = ?",
-        arrayOf(testEventId.toString())
-      )
-      DevLog.info(LOG_TAG, "Deleted test event: id=$testEventId, result=$deleted")
+    try {
+      if (testEventId > 0) {
+        val deleted = fakeContext.contentResolver.delete(
+          CalendarContract.Events.CONTENT_URI,
+          "${CalendarContract.Events._ID} = ?",
+          arrayOf(testEventId.toString())
+        )
+        DevLog.info(LOG_TAG, "Deleted test event: id=$testEventId, result=$deleted")
+      }
+
+      if (testCalendarId > 0) {
+        val deleted = fakeContext.contentResolver.delete(
+          CalendarContract.Calendars.CONTENT_URI,
+          "${CalendarContract.Calendars._ID} = ?",
+          arrayOf(testCalendarId.toString())
+        )
+        DevLog.info(LOG_TAG, "Deleted test calendar: id=$testCalendarId, result=$deleted")
+      }
+    } catch (e: Exception) {
+      DevLog.error(LOG_TAG, "Error deleting test data: ${e.message}")
     }
 
-    if (testCalendarId > 0) {
-      val deleted = fakeContext.contentResolver.delete(
-        CalendarContract.Calendars.CONTENT_URI,
-        "${CalendarContract.Calendars._ID} = ?",
-        arrayOf(testCalendarId.toString())
-      )
-      DevLog.info(LOG_TAG, "Deleted test calendar: id=$testCalendarId, result=$deleted")
+    try {
+      clearStorages()
+    } catch (e: Exception) {
+      DevLog.error(LOG_TAG, "Error clearing storages: ${e.message}")
     }
-
-    clearStorages()
+    
     DevLog.info(LOG_TAG, "Test environment cleanup complete")
   }
 
@@ -1421,7 +1441,14 @@ class CalendarMonitorServiceTest {
     
     // Test 6: Permission Changes
     DevLog.info(LOG_TAG, "Testing permission change handling")
-    every { PermissionsManager.hasAllCalendarPermissionsNoCache(any()) } returns false
+    
+    // Instead of mocking PermissionsManager.hasAllCalendarPermissionsNoCache directly,
+    // which can cause AbstractMethodError, let's mock the return behavior for specific contexts
+    mockk<PermissionsManager>().apply {
+      mockkStatic(PermissionsManager::class)
+      every { PermissionsManager.hasAllCalendarPermissionsNoCache(fakeContext) } returns false
+    }
+    
     // Directly call onRescanFromService instead of waiting for notification to trigger it
     DevLog.info(LOG_TAG, "Directly calling onRescanFromService for permission change test")
     mockCalendarMonitor.onRescanFromService(fakeContext)
