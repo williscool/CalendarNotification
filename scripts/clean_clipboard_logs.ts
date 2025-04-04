@@ -20,6 +20,7 @@ const TEMP_OUTPUT = path.join(os.tmpdir(), 'clipboard_logs_output.txt');
 interface ProgramOptions {
     verbose?: boolean;
     testName?: string;
+    filterKeywords?: string[];
 }
 
 const program = new Command();
@@ -30,6 +31,7 @@ program
     .argument('<test_log_tag>', 'log tag to identify test logs')
     .option('-v, --verbose', 'show detailed error messages')
     .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalendarMonitorServiceTest)')
+    .option('-f, --filter-keywords <keywords>', 'comma-separated list of keywords to filter out (e.g., "bluetooth,network")')
     .action(async (testLogTag: string, options: ProgramOptions) => {
         console.log('Temporary files will be created at:');
         console.log('Input:', TEMP_INPUT);
@@ -55,6 +57,9 @@ program
             const cleanLogsArgs = [path.join(scriptDir, 'clean_logs.ts'), testLogTag, TEMP_INPUT, TEMP_OUTPUT];
             if (options.testName) {
                 cleanLogsArgs.push('-t', options.testName);
+            }
+            if (options.filterKeywords) {
+                cleanLogsArgs.push('-f', options.filterKeywords.join(','));
             }
             
             await execa('npx', ['ts-node', ...cleanLogsArgs], {

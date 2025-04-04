@@ -27,6 +27,20 @@ const IMPORTANT_EXCEPTIONS = [
     'RuntimeException'
 ];
 
+// Default keywords to filter out
+const DEFAULT_FILTER_KEYWORDS = [
+    'bluetooth',
+    'bt_stack',
+    'network',
+    'wifi',
+    'connectivity',
+    'connection',
+    'disconnected',
+    'reconnected',
+    'AdapterServiceConfig',
+    'Accessing hidden field'
+];
+
 // Test-specific exceptions to keep in full
 const TEST_SPECIFIC_EXCEPTIONS: Record<string, string[]> = {
     'CalendarMonitorServiceTest': [
@@ -63,6 +77,7 @@ function isOneLineException(line: string): boolean {
 interface ProgramOptions {
     verbose?: boolean;
     testName?: string;
+    filterKeywords?: string[];
 }
 
 const program = new Command();
@@ -75,6 +90,7 @@ program
     .argument('[output_file]', 'output file for cleaned logs (defaults to input_file.cleaned)')
     .option('-v, --verbose', 'show detailed error messages')
     .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalendarMonitorServiceTest)')
+    .option('-f, --filter-keywords <keywords>', 'comma-separated list of keywords to filter out (e.g., "bluetooth,network")')
     .action((testLogTag: string, inputFile: string, outputFile: string | undefined, options: ProgramOptions) => {
         outputFile = outputFile || inputFile + '.cleaned';
 
@@ -116,6 +132,22 @@ program
                 // Match timestamp patterns and other common log prefixes
                 return line.replace(/^\[?[\d\-:. ]+\]?\s*(\w+\/\w+\s*\(\s*\d+\))?\s*:?\s*/g, '');
             });
+
+            // Filter out lines containing specified keywords if any
+            const userKeywords = options.filterKeywords || [];
+            const keywords = [...DEFAULT_FILTER_KEYWORDS, ...userKeywords];
+            
+            console.log(`Filtering out lines containing the following keywords:`);
+            keywords.forEach(keyword => console.log(`- ${keyword}`));
+            
+            if (keywords.length > 0) {
+                // Count filtered lines for summary
+                const originalLineCount = lines.length;
+                lines = lines.filter(line => !keywords.some(keyword => line.toLowerCase().includes(keyword.toLowerCase())));
+                const filteredLineCount = originalLineCount - lines.length;
+                
+                console.log(`Filtered out ${filteredLineCount} lines containing keywords.`);
+            }
 
             // 3. Handle stack traces
             let cleanedLines: string[] = [];
