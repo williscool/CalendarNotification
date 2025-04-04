@@ -29,6 +29,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import android.text.format.DateUtils
+import android.text.format.DateFormat
 import android.view.View
 import android.widget.*
 import com.github.quarck.calnotify.app.*

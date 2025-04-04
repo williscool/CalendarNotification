@@ -44,6 +44,7 @@ import android.widget.Toast
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import com.github.quarck.calnotify.utils.find
 
 
 // TODO: add current UTC offset into the log

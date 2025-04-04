@@ -105,4 +105,17 @@
         <item>86400</item>
     </integer-array>
 
+    <string-array name="test_words">
+        <item>Meeting</item>
+        <item>Appointment</item>
+        <item>Call</item>
+        <item>Reminder</item>
+        <item>Lunch</item>
+        <item>Dinner</item>
+        <item>Party</item>
+        <item>Conference</item>
+        <item>Workout</item>
+        <item>Interview</item>
+    </string-array>
+
 </resources>

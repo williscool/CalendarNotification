@@ -32,7 +32,7 @@ import com.github.quarck.calnotify.utils.addDays
 import java.util.*
 import android.text.format.DateUtils
 
-class QuietHoursManager(private val ctx: Context, private val clock: CNPlusClockInterface = CNPlusSystemClock()) : QuietHoursManagerInterface {
+class QuietHoursManager(private val ctx: Context, override val clock: CNPlusClockInterface = CNPlusSystemClock()) : QuietHoursManagerInterface {
 
     private val btDeviceManager: BTDeviceManager by lazy { BTDeviceManager(ctx) }
 

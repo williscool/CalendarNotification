@@ -39,6 +39,7 @@ object Consts {
     const val MINUTE_IN_MILLISECONDS: Long = 60L * 1000L
 
     const val DEFAULT_SNOOZE_TIME = 5L * 60L * 1000L
+    const val DEFAULT_SNOOZE_TIME_PICKER_MINUTES_FROM_NOW = 15
 
     const val NOTIFICATION_ID_COLLAPSED = 0
     const val NOTIFICATION_ID_DYNAMIC_FROM = 1

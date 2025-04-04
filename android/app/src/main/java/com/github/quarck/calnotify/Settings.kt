@@ -383,6 +383,9 @@ class Settings(context: Context) : PersistentStorageBase(context) {
     val alwaysUseExternalEditor: Boolean
         get() = getBoolean(ALWAYS_USE_EXTERNAL_EDITOR, false)
 
+    val closeActionAfterSnoozeFromMain: Boolean
+        get() = getBoolean(CLOSE_ACTION_AFTER_SNOOZE_FROM_MAIN, true)
+
     var manualQuietPeriodUntil: Long
         get() = getLong(MANUAL_QUIET_PERIOD_UNTIL, 0)
         set(value) = setLong(MANUAL_QUIET_PERIOD_UNTIL, value)
@@ -500,6 +503,8 @@ class Settings(context: Context) : PersistentStorageBase(context) {
         private const val OPEN_CALENDAR_FROM_SNOOZE_KEY = "open_calendar_from_snooze" // true -- change?
         private const val SNOOZE_HIDE_EVENT_DESC_KEY = "snooze_hide_event_description" // false
         private const val SHOW_EVENT_DESC_IN_THE_NOTIFICATION_KEY = "show_event_desc_in_the_notification" // false
+
+        private const val CLOSE_ACTION_AFTER_SNOOZE_FROM_MAIN = "close_action_after_snooze_from_main"
 
         // Default values
         internal const val DEFAULT_SNOOZE_PRESET = "15m, 1h, 4h, 1d, -5m"
