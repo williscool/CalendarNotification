@@ -32,11 +32,18 @@ import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.detailed
 import java.util.*
 
 object CalendarProvider : CalendarProviderInterface {
     private const val LOG_TAG = "CalendarProvider"
+
+    /**
+     * Clock implementation for time operations
+     */
+    override val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     private val alertFields =
             arrayOf(
@@ -151,7 +158,7 @@ object CalendarProvider : CalendarProviderInterface {
                     if (skipDismissed && state == CalendarContract.CalendarAlerts.STATE_DISMISSED) {
                         DevLog.info(LOG_TAG, "Read event ${event.eventId}, st $state, time: [${event.startTime},${event.endTime}] - already dismissed in provider, ignoring")
                     }
-                    else if (skipExpiredEvents && event.instanceEndTime < System.currentTimeMillis()) {
+                    else if (skipExpiredEvents && event.instanceEndTime < clock.currentTimeMillis()) {
                         DevLog.info(LOG_TAG, "Read event ${event.eventId}, st $state, time: [${event.startTime},${event.endTime}] - event has expired, ignoring")
                     }
                     else {
@@ -358,7 +365,7 @@ object CalendarProvider : CalendarProviderInterface {
 
         val instanceStart = instanceStartTime
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val nextReminder =
                 getEventLocalReminders(context, eventId)
@@ -373,7 +380,7 @@ object CalendarProvider : CalendarProviderInterface {
 
         val instanceStart = event.instanceStartTime
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val nextReminder =
                 getEventLocalReminders(context, event.eventId)
@@ -1464,7 +1471,7 @@ object CalendarProvider : CalendarProviderInterface {
                 }
 
                 val alertTime = event.startTime - reminderTime - utcOffset
-                if (event.endTime < System.currentTimeMillis() && settings.skipExpiredEvents) {
+                if (event.endTime < clock.currentTimeMillis() && settings.skipExpiredEvents) {
                     continue
                 }
 
@@ -1575,7 +1582,7 @@ object CalendarProvider : CalendarProviderInterface {
 
             val intermitEvents = arrayListOf<EventEntry>()
 
-            val scanStart = System.currentTimeMillis()
+            val scanStart = clock.currentTimeMillis()
 
             val instanceCursor: Cursor? =
                     CalendarContract.Instances.query(
@@ -1657,7 +1664,7 @@ object CalendarProvider : CalendarProviderInterface {
 
                     var hasAnyReminders = false
                     var hasNonLocalReminders = false
-                    val currentTime = System.currentTimeMillis()
+                    val currentTime = clock.currentTimeMillis()
 
                     if (evt.instanceEnd < currentTime && settings.skipExpiredEvents) {
                         continue
@@ -1738,7 +1745,7 @@ object CalendarProvider : CalendarProviderInterface {
 
             instanceCursor?.close()
 
-            val scanEnd = System.currentTimeMillis()
+            val scanEnd = clock.currentTimeMillis()
 
             DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange: found ${ret.size} entries, scan time: ${scanEnd - scanStart}ms")
         }
