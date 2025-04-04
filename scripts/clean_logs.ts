@@ -52,8 +52,16 @@ const TEST_SPECIFIC_EXCEPTIONS: Record<string, string[]> = {
 };
 
 // Exceptions to display only the first line for
-const ONE_LINE_EXCEPTIONS = [
+const KNOWN_EXCEPTIONS = [
     'java.util.NoSuchElementException: null, stack: com.github.quarck.calnotify.calendarmonitor.CalendarMonitorManual.scanNextEvent'
+];
+
+// Patterns that can appear in stack trace parentheses
+const STACK_TRACE_PATTERNS = [
+    '[^)]+\\.(kt|java):\\d+',  // File:line number pattern
+    'Native Method',            // Native method reference
+    'Unknown Source:\\d+',      // Unknown source with line number
+    'D\\d+SyntheticClass:\\d+'  // Synthetic class patterns with D prefix
 ];
 
 function isImportantException(line: string, testName?: string): boolean {
@@ -70,8 +78,32 @@ function isImportantException(line: string, testName?: string): boolean {
     return false;
 }
 
-function isOneLineException(line: string): boolean {
-    return ONE_LINE_EXCEPTIONS.some(exception => line.includes(exception));
+function isKnownException(line: string): boolean {
+    return KNOWN_EXCEPTIONS.some(exception => line.includes(exception));
+}
+
+function isStackTraceLine(line: string): boolean {
+    // First check if it's a known exception line
+    if (isKnownException(line)) {
+        return true;
+    }
+
+    // Check for patterns in parentheses
+    const parenPattern = `\\((${STACK_TRACE_PATTERNS.join('|')})\\)`;
+    if (new RegExp(parenPattern).test(line)) {
+        return true;
+    }
+    
+    // Check for file:line pattern after method name - more flexible pattern
+    const fileLinePattern = /[a-zA-Z0-9_$]+\([^)]+\.(kt|java):\d+\)/;
+    if (fileLinePattern.test(line)) {
+        return true;
+    }
+
+    // Check for lines that look like they're part of a stack trace
+    // (class names with dots, followed by method names)
+    const stackTracePattern = /^[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+/;
+    return stackTracePattern.test(line);
 }
 
 interface ProgramOptions {
@@ -161,10 +193,15 @@ program
                 
                 // Start of a potential stack trace
                 if (!inStackTrace && (line.includes('Exception') || line.includes('Error:'))) {
-                    // Check if it's a known one-line exception first
-                    if (isOneLineException(line)) {
-                        cleanedLines.push(line + ' ... [stack trace collapsed]'); // Add only the first line
-                        // Don't set inStackTrace = true, effectively skipping the rest
+                    // Check if it's a known exception first
+                    if (isKnownException(line)) {
+                        cleanedLines.push(line + ' ... [known issue stack trace collapsed]'); // Add only the first line
+                        // Skip the rest of the stack trace
+                        let nextLine = lines[i + 1];
+                        while (nextLine && (isStackTraceLine(nextLine) || nextLine.includes('E CalendarMonitor:'))) {
+                            i++;
+                            nextLine = lines[i + 1];
+                        }
                     } else {
                         // Start regular exception handling
                         inStackTrace = true;
