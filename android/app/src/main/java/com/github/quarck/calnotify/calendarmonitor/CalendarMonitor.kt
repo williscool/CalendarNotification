@@ -49,8 +49,8 @@ open class CalendarMonitor(
         override val clock: CNPlusClockInterface = CNPlusSystemClock()
 ) : CalendarMonitorInterface {
 
-    public val manualScanner: CalendarMonitorManual by lazy {
-        CalendarMonitorManual(calendarProvider, this, clock)
+    public open val manualScanner: CalendarMonitorManual by lazy {
+        CalendarMonitorManual(calendarProvider, clock)
     }
 
     private var lastScan = 0L

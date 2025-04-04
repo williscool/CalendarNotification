@@ -38,7 +38,6 @@ import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 class CalendarMonitorManual(
         val calendarProvider: CalendarProviderInterface,
-        val calendarMonitor: CalendarMonitorInterface,
         val clock: CNPlusClockInterface = CNPlusSystemClock()
 ) {
 
@@ -180,7 +179,7 @@ class CalendarMonitorManual(
     }
 
 
-    private fun markAlertsAsHandledInDB(context: Context, alerts: Collection<MonitorEventAlertEntry>) {
+    fun markAlertsAsHandledInDB(context: Context, alerts: Collection<MonitorEventAlertEntry>) {
         MonitorStorage(context).classCustomUse {
             db ->
             DevLog.info(LOG_TAG, "marking ${alerts.size} alerts as handled in the manual alerts DB");
