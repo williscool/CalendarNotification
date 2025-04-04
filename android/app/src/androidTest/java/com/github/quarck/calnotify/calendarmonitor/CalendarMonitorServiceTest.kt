@@ -66,8 +66,8 @@ class CalendarMonitorServiceTest {
   private var reminderTime: Long = 0
   private val realController = ApplicationController
   
-  // Added missing declaration for currentTime used throughout the test
-  private val currentTime = AtomicLong(0L)
+  // Remove the AtomicLong and rely solely on testClock
+  // private val currentTime = AtomicLong(0L)
 
   @MockK
   private lateinit var mockTimer: ScheduledExecutorService
@@ -327,8 +327,8 @@ class CalendarMonitorServiceTest {
   }
 
   private fun setupMockTimer() {
-    // Create CNPlusTestClock with mockTimer
-    testClock = CNPlusTestClock(0L, mockTimer)
+    // Create CNPlusTestClock with mockTimer - use current time as starting point
+    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
     
     // Clear any tasks from previous tests
     scheduledTasks.clear()
@@ -741,8 +741,9 @@ class CalendarMonitorServiceTest {
       put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
       put(CalendarContract.Events.TITLE, "Test Monitor Event")
       put(CalendarContract.Events.DESCRIPTION, "Test Description")
-      put(CalendarContract.Events.DTSTART, System.currentTimeMillis() + 3600000) // 1 hour from now
-      put(CalendarContract.Events.DTEND, System.currentTimeMillis() + 7200000)   // 2 hours from now
+      // Use testClock instead of System.currentTimeMillis()
+      put(CalendarContract.Events.DTSTART, testClock.currentTimeMillis() + 3600000) // 1 hour from now
+      put(CalendarContract.Events.DTEND, testClock.currentTimeMillis() + 7200000)   // 2 hours from now
       put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
       put(CalendarContract.Events.HAS_ALARM, 1)
     }
@@ -855,6 +856,8 @@ class CalendarMonitorServiceTest {
     // Reset monitor state and ensure firstScanEver is false
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = false
+    
+    // Use consistent time method
     testClock.setCurrentTime(System.currentTimeMillis())
     val startTime = testClock.currentTimeMillis() // Capture initial time
 
@@ -1059,7 +1062,8 @@ class CalendarMonitorServiceTest {
     // Reset monitor state and ensure firstScanEver is false
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = false
-    testClock.setCurrentTime(System.currentTimeMillis())
+    
+    // Use testClock consistently - remove System.currentTimeMillis
     val startTime = testClock.currentTimeMillis()
     monitorState.prevEventScanTo = startTime
     monitorState.prevEventFireFromScan = startTime
@@ -1107,7 +1111,6 @@ class CalendarMonitorServiceTest {
         assertFalse("[testCalendarReload] Alerts should not be handled yet after initial scan", alerts.any { it.wasHandled })
     }
 
-
     // Process each event's alert sequentially
     events.forEachIndexed { index, eventId ->
       val hourOffset = index + 1
@@ -1125,20 +1128,17 @@ class CalendarMonitorServiceTest {
       }
       // --- End Verification ---
 
-
       // Advance time to just past this event's alert time to trigger the alarm condition
       val timeToAdvance = alertTime + (Consts.ALARM_THRESHOLD / 2) // Advance slightly past alert time
       DevLog.info(LOG_TAG, "[testCalendarReload] Advancing time from ${testClock.currentTimeMillis()} to $timeToAdvance for event $eventId...")
-      // It's safer to set the time directly if sequence matters critically, rather than adding deltas repeatedly
+      
+      // Set time directly using testClock - no need for currentTime.set
       testClock.setCurrentTime(timeToAdvance)
-      currentTime.set(timeToAdvance)
-      // advanceTimer(timeToAdvance - testClock.currentTimeMillis()) // Alternative if using relative advance
-
+      
       // Set the last timer broadcast received to indicate an alarm happened
       // This is used by the mocked ApplicationController.postEventNotifications to know when to mark alerts handled
-      lastTimerBroadcastReceived = currentTime.get()
+      lastTimerBroadcastReceived = testClock.currentTimeMillis()
       DevLog.info(LOG_TAG, "[testCalendarReload] Set lastTimerBroadcastReceived to ${lastTimerBroadcastReceived}")
-
 
       // --- Simulate Alarm Broadcast ---
       DevLog.info(LOG_TAG, "[testCalendarReload] Simulating Alarm Broadcast for alertTime=$alertTime")
@@ -1149,7 +1149,6 @@ class CalendarMonitorServiceTest {
       mockCalendarMonitor.onAlarmBroadcast(fakeContext, alarmIntent)
       // Note: onAlarmBroadcast itself calls launchRescanService internally,
       // which triggers the service intent handling below.
-
 
       // --- Simulate Service Intent Handling (triggered by onAlarmBroadcast) ---
       DevLog.info(LOG_TAG, "[testCalendarReload] Simulating Service Intent for alertTime=$alertTime")
@@ -1164,12 +1163,10 @@ class CalendarMonitorServiceTest {
       // This call simulates the service processing the work triggered by the alarm
       mockService.handleIntentForTest(serviceIntent)
 
-
       // --- Wait for Processing ---
       // Use a sleep similar to the working test to allow simulated background work
       DevLog.info(LOG_TAG, "[testCalendarReload] Waiting for processing...")
       advanceTimer(1000) // Allow time for simulated processing
-
 
       // --- Verify Alert Handled ---
       DevLog.info(LOG_TAG, "[testCalendarReload] Verifying alert handling for event $eventId")
@@ -1179,7 +1176,6 @@ class CalendarMonitorServiceTest {
         assertNotNull("[testCalendarReload] Alert for event $eventId should exist after processing", alert)
         assertTrue("[testCalendarReload] Alert for event $eventId (alertTime=$alertTime) should be marked as handled", alert!!.wasHandled)
       }
-
 
       // --- Verify Event Stored ---
       DevLog.info(LOG_TAG, "[testCalendarReload] Verifying event storage for event $eventId")
@@ -1234,18 +1230,18 @@ class CalendarMonitorServiceTest {
    * 3. Event timing and state are maintained during the delay
    * 4. Service properly handles delayed event processing
    */
-   @Ignore("Skipping delayed processing test until we refactor away from System.currentTimeMillis i.e. to use clocks and make things more testable")
    @Test
   fun testDelayedProcessing() {
     val startDelay = 2000 // 2 second delay
-    currentTime.set(System.currentTimeMillis())
-    val startTime = currentTime.get()
+    
+    // Use testClock instead of System.currentTimeMillis()
+    val startTime = testClock.currentTimeMillis()
     DevLog.info(LOG_TAG, "[testDelayedProcessing] Starting test at time: $startTime")
 
     // --- Create Event and Mocks ---
     val delayedEventId = createTestEvent()
     testEventId = delayedEventId
-    val delayedEventStartTime = currentTime.get() // Get start time *after* potential time change in createTestEvent
+    val delayedEventStartTime = testClock.currentTimeMillis() // Get start time *after* potential time change in createTestEvent
     val delayedEventAlertTime = delayedEventStartTime - (15 * 60 * 1000)
     DevLog.info(LOG_TAG, "[testDelayedProcessing] Created event $delayedEventId, startTime=$delayedEventStartTime, alertTime=$delayedEventAlertTime")
 
@@ -1268,7 +1264,7 @@ class CalendarMonitorServiceTest {
     ApplicationController.onCalendarChanged(fakeContext)
 
     // --- Verify Immediately After Trigger --- (Task scheduled, but not run)
-    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed immediately after scheduling (current time: ${currentTime.get()})")
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed immediately after scheduling (current time: ${testClock.currentTimeMillis()})")
     verifyNoEvents()
     assertTrue("[testDelayedProcessing] Task should be scheduled", scheduledTasks.isNotEmpty())
 
@@ -1277,7 +1273,7 @@ class CalendarMonitorServiceTest {
         val timeToAdvanceBefore = startDelay - 1L
         DevLog.info(LOG_TAG, "[testDelayedProcessing] Advancing timer by ${timeToAdvanceBefore}ms (just before delay expires)")
         advanceTimer(timeToAdvanceBefore)
-        DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed before delay expires (current time: ${currentTime.get()})")
+        DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying no events processed before delay expires (current time: ${testClock.currentTimeMillis()})")
         verifyNoEvents() // Still should not be processed
         assertTrue("[testDelayedProcessing] Task should still be scheduled", scheduledTasks.isNotEmpty())
     }
@@ -1289,7 +1285,7 @@ class CalendarMonitorServiceTest {
     advanceTimer(remainingTimeToAdvance) // This call will execute the scheduled task
 
     // --- Post-Delay Verification ---
-    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying event processed after delay (current time: ${currentTime.get()})")
+    DevLog.info(LOG_TAG, "[testDelayedProcessing] Verifying event processed after delay (current time: ${testClock.currentTimeMillis()})")
     assertTrue("[testDelayedProcessing] Scheduled task list should be empty after execution", scheduledTasks.isEmpty())
     verifyEventProcessed(
       eventId = delayedEventId,
@@ -1315,8 +1311,7 @@ class CalendarMonitorServiceTest {
    * 6. Permission changes are respected
    * 7. Setting state persists correctly
    */
-  @Ignore("Skipping until we refactor away from System.currentTimeMillis i.e. to use clocks and make things more testable")
-  @Test
+  @Test  // We can run this test now that we're using testClock
   fun testCalendarMonitoringEnabledEdgeCases() {
     // Setup
     val settings = Settings(fakeContext)
@@ -1340,16 +1335,14 @@ class CalendarMonitorServiceTest {
     // Wait for service operations to complete
     advanceTimer(500)
 
-
-    // will update this to atleast 3 once we do the timing mocks refactor
-    verify(atLeast = 2) { mockCalendarMonitor.onRescanFromService(any()) }
+    verify(atLeast = 3) { mockCalendarMonitor.onRescanFromService(any()) }
 
     // Test 4: Complex Recurring Event
     DevLog.info(LOG_TAG, "Testing recurring event handling")
     val recurringEventId = createRecurringTestEvent()
     mockRecurringEventDetails(
       eventId = recurringEventId,
-      startTime = currentTime.get() + 3600000,
+      startTime = testClock.currentTimeMillis() + 3600000,
       title = "Recurring Test Event",
       repeatingRule = "FREQ=DAILY;COUNT=5"
     )
@@ -1366,7 +1359,7 @@ class CalendarMonitorServiceTest {
     val allDayEventId = createAllDayTestEvent()
     mockAllDayEventDetails(
       eventId = allDayEventId,
-      startTime = currentTime.get(),
+      startTime = testClock.currentTimeMillis(),
       title = "All Day Test Event"
     )
     
@@ -1383,7 +1376,7 @@ class CalendarMonitorServiceTest {
     every { PermissionsManager.hasAllCalendarPermissionsNoCache(any()) } returns false
     notifyCalendarChangeAndWait()
 
-    verify(atLeast = 3) { mockCalendarMonitor.onRescanFromService(any()) }
+    verify(atLeast = 4) { mockCalendarMonitor.onRescanFromService(any()) }
 
     // Test 7: State Persistence
     DevLog.info(LOG_TAG, "Testing setting persistence")
@@ -1392,7 +1385,7 @@ class CalendarMonitorServiceTest {
     settings.setBoolean("enable_manual_calendar_rescan", true)
     assertTrue("Setting should be enabled", settings.enableCalendarRescan)
 
-    verify(atMost = 4) { mockCalendarMonitor.onRescanFromService(any()) } // Count should not increase
+    verify(atMost = 5) { mockCalendarMonitor.onRescanFromService(any()) } // Count should not increase
   }
 
 
@@ -1446,13 +1439,14 @@ class CalendarMonitorServiceTest {
    * @throws IllegalStateException if event creation fails
    */
   private fun createTestEvent(): Long {
-    val currentTime = this.currentTime.get()
+    // Use testClock instead of currentTime.get()
+    val currentTestTime = testClock.currentTimeMillis()
     val values = ContentValues().apply {
       put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
       put(CalendarContract.Events.TITLE, "Test Event")
       put(CalendarContract.Events.DESCRIPTION, "Test Description")
-      put(CalendarContract.Events.DTSTART, currentTime + 3600000)
-      put(CalendarContract.Events.DTEND, currentTime + 7200000)
+      put(CalendarContract.Events.DTSTART, currentTestTime + 3600000)
+      put(CalendarContract.Events.DTEND, currentTestTime + 7200000)
       put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
       put(CalendarContract.Events.HAS_ALARM, 1)
     }
@@ -1484,7 +1478,8 @@ class CalendarMonitorServiceTest {
    */
   private fun createMultipleTestEvents(count: Int): List<Long> {
     val eventIds = mutableListOf<Long>()
-    val currentTime = this.currentTime.get() // Capture current time at start of creation
+    // Use testClock instead of currentTime.get()
+    val currentTestTime = testClock.currentTimeMillis()
 
     repeat(count) { index ->
       try {
@@ -1492,8 +1487,8 @@ class CalendarMonitorServiceTest {
           put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
           put(CalendarContract.Events.TITLE, "Test Event $index")
           put(CalendarContract.Events.DESCRIPTION, "Test Description $index")
-          put(CalendarContract.Events.DTSTART, currentTime + (3600000 * (index + 1)))
-          put(CalendarContract.Events.DTEND, currentTime + (3600000 * (index + 2)))
+          put(CalendarContract.Events.DTSTART, currentTestTime + (3600000 * (index + 1)))
+          put(CalendarContract.Events.DTEND, currentTestTime + (3600000 * (index + 2)))
           put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
           put(CalendarContract.Events.HAS_ALARM, 1)
         }
@@ -1549,7 +1544,8 @@ class CalendarMonitorServiceTest {
     val oldTime = testClock.currentTimeMillis()
     val newTime = oldTime + milliseconds
     testClock.setCurrentTime(newTime)
-    currentTime.set(newTime)
+    
+    // Remove the update to currentTime.set() as we're only using testClock now
     DevLog.info(LOG_TAG, "[advanceTimer] Advanced time from $oldTime to $newTime (by $milliseconds ms)")
 
     // Process due tasks
@@ -1571,10 +1567,6 @@ class CalendarMonitorServiceTest {
     } else {
         DevLog.info(LOG_TAG, "[advanceTimer] No tasks due at or before $newTime")
     }
-
-    // Optional: Force a zero-delay schedule to potentially trigger immediate checks elsewhere if needed,
-    // but the primary mechanism is now processing the scheduledTasks list directly.
-    // mockTimer.schedule({}, 0, TimeUnit.MILLISECONDS) // Keep if other parts rely on this trigger
   }
 
   /**
@@ -1620,7 +1612,7 @@ class CalendarMonitorServiceTest {
       val scanTo = thirdArg<Long>()
 
       DevLog.info(LOG_TAG, "Mock getEventAlertsForInstancesInRange called with scanFrom=$scanFrom, scanTo=$scanTo")
-      DevLog.info(LOG_TAG, "Current test time: ${this@CalendarMonitorServiceTest.currentTime.get()}")
+      DevLog.info(LOG_TAG, "Current test time: ${testClock.currentTimeMillis()}")
 
       // Generate alerts only if they fall within the scan range
       val alerts = mutableListOf<MonitorEventAlertEntry>()
@@ -1667,9 +1659,9 @@ class CalendarMonitorServiceTest {
       val scanFrom = secondArg<Long>()
       val scanTo = thirdArg<Long>()
 
-      DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called at currentTime=${currentTime.get()}, startTime=$startTime, delay=$delay")
+      DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called at currentTime=${testClock.currentTimeMillis()}, startTime=$startTime, delay=$delay")
 
-      if (currentTime.get() >= (startTime + delay)) {
+      if (testClock.currentTimeMillis() >= (startTime + delay)) {
         DevLog.info(LOG_TAG, "Returning event alert after delay")
         listOf(MonitorEventAlertEntry(
           eventId = eventId,
@@ -1681,7 +1673,7 @@ class CalendarMonitorServiceTest {
           wasHandled = false
         ))
       } else {
-        DevLog.info(LOG_TAG, "Skipping event alert due to delay not elapsed: current=${currentTime.get()}, start=$startTime, delay=$delay")
+        DevLog.info(LOG_TAG, "Skipping event alert due to delay not elapsed: current=${testClock.currentTimeMillis()}, start=$startTime, delay=$delay")
         emptyList()
       }
     }
@@ -1850,13 +1842,14 @@ class CalendarMonitorServiceTest {
    * @return The ID of the created event
    */
   private fun createRecurringTestEvent(repeatingRule: String = "FREQ=DAILY;COUNT=5"): Long {
-    val currentTime = this.currentTime.get()
+    // Use testClock instead of currentTime.get()
+    val currentTestTime = testClock.currentTimeMillis()
     val values = ContentValues().apply {
       put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
       put(CalendarContract.Events.TITLE, "Recurring Test Event")
       put(CalendarContract.Events.DESCRIPTION, "Test Recurring Description")
-      put(CalendarContract.Events.DTSTART, currentTime + 3600000)
-      put(CalendarContract.Events.DTEND, currentTime + 7200000)
+      put(CalendarContract.Events.DTSTART, currentTestTime + 3600000)
+      put(CalendarContract.Events.DTEND, currentTestTime + 7200000)
       put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
       put(CalendarContract.Events.HAS_ALARM, 1)
       put(CalendarContract.Events.RRULE, repeatingRule)
@@ -1883,13 +1876,14 @@ class CalendarMonitorServiceTest {
    * @return The ID of the created event
    */
   private fun createAllDayTestEvent(): Long {
-    val currentTime = this.currentTime.get()
+    // Use testClock instead of currentTime.get()
+    val currentTestTime = testClock.currentTimeMillis()
     val values = ContentValues().apply {
       put(CalendarContract.Events.CALENDAR_ID, testCalendarId)
       put(CalendarContract.Events.TITLE, "All Day Test Event")
       put(CalendarContract.Events.DESCRIPTION, "Test All Day Description")
-      put(CalendarContract.Events.DTSTART, currentTime)
-      put(CalendarContract.Events.DTEND, currentTime + 86400000) // 24 hours
+      put(CalendarContract.Events.DTSTART, currentTestTime)
+      put(CalendarContract.Events.DTEND, currentTestTime + 86400000) // 24 hours
       put(CalendarContract.Events.ALL_DAY, 1)
       put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
       put(CalendarContract.Events.HAS_ALARM, 1)
@@ -2000,7 +1994,8 @@ class CalendarMonitorServiceTest {
     // Reset monitor state and ensure firstScanEver is true
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = true
-    testClock.setCurrentTime(System.currentTimeMillis())
+    
+    // Use testClock consistently
     val startTime = testClock.currentTimeMillis() // Capture initial time
 
     // Calculate event times first
