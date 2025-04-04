@@ -129,6 +129,12 @@ jobs:
           android/app/build/outputs/code_coverage/debugAndroidTest/connected/
         retention-days: 90
         
+    # Update all caches
+    - name: Update Caches
+      uses: ./.github/actions/cache-update
+      with:
+        arch: ${{ matrix.arch }}
+        
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
     needs: build
@@ -393,7 +399,6 @@ jobs:
           android/app/build/outputs/logs/
         retention-days: 90
     
-
     - name: Upload Emulator Log
       if: always()
       uses: actions/upload-artifact@v4
@@ -401,6 +406,14 @@ jobs:
         name: emulator-log
         path: emulator.log
         retention-days: 90
+        
+    # Update all caches
+    - name: Update Caches
+      if: always()
+      uses: ./.github/actions/cache-update
+      with:
+        arch: ${{ matrix.arch }}
+        run_emulator_setup: "true"
         
   comment-pr:
     name: Comment on PR with build links
