@@ -341,7 +341,7 @@ class CalendarMonitorServiceEventReminderTest {
     // Verify the observable effects of setOrCancelAlarm by checking that AlarmManager was called
     // setOrCancelAlarm would either cancel existing alarms or set new ones depending on parameters
     verify(atLeast = 1) { 
-      mockAlarmManager.setExactAndAllowWhileIdle(any(), any(), any()) 
+      mockAlarmManager.setInexactRepeating(any(), any(), any(), any()) 
     }
   }
 
