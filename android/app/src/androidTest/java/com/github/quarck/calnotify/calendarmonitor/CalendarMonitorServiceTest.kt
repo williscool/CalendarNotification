@@ -45,6 +45,8 @@ import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
 import org.junit.Ignore
+import com.github.quarck.calnotify.utils.CNPlusClock
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 
 /**
  * Integration tests for [CalendarMonitorService] that verify calendar event monitoring,
@@ -63,6 +65,9 @@ class CalendarMonitorServiceTest {
   private var eventStartTime: Long = 0
   private var reminderTime: Long = 0
   private val realController = ApplicationController
+  
+  // Added missing declaration for currentTime used throughout the test
+  private val currentTime = AtomicLong(0L)
 
   @MockK
   private lateinit var mockTimer: ScheduledExecutorService
@@ -79,7 +84,7 @@ class CalendarMonitorServiceTest {
   private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
   private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
 
-  private val currentTime = AtomicLong(0L)
+  private val testClock = CNPlusTestClock(0L)
 
   private lateinit var mockFormatter: EventFormatterInterface
 
@@ -329,9 +334,9 @@ class CalendarMonitorServiceTest {
         val task = call.invocation.args[0] as Runnable
         val delay = call.invocation.args[1] as Long
         val unit = call.invocation.args[2] as TimeUnit
-        val dueTime = currentTime.get() + unit.toMillis(delay)
+        val dueTime = testClock.getCurrentTime() + unit.toMillis(delay)
 
-        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${currentTime.get()}, delay: $delay ${unit.name})")
+        DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: ${testClock.getCurrentTime()}, delay: $delay ${unit.name})")
         scheduledTasks.add(Pair(task, dueTime))
         // Sort by due time to process in order
         scheduledTasks.sortBy { it.second }
@@ -342,10 +347,7 @@ class CalendarMonitorServiceTest {
   }
 
   private fun setupMockCalendarMonitor() {
-    val realMonitor = object : CalendarMonitor(CalendarProvider) {
-      override val currentTimeForTest: Long
-        get() = this@CalendarMonitorServiceTest.currentTime.get()
-    }
+    val realMonitor = CalendarMonitor(CalendarProvider, testClock)
     mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
 
     // Set up mocks with simpler approach to avoid recursion
@@ -475,7 +477,7 @@ class CalendarMonitorServiceTest {
               db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
             } else {
               // Handle all pending alerts if this is a broadcast-triggered notification
-              db.alerts.filter { !it.wasHandled && it.alertTime <= System.currentTimeMillis() }
+              db.alerts.filter { !it.wasHandled && it.alertTime <= testClock.getCurrentTime() }
             }
 
             if (alertsToHandle.isNotEmpty()) {
@@ -546,11 +548,11 @@ class CalendarMonitorServiceTest {
         instanceStartTime = eventStartTime,
         instanceEndTime = eventStartTime + 3600000,
         location = "",
-        lastStatusChangeTime = currentTime.get(), // Use current test time
+        lastStatusChangeTime = testClock.getCurrentTime(), // Use current test time
         displayStatus = EventDisplayStatus.Hidden,
         color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
         origin = EventOrigin.ProviderBroadcast,
-        timeFirstSeen = currentTime.get(), // Use current test time
+        timeFirstSeen = testClock.getCurrentTime(), // Use current test time
         eventStatus = EventStatus.Confirmed,
         attendanceStatus = AttendanceStatus.None,
         flags = 0
@@ -580,11 +582,11 @@ class CalendarMonitorServiceTest {
           instanceStartTime = eventStartTime,
           instanceEndTime = eventStartTime + 3600000,
           location = "",
-          lastStatusChangeTime = currentTime.get(),
+          lastStatusChangeTime = testClock.currentTimeMillis(),
           displayStatus = EventDisplayStatus.Hidden,
           color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
           origin = EventOrigin.ProviderBroadcast,
-          timeFirstSeen = currentTime.get(),
+          timeFirstSeen = testClock.currentTimeMillis(),
           eventStatus = EventStatus.Confirmed,
           attendanceStatus = AttendanceStatus.None,
           flags = 0
@@ -785,8 +787,8 @@ class CalendarMonitorServiceTest {
     // Reset monitor state and ensure firstScanEver is false
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = false
-    currentTime.set(System.currentTimeMillis())
-    val startTime = currentTime.get() // Capture initial time
+    testClock.setCurrentTime(System.currentTimeMillis())
+    val startTime = testClock.currentTimeMillis() // Capture initial time
 
     // Calculate event times first
     eventStartTime = startTime + 60000 // 1 minute from start time
@@ -872,7 +874,7 @@ class CalendarMonitorServiceTest {
     val advanceAmount = reminderTime - startTime + Consts.ALARM_THRESHOLD
     advanceTimer(advanceAmount)
 
-    val currentTimeAfterAdvance = currentTime.get()
+    val currentTimeAfterAdvance = testClock.currentTimeMillis()
     DevLog.info(LOG_TAG, "Current time after advance: $currentTimeAfterAdvance")
     DevLog.info(LOG_TAG, "Time check: currentTime=$currentTimeAfterAdvance, nextEventFireFromScan=${monitorState.nextEventFireFromScan}, " +
       "threshold=${currentTimeAfterAdvance + Consts.ALARM_THRESHOLD}")
@@ -989,8 +991,8 @@ class CalendarMonitorServiceTest {
     // Reset monitor state and ensure firstScanEver is false
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = false
-    currentTime.set(System.currentTimeMillis())
-    val startTime = currentTime.get()
+    testClock.setCurrentTime(System.currentTimeMillis())
+    val startTime = testClock.currentTimeMillis()
     monitorState.prevEventScanTo = startTime
     monitorState.prevEventFireFromScan = startTime
 
@@ -1058,10 +1060,11 @@ class CalendarMonitorServiceTest {
 
       // Advance time to just past this event's alert time to trigger the alarm condition
       val timeToAdvance = alertTime + (Consts.ALARM_THRESHOLD / 2) // Advance slightly past alert time
-      DevLog.info(LOG_TAG, "[testCalendarReload] Advancing time from ${currentTime.get()} to $timeToAdvance for event $eventId...")
+      DevLog.info(LOG_TAG, "[testCalendarReload] Advancing time from ${testClock.currentTimeMillis()} to $timeToAdvance for event $eventId...")
       // It's safer to set the time directly if sequence matters critically, rather than adding deltas repeatedly
+      testClock.setCurrentTime(timeToAdvance)
       currentTime.set(timeToAdvance)
-      // advanceTimer(timeToAdvance - currentTime.get()) // Alternative if using relative advance
+      // advanceTimer(timeToAdvance - testClock.currentTimeMillis()) // Alternative if using relative advance
 
       // Set the last timer broadcast received to indicate an alarm happened
       // This is used by the mocked ApplicationController.postEventNotifications to know when to mark alerts handled
@@ -1883,8 +1886,8 @@ class CalendarMonitorServiceTest {
     // Reset monitor state and ensure firstScanEver is true
     val monitorState = CalendarMonitorState(fakeContext)
     monitorState.firstScanEver = true
-    currentTime.set(System.currentTimeMillis())
-    val startTime = currentTime.get() // Capture initial time
+    testClock.setCurrentTime(System.currentTimeMillis())
+    val startTime = testClock.currentTimeMillis() // Capture initial time
 
     // Calculate event times first
     eventStartTime = startTime + 60000 // 1 minute from start time
@@ -2019,11 +2022,11 @@ class CalendarMonitorServiceTest {
 
     // Advance time past the reminder time
     DevLog.info(LOG_TAG, "Advancing time past reminder time...")
-    val advanceAmount = reminderTime - currentTime.get() + Consts.ALARM_THRESHOLD
+    val advanceAmount = reminderTime - testClock.currentTimeMillis() + Consts.ALARM_THRESHOLD
     advanceTimer(advanceAmount)
 
     // Set the last timer broadcast received to indicate an alarm happened
-    lastTimerBroadcastReceived = currentTime.get()
+    lastTimerBroadcastReceived = testClock.currentTimeMillis()
 
     // Trigger the alarm broadcast receiver for the second event
     val alarmIntent = Intent(fakeContext, ManualEventAlarmBroadcastReceiver::class.java).apply {
@@ -2057,4 +2060,4 @@ class CalendarMonitorServiceTest {
     assertTrue("Notifications should be posted for second event", notificationsPosted)
   }
 
-} 
+}

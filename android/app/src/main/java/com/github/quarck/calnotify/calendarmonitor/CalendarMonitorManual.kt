@@ -32,11 +32,14 @@ import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.detailed
 import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import com.github.quarck.calnotify.utils.CNPlusClock
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 
 class CalendarMonitorManual(
         val calendarProvider: CalendarProviderInterface,
-        val calendarMonitor: CalendarMonitorInterface
+        val calendarMonitor: CalendarMonitorInterface,
+        val clock: CNPlusClock = CNPlusSystemClock()
 ) {
 
     private fun manualFireAlertList(context: Context, alerts: List<MonitorEventAlertEntry>): Boolean {
@@ -155,7 +158,7 @@ class CalendarMonitorManual(
 
             if (event != null) {
                 event.origin = EventOrigin.FullManual
-                event.timeFirstSeen = System.currentTimeMillis()
+                event.timeFirstSeen = clock.currentTimeMillis()
 
                 pairs.add(Pair(alert, event))
             } else {
@@ -198,7 +201,7 @@ class CalendarMonitorManual(
 
         var hasFiredAnything = false
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val alerts = calendarProvider.getEventAlertsForEvent(context, event).associateBy { it.key }
 
@@ -263,7 +266,7 @@ class CalendarMonitorManual(
         val scanWindow = settings.manualCalWatchScanWindow
 
         val prevScanTo = state.prevEventScanTo
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         var scanFrom = Math.min(
                 currentTime - Consts.ALERTS_DB_REMOVE_AFTER, // look backwards a little to make sure nothing is missing
@@ -367,34 +370,34 @@ class CalendarMonitorManual(
 
         val ret = arrayListOf<MonitorEventAlertEntry>()
 
-        val ts0 = System.currentTimeMillis()
+        val ts0 = clock.currentTimeMillis()
 
         val providedAlerts = alerts.associateBy { it.key }
 
-        val ts1 = System.currentTimeMillis()
+        val ts1 = clock.currentTimeMillis()
 
         MonitorStorage(context).classCustomUse {
             db ->
             val knownAlerts = db.getAlertsForInstanceStartRange(scanFrom, scanTo).associateBy { it.key }
 
-            val ts2 = System.currentTimeMillis()
+            val ts2 = clock.currentTimeMillis()
 
             val newAlerts = providedAlerts - knownAlerts.keys
             val disappearedAlerts = knownAlerts - providedAlerts.keys
 
-            val ts3 = System.currentTimeMillis()
+            val ts3 = clock.currentTimeMillis()
 
             DevLog.info(LOG_TAG, "filterAndMergeAlerts: ${newAlerts.size} new alerts, ${disappearedAlerts.size} disappeared alerts")
 
             db.deleteAlerts(disappearedAlerts.values)
             db.addAlerts(newAlerts.values)
 
-            val ts4 = System.currentTimeMillis()
+            val ts4 = clock.currentTimeMillis()
 
             // Presumably this would be faster than re-reading SQLite again
             ret.addAll((knownAlerts - disappearedAlerts.keys + newAlerts).values)
 
-            val ts5 = System.currentTimeMillis()
+            val ts5 = clock.currentTimeMillis()
 
             DevLog.debug(LOG_TAG, "filterAndMergeAlerts: performance: ${ts1 - ts0}, ${ts2 - ts1}, ${ts3 - ts2}, ${ts4 - ts3}, ${ts5 - ts4}")
         }
