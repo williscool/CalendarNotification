@@ -170,8 +170,18 @@ runs:
     - name: List Gradle Tasks
       run: |
         cd android && \
-        ./gradlew tasks --all
+        ./gradlew tasks --all > gradle-tasks.txt
+        cat gradle-tasks.txt
       shell: bash
+      
+    # Extract external native build tasks for cache key
+    - name: Extract external native build tasks
+      if: inputs.arch != ''
+      shell: bash
+      run: |
+        cd android && \
+        cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
+        cat external-native-tasks.txt
       
     # Cache React Native specific files
     - name: Restore Cache React Native files
@@ -204,6 +214,43 @@ runs:
         restore-keys: |
           ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           
+    # Add NDK and CMake cache
+    - name: Restore NDK and CMake Cache
+      if: inputs.arch != ''
+      uses: actions/cache@v4
+      id: ndk-cache
+      with:
+        path: |
+          .cxx
+          ~/.android/ndk
+          ~/.android/cmake
+          android/app/.cxx
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+          android/app/build/intermediates/transforms
+          android/app/build/intermediates/prefab
+          android/app/build/intermediates/prefab_package
+          android/app/build/intermediates/prefab_metadata
+        key: ${{ runner.os }}-cmake-${{ inputs.arch }}-${{ hashFiles('android/app/src/main/jniLibs/**/*.so') }}-${{ hashFiles('android/external-native-tasks.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-cmake-${{ inputs.arch }}-
+    
+    # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
+    - name: Build Native aka CMake Components first
+      if: steps.ndk-cache.outputs.cache-hit != 'true'
+      run: |
+        echo "Building native components as cache miss occurred"
+        cd android && \
+        ./gradlew externalNativeBuildDebug \
+                  externalNativeBuildRelease \
+        --parallel --max-workers=4 --build-cache
+      shell: bash
+    
+    - name: Skip Native Build (Using Cache)
+      if: steps.ndk-cache.outputs.cache-hit == 'true'
+      run: echo "Skipping native build - using cached version"
+      shell: bash
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'

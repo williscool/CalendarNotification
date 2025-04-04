@@ -42,7 +42,7 @@ runs:
           android/app/build/intermediates/prefab
           android/app/build/intermediates/prefab_package
           android/app/build/intermediates/prefab_metadata
-        key: ${{ runner.os }}-cmake-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp', '**/*.so') }}
+        key: ${{ runner.os }}-cmake-${{ inputs.arch }}-${{ hashFiles('android/app/src/main/jniLibs/**/*.so') }}-${{ hashFiles('android/external-native-tasks.txt') }}
       
     # Update Build Outputs Cache
     - name: Update Build Outputs Cache

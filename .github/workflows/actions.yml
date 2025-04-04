@@ -81,15 +81,6 @@ jobs:
 
     # Note: All caches are now handled in common-setup
 
-    # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
-    - name: Build Native aka CMake Components first
-      if: steps.common-setup.outputs.ndk-cache-hit != 'true'
-      run: |
-        cd android && \
-        ./gradlew externalNativeBuildDebug \
-                  externalNativeBuildRelease \
-        --parallel --max-workers=4 --build-cache
-
     # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
     
     - name: Build Android APKs (Debug and Release) with Gradle
