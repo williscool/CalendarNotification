@@ -38,7 +38,9 @@ const DEFAULT_FILTER_KEYWORDS = [
     'disconnected',
     'reconnected',
     'AdapterServiceConfig',
-    'Accessing hidden field'
+    'Accessing hidden field',
+    'EGL_emulation',
+    'CpuPowerCalculator'
 ];
 
 // Test-specific exceptions to keep in full
