@@ -2,13 +2,13 @@
 
 ## Overview
 
-This document outlines the implementation of a `CNPlusClock` interface in the Calendar Notification application, which wraps around the standard `java.time.Clock` to replace direct calls to `System.currentTimeMillis()` and `Thread.sleep()`. This abstraction improves testability by allowing time to be controlled in tests.
+This document outlines the implementation of a `CNPlusClockInterface` in the Calendar Notification application, which wraps around the standard `java.time.Clock` to replace direct calls to `System.currentTimeMillis()` and `Thread.sleep()`. This abstraction improves testability by allowing time to be controlled in tests.
 
 ## Components
 
-### 1. CNPlusClock Interface
+### 1. CNPlusClockInterface
 
-The `CNPlusClock` interface in `utils/CNPlusClock.kt` extends the functionality of `java.time.Clock` with the following:
+The `CNPlusClockInterface` in `utils/CNPlusClockInterface.kt` extends the functionality of `java.time.Clock` with the following:
 - `currentTimeMillis()`: Returns the current time in milliseconds (wrapper around `Clock.millis()`)
 - `sleep(millis: Long)`: Sleeps for the specified duration in milliseconds
 - `underlying()`: Returns the underlying `java.time.Clock` instance
@@ -23,18 +23,23 @@ The "CNPlus" prefix is used to distinguish our clock implementations and prevent
 
 ### 3. Modified Components
 
-The following components have been updated to use the CNPlusClock interface:
+The following components have been updated to use the CNPlusClockInterface:
 
 - `CalendarMonitorInterface`: Added a clock property to be implemented by all monitors
 - `CalendarMonitor`: Replaced `System.currentTimeMillis()` calls with `clock.currentTimeMillis()`
 - `CalendarMonitorManual`: Added clock parameter and replaced time calls
 - `CalendarMonitorService`: Added clock property and updated sleep implementation
+- `AlarmSchedulerInterface`: Added a clock property to be implemented by all schedulers
+- `AlarmScheduler`: Uses the clock for all time-related operations
+- `ApplicationControllerInterface`: Added a clock property
+- `ApplicationController`: Uses CNPlusSystemClock for production code
 
 ### 4. Test Updates
 
 The test classes have been updated to:
 - Use `CNPlusTestClock` instead of mocking time methods
 - Control time advancement explicitly in tests
+- Support both unit tests and Android instrumentation tests with the same test clock implementation
 
 ## Benefits
 
@@ -45,6 +50,7 @@ The test classes have been updated to:
 5. **Better Time Control**: Complex time-based scenarios can be tested more easily
 6. **Better Code Organization**: Separate files for interface and implementations improve readability
 7. **Direct Clock Access**: The test implementation exposes the underlying clock for direct manipulation in tests
+8. **Consistent Time Operations**: All components use the same time source, reducing timing-related bugs
 
 ## Usage in Tests
 
@@ -54,6 +60,7 @@ val testClock = CNPlusTestClock(specificStartTime)
 
 // Create components with the test clock
 val calendarMonitor = CalendarMonitor(calendarProvider, testClock)
+val alarmScheduler = AlarmScheduler(testClock)
 
 // Advance time in tests
 testClock.advanceBy(1000) // Advance by 1 second
@@ -69,11 +76,26 @@ val fixedClock = testClock.fixedClock
 
 // Manually refresh the clock after changing time (done automatically in setCurrentTime/advanceBy)
 testClock.refreshClock()
+
+// Support for timer-based sleep in tests (optional)
+val mockTimer = Executors.newScheduledThreadPool(1)
+val testClockWithTimer = CNPlusTestClock(specificStartTime, mockTimer)
 ```
+
+## Current Implementation Status
+
+The CNPlusClockInterface has been successfully implemented in several core components:
+
+1. **Alarm Management**: AlarmScheduler now uses the clock interface for scheduling and calculating alarm times
+2. **Calendar Monitoring**: Calendar monitors use the clock for checking event times
+3. **Application Controller**: Uses the clock interface for all time-related operations
 
 ## Next Steps
 
-1. Update `ApplicationController` to use the CNPlusClock interface
-2. Update event-related classes to use the CNPlusClock
-3. Update UI components that rely on system time
-4. Create time-based tests that were previously difficult to implement 
+1. ✓ Update `ApplicationController` to use the CNPlusClockInterface
+2. Update remaining components that directly use System.currentTimeMillis():
+   - Broadcast receivers for alarms
+   - Notification-related classes
+   - UI components that display time or have time-based actions
+3. Create more comprehensive time-based tests leveraging the new interface
+4. Consider creating a ClockProvider to avoid passing the clock to every component 
