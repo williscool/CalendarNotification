@@ -212,7 +212,6 @@ class ComponentIsolationTest {
     /**
      * Test 5: Test all components initialized in sequence (full fixture)
      */
-    @Ignore("borked")
     @Test
     fun testAllComponentsSequentially() {
         DevLog.info(LOG_TAG, "Running testAllComponentsSequentially")
@@ -263,78 +262,5 @@ class ComponentIsolationTest {
         
         DevLog.info(LOG_TAG, "testAllComponentsSequentially completed successfully")
     }
-    
-    /**
-     * Test 4B: Isolated test of just the MockApplicationComponents setup
-     * with extreme debugging to find the recursion point
-     */
-    @Test(timeout = 10000)
-    fun testApplicationComponentsIsolated() {
-        DevLog.info(LOG_TAG, "[ISOLATED] Starting isolated ApplicationComponents test")
-        
-        try {
-            // Setup most basic components first
-            timeProvider = MockTimeProvider()
-            contextProvider = MockContextProvider(timeProvider)
-            calendarProvider = MockCalendarProvider(contextProvider, timeProvider)
-            
-            // Create ApplicationComponents instance but don't call setup() yet
-            applicationComponents = MockApplicationComponents(
-                contextProvider,
-                timeProvider,
-                calendarProvider
-            )
-            
-            // First, unmock any previous mocks to ensure clean state
-            try {
-                unmockkObject(ApplicationController)
-            } catch (e: Exception) {
-                // Ignore if not mocked already
-            }
-            
-            // Setup maximum debug logging
-            DevLog.info(LOG_TAG, "[ISOLATED] Starting to mock ApplicationController")
-            
-            // Mock ApplicationController with minimal implementation
-            mockkObject(ApplicationController)
-            
-            // Mock all essential properties
-            DevLog.info(LOG_TAG, "[ISOLATED] Mocking notificationManager")
-            every { ApplicationController.notificationManager } returns mockk(relaxed = true)
-            
-            DevLog.info(LOG_TAG, "[ISOLATED] Mocking alarmScheduler")
-            every { ApplicationController.alarmScheduler } returns mockk(relaxed = true)
-            
-            DevLog.info(LOG_TAG, "[ISOLATED] Mocking CalendarMonitor")
-            every { ApplicationController.CalendarMonitor } returns calendarProvider.mockCalendarMonitor
-            
-            DevLog.info(LOG_TAG, "[ISOLATED] Mocking clock")
-            every { ApplicationController.clock } returns timeProvider.testClock
-            
-            // Verify everything is properly mocked
-            assertNotNull(ApplicationController.notificationManager)
-            assertNotNull(ApplicationController.alarmScheduler)
-            assertNotNull(ApplicationController.CalendarMonitor)
-            assertNotNull(ApplicationController.clock)
-            
-            // This is where the infinite loop might happen
-            DevLog.info(LOG_TAG, "[ISOLATED] Now calling applicationComponents.setup()")
-            applicationComponents.setup()
-            DevLog.info(LOG_TAG, "[ISOLATED] applicationComponents.setup() completed successfully!")
-            
-            // Verify setup is successful
-            assertNotNull(applicationComponents.mockFormatter)
-            assertNotNull(applicationComponents.mockNotificationManager)
-            assertNotNull(applicationComponents.mockAlarmScheduler)
-            
-            DevLog.info(LOG_TAG, "[ISOLATED] Isolated test completed successfully")
-        } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "[ISOLATED] ERROR in isolated test: ${e.message}")
-            e.printStackTrace()
-            throw e // Re-throw to fail the test
-        } finally {
-            DevLog.info(LOG_TAG, "[ISOLATED] Cleaning up mocks")
-            unmockkAll()
-        }
-    }
+
 } 
