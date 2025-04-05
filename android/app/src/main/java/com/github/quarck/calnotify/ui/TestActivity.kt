@@ -37,14 +37,6 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.utils.findOrThrow
 import com.github.quarck.calnotify.utils.toLongOrNull
 import java.util.*
-import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
-import android.widget.Toast
-import com.github.quarck.calnotify.logs.DevLog
-import com.github.quarck.calnotify.utils.CNPlusClockInterface
-import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import com.github.quarck.calnotify.utils.find
 
 
 // TODO: add current UTC offset into the log
@@ -57,48 +49,57 @@ import com.github.quarck.calnotify.utils.find
 // TODO: help and feedback: add notice about possible delay in responce and mention that app is non-commercial 
 // and etc..
 
-class TestActivity : AppCompatActivity() {
+class TestActivity : Activity() {
 
     private val settings by lazy { Settings(this) }
-    private var cnt: Int = 0;
-    private var easterEggCount = 0;
-    private var firstClick = 0L;
-    
-    // Use the system clock for the test activity
-    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_test)
         findOrThrow<TextView>(R.id.todo).visibility = View.VISIBLE;
         //findOrThrow<ToggleButton>(R.id.buttonTestToggleDebugMonitor).isChecked = settings.enableMonitorDebug
-
-        setSupportActionBar(find<Toolbar?>(R.id.toolbar))
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-
-        DevLog.debug(LOG_TAG, "onCreate")
     }
 
-    override fun onResume() {
-        super.onResume()
-    }
 
-    fun randomTitle(seed: Long): String {
-        val Random = Random(seed)
+    fun randomTitle(currentTime: Long): String {
 
-        val words = this.resources.getStringArray(R.array.test_words)
-        val size = Random.nextInt(5) + 1
+        val wikipediaQuote =
+                """ Some predictions of general relativity differ significantly from those of classical
+            physics, especially concerning the passage of time, the geometry of space, the motion of
+            bodies in free fall, and the propagation of light. Examples of such differences include
+            gravitational time dilation, gravitational lensing, the gravitational redshift of light,
+            and the gravitational time delay. The predictions of general relativity have been
+            confirmed in all observations and experiments to date. Although general relativity is
+            not the only relativistic theory of gravity, it is the simplest theory that is consistent
+            with experimental data. However, unanswered questions remain, the most fundamental being
+            how general relativity can be reconciled with the laws of quantum physics to produce a
+            complete and self-consistent theory of quantum gravity."""
 
-        val ret = StringBuilder("")
+        val dict =
+                wikipediaQuote.split(' ', '\r', '\n', '\t').filter { !it.isEmpty() }
 
-        for (i in 0 until size) {
-            if (i > 0)
-                ret.append(' ')
-            ret.append(words[Random.nextInt(words.size)])
+        val sb = StringBuilder();
+        val r = Random(currentTime);
+
+        val len = r.nextInt(10);
+
+        var prev = -1;
+        for (i in 0..len) {
+            var new: Int
+            do {
+                new = r.nextInt(dict.size)
+            } while (new == prev)
+            sb.append(dict[new])
+            sb.append(" ")
+            prev = new
         }
 
-        return ret.toString()
+        return sb.toString();
     }
+
+    private var cnt = 0;
 
     private val filterText: String
         get() = findOrThrow<EditText>(R.id.edittext_debug_event_id).text.toString()
@@ -117,35 +118,38 @@ class TestActivity : AppCompatActivity() {
 
     fun clr(r: Int, g: Int, b: Int) = 0xff.shl(24) or r.shl(16) or g.shl(8) or b
 
-    fun addDemoEvent(createdAt: Long, eventId: Long, title: String, minutes: Long, alertMinutesBefore: Long, location: String, color: Int, isReminders: Boolean)
-    {
-        val startTime = createdAt + ((minutes * 60 - alertMinutesBefore) * 1000)
-        val alertTimeTime = startTime - alertMinutesBefore * 60 * 1000
-        val endTime = startTime + 30 * 60 * 1000
+    fun addDemoEvent(
+            currentTime: Long, eventId: Long, title: String,
+            minutesFromMidnight: Long, duration: Long, location: String,
+            color: Int, allDay: Boolean) {
+
+        val nextDay = ((currentTime / (Consts.DAY_IN_SECONDS * 1000L)) + 1) * (Consts.DAY_IN_SECONDS * 1000L)
+
+        val start = nextDay + minutesFromMidnight * 60L * 1000L
+        val end = start + duration * 60L * 1000L
 
         val event = EventAlertRecord(
-                0x0fffL,
+                -1L,
                 eventId,
+                allDay,
                 false,
-                isReminders,
-                alertTimeTime,
+                currentTime,
                 0,
                 title,
                 "",
-                startTime,
-                endTime,
-                startTime,
-                endTime,
+                start,
+                end,
+                start,
+                end,
                 location,
-                clock.currentTimeMillis(),
-                0L,
+                currentTime,
+                0L, // snoozed
                 EventDisplayStatus.Hidden,
-                color,
-                flags = 0L
+                color
         )
-
-        ApplicationController.registerNewEvent(this, event)
         ApplicationController.postEventNotifications(this, listOf(event))
+        ApplicationController.registerNewEvent(this, event);
+
         ApplicationController.afterCalendarEventFired(this)
     }
 
@@ -187,7 +191,7 @@ class TestActivity : AppCompatActivity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonAddRandomEventClick(v: View) {
 
-        val currentTime = clock.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis();
 
         val eventId = 10000000L + (currentTime % 1000L)
 
@@ -223,25 +227,25 @@ class TestActivity : AppCompatActivity() {
 
         startActivity(Intent(this, EditEventActivity::class.java))
 
-        //val currentTime = clock.currentTimeMillis()
-    }
+//        val currentTime = clock.currentTimeMillis()
+//
+//        val cal = CalendarProvider.getCalendars(this).filter { it.isPrimary }.firstOrNull()
+//
+//        if (cal != null) {
+//            val id = CalendarProvider.createTestEvent(this,
+//                    CalendarProvider.getCalendars(this)[2].calendarId,
+//                    randomTitle(currentTime),
+//                    currentTime + 3600000L, currentTime + 7200000L, 15000L)
 
-    @Suppress("unused", "UNUSED_PARAMETER")
-    fun OnButtonEasterEgg(v: View) {
-        if (easterEggCount == 0) {
-            firstClick = clock.currentTimeMillis()
-        }
+//            startActivity(
+//                    Intent(Intent.ACTION_VIEW).setData(
+//                            ContentUris.withAppendedId(
+//                                    CalendarContract.Events.CONTENT_URI,
+//                                    id)))
 
-        if (++easterEggCount > 13) {
-            if (clock.currentTimeMillis() - firstClick < 5000L) {
-                Settings(this).devModeEnabled = true
-                Toast.makeText(this, "Developer Mode Enabled", Toast.LENGTH_LONG).show()
-            }
-            else {
-                easterEggCount = 0;
-                firstClick = 0L;
-            }
-        }
+
+
+//        }
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
@@ -264,9 +268,5 @@ class TestActivity : AppCompatActivity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonDisableDevPage(v: View) {
         Settings(this).devModeEnabled = false
-    }
-    
-    companion object {
-        private const val LOG_TAG = "TestActivity"
     }
 }
