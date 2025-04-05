@@ -34,6 +34,8 @@ import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.findOrThrow
 import com.github.quarck.calnotify.utils.toLongOrNull
 import java.util.*
