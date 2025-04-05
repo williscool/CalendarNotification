@@ -6,6 +6,8 @@ import android.content.Context
 import android.provider.CalendarContract
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.calendarmonitor.CalendarMonitor
+import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorInterface
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
@@ -35,6 +37,7 @@ class MockCalendarProvider(
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up MockCalendarProvider")
         setupCalendarProvider()
+        setupMockCalendarMonitor() // Initialize mockCalendarMonitor early
     }
     
     /**
@@ -54,6 +57,25 @@ class MockCalendarProvider(
         }
         
         every { CalendarProvider.isRepeatingEvent(any(), any<Long>()) } returns false
+    }
+    
+    /**
+     * Sets up a mock calendar monitor
+     */
+    fun setupMockCalendarMonitor() {
+        DevLog.info(LOG_TAG, "Setting up mock calendar monitor")
+        
+        val realMonitor = CalendarMonitor(CalendarProvider, timeProvider.testClock)
+        mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
+        
+        // Add basic mocks for key methods to prevent NPEs
+        every { mockCalendarMonitor.onRescanFromService(any()) } answers { 
+            DevLog.info(LOG_TAG, "Mock onRescanFromService called")
+        }
+        
+        every { mockCalendarMonitor.onProviderReminderBroadcast(any(), any()) } answers {
+            DevLog.info(LOG_TAG, "Mock onProviderReminderBroadcast called")
+        }
     }
     
     /**
@@ -333,16 +355,6 @@ class MockCalendarProvider(
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Failed to clear monitor storage: ${e.message}")
         }
-    }
-    
-    /**
-     * Sets up a mock calendar monitor
-     */
-    fun setupMockCalendarMonitor() {
-        DevLog.info(LOG_TAG, "Setting up mock calendar monitor")
-        
-        val realMonitor = CalendarMonitor(CalendarProvider, timeProvider.testClock)
-        mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
     }
     
     /**

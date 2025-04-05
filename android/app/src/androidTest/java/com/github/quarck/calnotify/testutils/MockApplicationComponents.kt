@@ -4,6 +4,7 @@ import android.content.Context
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
@@ -166,9 +167,9 @@ class MockApplicationComponents(
             true
         }
         
-        every { ApplicationController.registerNewEvents(any(), any<List<Pair<Any, EventAlertRecord>>>()) } answers {
+        every { ApplicationController.registerNewEvents(any(), any<List<Pair<MonitorEventAlertEntry, EventAlertRecord>>>()) } answers {
             val context = firstArg<Context>()
-            val eventPairs = secondArg<List<Pair<Any, EventAlertRecord>>>()
+            val eventPairs = secondArg<List<Pair<MonitorEventAlertEntry, EventAlertRecord>>>()
             
             DevLog.info(LOG_TAG, "Mock registerNewEvents called for ${eventPairs.size} events")
             
@@ -178,7 +179,7 @@ class MockApplicationComponents(
                 }
             }
             
-            eventPairs
+            ArrayList(eventPairs)
         }
         
         every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } returns false
@@ -248,7 +249,7 @@ class MockApplicationComponents(
                 if (processedEvent.startTime != startTime) {
                     DevLog.error(LOG_TAG, "Event start time mismatch: expected $startTime but was ${processedEvent.startTime}")
                     eventFound = false
-                }
+                } else {}
             } else {
                 DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
             }

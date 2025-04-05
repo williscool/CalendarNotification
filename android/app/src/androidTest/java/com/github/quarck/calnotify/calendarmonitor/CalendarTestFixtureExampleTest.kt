@@ -47,7 +47,12 @@ class CalendarTestFixtureExampleTest {
     @After
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up example test")
-        baseFixture.cleanup()
+        // Check if baseFixture was initialized before accessing it
+        if (::baseFixture.isInitialized) {
+            baseFixture.cleanup()
+        } else {
+            DevLog.warn(LOG_TAG, "Cleanup called but baseFixture was not initialized")
+        }
     }
     
     /**

@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.testutils
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,6 +9,7 @@ import android.content.SharedPreferences
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorService
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import io.mockk.*
 
 /**
