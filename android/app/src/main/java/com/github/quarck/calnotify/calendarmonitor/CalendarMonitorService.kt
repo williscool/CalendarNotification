@@ -32,8 +32,6 @@ import com.github.quarck.calnotify.utils.powerManager
 import com.github.quarck.calnotify.utils.wakeLocked
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
 
 class CalendarMonitorService : IntentService("CalendarMonitorService") {
     private var _clock: CNPlusClockInterface = CNPlusSystemClock()

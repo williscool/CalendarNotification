@@ -116,7 +116,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+  override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         DevLog.debug(LOG_TAG, "onCreateView")
@@ -534,67 +534,60 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     }
 
     private fun reloadData() {
-        DevLog.debug(LOG_TAG, "reloadListView")
 
-        shouldForceRepost = true
+        background {
 
-        val events: Array<EventAlertRecord>
+            DismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
 
-        val quietHoursManager = QuietHoursManager(this)
-        val quietPeriodUntil = quietHoursManager.getSilentUntil(settings)
-
-        events =
-            try {
-                DismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
-
-                val events =
+            val events =
                     EventsStorage(this).classCustomUse {
+
                         db ->
+
                         db.events.sortedWith(
-                            Comparator<EventAlertRecord> {
-                                lhs, rhs ->
-                                if (lhs.snoozedUntil < rhs.snoozedUntil)
-                                    return@Comparator -1;
-                                else if (lhs.snoozedUntil > rhs.snoozedUntil)
-                                    return@Comparator 1;
+                                Comparator<EventAlertRecord> {
+                                    lhs, rhs ->
 
-                                if (lhs.lastStatusChangeTime > rhs.lastStatusChangeTime)
-                                    return@Comparator -1;
-                                else if (lhs.lastStatusChangeTime < rhs.lastStatusChangeTime)
-                                    return@Comparator 1;
+                                    if (lhs.snoozedUntil < rhs.snoozedUntil)
+                                        return@Comparator -1;
+                                    else if (lhs.snoozedUntil > rhs.snoozedUntil)
+                                        return@Comparator 1;
 
-                                return@Comparator 0;
-                            }
-                        ).toTypedArray()
+                                    if (lhs.lastStatusChangeTime > rhs.lastStatusChangeTime)
+                                        return@Comparator -1;
+                                    else if (lhs.lastStatusChangeTime < rhs.lastStatusChangeTime)
+                                        return@Comparator 1;
+
+                                    return@Comparator 0;
+
+                                }).toTypedArray()
+
+
                     }
 
-                events
-            }
-            catch (ex: Exception) {
-                DevLog.error(LOG_TAG, "Exception while loading events: ${ex.message}")
-                emptyArray()
-            }
+            val quietPeriodUntil = QuietHoursManager(this).getSilentUntil(settings)
 
-        runOnUiThread {
-            adapter.setEventsToDisplay(events);
-            onNumEventsUpdated()
+            runOnUiThread {
+                adapter.setEventsToDisplay(events);
+                onNumEventsUpdated()
 
-            if (quietPeriodUntil > 0L) {
-                quietHoursTextView.text =
-                        String.format(resources.getString(R.string.quiet_hours_main_activity_status),
-                                DateUtils.formatDateTime(this, quietPeriodUntil,
-                                        if (DateUtils.isToday(quietPeriodUntil))
-                                            DateUtils.FORMAT_SHOW_TIME
-                                        else
-                                            DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE))
+                if (quietPeriodUntil > 0L) {
+                    quietHoursTextView.text =
+                            String.format(resources.getString(R.string.quiet_hours_main_activity_status),
+                                    DateUtils.formatDateTime(this, quietPeriodUntil,
+                                            if (DateUtils.isToday(quietPeriodUntil))
+                                                DateUtils.FORMAT_SHOW_TIME
+                                            else
+                                                DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE))
 
-                quietHoursLayout.visibility = View.VISIBLE;
+                    quietHoursLayout.visibility = View.VISIBLE;
+                }
+                else {
+                    quietHoursLayout.visibility = View.GONE;
+                }
+
+                refreshLayout?.isRefreshing = false
             }
-            else {
-                quietHoursLayout.visibility = View.GONE;
-            }
-
-            refreshLayout?.isRefreshing = false
         }
     }
 
