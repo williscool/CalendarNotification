@@ -391,4 +391,42 @@ class MockCalendarProvider(
         DevLog.info(LOG_TAG, "Cleaning up MockCalendarProvider")
         isInitialized = false
     }
+    
+    /**
+     * Creates an EventAlertRecord for testing
+     */
+    fun createEventAlertRecord(
+        context: Context,
+        calendarId: Long,
+        eventId: Long,
+        title: String,
+        startTime: Long,
+        alertTime: Long
+    ): EventAlertRecord? {
+        DevLog.info(LOG_TAG, "Creating EventAlertRecord for testing: eventId=$eventId, startTime=$startTime, alertTime=$alertTime")
+        
+        return EventAlertRecord(
+            calendarId = calendarId,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = alertTime,
+            notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+            title = title,
+            desc = "Test Description",
+            startTime = startTime,
+            endTime = startTime + 3600000, // 1 hour duration
+            instanceStartTime = startTime,
+            instanceEndTime = startTime + 3600000,
+            location = "",
+            lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
+            displayStatus = EventDisplayStatus.Hidden,
+            color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0
+        )
+    }
 } 

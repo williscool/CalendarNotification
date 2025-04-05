@@ -416,4 +416,18 @@ class MockApplicationComponents(
         DevLog.info(LOG_TAG, "Cleaning up MockApplicationComponents")
         isInitialized = false
     }
+    
+    /**
+     * Directly adds an event to the storage for testing
+     */
+    fun addEventToStorage(
+        context: Context,
+        event: EventAlertRecord
+    ) {
+        DevLog.info(LOG_TAG, "Directly adding event to storage: id=${event.eventId}, title=${event.title}")
+        
+        EventsStorage(context).classCustomUse { db ->
+            db.addEvent(event)
+        }
+    }
 } 
