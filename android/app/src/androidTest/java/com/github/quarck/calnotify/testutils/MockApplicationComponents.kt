@@ -2,9 +2,14 @@ package com.github.quarck.calnotify.testutils
 
 import android.content.Context
 import android.content.Intent
+import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
@@ -366,7 +371,8 @@ class MockApplicationComponents(
     fun verifyEventProcessed(
         eventId: Long,
         startTime: Long,
-        title: String? = null
+        title: String? = null,
+        afterDelay: Long? = null
     ): Boolean {
         DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
         
@@ -374,6 +380,12 @@ class MockApplicationComponents(
         
         EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
             val events = db.events
+            DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
+            
+            // Log all events for debugging
+            events.forEach { event ->
+                DevLog.info(LOG_TAG, "Event in storage: id=${event.eventId}, title=${event.title}, startTime=${event.startTime}, timeFirstSeen=${event.timeFirstSeen}")
+            }
             
             // Find event by ID
             val processedEvent = events.firstOrNull { it.eventId == eventId }
@@ -390,6 +402,13 @@ class MockApplicationComponents(
                     DevLog.error(LOG_TAG, "Event start time mismatch: expected $startTime but was ${processedEvent.startTime}")
                     eventFound = false
                 }
+                
+                if (afterDelay != null && processedEvent.timeFirstSeen < afterDelay) {
+                    DevLog.error(LOG_TAG, "Event was processed too early: expected after $afterDelay but was ${processedEvent.timeFirstSeen}")
+                    eventFound = false
+                } else {}
+            } else {
+                DevLog.error(LOG_TAG, "Event $eventId not found in storage")
             }
         }
         
@@ -403,7 +422,15 @@ class MockApplicationComponents(
         var hasNoEvents = true
 
         EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
-            hasNoEvents = db.events.isEmpty()
+            val events = db.events
+            hasNoEvents = events.isEmpty()
+            
+            if (!hasNoEvents) {
+                DevLog.error(LOG_TAG, "Expected no events but found ${events.size}")
+                events.forEach { event ->
+                    DevLog.error(LOG_TAG, "Unexpected event: id=${event.eventId}, title=${event.title}")
+                }
+            }
         }
         
         return hasNoEvents
@@ -421,13 +448,52 @@ class MockApplicationComponents(
      * Directly adds an event to the storage for testing
      */
     fun addEventToStorage(
-        context: Context,
         event: EventAlertRecord
     ) {
         DevLog.info(LOG_TAG, "Directly adding event to storage: id=${event.eventId}, title=${event.title}")
         
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
             db.addEvent(event)
         }
+    }
+    
+    /**
+     * Creates a test event and adds it to storage for testing
+     */
+    fun createAndAddTestEvent(
+        eventId: Long,
+        calendarId: Long,
+        title: String,
+        startTime: Long,
+        alertTime: Long
+    ): EventAlertRecord {
+        DevLog.info(LOG_TAG, "Creating and adding test event: id=$eventId, title=$title")
+        
+        val event = EventAlertRecord(
+            calendarId = calendarId,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = alertTime,
+            notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+            title = title,
+            desc = "Test Description",
+            startTime = startTime,
+            endTime = startTime + 3600000,
+            instanceStartTime = startTime,
+            instanceEndTime = startTime + 3600000,
+            location = "",
+            lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
+            displayStatus = EventDisplayStatus.Hidden,
+            color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0
+        )
+        
+        addEventToStorage(event)
+        return event
     }
 } 

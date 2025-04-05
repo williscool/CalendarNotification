@@ -348,6 +348,8 @@ class MockCalendarProvider(
      * Clears all storage databases
      */
     fun clearStorages(context: Context) {
+        DevLog.info(LOG_TAG, "Clearing storages")
+        
         try {
             EventsStorage(context).classCustomUse { db ->
                 val count = db.events.size
@@ -385,25 +387,18 @@ class MockCalendarProvider(
     }
     
     /**
-     * Cleans up resources
-     */
-    fun cleanup() {
-        DevLog.info(LOG_TAG, "Cleaning up MockCalendarProvider")
-        isInitialized = false
-    }
-    
-    /**
      * Creates an EventAlertRecord for testing
      */
     fun createEventAlertRecord(
         context: Context,
         calendarId: Long,
         eventId: Long,
-        title: String,
+        title: String = "Test Event",
         startTime: Long,
-        alertTime: Long
+        alertTime: Long,
+        isHandled: Boolean = false
     ): EventAlertRecord? {
-        DevLog.info(LOG_TAG, "Creating EventAlertRecord for testing: eventId=$eventId, startTime=$startTime, alertTime=$alertTime")
+        DevLog.info(LOG_TAG, "Creating EventAlertRecord: calendarId=$calendarId, eventId=$eventId, title=$title")
         
         return EventAlertRecord(
             calendarId = calendarId,
@@ -415,7 +410,7 @@ class MockCalendarProvider(
             title = title,
             desc = "Test Description",
             startTime = startTime,
-            endTime = startTime + 3600000, // 1 hour duration
+            endTime = startTime + 3600000,
             instanceStartTime = startTime,
             instanceEndTime = startTime + 3600000,
             location = "",
@@ -428,5 +423,13 @@ class MockCalendarProvider(
             attendanceStatus = AttendanceStatus.None,
             flags = 0
         )
+    }
+    
+    /**
+     * Cleans up resources
+     */
+    fun cleanup() {
+        DevLog.info(LOG_TAG, "Cleaning up MockCalendarProvider")
+        isInitialized = false
     }
 } 
