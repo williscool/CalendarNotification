@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  * Test implementation of CNPlusClock that allows controlling the time
  * and supports timer-based sleep through a ScheduledExecutorService if provided
  */
-class CNPlusTestClock(
+class CNPlusUnitTestClock(
     private var currentTimeMs: Long = 0L,
     private val mockTimer: ScheduledExecutorService? = null
 ) : CNPlusClockInterface {
