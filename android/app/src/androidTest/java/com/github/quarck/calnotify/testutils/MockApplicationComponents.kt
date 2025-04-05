@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.testutils
 
 import android.content.Context
+import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -14,6 +15,7 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.ui.UINotifier
 import io.mockk.*
 import java.util.Locale
+import java.util.ArrayList
 
 /**
  * Provides application component mock functionality for tests
@@ -129,6 +131,8 @@ class MockApplicationComponents(
         mockRegisterNewEvent()
         mockPostEventNotifications()
         mockAfterCalendarEventFired()
+        mockCalendarReloadMethods()
+        mockShouldMarkEventAsHandledAndSkip()
     }
     
     /**
@@ -179,10 +183,29 @@ class MockApplicationComponents(
                 }
             }
             
+            // Convert the list to ArrayList to match the expected return type
             ArrayList(eventPairs)
         }
+    }
+    
+    /**
+     * Mocks the shouldMarkEventAsHandledAndSkip method with behavior similar to the original
+     */
+    private fun mockShouldMarkEventAsHandledAndSkip() {
+        DevLog.info(LOG_TAG, "Mocking shouldMarkEventAsHandledAndSkip")
         
-        every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } returns false
+        every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } answers {
+            val context = firstArg<Context>()
+            val event = secondArg<EventAlertRecord>()
+            
+            DevLog.info(LOG_TAG, "Mock shouldMarkEventAsHandledAndSkip called for eventId=${event.eventId}, title=${event.title}, isAllDay=${event.isAllDay}, eventStatus=${event.eventStatus}, attendanceStatus=${event.attendanceStatus}")
+            
+            // In testing, we default to false to allow events to be processed
+            val result = false
+            
+            DevLog.info(LOG_TAG, "Mock shouldMarkEventAsHandledAndSkip result=$result")
+            result
+        }
     }
     
     /**
@@ -211,7 +234,68 @@ class MockApplicationComponents(
     private fun mockAfterCalendarEventFired() {
         DevLog.info(LOG_TAG, "Mocking afterCalendarEventFired")
         
-        every { ApplicationController.afterCalendarEventFired(any()) } just Runs
+        every { ApplicationController.afterCalendarEventFired(any()) } answers {
+            val context = firstArg<Context>()
+            DevLog.info(LOG_TAG, "Mock afterCalendarEventFired called for context=${context.hashCode()}")
+            
+            // This method normally triggers UI notifications and reschedules alarms
+            // We just log it for now
+        }
+    }
+    
+    /**
+     * Mocks the calendar reload methods to match the original test implementation
+     */
+    private fun mockCalendarReloadMethods() {
+        DevLog.info(LOG_TAG, "Mocking calendar reload methods")
+        
+        every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
+            val stackTrace = Thread.currentThread().stackTrace
+            val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
+            val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
+            
+            DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
+            
+            val context = firstArg<Context>()
+            val userActionUntil = secondArg<Long>()
+            DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService called with userActionUntil=$userActionUntil")
+            
+            // Call original if available (might not be needed)
+            //callOriginal()
+            
+            DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService completed")
+            
+            true // Indicate success
+        }
+        
+        every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
+            val stackTrace = Thread.currentThread().stackTrace
+            val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
+            val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
+            
+            DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService Rescan attempt from: $callerClass.$caller")
+            
+            val context = firstArg<Context>()
+            val userActionUntil = secondArg<Long>()
+            DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
+            
+            // Call original if available (might not be needed)
+            //callOriginal()
+        }
+        
+        every { ApplicationController.onCalendarChanged(any()) } answers {
+            val context = firstArg<Context>()
+            DevLog.info(LOG_TAG, "Mock onCalendarChanged called")
+            
+            // This would normally trigger the CalendarMonitor.launchRescanService method
+            calendarProvider.mockCalendarMonitor.launchRescanService(
+                context,
+              (Consts.ALARM_THRESHOLD / 2).toInt(),
+                true, // reloadCalendar
+                true,  // rescanMonitor
+                0L     // userActionUntil
+            )
+        }
     }
     
     /**
@@ -256,6 +340,30 @@ class MockApplicationComponents(
         }
         
         return eventFound
+    }
+    
+    /**
+     * Verifies that no events are present in storage
+     */
+    fun verifyNoEvents(): Boolean {
+        DevLog.info(LOG_TAG, "Verifying no events are in storage")
+
+        var hasNoEvents = true
+
+        EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+            val events = db.events
+            DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
+            
+            if (events.isNotEmpty()) {
+                events.forEach { event ->
+                    DevLog.info(LOG_TAG, "Unexpected event found: id=${event.eventId}, title=${event.title}")
+                }
+
+              hasNoEvents = false
+            }
+        }
+        
+        return hasNoEvents
     }
     
     /**

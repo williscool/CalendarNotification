@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorService
+import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import io.mockk.*
@@ -35,13 +36,35 @@ class MockContextProvider(
     
     private lateinit var mockService: CalendarMonitorService
     
+    // Track last timer broadcast time for tests
+    private var lastTimerBroadcastReceived: Long? = null
+    
     /**
      * Sets up the mock context and related components
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up MockContextProvider")
+        
+        // Setup PendingIntent before context
+        setupPendingIntent()
+        
+        // Setup Context with mocked extensions
         setupMockContext()
+        
+        // Setup Service
         setupMockService()
+    }
+    
+    /**
+     * Mocks PendingIntent.getBroadcast for AlarmManager functionality
+     */
+    private fun setupPendingIntent() {
+        DevLog.info(LOG_TAG, "Setting up PendingIntent mocks")
+        
+        mockkStatic(PendingIntent::class)
+        every { 
+            PendingIntent.getBroadcast(any(), any(), any(), any()) 
+        } returns mockk(relaxed = true)
     }
     
     /**
@@ -51,6 +74,9 @@ class MockContextProvider(
         DevLog.info(LOG_TAG, "Setting up mock context")
         
         val realContext = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Mock globalState extension property
+        mockkStatic("com.github.quarck.calnotify.GlobalStateKt")
         
         // Mock key extensions used with AlarmManager
         mockkStatic("com.github.quarck.calnotify.utils.SystemUtilsKt")
@@ -124,6 +150,16 @@ class MockContextProvider(
             every { startActivity(any()) } just Runs
             every { getResources() } returns realContext.resources
             every { getTheme() } returns realContext.theme
+        }
+        
+        // Mock the globalState extension property on the context
+        every { any<Context>().globalState } answers {
+            mockk {
+                every { lastTimerBroadcastReceived } returns this@MockContextProvider.lastTimerBroadcastReceived!!
+                every { lastTimerBroadcastReceived = any() } answers {
+                    this@MockContextProvider.lastTimerBroadcastReceived = firstArg()
+                }
+            }
         }
     }
     
@@ -267,11 +303,26 @@ class MockContextProvider(
     }
     
     /**
+     * Sets the lastTimerBroadcastReceived value
+     */
+    fun setLastTimerBroadcastReceived(time: Long?) {
+        lastTimerBroadcastReceived = time
+    }
+    
+    /**
+     * Gets the lastTimerBroadcastReceived value
+     */
+    fun getLastTimerBroadcastReceived(): Long? {
+        return lastTimerBroadcastReceived
+    }
+    
+    /**
      * Cleans up resources
      */
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up MockContextProvider")
         sharedPreferencesMap.clear()
         sharedPreferencesDataMap.clear()
+        lastTimerBroadcastReceived = null
     }
 } 
