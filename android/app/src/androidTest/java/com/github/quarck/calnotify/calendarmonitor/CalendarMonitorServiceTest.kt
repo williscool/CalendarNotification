@@ -347,67 +347,7 @@ class CalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "In onRescanFromService: SharedPreferences[${CalendarMonitorState.PREFS_NAME}].getBoolean(F) = $firstScanEverPref")
       }
       
-      // IMPORTANT FIX: Only mark alerts as handled if firstScanEver is true
-      // Otherwise, use normal processing logic which will happen in callOriginal()
-      if (monitorState.firstScanEver) {
-        DevLog.info(LOG_TAG, "This is the first scan ever, will mark alerts as handled")
-        
-        // Get alerts from the mock provider
-        val scanFrom = testClock.currentTimeMillis() - Consts.ALERTS_DB_REMOVE_AFTER
-        val scanTo = testClock.currentTimeMillis() + Settings(context).manualCalWatchScanWindow
-        
-        DevLog.info(LOG_TAG, "Getting alerts for range: $scanFrom - $scanTo")
-        val alerts = CalendarProvider.getEventAlertsForInstancesInRange(context, scanFrom, scanTo)
-        DevLog.info(LOG_TAG, "Found ${alerts.size} alerts to process for firstScanEver")
-        
-        if (alerts.isEmpty()) {
-          DevLog.info(LOG_TAG, "No alerts found for firstScanEver")
-        } else {
-          // Log all alerts
-          alerts.forEach { alert ->
-            DevLog.info(LOG_TAG, "Alert to handle: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
-          }
-          
-          // Mark all due alerts as handled directly in the DB
-          MonitorStorage(context).classCustomUse { db ->
-            // First add any new alerts to the database
-            val knownAlerts = db.alerts.associateBy { it.key }
-            val newAlerts = alerts.filter { it.key !in knownAlerts.keys }
-            
-            if (newAlerts.isNotEmpty()) {
-              DevLog.info(LOG_TAG, "Adding ${newAlerts.size} new alerts to database")
-              db.addAlerts(newAlerts)
-            }
-            
-            // Then set wasHandled=true for all alerts
-            for (alert in alerts) {
-              alert.wasHandled = true
-            }
-            
-            // Update alerts in the database
-            DevLog.info(LOG_TAG, "Updating ${alerts.size} alerts to set wasHandled=true")
-            db.updateAlerts(alerts)
-            
-            // Verify the update worked
-            val verifiedAlerts = db.alerts
-            DevLog.info(LOG_TAG, "After update: ${verifiedAlerts.size} alerts in database")
-            verifiedAlerts.forEach { alert ->
-              DevLog.info(LOG_TAG, "Verified alert: eventId=${alert.eventId}, alertTime=${alert.alertTime}, wasHandled=${alert.wasHandled}")
-            }
-          }
-        }
-        
-        // Set firstScanEver to false like the real implementation would
-        DevLog.info(LOG_TAG, "Setting firstScanEver to false")
-        monitorState.firstScanEver = false
-        
-        // Verify the flag was updated
-        DevLog.info(LOG_TAG, "firstScanEver after update: ${monitorState.firstScanEver}")
-      } else {
-        // For testCalendarReload, we want alerts NOT to be handled in initial scan
-        // This is handled by the normal call path
-        DevLog.info(LOG_TAG, "Not a first scan ever, proceeding with normal processing")
-      }
+      DevLog.info(LOG_TAG, "Not a first scan ever, proceeding with normal processing")
       
       // Call original to handle other functionality
       callOriginal()
