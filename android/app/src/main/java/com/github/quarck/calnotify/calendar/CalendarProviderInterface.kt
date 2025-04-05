@@ -23,8 +23,14 @@ import android.content.ContentResolver
 import android.content.Context
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequest
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
 interface CalendarProviderInterface {
+
+    /**
+     * Clock for time operations
+     */
+    val clock: CNPlusClockInterface
 
     fun getAlertByTime(context: Context, alertTime: Long, skipDismissed: Boolean, skipExpiredEvents: Boolean): List<EventAlertRecord>
 

@@ -4,29 +4,24 @@
  * Script to clean logs from clipboard
  * Gets logs from clipboard, cleans them, and puts them back in clipboard
  * 
- * Usage: node scripts/clean_clipboard_logs.js <test_log_tag> [-v|--verbose] [-t|--test-name <name>]
+ * Usage: npx ts-node scripts/clean_clipboard_logs.ts <test_log_tag> [-v|--verbose] [-t|--test-name <name>]
  */
 
-
-// WARNING: This script requires esm. plese update your package.json to type module but DO NOT COMMIT IT OR IT WILL BREAK THE BUILD
-// react itself does not support esm so react native defintely does not support it either.
-// This is a temporary solution to avoid breaking the build. I will fix this by making this script a cjs script.
-// and using await import for execa
-
 import { Command } from 'commander';
-import { execa } from 'execa';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { fileURLToPath } from 'url';
-
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+// Will use dynamic import for execa
 
 // Temporary file paths
 const TEMP_INPUT = path.join(os.tmpdir(), 'clipboard_logs_input.txt');
 const TEMP_OUTPUT = path.join(os.tmpdir(), 'clipboard_logs_output.txt');
+
+interface ProgramOptions {
+    verbose?: boolean;
+    testName?: string;
+    filterKeywords?: string[];
+}
 
 const program = new Command();
 
@@ -36,12 +31,16 @@ program
     .argument('<test_log_tag>', 'log tag to identify test logs')
     .option('-v, --verbose', 'show detailed error messages')
     .option('-t, --test-name <name>', 'test name for filtering exceptions (e.g., CalendarMonitorServiceTest)')
-    .action(async (testLogTag, options) => {
+    .option('-f, --filter-keywords <keywords>', 'comma-separated list of keywords to filter out (e.g., "bluetooth,network")')
+    .action(async (testLogTag: string, options: ProgramOptions) => {
         console.log('Temporary files will be created at:');
         console.log('Input:', TEMP_INPUT);
         console.log('Output:', TEMP_OUTPUT);
 
         try {
+            // Dynamically import execa (ESM module)
+            const { execa } = await import('execa');
+            
             // Get logs from clipboard
             console.log('Reading logs from clipboard...');
             const { stdout: clipboardContent } = await execa('powershell.exe', ['-command', 'Get-Clipboard']);
@@ -54,11 +53,16 @@ program
             
             // Clean the logs using our existing script
             console.log('Cleaning logs...');
-            const cleanLogsArgs = [path.join(__dirname, 'clean_logs.js'), testLogTag, TEMP_INPUT, TEMP_OUTPUT];
+            const scriptDir = __dirname;
+            const cleanLogsArgs = [path.join(scriptDir, 'clean_logs.ts'), testLogTag, TEMP_INPUT, TEMP_OUTPUT];
             if (options.testName) {
                 cleanLogsArgs.push('-t', options.testName);
             }
-            await execa('node', cleanLogsArgs, {
+            if (options.filterKeywords) {
+                cleanLogsArgs.push('-f', options.filterKeywords.join(','));
+            }
+            
+            await execa('npx', ['ts-node', ...cleanLogsArgs], {
                 stdio: 'inherit'
             });
             
@@ -76,13 +80,14 @@ program
             console.log('Output file:', TEMP_OUTPUT);
             console.log('\nDone! Cleaned logs are now in your clipboard.');
 
-        } catch (error) {
+        } catch (error: any) {
             if (error.code === 'E2BIG') {
                 console.error(`Output too big for clip.exe. Get it from: ${TEMP_OUTPUT}`);
                 try {
                     console.log('Trying to open file in windows...');
+                    const { execa } = await import('execa');
                     await execa('wsl-open', [TEMP_OUTPUT]);
-                } catch (openError) {
+                } catch (openError: any) {
                     console.error('Failed to open file:', openError.message);
                 }
             } else {

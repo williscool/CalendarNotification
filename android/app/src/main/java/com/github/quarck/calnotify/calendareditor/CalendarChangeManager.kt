@@ -27,9 +27,14 @@ import com.github.quarck.calnotify.calendareditor.storage.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
-class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarChangeManagerInterface {
+class CalendarChangeManager(
+    val provider: CalendarProviderInterface,
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+): CalendarChangeManagerInterface {
 
     override fun createEvent(context: Context, calendarId: Long, calendarOwnerAccount: String, details: CalendarEventDetails): Long {
 
@@ -110,7 +115,7 @@ class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarCh
             val newStartTime: Long
             val newEndTime: Long
 
-            val currentTime = System.currentTimeMillis()
+            val currentTime = clock.currentTimeMillis()
 
             val numSecondsInThePast = currentTime + Consts.ALARM_THRESHOLD - event.startTime
 
@@ -173,7 +178,7 @@ class CalendarChangeManager(val provider: CalendarProviderInterface): CalendarCh
         val newStartTime: Long
         val newEndTime: Long
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val numSecondsInThePast = currentTime + Consts.ALARM_THRESHOLD - event.instanceStartTime
 

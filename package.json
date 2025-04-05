@@ -12,7 +12,7 @@
     "android:install:debug": "yarn bundle:android --dev=true && cd android && ./gradlew installDebug",
     "android:sign:debug-apks": "node scripts/sign_android.js",
     "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks",
-    "clean-logs": "node scripts/clean_clipboard_logs.js"
+    "clean-logs": "npx ts-node scripts/clean_clipboard_logs.ts"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
@@ -55,7 +55,7 @@
     "@swc-node/register": "^1.6.7",
     "@tsconfig/react-native": "^3.0.2",
     "@types/jest": "^29.5.5",
-    "@types/node": "^20.4.5",
+    "@types/node": "^22.14.0",
     "@types/react": "~18.2.45",
     "@types/react-test-renderer": "^18.0.3",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
@@ -75,8 +75,8 @@
     "rn-game-over": "^1.1.0",
     "semantic-release": "^24.1.1",
     "ts-jest": "^29.1.1",
-    "ts-node": "^10.9.1",
-    "typescript": "~5.3.3"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
   },
   "packageManager": "yarn@3.6.4",
   "expo": {

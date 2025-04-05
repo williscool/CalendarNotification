@@ -20,8 +20,11 @@
 package com.github.quarck.calnotify.quiethours
 
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
 interface QuietHoursManagerInterface {
+
+    val clock: CNPlusClockInterface
 
     fun isInsideQuietPeriod(settings: Settings, time: Long = 0L): Boolean
 

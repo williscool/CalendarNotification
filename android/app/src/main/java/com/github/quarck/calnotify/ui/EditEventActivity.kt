@@ -74,7 +74,8 @@ fun EventReminderRecord.toLocalizedString(ctx: Context, isAllDay: Boolean): Stri
         val fullDaysBefore = allDayDaysBefore
         val (hr, min) = allDayHourOfDayAndMinute
 
-        val cal = DateTimeUtils.createCalendarTime(System.currentTimeMillis(), hr, min)
+        val clock = CNPlusSystemClock()
+        val cal = DateTimeUtils.createCalendarTime(clock.currentTimeMillis(), hr, min)
 
         val time = DateUtils.formatDateTime(ctx, cal.timeInMillis, DateUtils.FORMAT_SHOW_TIME)
 
@@ -249,6 +250,7 @@ open class EditEventActivity : AppCompatActivity() {
     private lateinit var persistentState: CalendarChangePersistentState
 
     var calendarProvider: CalendarProviderInterface = CalendarProvider
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     val reminders = mutableListOf<ReminderWrapper>()
 
@@ -570,7 +572,7 @@ open class EditEventActivity : AppCompatActivity() {
             }
 
             // Set default date and time
-            var currentTime = System.currentTimeMillis()
+            var currentTime = clock.currentTimeMillis()
             currentTime -= (currentTime % 1000)  // Drop millis
 
             from = DateTimeUtils.createCalendarTime(currentTime)

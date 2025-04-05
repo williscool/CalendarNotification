@@ -27,6 +27,8 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.displayedEndTime
 import com.github.quarck.calnotify.calendar.displayedStartTime
 import com.github.quarck.calnotify.utils.DateTimeUtils
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import java.util.*
 
 fun dateToStr(ctx: Context, time: Long)
@@ -34,9 +36,9 @@ fun dateToStr(ctx: Context, time: Long)
 
 const val literals = "0123456789QWRTYPASDFGHJKLZXCVBNMqwrtypasdfghjklzxcvbnm"
 
-fun encodedMinuteTimestamp(modulo: Long = 60 * 24 * 30L): String {
+fun encodedMinuteTimestamp(modulo: Long = 60 * 24 * 30L, clock: CNPlusClockInterface = CNPlusSystemClock()): String {
 
-    val ts = System.currentTimeMillis()
+    val ts = clock.currentTimeMillis()
     val minutes = ts / 60L / 1000L
 
     val numLiterals = literals.length
@@ -55,7 +57,10 @@ fun encodedMinuteTimestamp(modulo: Long = 60 * 24 * 30L): String {
     return sb.toString()
 }
 
-class EventFormatter(val ctx: Context) : EventFormatterInterface {
+class EventFormatter(
+    val ctx: Context,
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+) : EventFormatterInterface {
 
     private val defaultLocale by lazy { Locale.getDefault() }
 
@@ -326,7 +331,7 @@ class EventFormatter(val ctx: Context) : EventFormatterInterface {
             else {
                 var flags = DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_WEEKDAY
 
-                if ((time - System.currentTimeMillis()) / (Consts.DAY_IN_MILLISECONDS * 30) >= 3L) // over 3mon - show year
+                if ((time - clock.currentTimeMillis()) / (Consts.DAY_IN_MILLISECONDS * 30) >= 3L) // over 3mon - show year
                     flags = flags or DateUtils.FORMAT_SHOW_YEAR
 
                 ret = DateUtils.formatDateTime(ctx, time, flags)

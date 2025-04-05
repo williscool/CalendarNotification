@@ -39,21 +39,21 @@ import com.github.quarck.calnotify.utils.alarmManager
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.setExactAndAlarm
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 
 
-open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
-        CalendarMonitorInterface {
+open class CalendarMonitor(
+        val calendarProvider: CalendarProviderInterface,
+        override val clock: CNPlusClockInterface = CNPlusSystemClock()
+) : CalendarMonitorInterface {
 
-    public val manualScanner: CalendarMonitorManual by lazy {
-        CalendarMonitorManual(calendarProvider, this)
+    public open val manualScanner: CalendarMonitorManual by lazy {
+        CalendarMonitorManual(calendarProvider, clock)
     }
 
     private var lastScan = 0L
-
-    // For testing only - allows injection of current time
-    protected open val currentTimeForTest: Long
-        get() = System.currentTimeMillis()
 
     override fun onSystemTimeChange(context: Context) {
 
@@ -65,7 +65,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         DevLog.info(LOG_TAG, "onPeriodicRescanBroadcast");
 
-        val currentTime = currentTimeForTest
+        val currentTime = clock.currentTimeMillis()
         if (currentTime - lastScan < Consts.ALARM_THRESHOLD / 4)
             return
 
@@ -77,14 +77,14 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         DevLog.info(LOG_TAG, "onAppResumed")
 
-        val currentTime = currentTimeForTest
+        val currentTime = clock.currentTimeMillis()
         val doMonitorRescan = monitorSettingsChanged || (currentTime - lastScan >= Consts.ALARM_THRESHOLD / 4)
 
         launchRescanService(
                 context,
                 reloadCalendar = true,
                 rescanMonitor = doMonitorRescan,
-                userActionUntil = currentTimeForTest + Consts.MAX_USER_ACTION_DELAY
+                userActionUntil = clock.currentTimeMillis() + Consts.MAX_USER_ACTION_DELAY
         )
     }
 
@@ -106,7 +106,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         try {
             val state = CalendarMonitorState(context)
-            val currentTime = currentTimeForTest
+            val currentTime = clock.currentTimeMillis()
             val nextEventFireFromScan = state.nextEventFireFromScan
             
             DevLog.info(LOG_TAG, "onAlarmBroadcast: currentTime=$currentTime, nextEventFireFromScan=$nextEventFireFromScan, " +
@@ -181,7 +181,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
                 DevLog.info(LOG_TAG, "Broadcast: Seen event ${event.eventId} / ${event.instanceStartTime}")
 
                 event.origin = EventOrigin.ProviderBroadcast
-                event.timeFirstSeen = System.currentTimeMillis()
+                event.timeFirstSeen = clock.currentTimeMillis()
 
                 if (ApplicationController.shouldMarkEventAsHandledAndSkip(context, event)) {
                     eventsToSilentlyDrop.add(event)
@@ -232,7 +232,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
             rescanMonitor: Boolean,
             userActionUntil: Long
     ) {
-        lastScan = System.currentTimeMillis()
+        lastScan = clock.currentTimeMillis()
 
         CalendarMonitorService.startRescanService(context, delayed, reloadCalendar, rescanMonitor, userActionUntil)
     }
@@ -270,11 +270,11 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         try {
 
-            val scanStart = System.currentTimeMillis()
+            val scanStart = clock.currentTimeMillis()
 
             firedAnything = manualScanner.scanForSingleEvent(context, event)
 
-            val scanEnd = System.currentTimeMillis()
+            val scanEnd = clock.currentTimeMillis()
 
             DevLog.info(LOG_TAG, "scanForSingleEvent, perf: ${scanEnd - scanStart}")
         }
@@ -312,7 +312,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         try {
 
-            val t0 = System.currentTimeMillis()
+            val t0 = clock.currentTimeMillis()
 
             val state = CalendarMonitorState(context)
 
@@ -328,15 +328,15 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
                     "prevEventScanTo=${state.prevEventScanTo}, " +
                     "firstScanEver=${state.firstScanEver}")
 
-            val t1 = System.currentTimeMillis()
+            val t1 = clock.currentTimeMillis()
 
             val (nextAlarmFromManual, firedEventsManual) = manualScanner.scanNextEvent(context, state)
 
-            val t2 = System.currentTimeMillis()
+            val t2 = clock.currentTimeMillis()
 
             setOrCancelAlarm(context, nextAlarmFromManual)
 
-            val t3 = System.currentTimeMillis()
+            val t3 = clock.currentTimeMillis()
 
             DevLog.info(LOG_TAG, "Manual scan, next alarm: $nextAlarmFromManual, " +
                     "timings: ${t3-t2},${t2-t1},${t1-t0}")
@@ -363,7 +363,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
 
         if (time != Long.MAX_VALUE && time != 0L) {
 
-            val now = System.currentTimeMillis()
+            val now = clock.currentTimeMillis()
 
             DevLog.info(LOG_TAG, "Setting alarm at $time (T+${(time - now) / 1000L / 60L}min)")
 
@@ -391,7 +391,7 @@ open class CalendarMonitor(val calendarProvider: CalendarProviderInterface) :
     private fun schedulePeriodicRescanAlarm(context: Context) {
 
         val interval = Consts.CALENDAR_RESCAN_INTERVAL
-        val next = System.currentTimeMillis() + interval
+        val next = clock.currentTimeMillis() + interval
 
         DevLog.debug(LOG_TAG, "schedulePeriodicRescanAlarm, interval: $interval");
 

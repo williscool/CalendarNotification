@@ -29,9 +29,13 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustom
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.detailed
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
-class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
+class CalendarChangeRequestMonitor(
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+) : CalendarChangeRequestMonitorInterface {
 
     enum class ValidationResultCommand {
         DeleteRequest,
@@ -51,7 +55,7 @@ class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
 
         val provider = CalendarProvider
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
         val cleanupEventsTo = currentTime - Consts.NEW_EVENT_MONITOR_KEEP_DAYS * Consts.DAY_IN_MILLISECONDS
 
         CalendarChangeRequestsStorage(context).classCustomUse {
@@ -135,7 +139,7 @@ class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
 
         DevLog.info(LOG_TAG, "Re-Applying req, event id ${event.eventId}, type ${event.type}")
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         if (currentTime - event.lastRetryTime < Consts.NEW_EVENT_MIN_MONITOR_RETRY_MILLISECONDS) {
             return
@@ -350,7 +354,7 @@ class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
     }
 
     private fun onAddNewRequestFailed(context: Context, req: CalendarChangeRequest): Boolean {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val title = context.getString(R.string.failed_to_add_event) + req.details.title
 
@@ -385,7 +389,7 @@ class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
 
     private fun onMoveRequestFailed(context: Context, req: CalendarChangeRequest): Boolean {
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val title = context.getString(R.string.failed_to_move_event) + req.details.title
 
@@ -420,7 +424,7 @@ class CalendarChangeRequestMonitor : CalendarChangeRequestMonitorInterface {
 
     private fun onEditEventRequestFailed(context: Context, req: CalendarChangeRequest) : Boolean {
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         val titleBuilder = StringBuilder(context.getString(R.string.failed_to_edit_event))
 

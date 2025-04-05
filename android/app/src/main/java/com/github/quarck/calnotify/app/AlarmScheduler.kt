@@ -39,11 +39,15 @@ import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.utils.alarmManager
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.setExactAndAlarm
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 
-object AlarmScheduler : AlarmSchedulerInterface {
+class AlarmScheduler(override val clock: CNPlusClockInterface) : AlarmSchedulerInterface {
 
-    const val LOG_TAG = "AlarmScheduler"
+    companion object {
+        const val LOG_TAG = "AlarmScheduler"
+    }
 
     override fun rescheduleAlarms(context: Context, settings: Settings, quietHoursManager: QuietHoursManagerInterface) {
 
@@ -60,7 +64,7 @@ object AlarmScheduler : AlarmSchedulerInterface {
 
             if (nextEventAlarm != null) {
 
-                val currentTime = System.currentTimeMillis()
+                val currentTime = clock.currentTimeMillis()
 
                 if (nextEventAlarm < currentTime) {
                     DevLog.error(LOG_TAG, "CRITICAL: rescheduleAlarms: nextAlarm=$nextEventAlarm is less than currentTime $currentTime");
@@ -109,12 +113,12 @@ object AlarmScheduler : AlarmSchedulerInterface {
 
                 if (hasActiveNotifications) {
 
-                    reminderAlarmNextFire = System.currentTimeMillis() +
+                    reminderAlarmNextFire = clock.currentTimeMillis() +
                             settings.reminderIntervalMillisForIndex(reminderState.currentReminderPatternIndex)
 
                     if (quietHoursOneTimeReminderEnabled) {
                         // a little bit of a hack to set it to fire "as soon as possible after quiet hours"
-                        reminderAlarmNextFire = System.currentTimeMillis() + Consts.ALARM_THRESHOLD
+                        reminderAlarmNextFire = clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
                     }
 
                     if (!hasActiveAlarms) {

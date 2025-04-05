@@ -47,6 +47,7 @@ jobs:
     env:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
+      BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 30
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
@@ -57,224 +58,32 @@ jobs:
       with:
         fetch-depth: 1 # Shallow clone for faster checkout
     
-    # Set CPU count for Gradle
-    - name: Set CPU count
-      run: echo "GRADLE_MAX_WORKERS=4" >> $GITHUB_ENV
-      
-    - name: Use Node.js 22.x
-      uses: actions/setup-node@v3
-      with:
-        node-version: 22.x
-        cache: "yarn"
-
+    # Set current date and repository name
     - name: Set current date as env variable
       id: set_date
       run: |
-        echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_ENV
         echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_OUTPUT
 
-    # Set Repository Name As Env Variable
     - name: Set repository name as env variable
       id: set_repo
       run: |
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
-
-    - name: Expose yarn config as "$GITHUB_OUTPUT"
-      id: yarn-config
-      shell: bash
-      run: |
-        echo "CACHE_FOLDER=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
-  
-    - name: Restore yarn cache
-      uses: actions/cache@v3
-      id: yarn-download-cache
-      with:
-        path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
-        key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
-        restore-keys: |
-          yarn-download-cache-
-
-    - name: Restore yarn install state
-      id: yarn-install-state-cache
-      uses: actions/cache@v3
-      with:
-        path: .yarn/ci-cache/
-        key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
-
-    - run: yarn install --immutable --inline-builds
-      env:
-        YARN_ENABLE_GLOBAL_CACHE: 'false'
-        YARN_NM_MODE: 'hardlinks-local'
-        YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz
-        HUSKY: '0'
     
-    - name: Setup react-native-safe-area-context mock
-      run: node scripts/setup_safe_area_mock.js
-
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
+    # Execute the common setup
+    - name: Common Setup
+      id: common-setup
+      uses: ./.github/actions/common-setup
       with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4.0.0
-      with:
-        cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-        gradle-home-cache-cleanup: true
-        gradle-home-cache-includes: |
-          caches
-          notifications
-          jdks
-          wrapper
+    # Note: All caches are now handled in common-setup
 
-    - name: Grant execute permission for gradlew
-      run: cd android && chmod +x gradlew
-
-    # List all available Gradle tasks
-    - name: List Gradle Tasks also warms up gradle cache
-      run: |
-        cd android && \
-        ./gradlew tasks --all
-
-    # Cache build outputs for test job
-    - name: Restore Build Outputs Cache
-      uses: actions/cache@v4
-      id: build-outputs-cache
-      with:
-        path: |
-          android/app/build/intermediates
-          android/app/build/tmp
-          android/app/build/generated
-          android/app/build/outputs
-          android/app/build/intermediates/instrumented_classes
-          android/app/build/intermediates/test_apk
-          android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-    # Cache React Native specific files
-    - name: Restore React Native Cache
-      uses: actions/cache@v4
-      id: react-native-cache
-      with:
-        path: |
-          node_modules/.cache/react-native
-          node_modules/.cache/metro
-          node_modules/.cache/@react-native-community/cli
-        key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-react-native-
-
-    # Cache Gradle files
-    - name: Restore Gradle Cache
-      uses: actions/cache@v4
-      id: gradle-cache
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-          android/.gradle
-          android/build-cache
-        key: ${{ runner.os }}-gradle-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-${{ matrix.arch }}-
-          ${{ runner.os }}-gradle-
-
-    # Cache NDK and CMake builds
-    - name: Restore NDK and CMake Cache
-      uses: actions/cache@v4
-      id: ndk-cache
-      with:
-        path: |
-          .cxx
-          ~/.android/ndk
-          ~/.android/cmake
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/app/build/intermediates/transforms
-        key: ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp') }}
-        restore-keys: |
-          ${{ runner.os }}-ndk-cmake-${{ matrix.arch }}-
-
-    # Cache JS Bundle and Assets
-    - name: Restore JS Bundle and Assets Cache
-      uses: actions/cache@v4
-      id: js-bundle-cache
-      with:
-        path: |
-          android/app/src/main/assets/index.android.bundle
-          android/app/src/main/res/drawable-*
-          android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
-        restore-keys: |
-          ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
-          ${{ runner.os }}-js-bundle-
-
-    # Generate JS bundle using our script
-    - name: Generate JS Bundle
-      if: steps.js-bundle-cache.outputs.cache-hit != 'true'
-      run: |
-        yarn bundle:android
-
-    - name: Update JS Bundle and Assets Cache
-      if: steps.js-bundle-cache.outputs.cache-hit != 'true'
-      uses: actions/cache@v4
-      with:
-        path: |
-          android/app/src/main/assets/index.android.bundle
-          android/app/src/main/res/drawable-*
-          android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
-
-    - name: Restore External Native aka CMake Build Cache
-      uses: actions/cache@v4
-      id: cmake-cache
-      with:
-        path: |
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/app/build/intermediates/transforms
-          android/app/build/intermediates/prefab
-          android/app/build/intermediates/prefab_package
-          android/app/build/intermediates/prefab_metadata
-        key: ${{ runner.os }}-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp', '**/*.so') }}
-        restore-keys: |
-          ${{ runner.os }}-cmake-${{ matrix.arch }}-
-
-    # Build CMake components first
-    - name: Build CMake components first
-      if: steps.cmake-cache.outputs.cache-hit != 'true'
-      run: |
-        cd android && \
-        ./gradlew externalNativeBuildDebug \
-                  externalNativeBuildRelease \
-        --parallel --max-workers=4 --build-cache
-
-    - name: Update CMake Build Outputs Cache
-      if: steps.cmake-cache.outputs.cache-hit != 'true'
-      uses: actions/cache@v4
-      with:
-        path: |
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/app/build/intermediates/transforms
-          android/app/build/intermediates/prefab
-          android/app/build/intermediates/prefab_package
-          android/app/build/intermediates/prefab_metadata
-        key: ${{ runner.os }}-cmake-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.h', '**/*.hpp', '**/*.so') }}
-
+    # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
+    
     - name: Build Android APKs (Debug and Release) with Gradle
-      if: steps.build-outputs-cache.outputs.cache-hit != 'true'
       run: |
         cd android && \
         ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
@@ -284,20 +93,6 @@ jobs:
         --parallel --max-workers=4 --build-cache \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC
-
-    - name: Update Build Outputs Cache
-      if: steps.build-outputs-cache.outputs.cache-hit != 'true'
-      uses: actions/cache@v4
-      with:
-        path: |
-          android/app/build/intermediates
-          android/app/build/tmp
-          android/app/build/generated
-          android/app/build/outputs
-          android/app/build/intermediates/instrumented_classes
-          android/app/build/intermediates/test_apk
-          android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'android/app/**') }}
 
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
@@ -324,7 +119,13 @@ jobs:
           android/app/build/reports/jacoco/jacocoAndroidTestReport/
           android/app/build/outputs/code_coverage/debugAndroidTest/connected/
         retention-days: 90
-
+        
+    # Update all caches
+    - name: Update Caches
+      uses: ./.github/actions/cache-update
+      with:
+        arch: ${{ matrix.arch }}
+        
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
     needs: build
@@ -462,22 +263,63 @@ jobs:
       - name: Upload SIGNED APK Debug
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
+          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
       - name: Upload SIGNED APK RELEASE
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
+          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
       - name: Upload SIGNED AAB (App Bundle) Release
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
+          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
-  test:
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        arch: [x86_64] # Only test on x86_64 to save time and resources
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+    
+    # Execute the common setup
+    - name: Common Setup
+      uses: ./.github/actions/common-setup
+      with:
+        gradle_max_workers: "4"
+        node_version: "22.x"
+    
+    # Run the unit tests
+    - name: Run Unit Tests
+      run: |
+        cd android && \
+        ./gradlew :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
+                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
+                  :${{ env.main_project_module }}:jacocoAndroidTestReport \
+        --continue
+
+    # Upload test results
+    - name: Upload Unit Test Results
+      if: always() # Always upload results even if tests fail
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results
+        path: |
+          android/app/build/reports/
+          android/app/build/test-results/
+          android/app/build/outputs/logs/
+        retention-days: 90
+        
+  integration-test:
     name: Test Android App
     needs: build
     runs-on: ubuntu-latest
@@ -488,6 +330,7 @@ jobs:
     env:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
+      BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 30
     
     steps:
@@ -495,24 +338,18 @@ jobs:
       with:
         fetch-depth: 1
     
-    # Set CPU count for Gradle
-    - name: Set CPU count
-      run: echo "GRADLE_MAX_WORKERS=4" >> $GITHUB_ENV
-      
-    # Restore cached Gradle files
-    - name: Restore Gradle Cache
-      uses: actions/cache@v4
-      id: gradle-cache
+    # Execute the common setup with emulator configuration
+    - name: Common Setup
+      id: common-setup
+      uses: ./.github/actions/common-setup
       with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-          android/.gradle
-          android/build-cache
-        key: ${{ runner.os }}-gradle-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-${{ matrix.arch }}-
-          ${{ runner.os }}-gradle-
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
+        android_api_level: ${{ env.ANDROID_API_LEVEL }}
+        android_target: ${{ env.ANDROID_TARGET }}
+        android_profile: ${{ env.ANDROID_PROFILE }}
+        run_emulator_setup: "true"
 
     # Download the build artifacts - only for the architecture being tested
     - name: Download APK artifacts
@@ -520,103 +357,6 @@ jobs:
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/apk/
-
-    - name: Use Node.js 22.x
-      uses: actions/setup-node@v3
-      with:
-        node-version: 22.x
-        cache: "yarn"
-
-    - name: Install dependencies
-      run: yarn install --immutable --inline-builds
-      env:
-        YARN_ENABLE_GLOBAL_CACHE: 'false'
-        YARN_NM_MODE: 'hardlinks-local'
-        HUSKY: '0'
-
-    - name: Setup react-native-safe-area-context mock
-      run: node scripts/setup_safe_area_mock.js
-
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
-
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4.0.0
-      with:
-        cache-read-only: ${{ github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.number != 62) }}
-        gradle-home-cache-cleanup: true
-        gradle-home-cache-includes: |
-          caches
-          notifications
-          jdks
-          wrapper
-
-    - name: Grant execute permission for gradlew
-      run: cd android && chmod +x gradlew
-
-    # Download build outputs from build job
-    - name: Restore Build Outputs Cache
-      uses: actions/cache@v4
-      id: build-outputs-cache
-      with:
-        path: |
-          android/app/build/intermediates
-          android/app/build/tmp
-          android/app/build/generated
-          android/app/build/outputs
-          android/app/build/intermediates/instrumented_classes
-          android/app/build/intermediates/test_apk
-          android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-    - name: Enable KVM for Emulator
-      run: |
-        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-        sudo udevadm control --reload-rules
-        sudo udevadm trigger --name-match=kvm
-
-    - name: Restore Android SDK and AVD Cache
-      uses: actions/cache@v4
-      id: android-cache
-      with:
-        path: |
-          ~/.android/avd/*
-          ~/.android/adb*
-          ~/.android/sdk/*
-          ~/.android/repositories.cfg
-        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-android-
-
-    - name: Setup Android SDK
-      if: steps.android-cache.outputs.cache-hit != 'true'
-      uses: android-actions/setup-android@v3
-      with:
-        packages: 'tools platform-tools system-images;android-${{ env.ANDROID_API_LEVEL }};${{ env.ANDROID_TARGET }};${{ env.ANDROID_ARCH }}'
-        accept-android-sdk-licenses: true
-        log-accepted-android-sdk-licenses: false
-
-    - name: create AVD and generate snapshot for caching
-      if: steps.android-cache.outputs.cache-hit != 'true'
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: ${{ env.ANDROID_API_LEVEL }}
-        target: ${{ env.ANDROID_TARGET }}
-        arch: ${{ env.ANDROID_ARCH }}
-        profile: ${{ env.ANDROID_PROFILE }}
-        force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-        disable-animations: true
-        script: |
-          adb wait-for-device
-          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;'
-          echo "Generated AVD snapshot for caching."
 
     - name: Make wait script executable
       run: chmod +x scripts/wait_for_emulator.sh
@@ -639,14 +379,17 @@ jobs:
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
 
     - name: Upload Coverage Report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: android-test-coverage-report
         path: |
           android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/debugAndroidTest/connected/
+          android/app/build/reports/
+          android/app/build/test-results/
+          android/app/build/outputs/logs/
         retention-days: 90
-
+    
     - name: Upload Emulator Log
       if: always()
       uses: actions/upload-artifact@v4
@@ -654,7 +397,15 @@ jobs:
         name: emulator-log
         path: emulator.log
         retention-days: 90
-
+        
+    # Update all caches
+    - name: Update Caches
+      if: always()
+      uses: ./.github/actions/cache-update
+      with:
+        arch: ${{ matrix.arch }}
+        run_emulator_setup: "true"
+        
   comment-pr:
     name: Comment on PR with build links
     if: github.event_name == 'pull_request'

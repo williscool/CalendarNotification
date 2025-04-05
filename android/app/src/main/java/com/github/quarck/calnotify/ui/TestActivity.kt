@@ -34,6 +34,8 @@ import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.findOrThrow
 import com.github.quarck.calnotify.utils.toLongOrNull
 import java.util.*
@@ -52,6 +54,8 @@ import java.util.*
 class TestActivity : Activity() {
 
     private val settings by lazy { Settings(this) }
+
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,7 +158,7 @@ class TestActivity : Activity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonStrEvClick(v: View) {
 
-        var currentTime = System.currentTimeMillis()
+        var currentTime = clock.currentTimeMillis()
         var eventId = currentTime
         addDemoEvent(currentTime, eventId, "Publish new version to play store", 18 * 60L, 30L, "", -11958553, false)
         eventId++
@@ -189,7 +193,7 @@ class TestActivity : Activity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonAddRandomEventClick(v: View) {
 
-        val currentTime = System.currentTimeMillis();
+        val currentTime = clock.currentTimeMillis();
 
         val eventId = 10000000L + (currentTime % 1000L)
 
@@ -198,7 +202,7 @@ class TestActivity : Activity() {
                 eventId,
                 false,
                 false,
-                System.currentTimeMillis(),
+                clock.currentTimeMillis(),
                 0,
                 randomTitle(currentTime) + " " + ((currentTime / 100) % 10000).toString(),
                 "",
@@ -207,7 +211,7 @@ class TestActivity : Activity() {
                 currentTime + 3600L * 1000L,
                 currentTime + 2 * 3600L * 1000L,
                 if ((cnt % 2) == 0) "" else "Hawthorne, California, U.S.",
-                System.currentTimeMillis(),
+                clock.currentTimeMillis(),
                 0L,
                 EventDisplayStatus.Hidden,
                 0xff660066.toInt()
@@ -225,7 +229,7 @@ class TestActivity : Activity() {
 
         startActivity(Intent(this, EditEventActivity::class.java))
 
-//        val currentTime = System.currentTimeMillis()
+//        val currentTime = clock.currentTimeMillis()
 //
 //        val cal = CalendarProvider.getCalendars(this).filter { it.isPrimary }.firstOrNull()
 //

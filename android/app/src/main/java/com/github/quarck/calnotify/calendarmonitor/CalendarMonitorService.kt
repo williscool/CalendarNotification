@@ -30,14 +30,14 @@ import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.partialWakeLocked
 import com.github.quarck.calnotify.utils.powerManager
 import com.github.quarck.calnotify.utils.wakeLocked
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 class CalendarMonitorService : IntentService("CalendarMonitorService") {
-    private var _timer: ScheduledExecutorService? = null
-    var timer: ScheduledExecutorService?
-        get() = _timer
-        set(value) { _timer = value }
+    private var _clock: CNPlusClockInterface = CNPlusSystemClock()
+    var clock: CNPlusClockInterface
+        get() = _clock
+        set(value) { _clock = value }
 
     override fun onHandleIntent(intent: Intent?) {
         if (intent == null) {
@@ -107,14 +107,9 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
 
     fun sleep(time: Int) {
         try {
-            if (timer != null) {
-                val latch = java.util.concurrent.CountDownLatch(1)
-                timer?.schedule({ latch.countDown() }, time.toLong(), TimeUnit.MILLISECONDS)
-                latch.await(time.toLong(), TimeUnit.MILLISECONDS)
-            } else {
-                Thread.sleep(time.toLong())
-            }
+            clock.sleep(time.toLong())
         } catch (ex: Exception) {
+            DevLog.error(LOG_TAG, "Exception during sleep: ${ex.detailed}")
         }
     }
 

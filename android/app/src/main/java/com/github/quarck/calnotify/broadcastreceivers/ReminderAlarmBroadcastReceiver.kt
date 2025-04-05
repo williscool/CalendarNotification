@@ -38,8 +38,12 @@ import com.github.quarck.calnotify.reminders.ReminderState
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.utils.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
+
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onReceive(context: Context?, intent: Intent?) {
 
@@ -49,7 +53,7 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
             return;
         }
 
-        context.globalState?.lastTimerBroadcastReceived = System.currentTimeMillis()
+        context.globalState?.lastTimerBroadcastReceived = clock.currentTimeMillis()
 
         partialWakeLocked(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) {
 
@@ -64,7 +68,7 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
             val (currentReminderInterval, nextReminderInterval) =
                     settings.currentAndNextReminderIntervalsMillis(reminderState.currentReminderPatternIndex)
 
-            val currentTime = System.currentTimeMillis()
+            val currentTime = clock.currentTimeMillis()
 
             val hasActiveAlarms = EventsStorage(context).classCustomUse {
                 db -> db.events.any { it.isActiveAlarm && !it.isMuted && !it.isTask }
@@ -184,7 +188,7 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
             hasActiveAlarms: Boolean
     ) {
 
-        DevLog.info(LOG_TAG, "Firing reminder, current time ${System.currentTimeMillis()}")
+        DevLog.info(LOG_TAG, "Firing reminder, current time ${clock.currentTimeMillis()}")
 
         ApplicationController.fireEventReminder(context, itIsAfterQuietHoursReminder, hasActiveAlarms)
 

@@ -3,11 +3,16 @@ package com.github.quarck.calnotify.bluetooth
 import android.bluetooth.*
 import android.content.Context
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 data class BTDeviceSummary(val name: String, val address: String, val currentlyConnected: Boolean)
 
 
-class BTDeviceManager(val ctx: Context){
+class BTDeviceManager(
+    val ctx: Context,
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+){
 
     val adapter: BluetoothAdapter? by lazy { BluetoothAdapter.getDefaultAdapter() }
 
@@ -38,7 +43,7 @@ class BTDeviceManager(val ctx: Context){
     val carModeSilentUntil: Long
         get() {
             val lastCachedValue = storage.carModeSilentUntil
-            val now = System.currentTimeMillis()
+            val now = clock.currentTimeMillis()
 
             if (now + Consts.MINUTE_IN_MILLISECONDS < lastCachedValue ) {
                 return lastCachedValue

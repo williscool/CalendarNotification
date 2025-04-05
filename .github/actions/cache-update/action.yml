@@ -1,0 +1,72 @@
+name: 'Cache Update'
+description: 'Updates caches for Android builds'
+
+inputs:
+  arch:
+    description: 'Architecture (arm64-v8a, x86_64)'
+    required: false
+    default: ""
+  run_emulator_setup:
+    description: 'Whether to run emulator setup steps'
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    # Update JS Bundle and Assets Cache
+    - name: Update JS Bundle and Assets Cache
+      if: always()
+      uses: actions/cache@v4
+      with:
+        path: |
+          android/app/src/main/assets/index.android.bundle
+          android/app/src/main/res/drawable-*
+          android/app/src/main/res/raw-*
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+        
+    # Update NDK and CMake Cache
+    - name: Update NDK and CMake Cache
+      if: always() && inputs.arch != ''
+      uses: actions/cache@v4
+      with:
+        path: |
+          .cxx
+          ~/.android/ndk
+          ~/.android/cmake
+          android/app/.cxx
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+          android/app/build/intermediates/transforms
+          android/app/build/intermediates/prefab
+          android/app/build/intermediates/prefab_package
+          android/app/build/intermediates/prefab_metadata
+        key: ${{ runner.os }}-cmake-${{ inputs.arch }}-${{ hashFiles('android/app/src/main/jniLibs/**/*.so') }}-${{ hashFiles('android/external-native-tasks.txt') }}
+      
+    # Update Build Outputs Cache
+    - name: Update Build Outputs Cache
+      if: always() && inputs.arch != ''
+      uses: actions/cache@v4
+      with:
+        path: |
+          android/app/build/intermediates
+          android/app/build/tmp
+          android/app/build/generated
+          android/app/build/outputs
+          android/app/build/intermediates/instrumented_classes
+          android/app/build/intermediates/test_apk
+          android/app/build/intermediates/test_apk_androidTest
+        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        
+    # Update Android SDK and AVD cache
+    - name: Update Android SDK and AVD Cache
+      if: always() && inputs.run_emulator_setup == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.android/avd/*
+          ~/.android/adb*
+          ~/.android/sdk/*
+          ~/.android/repositories.cfg
+        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }} 

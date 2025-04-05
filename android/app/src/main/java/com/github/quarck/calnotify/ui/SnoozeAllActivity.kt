@@ -102,6 +102,8 @@ open class SnoozeAllActivity : AppCompatActivity() {
     var snoozeUntil_TimePicker: TimePicker? = null
     private var searchQuery: String? = null
 
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
+
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
@@ -111,7 +113,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_snooze_all)
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         settings = Settings(this)
         formatter = EventFormatter(this)
@@ -523,7 +525,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
             date.set(Calendar.HOUR_OF_DAY, timePicker.hour)
             date.set(Calendar.MINUTE, timePicker.minute)
 
-            val snoozeFor = date.timeInMillis - System.currentTimeMillis() + Consts.ALARM_THRESHOLD
+            val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
 
             if (snoozeFor > 0L) {
                 snoozeEvent(snoozeFor)

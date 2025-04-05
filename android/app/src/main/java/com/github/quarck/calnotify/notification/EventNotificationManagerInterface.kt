@@ -22,8 +22,11 @@ package com.github.quarck.calnotify.notification
 import android.content.Context
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
 interface EventNotificationManagerInterface {
+    val clock: CNPlusClockInterface
+    
     fun onEventAdded(ctx: Context, formatter: EventFormatterInterface, event: EventAlertRecord);
 
     fun onEventDismissing(context: Context, eventId: Long, notificationId: Int);

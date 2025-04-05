@@ -22,7 +22,11 @@ package com.github.quarck.calnotify.app
 import android.content.Context
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.quiethours.QuietHoursManagerInterface
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
 interface AlarmSchedulerInterface {
+    // Clock interface for time-related operations
+    val clock: CNPlusClockInterface
+    
     fun rescheduleAlarms(context: Context, settings: Settings, quietHoursManager: QuietHoursManagerInterface)
 }

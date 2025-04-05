@@ -24,9 +24,14 @@ import android.content.Intent
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
 
 interface CalendarMonitorInterface {
+    /**
+     * Gets the clock instance used by this monitor
+     */
+    val clock: CNPlusClockInterface
 
     fun onSystemTimeChange(context: Context)
 

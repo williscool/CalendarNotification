@@ -69,6 +69,8 @@ import com.github.quarck.calnotify.utils.powerManager
 import org.jetbrains.annotations.NotNull
 import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -112,6 +114,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     private val undoManager by lazy { UndoManager }
 
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
 
   override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,7 +128,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         //supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
 
-        shouldForceRepost = (System.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
+        shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
 
         refreshLayout = find<SwipeRefreshLayout?>(R.id.cardview_refresh_layout)
 
@@ -175,7 +178,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     private fun refreshReminderLastFired() {
         // avoid firing reminders when UI is active and user is interacting with it
-        ReminderState(applicationContext).reminderLastFireTime = System.currentTimeMillis()
+        ReminderState(applicationContext).reminderLastFireTime = clock.currentTimeMillis()
     }
 
     public override fun onStop() {
@@ -534,7 +537,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         background {
 
-            DismissedEventsStorage(this).classCustomUse { it.purgeOld(System.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
+            DismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
 
             val events =
                     EventsStorage(this).classCustomUse {
