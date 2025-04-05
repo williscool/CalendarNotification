@@ -232,7 +232,6 @@ class MockContextProvider(
     private fun setupMockService() {
         DevLog.info(LOG_TAG, "Setting up mock service")
         
-        // Create a simple mock service that just logs intent processing
         mockService = spyk(CalendarMonitorService()) {
             every { applicationContext } returns fakeContext
             every { baseContext } returns fakeContext

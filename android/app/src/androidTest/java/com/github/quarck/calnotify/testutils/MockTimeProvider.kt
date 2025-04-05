@@ -3,8 +3,7 @@ package com.github.quarck.calnotify.testutils
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
-import io.mockk.every
-import io.mockk.mockk
+import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -20,23 +19,23 @@ class MockTimeProvider(
 ) {
     private val LOG_TAG = "MockTimeProvider"
     
-    // Core components - initialized only once
-    val mockTimer: ScheduledExecutorService? = null
+    // Use a real timer instead of a mock to prevent recursion issues
+    val timer: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     val testClock: CNPlusTestClock
     val currentTime = AtomicLong(startTime)
     
-    // Track if we've been initialized to prevent double mocking
+    // Track if we've been initialized to prevent double initialization
     private var isInitialized = false
     
     init {
         DevLog.info(LOG_TAG, "Initializing MockTimeProvider with startTime=$startTime")
         
-        // Create the CNPlusTestClock with our mockTimer
-        testClock = CNPlusTestClock(startTime, mockTimer)
+        // Create the CNPlusTestClock with our real timer
+        testClock = CNPlusTestClock(startTime, timer)
     }
     
     /**
-     * Sets up the mock timer
+     * Sets up the mock time provider
      */
     fun setup() {
         if (isInitialized) {
@@ -45,7 +44,10 @@ class MockTimeProvider(
         }
         
         DevLog.info(LOG_TAG, "Setting up MockTimeProvider")
-
+        
+        // The CNPlusTestClock already configures the timer in its init block
+        // so we don't need to do additional setup
+        
         // Initialize the current time
         currentTime.set(testClock.currentTimeMillis())
         
@@ -94,6 +96,14 @@ class MockTimeProvider(
      */
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up MockTimeProvider")
+        timer.shutdown()
+        try {
+            if (!timer.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                timer.shutdownNow()
+            }
+        } catch (e: InterruptedException) {
+            timer.shutdownNow()
+        }
         isInitialized = false
     }
 }

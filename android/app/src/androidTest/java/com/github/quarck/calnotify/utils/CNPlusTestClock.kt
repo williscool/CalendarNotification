@@ -58,23 +58,39 @@ class CNPlusTestClock(
         // Clear any existing tasks
         scheduledTasks.clear()
         
-        // Configure the mock timer's schedule method
-        every { 
-            timer.schedule(any<Runnable>(), any<Long>(), any<TimeUnit>()) 
-        } answers { call ->
-            val task = call.invocation.args[0] as Runnable
-            val delay = call.invocation.args[1] as Long
-            val unit = call.invocation.args[2] as TimeUnit
-            val dueTime = currentTimeMs + unit.toMillis(delay)
-            
-            DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: $currentTimeMs, delay: $delay ${unit.name})")
-            scheduledTasks.add(Pair(task, dueTime))
-            // Sort by due time to process in order
-            scheduledTasks.sortBy { it.second }
-            
-            // Return a mock ScheduledFuture
-            mockk<java.util.concurrent.ScheduledFuture<*>>(relaxed = true)
+        // Check if this is a real timer or a mock - only mock if it's a MockK instance
+        if (timer::class.java.name.contains("mockk")) {
+            // Configure the mock timer's schedule method
+            every { 
+                timer.schedule(any<Runnable>(), any<Long>(), any<TimeUnit>()) 
+            } answers { call ->
+                val task = call.invocation.args[0] as Runnable
+                val delay = call.invocation.args[1] as Long
+                val unit = call.invocation.args[2] as TimeUnit
+                val dueTime = currentTimeMs + unit.toMillis(delay)
+                
+                DevLog.info(LOG_TAG, "[mockTimer] Scheduling task to run at $dueTime (current: $currentTimeMs, delay: $delay ${unit.name})")
+                scheduleTask(unit.toMillis(delay), task)
+                
+                // Return a mock ScheduledFuture
+                mockk<java.util.concurrent.ScheduledFuture<*>>(relaxed = true)
+            }
+        } else {
+            // For real timers, we'll use the direct scheduling method without mocking
+            DevLog.info(LOG_TAG, "Using real timer - no mocking required")
         }
+    }
+    
+    /**
+     * Schedules a task to run after the specified delay
+     * This method works for both real and mock timers
+     */
+    fun scheduleTask(delayMs: Long, task: Runnable) {
+        val dueTime = currentTimeMs + delayMs
+        DevLog.info(LOG_TAG, "Scheduling task to run at $dueTime (current: $currentTimeMs, delay: ${delayMs}ms)")
+        scheduledTasks.add(Pair(task, dueTime))
+        // Sort by due time to process in order
+        scheduledTasks.sortBy { it.second }
     }
     
     /**
