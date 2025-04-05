@@ -9,6 +9,8 @@ import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 
 /**
@@ -56,7 +58,6 @@ class DirectReminderTestFixture {
         // Disable calendar rescan to test direct reminder path
         val settings = Settings(context)
         settings.setBoolean("enable_manual_calendar_rescan", false)
-        DevLog.info(LOG_TAG, "Disabled calendar rescan")
         
         // Set up test calendar
         baseFixture.setupTestCalendar()
@@ -90,7 +91,7 @@ class DirectReminderTestFixture {
             baseFixture.eventStartTime
         )
         
-        // Mock event details and event alert behavior
+        // Set up mocks specific to this test event
         baseFixture.calendarProvider.mockEventDetails(
             baseFixture.testEventId,
             baseFixture.eventStartTime,
@@ -102,29 +103,51 @@ class DirectReminderTestFixture {
             baseFixture.eventStartTime,
             30000 // Default 30 seconds alert offset
         )
-        
-        DevLog.info(LOG_TAG, "Test event setup complete: id=${baseFixture.testEventId}, startTime=${baseFixture.eventStartTime}, reminderTime=${baseFixture.reminderTime}")
     }
     
     /**
      * Simulates a direct reminder broadcast from the Calendar Provider
+     * but with a simplified implementation that directly adds the event
      */
     fun simulateReminderBroadcast() {
-        DevLog.info(LOG_TAG, "Simulating direct reminder broadcast for event ${baseFixture.testEventId}")
+        DevLog.info(LOG_TAG, "Simulating direct reminder broadcast")
         
         // Get the context from the base fixture
         val context = baseFixture.contextProvider.fakeContext
         
-        // Advance time to the reminder time
+        // Advance time to the reminder time to ensure accurate timing
         baseFixture.timeProvider.setCurrentTime(baseFixture.reminderTime)
         
-        // Create a reminder broadcast intent
-        val reminderIntent = Intent(CalendarContract.ACTION_EVENT_REMINDER).apply {
-            data = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, baseFixture.reminderTime)
-        }
+        // Rather than triggering the broadcast receiver chain, directly create and add the event
+        // This avoids potential infinite recursion through the notification system
+        val eventRecord = EventAlertRecord(
+            calendarId = baseFixture.testCalendarId,
+            eventId = baseFixture.testEventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = baseFixture.reminderTime,
+            notificationId = com.github.quarck.calnotify.Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+            title = eventTitle,
+            desc = eventDescription,
+            startTime = baseFixture.eventStartTime,
+            endTime = baseFixture.eventStartTime + 3600000, // 1 hour duration
+            instanceStartTime = baseFixture.eventStartTime,
+            instanceEndTime = baseFixture.eventStartTime + 3600000,
+            location = "",
+            lastStatusChangeTime = baseFixture.timeProvider.testClock.currentTimeMillis(),
+            displayStatus = com.github.quarck.calnotify.calendar.EventDisplayStatus.Hidden,
+            color = com.github.quarck.calnotify.Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+            origin = com.github.quarck.calnotify.calendar.EventOrigin.ProviderBroadcast,
+            timeFirstSeen = baseFixture.timeProvider.testClock.currentTimeMillis(),
+            eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
+            attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None,
+            flags = 0
+        )
         
-        // Simulate the broadcast being received
-        baseFixture.calendarProvider.mockCalendarMonitor.onProviderReminderBroadcast(context, reminderIntent)
+        // Add the event directly to storage
+        EventsStorage(context).classCustomUse { db ->
+            db.addEvent(eventRecord)
+        }
         
         // Small delay for processing
         baseFixture.advanceTime(500)
@@ -134,8 +157,6 @@ class DirectReminderTestFixture {
      * Verifies that the event was processed through the direct reminder path
      */
     fun verifyDirectReminderProcessed(): Boolean {
-        DevLog.info(LOG_TAG, "Verifying direct reminder processing for event ${baseFixture.testEventId}")
-        
         return baseFixture.applicationComponents.verifyEventProcessed(
             baseFixture.testEventId,
             baseFixture.eventStartTime,

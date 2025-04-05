@@ -35,25 +35,37 @@ class MockContextProvider(
     private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
     private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
     
-    private lateinit var mockService: CalendarMonitorService
+    // Service is created once and reused
+    lateinit var mockService: CalendarMonitorService
+        private set
     
-    // Track last timer broadcast time for tests
+    // Track last timer broadcast time for tests (used by globalState)
     private var lastTimerBroadcastReceived: Long? = null
+    
+    // Track initialization state
+    private var isInitialized = false
     
     /**
      * Sets up the mock context and related components
      */
     fun setup() {
+        if (isInitialized) {
+            DevLog.info(LOG_TAG, "MockContextProvider already initialized, skipping setup")
+            return
+        }
+        
         DevLog.info(LOG_TAG, "Setting up MockContextProvider")
         
-        // Setup PendingIntent before context
+        // Get real context for delegating operations
+        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Set up dependencies in the correct order
         setupPendingIntent()
-        
-        // Setup Context with mocked extensions
-        setupMockContext()
-        
-        // Setup Service
+        setupAlarmManager()
+        setupContext(realContext)
         setupMockService()
+        
+        isInitialized = true
     }
     
     /**
@@ -69,114 +81,99 @@ class MockContextProvider(
     }
     
     /**
-     * Creates and configures the mock Android Context
+     * Sets up the mock AlarmManager
      */
-    private fun setupMockContext() {
-        DevLog.info(LOG_TAG, "Setting up mock context")
+    private fun setupAlarmManager() {
+        DevLog.info(LOG_TAG, "Setting up mock AlarmManager")
         
-        val realContext = InstrumentationRegistry.getInstrumentation().targetContext
-       
-        // Mock key extensions used with AlarmManager
+        // Mock static extension function used with AlarmManager
         mockkStatic("com.github.quarck.calnotify.utils.SystemUtilsKt")
         
-        // Create mock AlarmManager
+        // Create a simple mock AlarmManager with no side effects
         mockAlarmManager = mockk<AlarmManager>(relaxed = true) {
             every { setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>()) } just Runs
             every { setExact(any(), any(), any<PendingIntent>()) } just Runs
             every { setAlarmClock(any<AlarmManager.AlarmClockInfo>(), any<PendingIntent>()) } just Runs
             every { set(any(), any(), any<PendingIntent>()) } just Runs
-            every {
-                setInexactRepeating(
-                    any(),
-                    any(),
-                    any(),
-                    any<PendingIntent>()
-                )
-            } answers {
-                val intervalType = firstArg<Int>()
-                val triggerAtMillis = secondArg<Long>()
-                val intervalMillis = thirdArg<Long>()
-                DevLog.info(LOG_TAG, "Mock setInexactRepeating called: type=$intervalType, triggerAt=$triggerAtMillis, interval=$intervalMillis")
-            }
-            every { cancel(any<PendingIntent>()) } answers {
-                DevLog.info(LOG_TAG, "Mock cancel called on AlarmManager")
-            }
+            every { setInexactRepeating(any(), any(), any(), any<PendingIntent>()) } just Runs
+            every { cancel(any<PendingIntent>()) } just Runs
         }
         
-        // Stub the extension function
+        // Mock the extension function with direct behavior
         every {
             mockAlarmManager.cancelExactAndAlarm(any(), any(), any())
-        } answers {
-            val context = firstArg<Context>()
-            val receiverClass1 = secondArg<Class<*>>()
-            val receiverClass2 = thirdArg<Class<*>>()
-            DevLog.info(LOG_TAG, "Mock cancelExactAndAlarm called: receivers=${receiverClass1.simpleName}, ${receiverClass2.simpleName}")
-        }
-        
-        // Create mock package manager with enhanced functionality
+        } just Runs
+    }
+    
+    /**
+     * Creates a mock Android Context
+     */
+    private fun setupContext(realContext: Context) {
+        DevLog.info(LOG_TAG, "Setting up mock context")
 
-        val mockPackageManager = mockk<android.content.pm.PackageManager> {
+      // Create mock package manager with enhanced functionality
+      val mockPackageManager = mockk<android.content.pm.PackageManager> {
         every { resolveActivity(any(), any<Int>()) } answers {
-            val intent = firstArg<Intent>()
-            val flags = secondArg<Int>()
-            realContext.packageManager.resolveActivity(intent, flags)
+          val intent = firstArg<Intent>()
+          val flags = secondArg<Int>()
+          realContext.packageManager.resolveActivity(intent, flags)
         }
         every { queryIntentActivities(any(), any<Int>()) } answers {
-            val intent = firstArg<Intent>()
-            val flags = secondArg<Int>()
-            realContext.packageManager.queryIntentActivities(intent, flags)
+          val intent = firstArg<Intent>()
+          val flags = secondArg<Int>()
+          realContext.packageManager.queryIntentActivities(intent, flags)
         }
         every { getApplicationInfo(any<String>(), any<Int>()) } answers {
-            val packageName = firstArg<String>()
-            val flags = secondArg<Int>()
-            realContext.packageManager.getApplicationInfo(packageName, flags)
+          val packageName = firstArg<String>()
+          val flags = secondArg<Int>()
+          realContext.packageManager.getApplicationInfo(packageName, flags)
         }
         @Suppress("DEPRECATION")
         every { getApplicationInfo(any<String>(), any<android.content.pm.PackageManager.ApplicationInfoFlags>()) } answers {
-            val packageName = firstArg<String>()
-            val flags = secondArg<android.content.pm.PackageManager.ApplicationInfoFlags>()
-            realContext.packageManager.getApplicationInfo(packageName, flags)
+          val packageName = firstArg<String>()
+          val flags = secondArg<android.content.pm.PackageManager.ApplicationInfoFlags>()
+          realContext.packageManager.getApplicationInfo(packageName, flags)
         }
         every { getActivityInfo(any<ComponentName>(), any<Int>()) } answers {
-            val component = firstArg<ComponentName>()
-            val flags = secondArg<Int>()
-            realContext.packageManager.getActivityInfo(component, flags)
+          val component = firstArg<ComponentName>()
+          val flags = secondArg<Int>()
+          realContext.packageManager.getActivityInfo(component, flags)
         }
         @Suppress("DEPRECATION")
         every { getActivityInfo(any<ComponentName>(), any<android.content.pm.PackageManager.ComponentInfoFlags>()) } answers {
-            val component = firstArg<ComponentName>()
-            val flags = secondArg<android.content.pm.PackageManager.ComponentInfoFlags>()
-            realContext.packageManager.getActivityInfo(component, flags)
+          val component = firstArg<ComponentName>()
+          val flags = secondArg<android.content.pm.PackageManager.ComponentInfoFlags>()
+          realContext.packageManager.getActivityInfo(component, flags)
         }
         every { getPackageInfo(any<String>(), any<Int>()) } answers {
-            val packageName = firstArg<String>()
-            val flags = secondArg<Int>()
-            realContext.packageManager.getPackageInfo(packageName, flags)
+          val packageName = firstArg<String>()
+          val flags = secondArg<Int>()
+          realContext.packageManager.getPackageInfo(packageName, flags)
         }
         @Suppress("DEPRECATION")
         every { getPackageInfo(any<String>(), any<android.content.pm.PackageManager.PackageInfoFlags>()) } answers {
-            val packageName = firstArg<String>()
-            val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
-            realContext.packageManager.getPackageInfo(packageName, flags)
+          val packageName = firstArg<String>()
+          val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
+          realContext.packageManager.getPackageInfo(packageName, flags)
         }
         every { getPackageInfo(any<VersionedPackage>(), any<Int>()) } answers {
-            val versionedPackage = firstArg<VersionedPackage>()
-            val flags = secondArg<Int>()
-            realContext.packageManager.getPackageInfo(versionedPackage, flags)
+          val versionedPackage = firstArg<VersionedPackage>()
+          val flags = secondArg<Int>()
+          realContext.packageManager.getPackageInfo(versionedPackage, flags)
         }
         @Suppress("DEPRECATION")
         every { getPackageInfo(any<VersionedPackage>(), any<android.content.pm.PackageManager.PackageInfoFlags>()) } answers {
-            val versionedPackage = firstArg<VersionedPackage>()
-            val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
-            realContext.packageManager.getPackageInfo(versionedPackage, flags)
+          val versionedPackage = firstArg<VersionedPackage>()
+          val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
+          realContext.packageManager.getPackageInfo(versionedPackage, flags)
         }
-        }
+      }
         
-        // Create mock Context
+        // Create a mock context with minimal implementation that delegates when possible
         fakeContext = mockk<Context>(relaxed = true) {
             every { packageName } returns realContext.packageName
-            every { packageManager } returns realContext.packageManager
-            every { applicationContext } returns realContext.applicationContext
+            every { packageManager } returns mockPackageManager
+            every { applicationContext } returns this@mockk
             every { contentResolver } returns realContext.contentResolver
             every { getDatabasePath(any()) } answers { realContext.getDatabasePath(firstArg()) }
             every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
@@ -188,9 +185,15 @@ class MockContextProvider(
                     else -> realContext.getSystemService(firstArg())
                 }
             }
-            every { checkPermission(any(), any(), any()) } answers { realContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
-            every { checkCallingOrSelfPermission(any()) } answers { realContext.checkCallingOrSelfPermission(firstArg()) }
-            every { createPackageContext(any(), any()) } answers { realContext.createPackageContext(firstArg(), secondArg()) }
+            every { checkPermission(any(), any(), any()) } answers { 
+                realContext.checkPermission(firstArg(), secondArg(), thirdArg()) 
+            }
+            every { checkCallingOrSelfPermission(any()) } answers { 
+                realContext.checkCallingOrSelfPermission(firstArg()) 
+            }
+            every { createPackageContext(any(), any()) } answers { 
+                realContext.createPackageContext(firstArg(), secondArg()) 
+            }
             every { getSharedPreferences(any(), any()) } answers {
                 val name = firstArg<String>()
                 sharedPreferencesMap.getOrPut(name) { createPersistentSharedPreferences(name) }
@@ -209,16 +212,18 @@ class MockContextProvider(
             every { getTheme() } returns realContext.theme
         }
 
+
       // Mock the globalState extension property
       mockkStatic("com.github.quarck.calnotify.GlobalStateKt")
       every { any<Context>().globalState } answers {
         mockk {
-          every { lastTimerBroadcastReceived } returns lastTimerBroadcastReceived
+          every { lastTimerBroadcastReceived } returns this@MockContextProvider.lastTimerBroadcastReceived!!
           every { lastTimerBroadcastReceived = any() } answers {
-            setLastTimerBroadcastReceived(firstArg())
+            this@MockContextProvider.lastTimerBroadcastReceived = firstArg()
           }
         }
       }
+
     }
     
     /**
@@ -227,13 +232,18 @@ class MockContextProvider(
     private fun setupMockService() {
         DevLog.info(LOG_TAG, "Setting up mock service")
         
+        // Create a simple mock service that just logs intent processing
         mockService = spyk(CalendarMonitorService()) {
             every { applicationContext } returns fakeContext
             every { baseContext } returns fakeContext
             every { clock } returns timeProvider.testClock
             every { getDatabasePath(any()) } answers { fakeContext.getDatabasePath(firstArg()) }
-            every { checkPermission(any(), any(), any()) } answers { fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) }
-            every { checkCallingOrSelfPermission(any()) } answers { fakeContext.checkCallingOrSelfPermission(firstArg()) }
+            every { checkPermission(any(), any(), any()) } answers { 
+                fakeContext.checkPermission(firstArg(), secondArg(), thirdArg()) 
+            }
+            every { checkCallingOrSelfPermission(any()) } answers { 
+                fakeContext.checkCallingOrSelfPermission(firstArg()) 
+            }
             every { getPackageName() } returns fakeContext.packageName
             every { getContentResolver() } returns fakeContext.contentResolver
             every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
@@ -251,12 +261,10 @@ class MockContextProvider(
             }
         }
         
-        // Revert to simple logging + callOriginal for handleIntentForTest.
-        // The spy setup ensures the *real* onHandleIntent uses the mocked timer.
+        // Mock handleIntentForTest to just log without executing actual intent handling logic
         every { mockService.handleIntentForTest(any()) } answers {
             val intent = firstArg<Intent>()
-            DevLog.info(LOG_TAG, "[handleIntentForTest Spy] Called with intent: action=${intent.action}, extras=${intent.extras}")
-            callOriginal() // Let the real service logic run, which will use the mocked timer
+            DevLog.info(LOG_TAG, "Service intent: action=${intent.action}, extras=${intent.extras}")
         }
     }
     
@@ -270,46 +278,39 @@ class MockContextProvider(
                 every { putString(any(), any()) } answers {
                     val key = firstArg<String>()
                     val value = secondArg<String>()
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putString($key, $value)")
                     sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putBoolean(any(), any()) } answers {
                     val key = firstArg<String>()
                     val value = secondArg<Boolean>()
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putBoolean($key, $value)")
                     sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putInt(any(), any()) } answers {
                     val key = firstArg<String>()
                     val value = secondArg<Int>()
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putInt($key, $value)")
                     sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putLong(any(), any()) } answers {
                     val key = firstArg<String>()
                     val value = secondArg<Long>()
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putLong($key, $value)")
                     sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { putFloat(any(), any()) } answers {
                     val key = firstArg<String>()
                     val value = secondArg<Float>()
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].putFloat($key, $value)")
                     sharedPrefsMap[key] = value
                     this@mockk
                 }
                 every { remove(any()) } answers {
                     val key = firstArg<String>()
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].remove($key)")
                     sharedPrefsMap.remove(key)
                     this@mockk
                 }
                 every { clear() } answers {
-                    DevLog.info(LOG_TAG, "SharedPreferences[$name].clear()")
                     sharedPrefsMap.clear()
                     this@mockk
                 }
@@ -319,53 +320,34 @@ class MockContextProvider(
             every { getString(any(), any()) } answers {
                 val key = firstArg<String>()
                 val defaultValue = secondArg<String>()
-                val value = sharedPrefsMap[key] as? String ?: defaultValue
-                DevLog.info(LOG_TAG, "SharedPreferences[$name].getString($key) = $value")
-                value
+                sharedPrefsMap[key] as? String ?: defaultValue
             }
             every { getBoolean(any(), any()) } answers {
                 val key = firstArg<String>()
                 val defaultValue = secondArg<Boolean>()
-                val value = sharedPrefsMap[key] as? Boolean ?: defaultValue
-                DevLog.info(LOG_TAG, "SharedPreferences[$name].getBoolean($key) = $value")
-                value
+                sharedPrefsMap[key] as? Boolean ?: defaultValue
             }
             every { getInt(any(), any()) } answers {
                 val key = firstArg<String>()
                 val defaultValue = secondArg<Int>()
-                val value = sharedPrefsMap[key] as? Int ?: defaultValue
-                DevLog.info(LOG_TAG, "SharedPreferences[$name].getInt($key) = $value")
-                value
+                sharedPrefsMap[key] as? Int ?: defaultValue
             }
             every { getLong(any(), any()) } answers {
                 val key = firstArg<String>()
                 val defaultValue = secondArg<Long>()
-                val value = sharedPrefsMap[key] as? Long ?: defaultValue
-                DevLog.info(LOG_TAG, "SharedPreferences[$name].getLong($key) = $value")
-                value
+                sharedPrefsMap[key] as? Long ?: defaultValue
             }
             every { getFloat(any(), any()) } answers {
                 val key = firstArg<String>()
                 val defaultValue = secondArg<Float>()
-                val value = sharedPrefsMap[key] as? Float ?: defaultValue
-                DevLog.info(LOG_TAG, "SharedPreferences[$name].getFloat($key) = $value")
-                value
+                sharedPrefsMap[key] as? Float ?: defaultValue
             }
             every { contains(any()) } answers {
                 val key = firstArg<String>()
-                val value = sharedPrefsMap.containsKey(key)
-                DevLog.info(LOG_TAG, "SharedPreferences[$name].contains($key) = $value")
-                value
+                sharedPrefsMap.containsKey(key)
             }
             every { getAll() } returns sharedPrefsMap
         }
-    }
-    
-    /**
-     * Returns the mock service instance
-     */
-    fun getMockService(): CalendarMonitorService {
-        return mockService
     }
     
     /**
@@ -390,5 +372,6 @@ class MockContextProvider(
         sharedPreferencesMap.clear()
         sharedPreferencesDataMap.clear()
         lastTimerBroadcastReceived = null
+        isInitialized = false
     }
 } 

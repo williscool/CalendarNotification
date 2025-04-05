@@ -6,6 +6,7 @@ import com.github.quarck.calnotify.utils.CNPlusTestClock
 import io.mockk.every
 import io.mockk.mockk
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -19,13 +20,18 @@ class MockTimeProvider(
 ) {
     private val LOG_TAG = "MockTimeProvider"
     
-    // Core components
+    // Core components - initialized only once
     val mockTimer: ScheduledExecutorService? = null
     val testClock: CNPlusTestClock
     val currentTime = AtomicLong(startTime)
     
+    // Track if we've been initialized to prevent double mocking
+    private var isInitialized = false
+    
     init {
         DevLog.info(LOG_TAG, "Initializing MockTimeProvider with startTime=$startTime")
+        
+        // Create the CNPlusTestClock with our mockTimer
         testClock = CNPlusTestClock(startTime, mockTimer)
     }
     
@@ -33,13 +39,17 @@ class MockTimeProvider(
      * Sets up the mock timer
      */
     fun setup() {
-        DevLog.info(LOG_TAG, "Setting up MockTimeProvider")
+        if (isInitialized) {
+            DevLog.info(LOG_TAG, "MockTimeProvider already initialized, skipping setup")
+            return
+        }
         
-        // Add extra configuration to ensure the CNPlusTestClock is properly set up
-        // to prevent infinite loops in scheduling
+        DevLog.info(LOG_TAG, "Setting up MockTimeProvider")
 
-        // Reset current time to the start time to ensure consistency
+        // Initialize the current time
         currentTime.set(testClock.currentTimeMillis())
+        
+        isInitialized = true
     }
     
     /**
@@ -84,6 +94,6 @@ class MockTimeProvider(
      */
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up MockTimeProvider")
-        // Nothing to clean up, included for consistency
+        isInitialized = false
     }
 }

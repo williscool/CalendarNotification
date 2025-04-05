@@ -2,8 +2,6 @@ package com.github.quarck.calnotify.testutils
 
 import android.content.Context
 import android.content.Intent
-import com.github.quarck.calnotify.Consts
-import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -11,8 +9,6 @@ import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
-import com.github.quarck.calnotify.monitorstorage.MonitorStorage
-import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
@@ -44,19 +40,31 @@ class MockApplicationComponents(
     lateinit var mockAlarmScheduler: AlarmSchedulerInterface
         private set
     
+    // Track initialization state
+    private var isInitialized = false
+    
     /**
      * Sets up all application components
      */
     fun setup() {
+        if (isInitialized) {
+            DevLog.info(LOG_TAG, "MockApplicationComponents already initialized, skipping setup")
+            return
+        }
+        
         DevLog.info(LOG_TAG, "Setting up MockApplicationComponents")
         
         // Set default locale for date formatting
         Locale.setDefault(Locale.US)
         
+        // Set up components in order
         setupMockFormatter()
         setupMockNotificationManager()
         setupMockAlarmScheduler()
+        setupReminderState()
         setupApplicationController()
+        
+        isInitialized = true
     }
     
     /**
@@ -74,100 +82,24 @@ class MockApplicationComponents(
             every { formatTimeDuration(any(), any()) } returns "Mock duration"
         }
     }
-
-  /**
-   * Sets up a mock notification manager
-   */
-  private fun setupMockNotificationManager() {
-
-    // Set up a more faithful mock notification manager
-    mockNotificationManager = spyk(object : EventNotificationManager() {
-      override fun postNotification(
-        ctx: Context,
-        formatter: EventFormatterInterface,
-        event: EventAlertRecord,
-        notificationSettings: NotificationSettings,
-        isForce: Boolean,
-        wasCollapsed: Boolean,
-        snoozePresetsNotFiltered: LongArray,
-        isQuietPeriodActive: Boolean,
-        isReminder: Boolean,
-        forceAlarmStream: Boolean
-      ) {
-        // Do nothing - prevent actual notification posting
-        DevLog.info(LOG_TAG, "Mock postNotification called for event ${event.eventId}")
-      }
-
-      override fun postEventNotifications(ctx: Context, formatter: EventFormatterInterface, force: Boolean, primaryEventId: Long?) {
-        DevLog.info(LOG_TAG, "Mock postEventNotifications called with force=$force, primaryEventId=$primaryEventId")
-
-        // Only mark events as handled when explicitly processing alerts via alarm broadcast
-        // This replicates the real workflow where:
-        // 1. Events are discovered in monitor scan
-        // 2. Later when alarm fires, events are processed and marked as handled
-
-        // Only mark alerts as handled if this is triggered as part of alarm handling
-        if (primaryEventId != null ) {
-          MonitorStorage(ctx).classCustomUse { db ->
-            val alertsToHandle = if (primaryEventId != null) {
-              db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
-            } else {
-              // Handle all pending alerts if this is a broadcast-triggered notification
-              db.alerts.filter { !it.wasHandled && it.alertTime <= timeProvider.testClock.currentTimeMillis() }
-            }
-
-            if (alertsToHandle.isNotEmpty()) {
-              alertsToHandle.forEach { alert ->
-                alert.wasHandled = true
-                db.updateAlert(alert)
-                DevLog.info(LOG_TAG, "Marked alert as handled for event ${alert.eventId}")
-              }
-            }
-          }
-        }
-
-      }
-    })
-
-  }
-
-
-  /**
+    
+    /**
+     * Sets up a mock notification manager
+     */
+    private fun setupMockNotificationManager() {
+        DevLog.info(LOG_TAG, "Setting up mock notification manager")
+        
+        // Create a basic notification manager that doesn't do anything real
+        mockNotificationManager = mockk<EventNotificationManagerInterface>(relaxed = true)
+    }
+    
+    /**
      * Sets up a mock alarm scheduler
      */
     private fun setupMockAlarmScheduler() {
         DevLog.info(LOG_TAG, "Setting up mock alarm scheduler")
         
         mockAlarmScheduler = mockk<AlarmSchedulerInterface>(relaxed = true)
-    }
-    
-    /**
-     * Sets up the ApplicationController mock
-     */
-    private fun setupApplicationController() {
-        DevLog.info(LOG_TAG, "Setting up ApplicationController mocks")
-        
-        mockkObject(ApplicationController)
-        
-        // Mock key properties with simple returns rather than delegating
-        // every { ApplicationController.notificationManager } returns mockNotificationManager
-        // every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
-        // every { ApplicationController.CalendarMonitor } returns calendarProvider.mockCalendarMonitor
-        
-        // Mock UINotifier with simple behavior
-        mockkObject(UINotifier)
-        every { UINotifier.notify(any(), any()) } just Runs
-        
-        // Mock ReminderState
-        setupReminderState()
-        
-        // Mock key methods with simplified implementations
-        // instead of using callOriginal which can trigger recursive calls
-        mockRegisterNewEvent()
-        mockPostEventNotifications()
-        mockAfterCalendarEventFired()
-        mockCalendarReloadMethods()
-        mockShouldMarkEventAsHandledAndSkip()
     }
     
     /**
@@ -188,17 +120,40 @@ class MockApplicationComponents(
     }
     
     /**
-     * Mocks the registerNewEvent method
+     * Sets up the ApplicationController mock
      */
-    private fun mockRegisterNewEvent() {
-        DevLog.info(LOG_TAG, "Mocking registerNewEvent")
+    private fun setupApplicationController() {
+        DevLog.info(LOG_TAG, "Setting up ApplicationController mocks")
         
+        // Only mock ApplicationController once
+        mockkObject(ApplicationController)
+        
+        // Set up minimal mocks for ApplicationController properties
+        every { ApplicationController.notificationManager } returns mockNotificationManager
+        every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
+        every { ApplicationController.CalendarMonitor } returns calendarProvider.mockCalendarMonitor
+        
+        // Set up minimal mocks for UINotifier
+        mockkObject(UINotifier)
+        every { UINotifier.notify(any(), any()) } just Runs
+        
+        // Set up application controller methods with simple behaviors
+        setupRegisterEventMocks()
+        setupCalendarChangeMocks()
+    }
+    
+    /**
+     * Sets up mocks for event registration methods
+     */
+    private fun setupRegisterEventMocks() {
+        DevLog.info(LOG_TAG, "Setting up event registration mocks")
+        
+        // Use simple implementation for registerNewEvent
         every { ApplicationController.registerNewEvent(any(), any<EventAlertRecord>()) } answers {
             val context = firstArg<Context>()
             val event = secondArg<EventAlertRecord>()
             
-            DevLog.info(LOG_TAG, "Mock registerNewEvent called for event ${event.eventId} (${event.title})")
-            
+            // Simply store the event in EventsStorage
             EventsStorage(context).classCustomUse { db ->
                 db.addEvent(event)
             }
@@ -206,108 +161,49 @@ class MockApplicationComponents(
             true
         }
         
+        // Use simple implementation for registerNewEvents
         every { ApplicationController.registerNewEvents(any(), any<List<Pair<MonitorEventAlertEntry, EventAlertRecord>>>()) } answers {
             val context = firstArg<Context>()
             val eventPairs = secondArg<List<Pair<MonitorEventAlertEntry, EventAlertRecord>>>()
             
-            DevLog.info(LOG_TAG, "Mock registerNewEvents called for ${eventPairs.size} events")
-            
+            // Store all events in EventsStorage
             EventsStorage(context).classCustomUse { db ->
                 for ((_, event) in eventPairs) {
                     db.addEvent(event)
                 }
             }
             
-            // Convert the list to ArrayList to match the expected return type
+            // Return ArrayList to match expected return type
             ArrayList(eventPairs)
         }
+        
+        // Simple implementation for postEventNotifications
+        every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } just Runs
+        
+        // Simple implementation for shouldMarkEventAsHandledAndSkip that always returns false
+        every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } returns false
+        
+        // Simple implementation for afterCalendarEventFired
+        every { ApplicationController.afterCalendarEventFired(any()) } just Runs
     }
     
     /**
-     * Mocks the shouldMarkEventAsHandledAndSkip method with behavior similar to the original
+     * Sets up mocks for calendar change related methods
      */
-    private fun mockShouldMarkEventAsHandledAndSkip() {
-        DevLog.info(LOG_TAG, "Mocking shouldMarkEventAsHandledAndSkip")
+    private fun setupCalendarChangeMocks() {
+        DevLog.info(LOG_TAG, "Setting up calendar change mocks")
         
-        every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } answers {
-            val context = firstArg<Context>()
-            val event = secondArg<EventAlertRecord>()
-            
-            DevLog.info(LOG_TAG, "Mock shouldMarkEventAsHandledAndSkip called for eventId=${event.eventId}, title=${event.title}, isAllDay=${event.isAllDay}, eventStatus=${event.eventStatus}, attendanceStatus=${event.attendanceStatus}")
-            
-            // In testing, we default to false to allow events to be processed
-            val result = false
-            
-            DevLog.info(LOG_TAG, "Mock shouldMarkEventAsHandledAndSkip result=$result")
-            result
-        }
-    }
-    
-    /**
-     * Mocks the postEventNotifications method
-     */
-    private fun mockPostEventNotifications() {
-        DevLog.info(LOG_TAG, "Mocking postEventNotifications")
+        // Simple implementation for onCalendarReloadFromService
+//        every { ApplicationController.onCalendarReloadFromService(any(), any()) } returns true
         
-        every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } answers {
-            val context = firstArg<Context>()
-            val events = secondArg<Collection<EventAlertRecord>>()
-            
-            DevLog.info(LOG_TAG, "Mock postEventNotifications called for ${events.size} events")
-            
-            if (events.size == 1) {
-                mockNotificationManager.onEventAdded(context, mockFormatter, events.first())
-            } else {
-                mockNotificationManager.postEventNotifications(context, mockFormatter)
-            }
-        }
-    }
-    
-    /**
-     * Mocks the afterCalendarEventFired method
-     */
-    private fun mockAfterCalendarEventFired() {
-        DevLog.info(LOG_TAG, "Mocking afterCalendarEventFired")
+        // Simple implementation for onCalendarRescanForRescheduledFromService
+        every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } just Runs
         
-        every { ApplicationController.afterCalendarEventFired(any()) } answers {
-            val context = firstArg<Context>()
-            DevLog.info(LOG_TAG, "Mock afterCalendarEventFired called for context=${context.hashCode()}")
-            
-            // This method normally triggers UI notifications and reschedules alarms
-            // We just log it for now
-        }
-    }
-    
-    /**
-     * Mocks the calendar reload methods to match the original test implementation
-     */
-    private fun mockCalendarReloadMethods() {
-        DevLog.info(LOG_TAG, "Mocking calendar reload methods")
-        
-        every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
-            val context = firstArg<Context>()
-            val userActionUntil = secondArg<Long>()
-            
-            DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService called with userActionUntil=$userActionUntil")
-            
-            // Use simple implementation that doesn't chain to other mocked calls
-            true // Indicate success
-        }
-        
-        every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
-            val context = firstArg<Context>()
-            val userActionUntil = secondArg<Long>()
-            
-            DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
-            
-            // Empty implementation to avoid chaining mocked calls
-        }
-        
+        // Simple implementation for onCalendarChanged
         every { ApplicationController.onCalendarChanged(any()) } answers {
             val context = firstArg<Context>()
-            DevLog.info(LOG_TAG, "Mock onCalendarChanged called")
             
-            // Directly start service instead of using CalendarMonitor
+            // Create and start a service intent directly
             val intent = Intent().apply {
                 putExtra("reload_calendar", true)
                 putExtra("rescan_monitor", true)
@@ -332,18 +228,12 @@ class MockApplicationComponents(
         
         EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
             val events = db.events
-            DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
-            
-            events.forEach { event ->
-                DevLog.info(LOG_TAG, "Event in storage: id=${event.eventId}, timeFirstSeen=${event.timeFirstSeen}, startTime=${event.startTime}, title=${event.title}")
-            }
             
             // Find event by ID
             val processedEvent = events.firstOrNull { it.eventId == eventId }
             
             if (processedEvent != null) {
                 eventFound = true
-                DevLog.info(LOG_TAG, "Found processed event: id=${processedEvent.eventId}, title=${processedEvent.title}, startTime=${processedEvent.startTime}")
                 
                 if (title != null && processedEvent.title != title) {
                     DevLog.error(LOG_TAG, "Event title mismatch: expected '$title' but was '${processedEvent.title}'")
@@ -353,9 +243,7 @@ class MockApplicationComponents(
                 if (processedEvent.startTime != startTime) {
                     DevLog.error(LOG_TAG, "Event start time mismatch: expected $startTime but was ${processedEvent.startTime}")
                     eventFound = false
-                } else {}
-            } else {
-                DevLog.error(LOG_TAG, "Event $eventId not found in storage!")
+                }
             }
         }
         
@@ -366,21 +254,10 @@ class MockApplicationComponents(
      * Verifies that no events are present in storage
      */
     fun verifyNoEvents(): Boolean {
-        DevLog.info(LOG_TAG, "Verifying no events are in storage")
-
         var hasNoEvents = true
 
         EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
-            val events = db.events
-            DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
-            
-            if (events.isNotEmpty()) {
-                events.forEach { event ->
-                    DevLog.info(LOG_TAG, "Unexpected event found: id=${event.eventId}, title=${event.title}")
-                }
-
-              hasNoEvents = false
-            }
+            hasNoEvents = db.events.isEmpty()
         }
         
         return hasNoEvents
@@ -391,5 +268,6 @@ class MockApplicationComponents(
      */
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up MockApplicationComponents")
+        isInitialized = false
     }
 } 

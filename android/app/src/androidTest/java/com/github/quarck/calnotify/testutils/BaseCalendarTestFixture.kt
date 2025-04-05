@@ -56,12 +56,17 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
      */
     private fun setup() {
         DevLog.info(LOG_TAG, "Setting up test fixture")
+        
+        // Only perform basic MockK initialization once for this instance
         MockKAnnotations.init(this)
         
-        // Initialize the context and other components
-        contextProvider.setup()
+        // Initialize components in the correct order with clear separation of concerns
+        // Each component is responsible for its own initialization, no cross-initialization
         timeProvider.setup()
-        calendarProvider.setup()
+        contextProvider.setup() // Depends on timeProvider
+        calendarProvider.setup() // Depends on contextProvider and timeProvider
+        
+        // ApplicationComponents should be last as it may use the other components
         applicationComponents.setup()
         
         // Clear any existing data
