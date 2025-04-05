@@ -167,6 +167,8 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
     lateinit var calendarNameTextView: TextView
     lateinit var calendarAccountTextView: TextView
 
+    val clock: CNPlusClockInterface = CNPlusSystemClock()
+
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
@@ -181,7 +183,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
         setContentView(R.layout.activity_view)
 
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.currentTimeMillis()
 
         settings = Settings(this)
         formatter = EventFormatter(this)
@@ -814,7 +816,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             date.set(Calendar.HOUR_OF_DAY, timePicker.hourCompat)
             date.set(Calendar.MINUTE, timePicker.minuteCompat)
 
-            val snoozeFor = date.timeInMillis - System.currentTimeMillis() + Consts.ALARM_THRESHOLD
+            val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
 
             if (snoozeFor > 0L) {
                 snoozeEvent(snoozeFor)
