@@ -1,7 +1,9 @@
 package com.github.quarck.calnotify.testutils
 
 import android.content.Context
+import android.content.Intent
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -9,6 +11,8 @@ import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
@@ -70,35 +74,65 @@ class MockApplicationComponents(
             every { formatTimeDuration(any(), any()) } returns "Mock duration"
         }
     }
-    
-    /**
-     * Sets up a mock notification manager
-     */
-    private fun setupMockNotificationManager() {
-        DevLog.info(LOG_TAG, "Setting up mock notification manager")
-        
-        mockNotificationManager = mockk<EventNotificationManagerInterface> {
-            every { postEventNotifications(any(), any(), any(), any()) } just Runs
-            every { onEventAdded(any(), any(), any()) } just Runs
-            every { onEventDismissing(any(), any(), any()) } just Runs
-            every { onEventsDismissing(any(), any()) } just Runs
-            every { onEventDismissed(any(), any(), any(), any()) } just Runs
-            every { onEventsDismissed(any(), any(), any(), any(), any()) } just Runs
-            every { onEventSnoozed(any(), any(), any(), any()) } just Runs
-            every { onEventMuteToggled(any(), any(), any()) } just Runs
-            every { onAllEventsSnoozed(any()) } just Runs
-            every { postEventNotifications(any(), any(), any(), any()) } just Runs
-            every { fireEventReminder(any(), any(), any()) } just Runs
-            every { cleanupEventReminder(any()) } just Runs
-            every { onEventRestored(any(), any(), any()) } just Runs
-            every { postNotificationsAutoDismissedDebugMessage(any()) } just Runs
-            every { postNearlyMissedNotificationDebugMessage(any()) } just Runs
-            every { postNotificationsAlarmDelayDebugMessage(any(), any(), any()) } just Runs
-            every { postNotificationsSnoozeAlarmDelayDebugMessage(any(), any(), any()) } just Runs
+
+  /**
+   * Sets up a mock notification manager
+   */
+  private fun setupMockNotificationManager() {
+
+    // Set up a more faithful mock notification manager
+    mockNotificationManager = spyk(object : EventNotificationManager() {
+      override fun postNotification(
+        ctx: Context,
+        formatter: EventFormatterInterface,
+        event: EventAlertRecord,
+        notificationSettings: NotificationSettings,
+        isForce: Boolean,
+        wasCollapsed: Boolean,
+        snoozePresetsNotFiltered: LongArray,
+        isQuietPeriodActive: Boolean,
+        isReminder: Boolean,
+        forceAlarmStream: Boolean
+      ) {
+        // Do nothing - prevent actual notification posting
+        DevLog.info(LOG_TAG, "Mock postNotification called for event ${event.eventId}")
+      }
+
+      override fun postEventNotifications(ctx: Context, formatter: EventFormatterInterface, force: Boolean, primaryEventId: Long?) {
+        DevLog.info(LOG_TAG, "Mock postEventNotifications called with force=$force, primaryEventId=$primaryEventId")
+
+        // Only mark events as handled when explicitly processing alerts via alarm broadcast
+        // This replicates the real workflow where:
+        // 1. Events are discovered in monitor scan
+        // 2. Later when alarm fires, events are processed and marked as handled
+
+        // Only mark alerts as handled if this is triggered as part of alarm handling
+        if (primaryEventId != null ) {
+          MonitorStorage(ctx).classCustomUse { db ->
+            val alertsToHandle = if (primaryEventId != null) {
+              db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
+            } else {
+              // Handle all pending alerts if this is a broadcast-triggered notification
+              db.alerts.filter { !it.wasHandled && it.alertTime <= timeProvider.testClock.currentTimeMillis() }
+            }
+
+            if (alertsToHandle.isNotEmpty()) {
+              alertsToHandle.forEach { alert ->
+                alert.wasHandled = true
+                db.updateAlert(alert)
+                DevLog.info(LOG_TAG, "Marked alert as handled for event ${alert.eventId}")
+              }
+            }
+          }
         }
-    }
-    
-    /**
+
+      }
+    })
+
+  }
+
+
+  /**
      * Sets up a mock alarm scheduler
      */
     private fun setupMockAlarmScheduler() {
@@ -115,19 +149,20 @@ class MockApplicationComponents(
         
         mockkObject(ApplicationController)
         
-        // Mock key properties
-        every { ApplicationController.notificationManager } returns mockNotificationManager
-        every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
-        every { ApplicationController.CalendarMonitor } returns calendarProvider.mockCalendarMonitor
+        // Mock key properties with simple returns rather than delegating
+        // every { ApplicationController.notificationManager } returns mockNotificationManager
+        // every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
+        // every { ApplicationController.CalendarMonitor } returns calendarProvider.mockCalendarMonitor
         
-        // Mock UINotifier
+        // Mock UINotifier with simple behavior
         mockkObject(UINotifier)
         every { UINotifier.notify(any(), any()) } just Runs
         
         // Mock ReminderState
         setupReminderState()
         
-        // Mock key methods
+        // Mock key methods with simplified implementations
+        // instead of using callOriginal which can trigger recursive calls
         mockRegisterNewEvent()
         mockPostEventNotifications()
         mockAfterCalendarEventFired()
@@ -250,51 +285,36 @@ class MockApplicationComponents(
         DevLog.info(LOG_TAG, "Mocking calendar reload methods")
         
         every { ApplicationController.onCalendarReloadFromService(any(), any()) } answers {
-            val stackTrace = Thread.currentThread().stackTrace
-            val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
-            val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
-            
-            DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService Reload attempt from: $callerClass.$caller")
-            
             val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
+            
             DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService called with userActionUntil=$userActionUntil")
             
-            // Call original if available (might not be needed)
-            //callOriginal()
-            
-            DevLog.info(LOG_TAG, "Mock onCalendarReloadFromService completed")
-            
+            // Use simple implementation that doesn't chain to other mocked calls
             true // Indicate success
         }
         
         every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } answers {
-            val stackTrace = Thread.currentThread().stackTrace
-            val caller = if (stackTrace.size > 2) stackTrace[2].methodName else "unknown"
-            val callerClass = if (stackTrace.size > 2) stackTrace[2].className else "unknown"
-            
-            DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService Rescan attempt from: $callerClass.$caller")
-            
             val context = firstArg<Context>()
             val userActionUntil = secondArg<Long>()
+            
             DevLog.info(LOG_TAG, "Mock onCalendarRescanForRescheduledFromService called with userActionUntil=$userActionUntil")
             
-            // Call original if available (might not be needed)
-            //callOriginal()
+            // Empty implementation to avoid chaining mocked calls
         }
         
         every { ApplicationController.onCalendarChanged(any()) } answers {
             val context = firstArg<Context>()
             DevLog.info(LOG_TAG, "Mock onCalendarChanged called")
             
-            // This would normally trigger the CalendarMonitor.launchRescanService method
-            calendarProvider.mockCalendarMonitor.launchRescanService(
-                context,
-              (Consts.ALARM_THRESHOLD / 2).toInt(),
-                true, // reloadCalendar
-                true,  // rescanMonitor
-                0L     // userActionUntil
-            )
+            // Directly start service instead of using CalendarMonitor
+            val intent = Intent().apply {
+                putExtra("reload_calendar", true)
+                putExtra("rescan_monitor", true)
+                putExtra("start_delay", 0L)
+            }
+            
+            context.startService(intent)
         }
     }
     

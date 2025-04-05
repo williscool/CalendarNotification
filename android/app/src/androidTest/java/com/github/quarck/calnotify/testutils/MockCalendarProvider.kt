@@ -17,6 +17,7 @@ import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import io.mockk.*
+import org.mockito.Mockito.spy
 
 /**
  * Provides calendar-related mock functionality for tests
@@ -76,28 +77,19 @@ class MockCalendarProvider(
         val realMonitor = CalendarMonitor(CalendarProvider, timeProvider.testClock)
         mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
         
-        // Set up more comprehensive mocks with callOriginal behavior
+        // Set up mocks with simpler approach to avoid recursion
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
             val context = firstArg<Context>()
             val monitorState = CalendarMonitorState(context)
-            DevLog.info(LOG_TAG, "Mock onRescanFromService called, context=${context.hashCode()}, firstScanEver=${monitorState.firstScanEver}")
+            DevLog.info(LOG_TAG, "mock onRescanFromService called, context=${context.hashCode()}, firstScanEver=${monitorState.firstScanEver}")
             
-            // Get the shared preferences directly to verify state
-            context.getSharedPreferences(CalendarMonitorState.PREFS_NAME, Context.MODE_PRIVATE).let { prefs ->
-                val firstScanEverPref = prefs.getBoolean("F", false)
-                DevLog.info(LOG_TAG, "In onRescanFromService: SharedPreferences[${CalendarMonitorState.PREFS_NAME}].getBoolean(F) = $firstScanEverPref")
-            }
+            // Get the shared preferences directly to double check
+//            fakeContext.getSharedPreferences(CalendarMonitorState.PREFS_NAME, Context.MODE_PRIVATE).let { prefs ->
+//                val firstScanEverPref = prefs.getBoolean("F", false)
+//                DevLog.info(LOG_TAG, "In onRescanFromService: SharedPreferences[${CalendarMonitorState.PREFS_NAME}].getBoolean(F) = $firstScanEverPref")
+//            }
             
-            // Check if calendar monitoring is disabled and handle accordingly
-            if (!Settings(context).enableCalendarRescan) {
-                DevLog.info(LOG_TAG, "Calendar monitoring is disabled, early return")
-                
-                // Still schedule the periodic rescan alarm
-                callOriginal()
-                return@answers
-            }
-            
-            DevLog.info(LOG_TAG, "Proceeding with normal processing")
+            DevLog.info(LOG_TAG, "Not a first scan ever, proceeding with normal processing")
             
             // Call original to handle other functionality
             callOriginal()
@@ -107,41 +99,32 @@ class MockCalendarProvider(
             DevLog.info(LOG_TAG, "Mock onAlarmBroadcast called")
             val context = firstArg<Context>()
             val intent = secondArg<Intent>()
-            
-            // Check if monitoring is disabled
-            if (!Settings(context).enableCalendarRescan) {
-                DevLog.error(LOG_TAG, "onAlarmBroadcast - manual scan disabled")
-                return@answers
-            }
-            
+
             // When an alarm broadcast is received, this should trigger the alert firing process
             // The intent will contain the alert time that needs to be processed
             val alertTime = intent.getLongExtra("alert_time", 0)
             DevLog.info(LOG_TAG, "Processing alarm broadcast for alertTime=$alertTime")
-            
+
             if (alertTime > 0) {
-                // Set the last timer broadcast received
-                lastTimerBroadcastReceived = timeProvider.testClock.currentTimeMillis()
-                
                 // Simulate firing the events at this alert time
                 MonitorStorage(context).classCustomUse { db ->
-                    val alerts = db.getAlertsAt(alertTime).filter { !it.wasHandled }
-                    if (alerts.isNotEmpty()) {
-                        DevLog.info(LOG_TAG, "Found ${alerts.size} alerts to process for alertTime=$alertTime")
-                        
-                        // This will trigger ApplicationController.registerNewEvents which will post notifications
-                        val events = alerts.mapNotNull { alert ->
-                            CalendarProvider.getAlertByEventIdAndTime(context, alert.eventId, alert.alertTime)
-                        }
-                        
-                        if (events.isNotEmpty()) {
-                            // This call should trigger notification posting which will mark alerts as handled
-                            ApplicationController.postEventNotifications(context, events)
-                        }
+                val alerts = db.getAlertsAt(alertTime).filter { !it.wasHandled }
+                if (alerts.isNotEmpty()) {
+                    DevLog.info(LOG_TAG, "Found ${alerts.size} alerts to process for alertTime=$alertTime")
+
+                    // This will trigger ApplicationController.registerNewEvents which will post notifications
+                    val events = alerts.mapNotNull { alert ->
+                    CalendarProvider.getAlertByEventIdAndTime(context, alert.eventId, alert.alertTime)
+                    }
+
+                    if (events.isNotEmpty()) {
+                    // This call should trigger notification posting which will mark alerts as handled
+                    ApplicationController.postEventNotifications(context, events)
                     }
                 }
+                }
             }
-            
+
             callOriginal()
         }
         
@@ -156,26 +139,24 @@ class MockCalendarProvider(
             
             if (alertTime == null) {
                 DevLog.error(LOG_TAG, "ERROR alertTime is null!")
-                callOriginal()
                 return@answers
             }
             
             // Store the timestamp of this reminder
             lastTimerBroadcastReceived = timeProvider.testClock.currentTimeMillis()
-            
-            callOriginal()
         }
-        
+            
         every { mockCalendarMonitor.launchRescanService(any(), any(), any(), any(), any()) } answers {
-            val context = firstArg<Context>()
-            val delayed = secondArg<Int>()
-            val reloadCalendar = thirdArg<Boolean>()
-            val rescanMonitor = invocation.args[3] as Boolean
-            val startDelay = invocation.args[4] as Long
-            
-            DevLog.info(LOG_TAG, "Mock launchRescanService called with delayed=$delayed, reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor, startDelay=$startDelay")
-            callOriginal()
+        val delayed = invocation.args[1] as Int
+        val reloadCalendar = invocation.args[2] as Boolean
+        val rescanMonitor = invocation.args[3] as Boolean
+        val startDelay = invocation.args[4] as Long
+
+        DevLog.info(LOG_TAG, "Mock launchRescanService called with delayed=$delayed, reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor, startDelay=$startDelay")
+        callOriginal()
         }
+
+        every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
     }
     
     /**
@@ -465,7 +446,15 @@ class MockCalendarProvider(
      * Simulates a calendar change notification
      */
     fun notifyCalendarChange(context: Context) {
-        ApplicationController.onCalendarChanged(context)
+        // Instead of calling ApplicationController.onCalendarChanged which calls mockCalendarMonitor,
+        // directly create and start the service intent to avoid recursion
+        val intent = Intent().apply {
+            putExtra("reload_calendar", true)
+            putExtra("rescan_monitor", true)
+            putExtra("start_delay", 0L)
+        }
+        
+        context.startService(intent)
         DevLog.info(LOG_TAG, "Simulated calendar change notification")
     }
     

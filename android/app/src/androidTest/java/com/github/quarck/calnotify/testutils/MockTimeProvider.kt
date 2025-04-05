@@ -3,6 +3,7 @@ package com.github.quarck.calnotify.testutils
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
+import io.mockk.every
 import io.mockk.mockk
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.atomic.AtomicLong
@@ -19,7 +20,7 @@ class MockTimeProvider(
     private val LOG_TAG = "MockTimeProvider"
     
     // Core components
-    val mockTimer: ScheduledExecutorService = mockk(relaxed = true)
+    val mockTimer: ScheduledExecutorService? = null
     val testClock: CNPlusTestClock
     val currentTime = AtomicLong(startTime)
     
@@ -33,8 +34,12 @@ class MockTimeProvider(
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up MockTimeProvider")
-        // Additional setup if needed, the CNPlusTestClock constructor
-        // already configures the mockTimer in its init block
+        
+        // Add extra configuration to ensure the CNPlusTestClock is properly set up
+        // to prevent infinite loops in scheduling
+
+        // Reset current time to the start time to ensure consistency
+        currentTime.set(testClock.currentTimeMillis())
     }
     
     /**
@@ -81,4 +86,4 @@ class MockTimeProvider(
         DevLog.info(LOG_TAG, "Cleaning up MockTimeProvider")
         // Nothing to clean up, included for consistency
     }
-} 
+}
