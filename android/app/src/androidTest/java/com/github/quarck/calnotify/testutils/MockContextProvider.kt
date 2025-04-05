@@ -152,13 +152,21 @@ class MockContextProvider(
             every { getTheme() } returns realContext.theme
         }
         
-        // Mock the globalState extension property on the context
+        // Create a simple data class to represent globalState
+        data class TestGlobalState(var _lastTimerBroadcastReceived: Long? = null)
+
+        // Create an instance of the data class
+        val testGlobalState = TestGlobalState(lastTimerBroadcastReceived)
+
+        // Mock the extension property
         every { any<Context>().globalState } answers {
-            mockk {
-                every { lastTimerBroadcastReceived } returns this@MockContextProvider.lastTimerBroadcastReceived!!
-                every { lastTimerBroadcastReceived = any() } answers {
-                    this@MockContextProvider.lastTimerBroadcastReceived = firstArg()
-                }
+            object {
+                var lastTimerBroadcastReceived: Long?
+                    get() = testGlobalState._lastTimerBroadcastReceived
+                    set(value) { 
+                        testGlobalState._lastTimerBroadcastReceived = value
+                        this@MockContextProvider.lastTimerBroadcastReceived = value
+                    }
             }
         }
     }
