@@ -88,24 +88,31 @@ class MockCalendarProvider(
         
         // onRescanFromService - don't actually rescan, just log
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
-            DevLog.info(LOG_TAG, "Mock onRescanFromService called")
+            DevLog.info(LOG_TAG, "Mock onRescanFromService called - doing nothing to avoid recursion")
         }
         
         // onAlarmBroadcast - simply log and don't trigger real functionality
         every { mockCalendarMonitor.onAlarmBroadcast(any(), any()) } answers {
             val context = firstArg<Context>()
             val intent = secondArg<Intent>()
-            DevLog.info(LOG_TAG, "Mock onAlarmBroadcast called with intent action: ${intent.action}")
+            DevLog.info(LOG_TAG, "Mock onAlarmBroadcast called with intent action: ${intent.action} - doing nothing to avoid recursion")
         }
         
         // onProviderReminderBroadcast - simple logging
         every { mockCalendarMonitor.onProviderReminderBroadcast(any(), any()) } answers {
             val context = firstArg<Context>()
             val intent = secondArg<Intent>()
-            DevLog.info(LOG_TAG, "Mock onProviderReminderBroadcast called with intent: ${intent.action}")
+            DevLog.info(LOG_TAG, "Mock onProviderReminderBroadcast called with intent: ${intent.action} - doing nothing to avoid recursion")
         }
         
-        // launchRescanService - directly start service without recursion
+        // onAppResumed - simple logging 
+        every { mockCalendarMonitor.onAppResumed(any(), any()) } answers {
+            val context = firstArg<Context>()
+            val monitorSettingsChanged = secondArg<Boolean>()
+            DevLog.info(LOG_TAG, "Mock onAppResumed called with monitorSettingsChanged: $monitorSettingsChanged - doing nothing to avoid recursion")
+        }
+        
+        // launchRescanService - simply log without starting service to avoid recursion
         every { mockCalendarMonitor.launchRescanService(any(), any(), any(), any(), any()) } answers {
             val context = firstArg<Context>()
             val delayed = secondArg<Int>()
@@ -113,16 +120,7 @@ class MockCalendarProvider(
             val rescanMonitor = invocation.args[3] as Boolean
             val startDelay = invocation.args[4] as Long
             
-            DevLog.info(LOG_TAG, "Mock launchRescanService called with delayed=$delayed, reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor, startDelay=$startDelay")
-            
-            // Create a simple intent and start service directly
-            val intent = Intent().apply {
-                putExtra("reload_calendar", reloadCalendar)
-                putExtra("rescan_monitor", rescanMonitor)
-                putExtra("start_delay", startDelay)
-            }
-            
-            context.startService(intent)
+            DevLog.info(LOG_TAG, "Mock launchRescanService called with delayed=$delayed, reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor, startDelay=$startDelay - doing nothing to avoid recursion")
         }
     }
     

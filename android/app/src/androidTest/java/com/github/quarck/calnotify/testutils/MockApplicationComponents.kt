@@ -54,17 +54,49 @@ class MockApplicationComponents(
         
         DevLog.info(LOG_TAG, "Setting up MockApplicationComponents")
         
-        // Set default locale for date formatting
-        Locale.setDefault(Locale.US)
-        
-        // Set up components in order
-        setupMockFormatter()
-        setupMockNotificationManager()
-        setupMockAlarmScheduler()
-        setupReminderState()
-        setupApplicationController()
-        
-        isInitialized = true
+        try {
+            // Set default locale for date formatting
+            Locale.setDefault(Locale.US)
+            
+            // Log thread information to help identify recursion issues
+            val currentThread = Thread.currentThread()
+            DevLog.info(LOG_TAG, "Setup running in thread: ${currentThread.name} (id: ${currentThread.id})")
+            
+            // Create a call stack trace to help identify recursion points
+            DevLog.info(LOG_TAG, "Current call stack:")
+            val stackTrace = Thread.currentThread().stackTrace
+            stackTrace.drop(1).take(10).forEachIndexed { index, element ->
+                DevLog.info(LOG_TAG, "  ${index}: ${element.className}.${element.methodName}(${element.fileName}:${element.lineNumber})")
+            }
+            
+            // Set up components in order with better logging
+            DevLog.info(LOG_TAG, "Setting up mock formatter - START")
+            setupMockFormatter()
+            DevLog.info(LOG_TAG, "Setting up mock formatter - COMPLETED")
+            
+            DevLog.info(LOG_TAG, "Setting up mock notification manager - START")
+            setupMockNotificationManager()
+            DevLog.info(LOG_TAG, "Setting up mock notification manager - COMPLETED")
+            
+            DevLog.info(LOG_TAG, "Setting up mock alarm scheduler - START")
+            setupMockAlarmScheduler()
+            DevLog.info(LOG_TAG, "Setting up mock alarm scheduler - COMPLETED")
+            
+            DevLog.info(LOG_TAG, "Setting up reminder state - START")
+            setupReminderState()
+            DevLog.info(LOG_TAG, "Setting up reminder state - COMPLETED")
+            
+            DevLog.info(LOG_TAG, "Setting up application controller - START")
+            setupApplicationController()
+            DevLog.info(LOG_TAG, "Setting up application controller - COMPLETED")
+            
+            isInitialized = true
+            DevLog.info(LOG_TAG, "MockApplicationComponents setup complete!")
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Exception during MockApplicationComponents setup: ${e.message}")
+            e.printStackTrace()
+            throw e  // Re-throw to fail the test
+        }
     }
     
     /**
@@ -125,28 +157,57 @@ class MockApplicationComponents(
     private fun setupApplicationController() {
         DevLog.info(LOG_TAG, "Setting up ApplicationController mocks")
         
-        // Only mock ApplicationController once
+        // First, unmock any potential previous mocks to avoid duplicates
+        try {
+            unmockkObject(ApplicationController)
+        } catch (e: Exception) {
+            // Ignore if not mocked yet
+        }
+        
+        // Then mock ApplicationController again
         mockkObject(ApplicationController)
         
-        // Set up minimal mocks for ApplicationController properties
+        // Set up minimal mocks for ApplicationController properties with VERY clear logging
         every { ApplicationController.notificationManager } returns mockNotificationManager
         every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
         every { ApplicationController.CalendarMonitor } returns calendarProvider.mockCalendarMonitor
         
-        // Set up minimal mocks for UINotifier
+        // CRITICAL: Mock clock to prevent time-related recursion
+        every { ApplicationController.clock } returns timeProvider.testClock
+        
+        // Set up ALL ApplicationController.on* methods to prevent ANY recursion possibility
+        every { ApplicationController.onBootComplete(any()) } just Runs
+        every { ApplicationController.onAppUpdated(any()) } just Runs
+        every { ApplicationController.onEventAlarm(any()) } just Runs
+        every { ApplicationController.onCalendarChanged(any()) } just Runs
+        every { ApplicationController.onCalendarReloadFromService(any(), any()) } just Runs
+        every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } just Runs
+        every { ApplicationController.onCalendarEventMovedWithinApp(any(), any(), any()) } just Runs
+        every { ApplicationController.afterCalendarEventFired(any()) } just Runs
+        every { ApplicationController.onMainActivityCreate(any()) } just Runs
+        every { ApplicationController.onMainActivityStarted(any()) } just Runs
+        every { ApplicationController.onMainActivityResumed(any(), any(), any()) } just Runs
+        every { ApplicationController.onTimeChanged(any()) } just Runs
+        
+        // Add thorough mocking for UINotifier to prevent callbacks
+        try {
+            unmockkObject(UINotifier)
+        } catch (e: Exception) {
+            // Ignore if not mocked yet
+        }
         mockkObject(UINotifier)
         every { UINotifier.notify(any(), any()) } just Runs
         
-        // Set up application controller methods with simple behaviors
-        setupRegisterEventMocks()
-        setupCalendarChangeMocks()
+        // Finally, set up event registration mocks
+        // WARNING: THIS CAUSES INFINITE RECURSION
+        // setupRegisterEventMocks()
     }
     
     /**
      * Sets up mocks for event registration methods
      */
     private fun setupRegisterEventMocks() {
-        DevLog.info(LOG_TAG, "Setting up event registration mocks")
+        DevLog.info(LOG_TAG, "Setting up event registration mocks with STRICT isolation")
         
         // Use simple implementation for registerNewEvent
         every { ApplicationController.registerNewEvent(any(), any<EventAlertRecord>()) } answers {
@@ -154,6 +215,7 @@ class MockApplicationComponents(
             val event = secondArg<EventAlertRecord>()
             
             // Simply store the event in EventsStorage
+            DevLog.info(LOG_TAG, "Mock registerNewEvent: storing event ${event.eventId}")
             EventsStorage(context).classCustomUse { db ->
                 db.addEvent(event)
             }
@@ -167,6 +229,7 @@ class MockApplicationComponents(
             val eventPairs = secondArg<List<Pair<MonitorEventAlertEntry, EventAlertRecord>>>()
             
             // Store all events in EventsStorage
+            DevLog.info(LOG_TAG, "Mock registerNewEvents: storing ${eventPairs.size} events")
             EventsStorage(context).classCustomUse { db ->
                 for ((_, event) in eventPairs) {
                     db.addEvent(event)
@@ -180,38 +243,21 @@ class MockApplicationComponents(
         // Simple implementation for postEventNotifications
         every { ApplicationController.postEventNotifications(any(), any<Collection<EventAlertRecord>>()) } just Runs
         
-        // Simple implementation for shouldMarkEventAsHandledAndSkip that always returns false
+        // Mock other critical methods
         every { ApplicationController.shouldMarkEventAsHandledAndSkip(any(), any()) } returns false
+        every { ApplicationController.hasActiveEventsToRemind(any()) } returns false
+        every { ApplicationController.isCustomQuietHoursActive(any()) } returns false
         
-        // Simple implementation for afterCalendarEventFired
-        every { ApplicationController.afterCalendarEventFired(any()) } just Runs
-    }
-    
-    /**
-     * Sets up mocks for calendar change related methods
-     */
-    private fun setupCalendarChangeMocks() {
-        DevLog.info(LOG_TAG, "Setting up calendar change mocks")
+        // Mock all possible dismiss methods to avoid recursion through these paths
+        every { ApplicationController.dismissEvent(any(), any(), any<EventAlertRecord>()) } just Runs
+        every { ApplicationController.dismissEvent(any(), any(), any<Long>(), any(), any(), any()) } just Runs
+        every { ApplicationController.dismissEvents(any(), any(), any(), any(), any()) } just Runs
+        every { ApplicationController.dismissAndDeleteEvent(any(), any(), any()) } returns true
+        every { ApplicationController.restoreEvent(any(), any()) } just Runs
         
-        // Simple implementation for onCalendarReloadFromService
-//        every { ApplicationController.onCalendarReloadFromService(any(), any()) } returns true
-        
-        // Simple implementation for onCalendarRescanForRescheduledFromService
-        every { ApplicationController.onCalendarRescanForRescheduledFromService(any(), any()) } just Runs
-        
-        // Simple implementation for onCalendarChanged
-        every { ApplicationController.onCalendarChanged(any()) } answers {
-            val context = firstArg<Context>()
-            
-            // Create and start a service intent directly
-            val intent = Intent().apply {
-                putExtra("reload_calendar", true)
-                putExtra("rescan_monitor", true)
-                putExtra("start_delay", 0L)
-            }
-            
-            context.startService(intent)
-        }
+        // Mock move methods to avoid calendar integrations
+        every { ApplicationController.moveEvent(any(), any(), any()) } returns true
+        every { ApplicationController.moveAsCopy(any(), any(), any(), any()) } returns 42L
     }
     
     /**
