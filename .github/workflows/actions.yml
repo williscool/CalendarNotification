@@ -496,23 +496,6 @@ jobs:
           title: 'Code Coverage Report'
           update-comment: true
           
-      # Generate coverage badges
-      - name: Generate Coverage Badges
-        uses: cicirello/jacoco-badge-generator@v2
-        with:
-          jacoco-csv-file: ${{ github.workspace }}/coverage-data/integration-tests/android/app/build/reports/jacoco/jacocoAndroidTestReport/jacocoAndroidTestReport.csv
-          badges-directory: coverage-badges
-          generate-branches-badge: true
-          generate-summary: true
-
-      # Upload badges as artifacts
-      - name: Upload Coverage Badges
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-badges
-          path: coverage-badges
-          retention-days: 90
-          
       # Upload detailed HTML coverage report
       - name: Upload HTML Coverage Report
         uses: actions/upload-artifact@v4

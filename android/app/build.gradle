@@ -344,7 +344,7 @@ task jacocoAndroidTestReport(type: JacocoReport) {
     reports {
         xml.required = true
         html.required = true
-        csv.required = false
+        csv.required = true
     }
     sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
     classDirectories.setFrom(files([
