@@ -1,0 +1,60 @@
+name: Test Summary
+
+on:
+  workflow_run:
+    workflows: ["CNPlus CI (Android) App Build"]
+    types:
+      - completed
+
+jobs:
+  test-summary:
+    name: Generate Test Summary
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion != 'cancelled' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Download artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.event.workflow_run.workflow_id }}
+          run_id: ${{ github.event.workflow_run.id }}
+          path: artifacts
+          
+      - name: Publish Unit Test Summary
+        uses: dorny/test-reporter@v2
+        if: always()
+        with:
+          name: 'Unit Tests Summary'
+          path: 'artifacts/unit-test-results/android/app/build/test-results/test*DebugUnitTest/**/*.xml'
+          reporter: java-junit
+          fail-on-error: false
+          use-actions-summary: true
+          badge-title: 'Unit Tests'
+          
+      - name: Publish Integration Test Summary
+        uses: dorny/test-reporter@v2
+        if: always()
+        with:
+          name: 'Integration Tests Summary'
+          path: 'artifacts/android-test-coverage-report/android/app/build/outputs/**/connected/**/TEST-*.xml'
+          reporter: java-junit
+          fail-on-error: false
+          use-actions-summary: true
+          badge-title: 'Integration Tests'
+          
+      - name: Publish Combined Test Report
+        uses: dorny/test-reporter@v2
+        if: always()
+        with:
+          name: 'Combined Test Report'
+          path: |
+            artifacts/unit-test-results/android/app/build/test-results/test*DebugUnitTest/**/*.xml
+            artifacts/android-test-coverage-report/android/app/build/outputs/**/connected/**/TEST-*.xml
+          reporter: java-junit
+          fail-on-error: false
+          only-summary: true
+          use-actions-summary: true
+          badge-title: 'All Tests' 

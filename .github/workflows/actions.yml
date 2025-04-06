@@ -309,6 +309,16 @@ jobs:
                   :${{ env.main_project_module }}:jacocoAndroidTestReport \
         --continue --configure-on-demand
 
+    # Publish test results using dorny/test-reporter
+    - name: Publish Unit Test Results
+      uses: dorny/test-reporter@v2
+      if: always()
+      with:
+        name: 'Unit Tests'
+        path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
+        reporter: java-junit
+        fail-on-error: true
+        
     # Upload test results
     - name: Upload Unit Test Results
       if: always() # Always upload results even if tests fail
@@ -379,6 +389,16 @@ jobs:
         disable-animations: true
         script: |
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
+          
+    # Publish integration test results
+    - name: Publish Integration Test Results
+      uses: dorny/test-reporter@v2
+      if: always()
+      with:
+        name: 'Integration Tests'
+        path: 'android/${{ env.main_project_module }}/build/outputs/**/connected/**/TEST-*.xml'
+        reporter: java-junit
+        fail-on-error: true
 
     - name: Upload Coverage Report
       if: always()
