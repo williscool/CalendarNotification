@@ -51,6 +51,7 @@ class MockCalendarProvider(
         // Create mocks in the correct order to avoid duplication and recursive calls
         setupCalendarProvider()
         setupMockCalendarMonitor()
+        setupEventMocks() // Set up event-specific mocks
         
         isInitialized = true
     }
@@ -69,7 +70,12 @@ class MockCalendarProvider(
             listOf(EventReminderRecord(millisecondsBefore = 30000))
         }
         
+        // Default implementation for isRepeatingEvent
         every { CalendarProvider.isRepeatingEvent(any(), any<Long>()) } returns false
+        every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
+            val event = secondArg<EventAlertRecord>()
+            event.isRepeating
+        }
         
         every { CalendarProvider.dismissNativeEventAlert(any(), any()) } just Runs
     }
@@ -301,9 +307,14 @@ class MockCalendarProvider(
         eventId: Long,
         startTime: Long,
         title: String = "Test Event",
-        duration: Long = 3600000
+        duration: Long = 3600000,
+        description: String = "Test Description",
+        location: String = "",
+        isAllDay: Boolean = false,
+        repeatingRule: String = "",
+        timeZone: String = "UTC"
     ) {
-        DevLog.info(LOG_TAG, "Mocking event details for eventId=$eventId, title=$title, startTime=$startTime")
+        DevLog.info(LOG_TAG, "Mocking event details for eventId=$eventId, title=$title, startTime=$startTime, repeatingRule=$repeatingRule, timeZone=$timeZone")
         
         // Use a more specific mock to avoid potential conflicts with other mocks
         every { CalendarProvider.getEvent(any(), eq(eventId)) } returns EventRecord(
@@ -311,14 +322,14 @@ class MockCalendarProvider(
             eventId = eventId,
             details = CalendarEventDetails(
                 title = title,
-                desc = "Test Description",
-                location = "",
-                timezone = "UTC",
+                desc = description,
+                location = location,
+                timezone = timeZone,
                 startTime = startTime,
                 endTime = startTime + duration,
-                isAllDay = false,
+                isAllDay = isAllDay,
                 reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
-                repeatingRule = "",
+                repeatingRule = repeatingRule,
                 repeatingRDate = "",
                 repeatingExRule = "",
                 repeatingExRDate = "",
@@ -327,6 +338,17 @@ class MockCalendarProvider(
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None
         )
+        
+        // If this is a recurring event, also mock the isRepeatingEvent method
+        if (repeatingRule.isNotEmpty()) {
+            every { CalendarProvider.isRepeatingEvent(any(), eq(eventId)) } returns true
+            
+            // Also mock the same result for isRepeatingEvent with the event parameter
+            every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
+                val event = secondArg<EventAlertRecord>()
+                event.eventId == eventId
+            }
+        }
     }
     
     /**
@@ -527,41 +549,44 @@ class MockCalendarProvider(
     }
     
     /**
-     * Creates an EventAlertRecord for testing
+     * Creates an EventAlertRecord for testing purposes
      */
     fun createEventAlertRecord(
         context: Context,
         calendarId: Long,
         eventId: Long,
-        title: String = "Test Event",
+        title: String,
         startTime: Long,
         alertTime: Long,
-        isHandled: Boolean = false
+        description: String = "Test Description",
+        location: String = "",
+        duration: Long = 3600000,
+        isAllDay: Boolean = false,
+        isRepeating: Boolean = false
     ): EventAlertRecord? {
-        DevLog.info(LOG_TAG, "Creating EventAlertRecord: calendarId=$calendarId, eventId=$eventId, title=$title")
+        DevLog.info(LOG_TAG, "Creating EventAlertRecord for eventId=$eventId, title=$title")
         
         return EventAlertRecord(
             calendarId = calendarId,
             eventId = eventId,
-            isAllDay = false,
-            isRepeating = false,
+            isAllDay = isAllDay,
+            isRepeating = isRepeating,
             alertTime = alertTime,
             notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
             title = title,
-            desc = "Test Description",
+            desc = description,
             startTime = startTime,
-            endTime = startTime + 3600000,
+            endTime = startTime + duration,
             instanceStartTime = startTime,
-            instanceEndTime = startTime + 3600000,
-            location = "",
+            instanceEndTime = startTime + duration,
+            location = location,
             lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
             displayStatus = EventDisplayStatus.Hidden,
             color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
             origin = EventOrigin.ProviderBroadcast,
             timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
             eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None,
-            flags = 0
+            attendanceStatus = AttendanceStatus.None
         )
     }
     
@@ -609,5 +634,108 @@ class MockCalendarProvider(
                 emptyList()
             }
         }
+    }
+    
+    /**
+     * Mocks updating an event
+     */
+    fun mockUpdateEvent() {
+        DevLog.info(LOG_TAG, "Setting up mock for updateEvent")
+        
+        every { CalendarProvider.updateEvent(any(), any(), any(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            val calendarId = thirdArg<Long>()
+            val oldDetails = arg<CalendarEventDetails>(3)
+            val newDetails = arg<CalendarEventDetails>(4)
+            
+            DevLog.info(LOG_TAG, "Mock updateEvent called for eventId=$eventId, title=${newDetails.title}")
+            
+            // Update our mocks with the new details
+            mockEventDetails(
+                eventId = eventId,
+                startTime = newDetails.startTime,
+                title = newDetails.title,
+                duration = newDetails.endTime - newDetails.startTime,
+                description = newDetails.desc,
+                location = newDetails.location,
+                isAllDay = newDetails.isAllDay,
+                repeatingRule = newDetails.repeatingRule,
+                timeZone = newDetails.timezone
+            )
+            
+            true
+        }
+    }
+    
+    /**
+     * Mocks moving an event
+     */
+    fun mockMoveEvent() {
+        DevLog.info(LOG_TAG, "Setting up mock for moveEvent")
+        
+        every { CalendarProvider.moveEvent(any(), any(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            val newStartTime = thirdArg<Long>()
+            val newEndTime = invocation.args[3] as Long
+            
+            DevLog.info(LOG_TAG, "Mock moveEvent called for eventId=$eventId, newStartTime=$newStartTime")
+            
+            // Get the current details
+            val event = CalendarProvider.getEvent(context, eventId)
+            
+            if (event != null) {
+                // Update our mocks with the new times
+                mockEventDetails(
+                    eventId = eventId,
+                    startTime = newStartTime,
+                    title = event.details.title,
+                    duration = newEndTime - newStartTime,
+                    description = event.details.desc,
+                    location = event.details.location,
+                    isAllDay = event.details.isAllDay,
+                    repeatingRule = event.details.repeatingRule,
+                    timeZone = event.details.timezone
+                )
+                true
+            } else {
+                false
+            }
+        }
+    }
+    
+    /**
+     * Mocks deleting an event
+     */
+    fun mockDeleteEvent() {
+        DevLog.info(LOG_TAG, "Setting up mock for deleteEvent")
+        
+        val deletedEvents = mutableSetOf<Long>()
+        
+        every { CalendarProvider.deleteEvent(any(), any()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            
+            DevLog.info(LOG_TAG, "Mock deleteEvent called for eventId=$eventId")
+            
+            // Add this event to our deleted set
+            deletedEvents.add(eventId)
+            
+            // For deleted events, return null when getEvent is called
+            every { CalendarProvider.getEvent(any(), eq(eventId)) } returns null
+            
+            true
+        }
+    }
+    
+    /**
+     * Call this during setup to initialize all event-related mocks
+     */
+    fun setupEventMocks() {
+        DevLog.info(LOG_TAG, "Setting up all event-related mocks")
+        mockUpdateEvent()
+        mockMoveEvent()
+        mockDeleteEvent()
     }
 } 

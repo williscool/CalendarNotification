@@ -838,7 +838,7 @@ object CalendarProvider : CalendarProviderInterface {
     }
 
 
-    private fun isRepeatingEvent(context: Context, event: EventAlertRecord)
+    fun isRepeatingEvent(context: Context, event: EventAlertRecord)
             = isRepeatingEvent(context, event.eventId)
 
     override fun isRepeatingEvent(context: Context, eventId: Long): Boolean? {

@@ -5,6 +5,8 @@ import android.provider.CalendarContract
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.logs.DevLog
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 
 /**
  * Test fixture specifically for testing CalendarProvider functionality.
@@ -29,6 +31,9 @@ class CalendarProviderTestFixture {
         // Clear any existing settings that might affect calendar handling
         val settings = Settings(contextProvider.fakeContext)
         settings.setBoolean("enable_manual_calendar_rescan", false)
+        
+        // Initialize event-related mocks
+        calendarProvider.setupEventMocks()
     }
     
     /**
@@ -150,13 +155,23 @@ class CalendarProviderTestFixture {
             }
             context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
             
-            // Set up mocks for this event
-            calendarProvider.mockEventDetails(eventId, startTime, title, duration)
+            // Set up more comprehensive mocks for this event
+            calendarProvider.mockEventDetails(
+                eventId = eventId, 
+                startTime = startTime, 
+                title = title, 
+                duration = duration,
+                description = description,
+                location = location,
+                isAllDay = isAllDay,
+                repeatingRule = repeatingRule,
+                timeZone = timeZone
+            )
             calendarProvider.mockEventReminders(eventId, reminderMinutes * 60000L)
             calendarProvider.mockEventAlerts(eventId, startTime, reminderMinutes * 60000L)
         }
         
-        DevLog.info(LOG_TAG, "Created event: id=$eventId, title=$title, startTime=$startTime")
+        DevLog.info(LOG_TAG, "Created event: id=$eventId, title=$title, startTime=$startTime, isAllDay=$isAllDay, repeatingRule=$repeatingRule")
         return eventId
     }
 
@@ -216,43 +231,52 @@ class CalendarProviderTestFixture {
         expectedStartTime: Long? = null,
         expectedDuration: Long? = null,
         expectedIsAllDay: Boolean? = null,
-        expectedLocation: String? = null
+        expectedLocation: String? = null,
+        expectedTimeZone: String? = null,
+        expectedRepeatingRule: String? = null
     ) {
         val context = contextProvider.fakeContext
         val event = CalendarProvider.getEvent(context, eventId)
         
         DevLog.info(LOG_TAG, "Verifying event: id=$eventId")
         
+        // First, ensure the event exists
+        assertNotNull("Event should exist", event)
+        
+        // If event is null, stop verification to avoid NPEs
+        if (event == null) {
+            return
+        }
+        
         if (expectedTitle != null) {
-            assert(event?.details?.title == expectedTitle) {
-                "Event title mismatch. Expected: $expectedTitle, Got: ${event?.details?.title}"
-            }
+            assertEquals("Event title mismatch", expectedTitle, event.details.title)
         }
         if (expectedDescription != null) {
-            assert(event?.details?.desc == expectedDescription) {
-                "Event description mismatch. Expected: $expectedDescription, Got: ${event?.details?.desc}"
-            }
+            assertEquals("Event description mismatch", expectedDescription, event.details.desc)
         }
         if (expectedStartTime != null) {
-            assert(event?.details?.startTime == expectedStartTime) {
-                "Event start time mismatch. Expected: $expectedStartTime, Got: ${event?.details?.startTime}"
-            }
+            assertEquals("Event start time mismatch", expectedStartTime, event.details.startTime)
         }
-        if (expectedDuration != null && event?.details?.startTime != null) {
+        if (expectedDuration != null && event.details.startTime != null) {
             val actualDuration = event.details.endTime - event.details.startTime
-            assert(actualDuration == expectedDuration) {
-                "Event duration mismatch. Expected: $expectedDuration, Got: $actualDuration"
-            }
+            assertEquals("Event duration mismatch", expectedDuration, actualDuration)
         }
         if (expectedIsAllDay != null) {
-            assert(event?.details?.isAllDay == expectedIsAllDay) {
-                "Event all-day mismatch. Expected: $expectedIsAllDay, Got: ${event?.details?.isAllDay}"
-            }
+            assertEquals("Event all-day mismatch", expectedIsAllDay, event.details.isAllDay)
         }
         if (expectedLocation != null) {
-            assert(event?.details?.location == expectedLocation) {
-                "Event location mismatch. Expected: $expectedLocation, Got: ${event?.details?.location}"
-            }
+            assertEquals("Event location mismatch", expectedLocation, event.details.location)
+        }
+        if (expectedTimeZone != null) {
+            assertEquals("Event timezone mismatch", expectedTimeZone, event.details.timezone)
+        }
+        if (expectedRepeatingRule != null) {
+            assertEquals("Event repeating rule mismatch", expectedRepeatingRule, event.details.repeatingRule)
+            
+            // Also verify isRepeating flag if we're checking rules
+            val isRepeating = CalendarProvider.isRepeatingEvent(context, eventId)
+            assertEquals("Event repeating flag mismatch", 
+                expectedRepeatingRule.isNotEmpty(), isRepeating == true)
         }
     }
 
