@@ -175,13 +175,14 @@ class MockCalendarProvider(
     }
     
     /**
-     * Creates a test calendar with the specified properties
+     * Creates a test calendar
      */
     fun createTestCalendar(
         context: Context,
         displayName: String,
         accountName: String,
-        ownerAccount: String
+        ownerAccount: String,
+        isHandled: Boolean = true
     ): Long {
         DevLog.info(LOG_TAG, "Creating test calendar: name=$displayName")
         
@@ -211,9 +212,17 @@ class MockCalendarProvider(
         } else {
             DevLog.info(LOG_TAG, "Created test calendar: id=$calendarId")
             
-            // Enable calendar monitoring in settings
+            // Use direct preference manipulation for more reliable testing
+            contextProvider.setCalendarHandlingStatusDirectly(calendarId, isHandled)
+            
+            // Verify the setting was correctly applied
             val settings = Settings(context)
-            settings.setBoolean("calendar_is_handled_$calendarId", true)
+            val actualHandled = settings.getCalendarIsHandled(calendarId)
+            DevLog.info(LOG_TAG, "Set calendar handling state: id=$calendarId, isHandled=$isHandled")
+            
+            if (actualHandled != isHandled) {
+                DevLog.error(LOG_TAG, "Failed to set calendar handling state: expected=$isHandled, actual=$actualHandled")
+            }
         }
         
         return calendarId

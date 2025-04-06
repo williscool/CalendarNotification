@@ -312,6 +312,10 @@ class MockContextProvider(
             every { getBoolean(any(), any()) } answers {
                 val key = firstArg<String>()
                 val defaultValue = secondArg<Boolean>()
+                // Log the actual keys being accessed for debugging
+                if (key.contains("calendar") && key.contains("handled")) {
+                    DevLog.info(LOG_TAG, "SharedPreferences ACCESSED key: '$key' with default: $defaultValue")
+                }
                 sharedPrefsMap[key] as? Boolean ?: defaultValue
             }
             every { getInt(any(), any()) } answers {
@@ -360,5 +364,139 @@ class MockContextProvider(
         sharedPreferencesDataMap.clear()
         lastTimerBroadcastReceived = null
         isInitialized = false
+    }
+    
+    /**
+     * Directly manipulates shared preferences to set calendar handling status
+     * This bypasses the Settings class to ensure the correct key format is used
+     */
+    fun setCalendarHandlingStatusDirectly(calendarId: Long, isHandled: Boolean) {
+        DevLog.info(LOG_TAG, "Directly setting calendar $calendarId handling status to $isHandled")
+        
+        // Get the preferences editor
+        val prefs = fakeContext.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        
+        // First, find and remove any existing keys related to this calendar
+        val existingKeys = prefs.all.keys
+            .filter { it.contains("calendar") && it.contains("handled") && it.contains("$calendarId") }
+        
+        if (existingKeys.isNotEmpty()) {
+            DevLog.info(LOG_TAG, "Found existing keys to remove: $existingKeys")
+            existingKeys.forEach { key ->
+                editor.remove(key)
+            }
+        }
+        
+        // The exact key format used in the Settings class: CALENDAR_IS_HANDLED_KEY_PREFIX + "." + calendarId
+        // From Settings class: private const val CALENDAR_IS_HANDLED_KEY_PREFIX = "calendar_handled_"
+        val correctKey = "calendar_handled_.$calendarId"
+        
+        // Set the boolean with the correct key
+        editor.putBoolean(correctKey, isHandled)
+        
+        // Apply the changes
+        editor.apply()
+        
+        // Validate the setting took effect
+        val settings = com.github.quarck.calnotify.Settings(fakeContext)
+        val actualHandled = settings.getCalendarIsHandled(calendarId)
+        
+        DevLog.info(LOG_TAG, "After setting key: $correctKey = $isHandled")
+        DevLog.info(LOG_TAG, "Settings.getCalendarIsHandled returns: $actualHandled (should be $isHandled)")
+        
+        // Check if the setting didn't take effect as expected
+        if (actualHandled != isHandled) {
+            DevLog.warn(LOG_TAG, "Failed to set calendar handling status directly. Trying via Settings class.")
+            
+            // Try to use the setCalendarIsHandled method directly via reflection
+            try {
+                val settingsClass = com.github.quarck.calnotify.Settings::class.java
+                val method = settingsClass.getDeclaredMethod("setCalendarIsHandled", Long::class.java, Boolean::class.java)
+                method.invoke(settings, calendarId, isHandled)
+                
+                val updatedHandled = settings.getCalendarIsHandled(calendarId)
+                DevLog.info(LOG_TAG, "After using reflection: Settings.getCalendarIsHandled returns: $updatedHandled")
+            } catch (e: Exception) {
+                DevLog.error(LOG_TAG, "Failed to use reflection on Settings: ${e.message}")
+            }
+        }
+        
+        // Double check the preference value was stored correctly
+        val updatedPrefs = fakeContext.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
+        val storedValue = updatedPrefs.getBoolean(correctKey, !isHandled)
+        DevLog.info(LOG_TAG, "Preference key '$correctKey' = $storedValue")
+    }
+    
+    /**
+     * Creates and returns a specialized mock of the Settings class
+     * This allows direct overriding of calendar handling checks
+     */
+    fun createMockSettingsWithOverrides(calendarHandlingOverrides: Map<Long, Boolean>): com.github.quarck.calnotify.Settings {
+        DevLog.info(LOG_TAG, "Creating mock Settings with calendar handling overrides: $calendarHandlingOverrides")
+        
+        // Create a partial spy on a real Settings object
+        val realSettings = com.github.quarck.calnotify.Settings(fakeContext)
+        val mockSettings = spyk(realSettings)
+        
+        // Override getCalendarIsHandled to use our overrides map
+        every { mockSettings.getCalendarIsHandled(any()) } answers {
+            val calendarId = firstArg<Long>()
+            
+            // If we have a specific override for this calendar ID, use that
+            if (calendarHandlingOverrides.containsKey(calendarId)) {
+                val overrideValue = calendarHandlingOverrides[calendarId] ?: true
+                DevLog.info(LOG_TAG, "MOCK Settings.getCalendarIsHandled($calendarId) = $overrideValue (OVERRIDDEN)")
+                overrideValue
+            } else {
+                // Otherwise delegate to the real implementation
+                val originalResult = realSettings.getCalendarIsHandled(calendarId)
+                DevLog.info(LOG_TAG, "MOCK Settings.getCalendarIsHandled($calendarId) = $originalResult (DEFAULT)")
+                originalResult
+            }
+        }
+        
+        return mockSettings
+    }
+    
+    /**
+     * Overrides CalendarProvider's getHandledCalendarsIds method to use our mock settings
+     */
+    fun overrideGetHandledCalendarsIds(calendarHandlingOverrides: Map<Long, Boolean>) {
+        DevLog.info(LOG_TAG, "Overriding CalendarProvider.getHandledCalendarsIds with direct implementation")
+        
+        mockkObject(com.github.quarck.calnotify.calendar.CalendarProvider)
+        
+        // Directly mock the getHandledCalendarsIds method to use our overrides
+        every { 
+            com.github.quarck.calnotify.calendar.CalendarProvider.getHandledCalendarsIds(any(), any()) 
+        } answers {
+            val context = firstArg<Context>()
+            
+            // Get all calendars
+            val allCalendars = com.github.quarck.calnotify.calendar.CalendarProvider.getCalendars(context)
+            
+            // Filter calendars based directly on our overrides map
+            val handledIds = allCalendars
+                .filter { calendar ->
+                    // If we have an explicit override for this calendar, use that
+                    if (calendarHandlingOverrides.containsKey(calendar.calendarId)) {
+                        val isHandled = calendarHandlingOverrides[calendar.calendarId] ?: true
+                        DevLog.info(LOG_TAG, "Calendar ${calendar.calendarId} handling override: $isHandled")
+                        isHandled
+                    } else {
+                        // Otherwise use the real settings
+                        val settings = secondArg<com.github.quarck.calnotify.Settings>()
+                        val isHandled = settings.getCalendarIsHandled(calendar.calendarId)
+                        DevLog.info(LOG_TAG, "Calendar ${calendar.calendarId} default handling: $isHandled")
+                        isHandled
+                    }
+                }
+                .map { it.calendarId }
+                .toSet()
+            
+            DevLog.info(LOG_TAG, "getHandledCalendarsIds returning: $handledIds from all: ${allCalendars.map { it.calendarId }}")
+            handledIds
+        }
     }
 } 

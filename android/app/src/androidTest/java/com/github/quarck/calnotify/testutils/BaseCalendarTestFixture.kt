@@ -97,14 +97,16 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
     fun setupTestCalendar(
         displayName: String = "Test Calendar",
         accountName: String = "test@local",
-        ownerAccount: String = "test@local"
+        ownerAccount: String = "test@local",
+        isHandled: Boolean = true
     ): Long {
         DevLog.info(LOG_TAG, "Setting up test calendar")
         testCalendarId = calendarProvider.createTestCalendar(
             contextProvider.fakeContext,
             displayName,
             accountName,
-            ownerAccount
+            ownerAccount,
+            isHandled
         )
         return testCalendarId
     }
@@ -117,7 +119,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         val settings = Settings(contextProvider.fakeContext)
         settings.setBoolean("enable_manual_calendar_rescan", enabled)
         if (testCalendarId > 0) {
-            settings.setBoolean("calendar_is_handled_$testCalendarId", true)
+            contextProvider.setCalendarHandlingStatusDirectly(testCalendarId, true)
         }
         DevLog.info(LOG_TAG, "Calendar monitoring configured: enableCalendarRescan=${settings.enableCalendarRescan}")
     }

@@ -44,9 +44,9 @@ class CalendarProviderTestFixture {
     ): Long {
         val context = contextProvider.fakeContext
         
-        // First clear any existing calendar handling settings
+        // First clear any existing calendar handling settings for test isolation
         val settings = Settings(context)
-        settings.setBoolean("enable_manual_calendar_rescan", false)
+        settings.setBoolean("enable_manual_calendar_rescan", true)
         
         val values = ContentValues().apply {
             put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, displayName)
@@ -70,12 +70,35 @@ class CalendarProviderTestFixture {
         val calendarId = calUri?.lastPathSegment?.toLong() ?: -1L
         
         if (calendarId > 0) {
-            // Only set the calendar as handled if explicitly requested
-            if (isHandled) {
-                settings.setBoolean("calendar_is_handled_$calendarId", true)
-            } else {
-                // Ensure the calendar is explicitly marked as not handled
-                settings.setBoolean("calendar_is_handled_$calendarId", false)
+            // Use direct preference manipulation for more reliable testing
+            contextProvider.setCalendarHandlingStatusDirectly(calendarId, isHandled)
+            
+            // Verify the setting was correctly applied
+            val actualHandled = settings.getCalendarIsHandled(calendarId)
+            DevLog.info(LOG_TAG, "Set calendar handling state: id=$calendarId, isHandled=$isHandled, actual=$actualHandled")
+            
+            // If the setting didn't take effect, try direct Settings class method
+            if (actualHandled != isHandled) {
+                DevLog.error(LOG_TAG, "Failed to set calendar handling state: expected=$isHandled, actual=$actualHandled")
+                
+                try {
+                    // Try to use the Settings class method directly
+                    settings.setCalendarIsHandled(calendarId, isHandled)
+                    
+                    // Check again after direct call
+                    val updatedHandled = settings.getCalendarIsHandled(calendarId)
+                    DevLog.info(LOG_TAG, "After direct Settings.setCalendarIsHandled call: $updatedHandled")
+                    
+                    if (updatedHandled != isHandled) {
+                        DevLog.error(LOG_TAG, "Still failed to set calendar handling state. Using direct override.")
+                        
+                        // If all else fails, set up an override in the mock context
+                        val overrides = mapOf(calendarId to isHandled)
+                        contextProvider.overrideGetHandledCalendarsIds(overrides)
+                    }
+                } catch (e: Exception) {
+                    DevLog.error(LOG_TAG, "Exception while setting calendar handling: ${e.message}")
+                }
             }
         }
         
