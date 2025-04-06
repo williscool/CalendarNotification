@@ -127,6 +127,8 @@ jobs:
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
+        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
+        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
         
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
@@ -427,6 +429,8 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
+        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
+        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
         
   comment-pr:
     name: Comment on PR with build links

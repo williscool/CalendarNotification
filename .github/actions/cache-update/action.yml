@@ -10,6 +10,14 @@ inputs:
     description: 'Whether to run emulator setup steps'
     required: false
     default: "false"
+  native_build_hash:
+    description: 'Hash of the external native tasks file'
+    required: false
+    default: "nohash"
+  already_uploaded_artifacts:
+    description: 'Whether native build artifacts were already uploaded'
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -24,6 +32,30 @@ runs:
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
         key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+    
+    # Check if native build directory exists
+    - name: Check Native Build Directory
+      id: check-native-build
+      if: always() && inputs.arch != '' && inputs.already_uploaded_artifacts != 'true'
+      shell: bash
+      run: |
+        if [ -d "android/app/build/intermediates/cmake" ] && [ "$(find android/app/build/intermediates/cmake -type f | wc -l)" -gt 0 ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Native build directory exists and has files."
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Native build directory does not exist or is empty."
+        fi
+
+    # Upload Native Build Artifacts (only if not already uploaded)
+    - name: Upload Native Build Artifacts
+      if: always() && inputs.arch != '' && inputs.already_uploaded_artifacts != 'true' && steps.check-native-build.outputs.exists == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-build-cmake-${{ inputs.arch }}-${{ inputs.native_build_hash }}
+        path: android/app/build/intermediates/cmake
+        retention-days: 7
+        if-no-files-found: warn
         
     # Update NDK and CMake Cache
     - name: Update NDK and CMake Cache

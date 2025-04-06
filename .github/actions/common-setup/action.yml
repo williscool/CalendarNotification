@@ -49,6 +49,12 @@ outputs:
   android-cache-hit:
     description: 'Whether the Android SDK and AVD cache was hit'
     value: ${{ steps.android-cache.outputs.cache-hit }}
+  native-build-hash:
+    description: 'Hash of the external native tasks file'
+    value: ${{ steps.native-build-hash.outputs.hash }}
+  native-build-artifacts-uploaded:
+    description: 'Whether native build artifacts were uploaded during the build step'
+    value: ${{ steps.build-native.outcome == 'success' }}
 
 runs:
   using: "composite"
@@ -182,6 +188,21 @@ runs:
         cd android && \
         cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
         cat external-native-tasks.txt
+    
+    # Generate a hash of the external-native-tasks.txt file
+    - name: Generate native build hash
+      id: native-build-hash
+      if: inputs.arch != ''
+      shell: bash
+      run: |
+        if [ -f android/external-native-tasks.txt ]; then
+          HASH=$(sha256sum android/external-native-tasks.txt | cut -d ' ' -f 1)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Native build hash: $HASH"
+        else
+          echo "hash=nohash" >> $GITHUB_OUTPUT
+          echo "external-native-tasks.txt not found, using default hash"
+        fi
       
     # Cache React Native specific files
     - name: Restore Cache React Native files
@@ -236,11 +257,36 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cmake-${{ inputs.arch }}-
     
+    # Check if we should download previously uploaded native build artifacts
+    - name: Download Native Build Artifacts
+      uses: actions/download-artifact@v4
+      id: download-native-artifacts
+      if: inputs.arch != '' && steps.ndk-cache.outputs.cache-hit != 'true'
+      continue-on-error: true
+      with:
+        name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
+        path: android/app/build/intermediates/cmake
+    
+    # Check if downloaded artifacts exist and are non-empty
+    - name: Check if native build artifacts exist
+      id: check-native-artifacts
+      if: inputs.arch != '' && steps.ndk-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        if [ -d "android/app/build/intermediates/cmake" ] && [ "$(find android/app/build/intermediates/cmake -type f | wc -l)" -gt 0 ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Native build artifacts exist and are non-empty."
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Native build artifacts don't exist or are empty, will rebuild."
+        fi
+    
     # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
     - name: Build Native aka CMake Components first
-      if: steps.ndk-cache.outputs.cache-hit != 'true'
+      id: build-native
+      if: steps.ndk-cache.outputs.cache-hit != 'true' && (steps.check-native-artifacts.outputs.exists != 'true')
       run: |
-        echo "Building native components as cache miss occurred"
+        echo "Building native components as cache miss occurred or artifacts were not available"
         cd android && \
         ./gradlew externalNativeBuildDebug \
                   externalNativeBuildRelease \
@@ -249,9 +295,19 @@ runs:
         -Pandroid.prefabPackageType=STATIC
       shell: bash
     
+    # Upload native build artifacts immediately after building
+    - name: Upload Native Build Artifacts After Build
+      if: steps.build-native.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
+        path: android/app/build/intermediates/cmake
+        retention-days: 7
+        if-no-files-found: warn
+    
     - name: Skip Native Build (Using Cache)
-      if: steps.ndk-cache.outputs.cache-hit == 'true'
-      run: echo "Skipping native build - using cached version"
+      if: steps.ndk-cache.outputs.cache-hit == 'true' || steps.check-native-artifacts.outputs.exists == 'true'
+      run: echo "Skipping native build - using cached version or downloaded artifacts"
       shell: bash
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
