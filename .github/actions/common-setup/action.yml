@@ -261,7 +261,7 @@ runs:
     - name: Download Native Build Artifacts
       uses: actions/download-artifact@v4
       id: download-native-artifacts
-      if: inputs.arch != '' && steps.ndk-cache.outputs.cache-hit != 'true'
+      if: inputs.arch != ''
       continue-on-error: true
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
@@ -270,7 +270,7 @@ runs:
     # Check if downloaded artifacts exist and are non-empty
     - name: Check if native build artifacts exist
       id: check-native-artifacts
-      if: inputs.arch != '' && steps.ndk-cache.outputs.cache-hit != 'true'
+      if: inputs.arch != ''
       shell: bash
       run: |
         if [ -d "android/app/build/intermediates/cmake" ] && [ "$(find android/app/build/intermediates/cmake -type f | wc -l)" -gt 0 ]; then
@@ -284,7 +284,7 @@ runs:
     # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
     - name: Build Native aka CMake Components first
       id: build-native
-      if: steps.ndk-cache.outputs.cache-hit != 'true' && (steps.check-native-artifacts.outputs.exists != 'true')
+      if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
       run: |
         echo "Building native components as cache miss occurred or artifacts were not available"
         cd android && \
@@ -297,7 +297,6 @@ runs:
     
     # Upload native build artifacts immediately after building
     - name: Upload Native Build Artifacts After Build
-      if: steps.build-native.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
@@ -309,6 +308,7 @@ runs:
       if: steps.ndk-cache.outputs.cache-hit == 'true' || steps.check-native-artifacts.outputs.exists == 'true'
       run: echo "Skipping native build - using cached version or downloaded artifacts"
       shell: bash
+      
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'
