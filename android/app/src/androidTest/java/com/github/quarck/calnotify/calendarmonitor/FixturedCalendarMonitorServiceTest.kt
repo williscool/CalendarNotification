@@ -179,11 +179,9 @@ class FixturedCalendarMonitorServiceTest {
         // Simulate calendar change and verify it's processed
         fixture.triggerCalendarChangeScan()
         
-        // Verify monitor state is updated
-        val monitorState = CalendarMonitorState(fixture.contextProvider.fakeContext)
-        val initialNextFireTime = monitorState.nextEventFireFromScan
-        DevLog.info(LOG_TAG, "Monitor state after initial scan: nextEventFireFromScan=$initialNextFireTime")
-        assertTrue("Monitor state should be updated with next fire time", initialNextFireTime > 0)
+        // Verify alerts were added but not handled
+        assertTrue("Should have unhandled alerts after scan", 
+            fixture.verifyAlertsInStorage(shouldBeHandled = false))
         
         // Test 3: System Time Change
         DevLog.info(LOG_TAG, "Testing system time change handling")
