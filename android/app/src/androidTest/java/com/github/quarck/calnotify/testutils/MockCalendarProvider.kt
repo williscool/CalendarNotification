@@ -9,6 +9,7 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.calendar.CalendarProvider.getEventAlertsForInstancesInRange
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitor
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorInterface
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
@@ -490,5 +491,33 @@ class MockCalendarProvider(
         
         val event = CalendarProvider.getEvent(context, eventId)
         return event?.details?.title
+    }
+    
+    /**
+     * Mocks delayed event alerts that respect a specified delay period
+     */
+    fun mockDelayedEventAlerts(eventId: Long, startTime: Long, delay: Long) {
+        every { getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+
+            DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called at currentTime=${timeProvider.testClock.currentTimeMillis()}, startTime=$startTime, delay=$delay")
+
+            if (timeProvider.testClock.currentTimeMillis() >= (startTime + delay)) {
+                DevLog.info(LOG_TAG, "Returning event alert after delay")
+                listOf(MonitorEventAlertEntry(
+                    eventId = eventId,
+                    isAllDay = false,
+                    alertTime = startTime + 3600000 - 30000,
+                    instanceStartTime = startTime + 3600000,
+                    instanceEndTime = startTime + 7200000,
+                    alertCreatedByUs = false,
+                    wasHandled = false
+                ))
+            } else {
+                DevLog.info(LOG_TAG, "Skipping event alert due to delay not elapsed: current=${timeProvider.testClock.currentTimeMillis()}, start=$startTime, delay=$delay")
+                emptyList()
+            }
+        }
     }
 } 

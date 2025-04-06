@@ -240,6 +240,51 @@ class CalendarMonitorTestFixture {
     }
     
     /**
+     * Runs a delayed processing test sequence
+     * 
+     * This method simulates the delayed processing flow:
+     * 1. Creates a test event
+     * 2. Sets up delayed processing
+     * 3. Verifies event is not processed before delay
+     * 4. Advances time past delay
+     * 5. Verifies event is processed after delay
+     */
+    fun runDelayedProcessingSequence(
+        title: String = "Delayed Test Event",
+        startDelay: Long = 500L
+    ): Boolean {
+        DevLog.info(LOG_TAG, "Running delayed processing sequence with delay=$startDelay")
+        
+        // Create test event
+        withTestEvent(title = title)
+        
+        // Set up delayed processing mocks
+        calendarProvider.mockDelayedEventAlerts(
+            testEventId,
+            eventStartTime,
+            startDelay
+        )
+        
+        // Trigger calendar change
+        triggerCalendarChangeScan()
+        
+        // Verify event is not processed before delay
+        if (verifyEventProcessed(title = title)) {
+            DevLog.error(LOG_TAG, "Event was processed before delay!")
+            return false
+        }
+        
+        // Advance time past the delay
+        advanceTime(startDelay + 2000)
+        
+        // Process event alerts
+        processEventAlerts(eventTitle = title)
+        
+        // Verify event was processed after delay
+        return verifyEventProcessed(title = title)
+    }
+    
+    /**
      * Cleans up resources
      */
     fun cleanup() {

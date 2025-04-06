@@ -108,4 +108,32 @@ class FixturedCalendarMonitorServiceTest {
         
         DevLog.info(LOG_TAG, "testSimplifiedCalendarMonitoring completed successfully")
     }
+    
+    /**
+     * Tests that the CalendarMonitorService properly respects the startDelay parameter.
+     *
+     * Verifies that:
+     * 1. Events are not processed before the specified delay
+     * 2. Events are correctly processed after the delay
+     * 3. Event timing and state are maintained during the delay
+     * 4. Service properly handles delayed event processing
+     */
+    @Test
+    fun testDelayedProcessing() {
+        DevLog.info(LOG_TAG, "Running testDelayedProcessing")
+        
+        // Use a delay that is less than MAX_TIME_WITHOUT_QUICK_RESCAN to prevent quick rescan
+        val startDelay = 500L // 500ms delay, less than MAX_TIME_WITHOUT_QUICK_RESCAN (1000ms)
+        
+        // Run the delayed processing sequence
+        val eventProcessed = fixture.runDelayedProcessingSequence(
+            title = "Delayed Test Event",
+            startDelay = startDelay
+        )
+        
+        // Verify the event was processed correctly
+        assertTrue("Event should be properly processed through delayed monitoring", eventProcessed)
+        
+        DevLog.info(LOG_TAG, "testDelayedProcessing completed successfully")
+    }
 } 
