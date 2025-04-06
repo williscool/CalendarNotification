@@ -356,13 +356,71 @@ class MockCalendarProvider(
      */
     fun mockEventReminders(
         eventId: Long,
-        millisecondsBefore: Long = 30000
+        millisecondsBefore: Long = 30000,
+        method: Int = CalendarContract.Reminders.METHOD_ALERT,
+        appendMode: Boolean = false
     ) {
-        DevLog.info(LOG_TAG, "Mocking event reminders for eventId=$eventId, offset=$millisecondsBefore")
+        DevLog.info(LOG_TAG, "Mocking event reminders for eventId=$eventId, offset=$millisecondsBefore, method=$method, appendMode=$appendMode")
         
-        // Use specific mock for this exact event ID
-        every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns 
-            listOf(EventReminderRecord(millisecondsBefore = millisecondsBefore))
+        if (appendMode) {
+            // In append mode, get existing reminders and add to them
+            val existingReminders = try {
+                CalendarProvider.getEventReminders(contextProvider.fakeContext, eventId)
+            } catch (e: Exception) {
+                DevLog.error(LOG_TAG, "Error getting existing reminders: ${e.message}")
+                emptyList()
+            }
+            
+            DevLog.info(LOG_TAG, "Found ${existingReminders.size} existing reminders for event $eventId")
+            
+            val updatedReminders = existingReminders + EventReminderRecord(
+                millisecondsBefore = millisecondsBefore,
+                method = method
+            )
+            
+            // Use specific mock for this exact event ID
+            every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns updatedReminders
+            DevLog.info(LOG_TAG, "Appended reminder, now have ${updatedReminders.size} reminders for event $eventId")
+            
+            // Log the configured reminders
+            updatedReminders.forEachIndexed { index, reminder ->
+                DevLog.info(LOG_TAG, "Reminder $index: milliseconds=${reminder.millisecondsBefore}, method=${reminder.method}")
+            }
+        } else {
+            // In replace mode, just set the single reminder
+            val reminder = EventReminderRecord(
+                millisecondsBefore = millisecondsBefore,
+                method = method
+            )
+            
+            every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns listOf(reminder)
+            
+            DevLog.info(LOG_TAG, "Set single reminder for event $eventId: milliseconds=$millisecondsBefore, method=$method")
+        }
+    }
+    
+    /**
+     * Mocks multiple event reminders for a specific event
+     */
+    fun mockMultipleEventReminders(
+        eventId: Long,
+        remindersList: List<Pair<Long, Int>>  // List of (millisecondsBefore, method) pairs
+    ) {
+        DevLog.info(LOG_TAG, "Mocking multiple event reminders for eventId=$eventId, count=${remindersList.size}")
+        
+        val reminders = remindersList.map { (milliseconds, method) ->
+            EventReminderRecord(
+                millisecondsBefore = milliseconds,
+                method = method
+            )
+        }
+        
+        every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns reminders
+        
+        // Log the configured reminders
+        reminders.forEachIndexed { index, reminder ->
+            DevLog.info(LOG_TAG, "Reminder $index: milliseconds=${reminder.millisecondsBefore}, method=${reminder.method}")
+        }
     }
     
     /**

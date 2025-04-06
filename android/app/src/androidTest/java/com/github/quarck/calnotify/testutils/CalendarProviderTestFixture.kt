@@ -122,6 +122,7 @@ class CalendarProviderTestFixture {
         duration: Long = 3600000,
         isAllDay: Boolean = false,
         reminderMinutes: Int = 15,
+        reminderMethod: Int = CalendarContract.Reminders.METHOD_ALERT,
         location: String = "",
         timeZone: String = "UTC",
         repeatingRule: String = ""
@@ -151,7 +152,7 @@ class CalendarProviderTestFixture {
             val reminderValues = ContentValues().apply {
                 put(CalendarContract.Reminders.EVENT_ID, eventId)
                 put(CalendarContract.Reminders.MINUTES, reminderMinutes)
-                put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                put(CalendarContract.Reminders.METHOD, reminderMethod)
             }
             context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
             
@@ -167,7 +168,14 @@ class CalendarProviderTestFixture {
                 repeatingRule = repeatingRule,
                 timeZone = timeZone
             )
-            calendarProvider.mockEventReminders(eventId, reminderMinutes * 60000L)
+            
+            // Mock the reminder with the correct method
+            calendarProvider.mockEventReminders(
+                eventId = eventId,
+                millisecondsBefore = reminderMinutes * 60000L,
+                method = reminderMethod
+            )
+            
             calendarProvider.mockEventAlerts(eventId, startTime, reminderMinutes * 60000L)
         }
         
@@ -295,21 +303,32 @@ class CalendarProviderTestFixture {
         DevLog.info(LOG_TAG, "Verifying reminders for event: id=$eventId")
         
         if (expectedReminderCount != null) {
-            assert(reminders.size == expectedReminderCount) {
-                "Reminder count mismatch. Expected: $expectedReminderCount, Got: ${reminders.size}"
-            }
+            assertEquals("Reminder count mismatch", expectedReminderCount, reminders.size)
         }
+        
         if (expectedReminderMinutes != null) {
-            val actualMinutes = reminders.map { (it.millisecondsBefore / 60000).toInt() }
-            assert(actualMinutes.containsAll(expectedReminderMinutes)) {
-                "Reminder minutes mismatch. Expected: $expectedReminderMinutes, Got: $actualMinutes"
-            }
+            val actualMinutes = reminders.map { (it.millisecondsBefore / 60000).toInt() }.sorted()
+            val expectedMinutesSorted = expectedReminderMinutes.sorted()
+            
+            assertEquals("Reminder minutes mismatch", expectedMinutesSorted, actualMinutes)
+            
+            DevLog.info(LOG_TAG, "Reminder minutes match: expected=$expectedMinutesSorted, actual=$actualMinutes")
         }
+        
         if (expectedMethods != null) {
             val actualMethods = reminders.map { it.method }
-            assert(actualMethods.containsAll(expectedMethods)) {
-                "Reminder methods mismatch. Expected: $expectedMethods, Got: $actualMethods"
+            
+            // Either compare size and contents separately (more detailed error messages)
+            assertEquals("Reminder methods count mismatch", expectedMethods.size, actualMethods.size)
+            
+            // Check each individual method
+            expectedMethods.forEachIndexed { index, method ->
+                if (index < actualMethods.size) {
+                    assertEquals("Reminder method at index $index mismatch", method, actualMethods[index])
+                }
             }
+            
+            DevLog.info(LOG_TAG, "Reminder methods match: expected=$expectedMethods, actual=$actualMethods")
         }
     }
 

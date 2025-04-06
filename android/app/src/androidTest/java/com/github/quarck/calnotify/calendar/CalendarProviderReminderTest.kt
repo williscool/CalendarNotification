@@ -55,10 +55,19 @@ class CalendarProviderReminderTest {
         val eventId = fixture.createEventWithSettings(
             testCalendarId,
             "Event with Reminder",
-            reminderMinutes = 15
+            reminderMinutes = 15,
+            reminderMethod = CalendarContract.Reminders.METHOD_ALERT
         )
         
-        // Verify reminders
+        // Debug: Log the actual reminders retrieved from the provider
+        val context = fixture.contextProvider.fakeContext
+        val reminders = CalendarProvider.getEventReminders(context, eventId)
+        DevLog.info(LOG_TAG, "Retrieved ${reminders.size} reminders for event $eventId")
+        reminders.forEachIndexed { index, reminder ->
+            DevLog.info(LOG_TAG, "Reminder $index: minutes=${reminder.millisecondsBefore/60000}, method=${reminder.method}")
+        }
+        
+        // Verify reminders - specify the exact method to check
         fixture.verifyReminders(
             eventId = eventId,
             expectedReminderCount = 1,
@@ -71,24 +80,31 @@ class CalendarProviderReminderTest {
     fun testMultipleReminders() {
         DevLog.info(LOG_TAG, "Running testMultipleReminders")
         
-        // Create event
+        // Create event with a default reminder
         val eventId = fixture.createEventWithSettings(
             testCalendarId,
-            "Event with Multiple Reminders"
+            "Event with Multiple Reminders",
+            reminderMinutes = 5  // Initial reminder of 5 minutes
         )
         
-        // Add additional reminders
+        // Add additional reminders using the new multiple reminders API
         val reminderTimes = listOf(5, 15, 30) // 5 minutes, 15 minutes, 30 minutes before
-        reminderTimes.forEach { minutes ->
-            val reminderMillis = minutes * 60000L
-            fixture.calendarProvider.mockEventReminders(eventId, reminderMillis)
+        val reminderMethods = List(reminderTimes.size) { CalendarContract.Reminders.METHOD_ALERT }
+        
+        // Convert minutes to milliseconds and pair with method values
+        val remindersList = reminderTimes.mapIndexed { index, minutes ->
+            Pair(minutes * 60000L, reminderMethods[index])
         }
+        
+        // Mock the complete set of reminders
+        fixture.calendarProvider.mockMultipleEventReminders(eventId, remindersList)
         
         // Verify all reminders are present
         fixture.verifyReminders(
             eventId = eventId,
             expectedReminderCount = reminderTimes.size,
-            expectedReminderMinutes = reminderTimes
+            expectedReminderMinutes = reminderTimes,
+            expectedMethods = reminderMethods
         )
     }
     
