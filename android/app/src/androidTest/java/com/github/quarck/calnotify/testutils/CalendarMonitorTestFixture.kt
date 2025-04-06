@@ -26,7 +26,7 @@ import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 class CalendarMonitorTestFixture {
     private val LOG_TAG = "CalMonitorTestFixture"
     
-    private var baseFixture: BaseCalendarTestFixture
+    var baseFixture: BaseCalendarTestFixture
     
     // Properties exposed from the base fixture
     val contextProvider get() = baseFixture.contextProvider

@@ -395,6 +395,87 @@ class MockCalendarProvider(
     }
     
     /**
+     * Mocks event alerts for multiple events
+     * 
+     * This method configures the mock calendar provider to handle multiple events
+     * when getEventAlertsForInstancesInRange is called.
+     */
+    fun mockMultipleEventAlerts(
+        eventIds: List<Long>,
+        eventTitles: List<String>? = null,
+        startTime: Long
+    ) {
+        DevLog.info(LOG_TAG, "Mocking alerts for ${eventIds.size} events")
+        
+        // Mock getEventAlertsForInstancesInRange to return alerts for all events
+        every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            
+            val alerts = mutableListOf<MonitorEventAlertEntry>()
+            
+            eventIds.forEachIndexed { index, eventId ->
+                val hourOffset = index + 1
+                val eventStartTime = startTime + (hourOffset * 3600000)
+                val alertTime = eventStartTime - (15 * 60 * 1000)
+                
+                if (alertTime in scanFrom..scanTo) {
+                    alerts.add(
+                        MonitorEventAlertEntry(
+                            eventId = eventId,
+                            isAllDay = false,
+                            alertTime = alertTime,
+                            instanceStartTime = eventStartTime,
+                            instanceEndTime = eventStartTime + 3600000,
+                            alertCreatedByUs = false,
+                            wasHandled = false
+                        )
+                    )
+                    DevLog.info(LOG_TAG, "Added alert for event $eventId (startTime=$eventStartTime, alertTime=$alertTime)")
+                }
+            }
+            
+            DevLog.info(LOG_TAG, "Returning ${alerts.size} alerts for scan range $scanFrom to $scanTo")
+            alerts
+        }
+        
+        // Mock getAlertByEventIdAndTime for each event
+        eventIds.forEachIndexed { index, eventId ->
+            val hourOffset = index + 1
+            val eventStartTime = startTime + (hourOffset * 3600000)
+            val alertTime = eventStartTime - (15 * 60 * 1000)
+            val title = eventTitles?.getOrNull(index) ?: "Test Event $index"
+            
+            every { CalendarProvider.getAlertByEventIdAndTime(any(), eq(eventId), eq(alertTime)) } returns
+                EventAlertRecord(
+                    calendarId = 1,
+                    eventId = eventId,
+                    isAllDay = false,
+                    isRepeating = false,
+                    alertTime = alertTime,
+                    notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+                    title = title,
+                    desc = "Test Description $index",
+                    startTime = eventStartTime,
+                    endTime = eventStartTime + 3600000,
+                    instanceStartTime = eventStartTime,
+                    instanceEndTime = eventStartTime + 3600000,
+                    location = "",
+                    lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
+                    displayStatus = EventDisplayStatus.Hidden,
+                    color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+                    origin = EventOrigin.ProviderBroadcast,
+                    timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
+                    eventStatus = EventStatus.Confirmed,
+                    attendanceStatus = AttendanceStatus.None,
+                    flags = 0
+                )
+            
+            DevLog.info(LOG_TAG, "Mocked getAlertByEventIdAndTime for event $eventId with title $title")
+        }
+    }
+    
+    /**
      * Clears all storage databases
      */
     fun clearStorages(context: Context) {

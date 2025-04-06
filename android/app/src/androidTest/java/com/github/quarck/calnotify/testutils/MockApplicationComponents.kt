@@ -496,4 +496,43 @@ class MockApplicationComponents(
         addEventToStorage(event)
         return event
     }
+    
+    /**
+     * Simulates a system time change
+     * 
+     * This method:
+     * 1. Advances the test clock
+     * 2. Triggers the CalendarMonitor's time change handler
+     */
+    fun simulateSystemTimeChange(timeChangeAmount: Long = 3600000) {
+        DevLog.info(LOG_TAG, "Simulating system time change by $timeChangeAmount ms")
+        
+        // Advance clock
+        timeProvider.testClock.setCurrentTime(timeProvider.testClock.currentTimeMillis() + timeChangeAmount)
+        
+        // Trigger time change handler
+        ApplicationController.CalendarMonitor.onSystemTimeChange(contextProvider.fakeContext)
+        
+        // Allow time for processing
+        timeProvider.testClock.advanceAndExecuteTasks(2000)
+        
+        DevLog.info(LOG_TAG, "System time change simulated")
+    }
+    
+    /**
+     * Simulates app resume
+     * 
+     * This method triggers the CalendarMonitor's app resume handler
+     */
+    fun simulateAppResume() {
+        DevLog.info(LOG_TAG, "Simulating app resume")
+        
+        // Trigger app resume handler with forceReload=false
+        ApplicationController.CalendarMonitor.onAppResumed(contextProvider.fakeContext, false)
+        
+        // Allow time for processing
+        timeProvider.testClock.advanceAndExecuteTasks(2000)
+        
+        DevLog.info(LOG_TAG, "App resume simulated")
+    }
 } 
