@@ -106,10 +106,9 @@ android {
     // Add test runner configuration
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-    // We removed abiFilters since it conflicts with splits
-    // ndk { 
-    //   abiFilters 'x86_64', 'arm64-v8a'
-    // }
+    ndk { 
+      abiFilters 'x86_64', 'arm64-v8a'
+    }
 
     // Add packagingOptions to include necessary .so files
     packagingOptions {
@@ -127,22 +126,28 @@ android {
   
   // Get the architecture from environment variable or project property or default to supporting both
   def buildArch = project.hasProperty('BUILD_ARCH') ? project.getProperty('BUILD_ARCH') : System.getenv("BUILD_ARCH")
-  println "Building for architecture: ${buildArch ?: 'all architectures'}"
+  println "Building for architecture: ${buildArch ?: 'defaulting to x86_64'}"
   
   productFlavors {
-    // Only create arm64v8a flavor if specifically requested or no arch specified
+    // Only create arm64v8a flavor if specifically requested
     if (buildArch == "arm64-v8a") {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
+        ndk {
+          abiFilters 'arm64-v8a'  // Only include arm64-v8a libraries
+        }
       }
     }
     
-    // Only create x8664 flavor if specifically requested or no arch specified
+    // Create x8664 flavor if specifically requested or no arch specified (default)
     if (buildArch == "x86_64" || buildArch == null) {
       x8664 {
         dimension "abi"
         versionNameSuffix "-x86_64"
+        ndk {
+          abiFilters 'x86_64'  // Only include x86_64 libraries
+        }
       }
     }
   }
