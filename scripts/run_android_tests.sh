@@ -24,9 +24,11 @@ cd android
 
 # Set environment variables
 export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=$ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL
+export BUILD_ARCH=$ARCH
 
 # Run the tests with the appropriate architecture suffix
-./gradlew :"$MAIN_PROJECT_MODULE":connectedAndroidTest \
+./gradlew -PBUILD_ARCH="$ARCH" \
+         :"$MAIN_PROJECT_MODULE":connected${ARCH_SUFFIX}DebugAndroidTest \
          :"$MAIN_PROJECT_MODULE":jacocoAndroidTestReport \
          --parallel --max-workers=4 --build-cache
 

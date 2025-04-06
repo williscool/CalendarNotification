@@ -122,31 +122,28 @@ android {
     all*.exclude group: 'xpp3', module: 'xpp3'
   }
 
-  // Add splits configuration for APK size optimization
-  splits {
-    abi {
-      enable true
-      reset()
-      // Use BUILD_ARCH environment variable if set, otherwise default to x86_64
-      // currently we only support x86_64 and arm64-v8a
-      def buildArch = System.getenv("BUILD_ARCH") ?: "x86_64"
-      include buildArch
-      universalApk false
-    }
-  }
-
   // Define specific build variants for each architecture
   flavorDimensions "abi"
+  
+  // Get the architecture from environment variable or project property or default to supporting both
+  def buildArch = project.hasProperty('BUILD_ARCH') ? project.getProperty('BUILD_ARCH') : System.getenv("BUILD_ARCH")
+  println "Building for architecture: ${buildArch ?: 'all architectures'}"
+  
   productFlavors {
-    if (isCIBuild) {
+    // Only create arm64v8a flavor if specifically requested or no arch specified
+    if (buildArch == "arm64-v8a") {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
       }
     }
-    x8664 {
-      dimension "abi"
-      versionNameSuffix "-x86_64"
+    
+    // Only create x8664 flavor if specifically requested or no arch specified
+    if (buildArch == "x86_64" || buildArch == null) {
+      x8664 {
+        dimension "abi"
+        versionNameSuffix "-x86_64"
+      }
     }
   }
 
