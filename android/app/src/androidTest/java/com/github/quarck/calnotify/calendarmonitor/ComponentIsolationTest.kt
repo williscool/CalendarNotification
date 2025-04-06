@@ -22,6 +22,11 @@ import io.mockk.mockkObject
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkObject
+import io.mockk.just
+import io.mockk.Runs
+import android.content.Context
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 
 /**
  * Test class that tests each mock component in isolation
@@ -177,18 +182,29 @@ class ComponentIsolationTest {
             contextProvider.setup()
             DevLog.info(LOG_TAG, "MockContextProvider initialized successfully")
             
+            // Clear any existing events from storage
+            DevLog.info(LOG_TAG, "Clearing event storage")
+            EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+                db.deleteAllEvents()
+            }
+            
             DevLog.info(LOG_TAG, "Initializing MockCalendarProvider")
             calendarProvider = MockCalendarProvider(contextProvider, timeProvider)
             calendarProvider.setup() 
             DevLog.info(LOG_TAG, "MockCalendarProvider initialized successfully")
             
-            // Create and initialize application components - THIS IS WHERE THE LOOP HAPPENS
+            // Create and initialize application components
             DevLog.info(LOG_TAG, "Initializing MockApplicationComponents - WATCH FOR RECURSION")
             applicationComponents = MockApplicationComponents(
                 contextProvider,
                 timeProvider,
                 calendarProvider
             )
+            
+            // Mock CalendarMonitor to prevent automatic event scanning
+            mockkObject(ApplicationController)
+            every { ApplicationController.CalendarMonitor.onRescanFromService(any()) } just Runs
+            
             DevLog.info(LOG_TAG, "Created MockApplicationComponents instance, now calling setup()")
             applicationComponents.setup()
             DevLog.info(LOG_TAG, "MockApplicationComponents setup completed successfully!")
@@ -198,7 +214,19 @@ class ComponentIsolationTest {
             assertNotNull("NotificationManager should be initialized", applicationComponents.mockNotificationManager)
             assertNotNull("AlarmScheduler should be initialized", applicationComponents.mockAlarmScheduler)
             
-            // Verify event verification methods work
+            // Verify event storage is empty
+            EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+                val events = db.events
+                if (events.isNotEmpty()) {
+                    DevLog.error(LOG_TAG, "Found unexpected events in storage:")
+                    events.forEach { event ->
+                        DevLog.error(LOG_TAG, "Event: id=${event.eventId}, title=${event.title}")
+                    }
+                }
+                assertTrue("Should have no events in storage", events.isEmpty())
+            }
+            
+            // Verify no events are reported
             assertTrue("Should report no events initially", applicationComponents.verifyNoEvents())
             
             DevLog.info(LOG_TAG, "testApplicationComponents completed successfully")

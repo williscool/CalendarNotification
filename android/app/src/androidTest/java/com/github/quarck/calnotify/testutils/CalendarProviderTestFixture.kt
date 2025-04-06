@@ -26,8 +26,9 @@ class CalendarProviderTestFixture {
     }
     
     private fun setupInitialState() {
-        // Set up basic calendar state
-        baseFixture.setupTestCalendar()
+        // Clear any existing settings that might affect calendar handling
+        val settings = Settings(contextProvider.fakeContext)
+        settings.setBoolean("enable_manual_calendar_rescan", false)
     }
     
     /**
@@ -42,6 +43,10 @@ class CalendarProviderTestFixture {
         timeZone: String = "UTC"
     ): Long {
         val context = contextProvider.fakeContext
+        
+        // First clear any existing calendar handling settings
+        val settings = Settings(context)
+        settings.setBoolean("enable_manual_calendar_rescan", false)
         
         val values = ContentValues().apply {
             put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, displayName)
@@ -64,9 +69,14 @@ class CalendarProviderTestFixture {
         val calUri = context.contentResolver.insert(uri, values)
         val calendarId = calUri?.lastPathSegment?.toLong() ?: -1L
         
-        if (calendarId > 0 && isHandled) {
-            val settings = Settings(context)
-            settings.setBoolean("calendar_is_handled_$calendarId", true)
+        if (calendarId > 0) {
+            // Only set the calendar as handled if explicitly requested
+            if (isHandled) {
+                settings.setBoolean("calendar_is_handled_$calendarId", true)
+            } else {
+                // Ensure the calendar is explicitly marked as not handled
+                settings.setBoolean("calendar_is_handled_$calendarId", false)
+            }
         }
         
         DevLog.info(LOG_TAG, "Created calendar: id=$calendarId, name=$displayName, handled=$isHandled")
@@ -166,6 +176,7 @@ class CalendarProviderTestFixture {
         if (expectedIsHandled != null) {
             val settings = Settings(context)
             val isHandled = settings.getCalendarIsHandled(calendarId)
+            DevLog.info(LOG_TAG, "Checking calendar handled state: id=$calendarId, expected=$expectedIsHandled, actual=$isHandled")
             assert(isHandled == expectedIsHandled) {
                 "Calendar handled state mismatch. Expected: $expectedIsHandled, Got: $isHandled"
             }
