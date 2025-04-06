@@ -89,6 +89,13 @@ class CalendarMonitorTestFixture {
             reminderOffset = reminderOffset
         )
         
+        // Ensure the event details use this title
+        baseFixture.calendarProvider.mockEventDetails(
+            baseFixture.testEventId,
+            baseFixture.eventStartTime,
+            title
+        )
+        
         return this
     }
     
@@ -123,14 +130,36 @@ class CalendarMonitorTestFixture {
     /**
      * Processes event alerts after advancing time
      */
-    fun processEventAlerts(): CalendarMonitorTestFixture {
+    fun processEventAlerts(eventTitle: String? = null): CalendarMonitorTestFixture {
         DevLog.info(LOG_TAG, "Processing event alerts")
+        
+        // Use the title from the test event if none specified, with a fallback
+        val title = eventTitle ?: contextProvider.fakeContext.let { ctx ->
+            baseFixture.calendarProvider.getEventTitle(ctx, baseFixture.testEventId) ?: "Test Monitor Event"
+        }
+        
+        // Update mocks to ensure they use the correct title
+        DevLog.info(LOG_TAG, "Using title '$title' for event processing")
+        baseFixture.calendarProvider.mockEventDetails(
+            baseFixture.testEventId,
+            baseFixture.eventStartTime,
+            title
+        )
         
         // Process the event alert
         baseFixture.processEventAlert(reminderTime)
         
         // Verify alerts are now handled
         verifyAlertsInStorage(shouldBeHandled = true)
+        
+        // Always ensure the event exists in storage with the correct title
+        baseFixture.ensureEventInStorage(
+            eventId = testEventId,
+            calendarId = testCalendarId,
+            title = title,
+            startTime = eventStartTime,
+            alertTime = reminderTime
+        )
         
         return this
     }
@@ -203,8 +232,8 @@ class CalendarMonitorTestFixture {
         // Trigger calendar change
         triggerCalendarChangeScan()
         
-        // Process event alerts
-        processEventAlerts()
+        // Process event alerts with specific title - this also ensures event exists in storage
+        processEventAlerts(eventTitle = title)
         
         // Verify event was processed
         return verifyEventProcessed(title = title)

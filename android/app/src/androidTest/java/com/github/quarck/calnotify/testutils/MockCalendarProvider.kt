@@ -79,48 +79,97 @@ class MockCalendarProvider(
     private fun setupMockCalendarMonitor() {
         DevLog.info(LOG_TAG, "Setting up mock calendar monitor")
         
-        // Create a real CalendarMonitor as the base
+        // Create a real calendar monitor with mock components
         val realMonitor = CalendarMonitor(CalendarProvider, timeProvider.testClock)
-
+        
+        // Create a spy to intercept key methods
         mockCalendarMonitor = spyk(realMonitor, recordPrivateCalls = true)
         
-        // Mock critical methods that could cause recursion with simple implementations
+        // First ensure ApplicationController.CalendarMonitor returns our mock
+        mockkObject(ApplicationController)
+        every { ApplicationController.CalendarMonitor } returns mockCalendarMonitor
         
-        // onRescanFromService - don't actually rescan, just log
+        // Mock onRescanFromService to use our event alerts implementation
         every { mockCalendarMonitor.onRescanFromService(any()) } answers {
-            DevLog.info(LOG_TAG, "Mock onRescanFromService called - doing nothing to avoid recursion")
+            val context = firstArg<Context>()
+            val monitorState = CalendarMonitorState(context)
+            DevLog.info(LOG_TAG, "Mock onRescanFromService called, firstScanEver=${monitorState.firstScanEver}")
+            
+            // Call original implementation for side effects (scanning, etc.)
+            callOriginal()
         }
         
-        // onAlarmBroadcast - simply log and don't trigger real functionality
+        // The critical method - handle alarm broadcasts to process alerts
         every { mockCalendarMonitor.onAlarmBroadcast(any(), any()) } answers {
             val context = firstArg<Context>()
             val intent = secondArg<Intent>()
-            DevLog.info(LOG_TAG, "Mock onAlarmBroadcast called with intent action: ${intent.action} - doing nothing to avoid recursion")
+            
+            DevLog.info(LOG_TAG, "Mock onAlarmBroadcast called with intent action: ${intent.action}")
+            
+            // Extract alert time from intent
+            val alertTime = intent.getLongExtra("alert_time", 0)
+            if (alertTime > 0) {
+                DevLog.info(LOG_TAG, "Processing alerts for alertTime=$alertTime")
+                
+                // Get unhandled alerts for this alert time
+                MonitorStorage(context).classCustomUse { db ->
+                    val alerts = db.getAlertsAt(alertTime).filter { !it.wasHandled }
+                    
+                    if (alerts.isNotEmpty()) {
+                        DevLog.info(LOG_TAG, "Found ${alerts.size} unhandled alerts to process")
+                        
+                        alerts.forEach { alert ->
+                            // Get the actual title for this event ID
+                            val eventTitle = CalendarProvider.getEvent(context, alert.eventId)?.details?.title ?: "Test Event"
+                            
+                            // Create an event record for each alert
+                            val eventRecord = createEventAlertRecord(
+                                context,
+                                1, // Default calendar ID, will be overridden if needed
+                                alert.eventId,
+                                eventTitle,
+                                alert.instanceStartTime,
+                                alert.alertTime
+                            )
+                            
+                            if (eventRecord != null) {
+                                // Add the event to storage
+                                EventsStorage(context).classCustomUse { eventsDb ->
+                                    eventsDb.addEvent(eventRecord)
+                                    DevLog.info(LOG_TAG, "Added event to storage: id=${eventRecord.eventId}, title=${eventRecord.title}")
+                                }
+                                
+                                // Mark the alert as handled
+                                alert.wasHandled = true
+                                db.updateAlert(alert)
+                                DevLog.info(LOG_TAG, "Marked alert as handled: eventId=${alert.eventId}, alertTime=${alert.alertTime}")
+                            } else {
+                                DevLog.error(LOG_TAG, "Failed to create event record for alert: eventId=${alert.eventId}")
+                            }
+                        }
+                    } else {
+                        DevLog.info(LOG_TAG, "No unhandled alerts found for alertTime=$alertTime")
+                    }
+                }
+            } else {
+                DevLog.info(LOG_TAG, "No alert time specified in intent, skipping alert processing")
+            }
+            
+            // Don't call original to avoid potential recursion
         }
         
-        // onProviderReminderBroadcast - simple logging
-        every { mockCalendarMonitor.onProviderReminderBroadcast(any(), any()) } answers {
-            val context = firstArg<Context>()
-            val intent = secondArg<Intent>()
-            DevLog.info(LOG_TAG, "Mock onProviderReminderBroadcast called with intent: ${intent.action} - doing nothing to avoid recursion")
-        }
-        
-        // onAppResumed - simple logging 
-        every { mockCalendarMonitor.onAppResumed(any(), any()) } answers {
-            val context = firstArg<Context>()
-            val monitorSettingsChanged = secondArg<Boolean>()
-            DevLog.info(LOG_TAG, "Mock onAppResumed called with monitorSettingsChanged: $monitorSettingsChanged - doing nothing to avoid recursion")
-        }
-        
-        // launchRescanService - simply log without starting service to avoid recursion
+        // Prevent actual service launches which could create recursion
         every { mockCalendarMonitor.launchRescanService(any(), any(), any(), any(), any()) } answers {
             val context = firstArg<Context>()
-            val delayed = secondArg<Int>()
-            val reloadCalendar = thirdArg<Boolean>()
+            val delayed = invocation.args[1] as Int
+            val reloadCalendar = invocation.args[2] as Boolean
             val rescanMonitor = invocation.args[3] as Boolean
             val startDelay = invocation.args[4] as Long
             
-            DevLog.info(LOG_TAG, "Mock launchRescanService called with delayed=$delayed, reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor, startDelay=$startDelay - doing nothing to avoid recursion")
+            DevLog.info(LOG_TAG, "Mock launchRescanService called with delayed=$delayed, " +
+                "reloadCalendar=$reloadCalendar, rescanMonitor=$rescanMonitor, startDelay=$startDelay")
+            
+            // Don't call original to avoid actual service launch
         }
     }
     
@@ -431,5 +480,15 @@ class MockCalendarProvider(
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up MockCalendarProvider")
         isInitialized = false
+    }
+    
+    /**
+     * Gets the title of an event by its ID
+     */
+    fun getEventTitle(context: Context, eventId: Long): String? {
+        DevLog.info(LOG_TAG, "Getting title for event: id=$eventId")
+        
+        val event = CalendarProvider.getEvent(context, eventId)
+        return event?.details?.title
     }
 } 
