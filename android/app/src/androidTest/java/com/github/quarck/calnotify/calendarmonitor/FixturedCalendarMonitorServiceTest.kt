@@ -19,7 +19,7 @@ import org.junit.runner.RunWith
  * like calendar monitoring.
  */
 @RunWith(AndroidJUnit4::class)
-class FixturedCalendarMonitorTest {
+class FixturedCalendarMonitorServiceTest {
     private val LOG_TAG = "FixturedCalMonTest"
     
     private lateinit var fixture: CalendarMonitorTestFixture
