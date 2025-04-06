@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ 
+# Dont change any non test code without getting confirmation first
+
+Dont change any non test code without getting confirmation first. this is a very old application I'm working on making a thorough test suite for before making any changes
+
+
+# Work to make tests as faithful to the real code as possible
+
+its ok to mock our core android apis that the instrumentation testsuite doesn't work well with i.e. making push notifications but try to use the real original code for anything that exists in this codebase
