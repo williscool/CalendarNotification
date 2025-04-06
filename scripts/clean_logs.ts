@@ -40,7 +40,8 @@ const DEFAULT_FILTER_KEYWORDS = [
     'AdapterServiceConfig',
     'Accessing hidden field',
     'EGL_emulation',
-    'CpuPowerCalculator'
+    'CpuPowerCalculator',
+    'YouTube'
 ];
 
 // Test-specific exceptions to keep in full
