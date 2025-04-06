@@ -452,6 +452,96 @@ jobs:
 
               You can download these artifacts from the "Artifacts" section of the workflow run.`
             });
+            
+  coverage-report:
+    name: Process Code Coverage
+    needs: [unit-tests, integration-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      
+      # Download coverage results from both unit and integration tests
+      - name: Download unit test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          path: coverage-data/unit-tests
+        continue-on-error: true
+      
+      - name: Download integration test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: android-test-coverage-report
+          path: coverage-data/integration-tests
+        continue-on-error: true
+        
+      # Process and generate coverage report from Jacoco XML files
+      - name: Generate JaCoCo Coverage Report
+        id: jacoco
+        uses: madrapps/jacoco-report@v1.6.1
+        with:
+          paths: |
+            ${{ github.workspace }}/coverage-data/unit-tests/android/app/build/reports/jacoco/**/*.xml
+            ${{ github.workspace }}/coverage-data/integration-tests/android/app/build/reports/jacoco/**/*.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 30
+          min-coverage-changed-files: 60
+          title: 'Code Coverage Report'
+          update-comment: true
+          
+      # Generate coverage badges
+      - name: Generate Coverage Badges
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: ${{ github.workspace }}/coverage-data/integration-tests/android/app/build/reports/jacoco/jacocoAndroidTestReport/jacocoAndroidTestReport.csv
+          badges-directory: coverage-badges
+          generate-branches-badge: true
+          generate-summary: true
+
+      # Upload badges as artifacts
+      - name: Upload Coverage Badges
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badges
+          path: coverage-badges
+          retention-days: 90
+          
+      # Upload detailed HTML coverage report
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-html
+          path: |
+            coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
+            coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
+          retention-days: 90
+          
+      # Create a PR comment with coverage report link if this is a PR
+      - name: PR Comment with Coverage Report
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const coverageSummary = `
+            | Type | Coverage |
+            | ---- | -------- |
+            | Line | ${{ steps.jacoco.outputs.coverage-overall }} |
+            | Branch | ${{ steps.jacoco.outputs.branches-overall }} |
+            
+            [View detailed coverage report](${workflowUrl}#artifacts)
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📊 Code Coverage Summary\n${coverageSummary}`
+            });
 
   create-release:
     name: Create GitHub Release

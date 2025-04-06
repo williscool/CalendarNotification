@@ -57,4 +57,60 @@ jobs:
           fail-on-error: false
           only-summary: true
           use-actions-summary: true
-          badge-title: 'All Tests' 
+          badge-title: 'All Tests'
+          
+      # Extract and display the code coverage from JaCoCo reports
+      - name: Process Code Coverage Summary
+        if: always()
+        run: |
+          echo "## 📊 Code Coverage" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if coverage badge files exist
+          if [ -d "artifacts/coverage-badges" ]; then
+            if [ -f "artifacts/coverage-badges/jacoco.svg" ]; then
+              LINE_COVERAGE=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.coverage')
+              COVERED_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.covered')
+              MISSED_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.missed')
+              TOTAL_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.branches.total')
+              
+              echo "### Line Coverage: ${LINE_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+              echo "- Covered Lines: ${COVERED_LINES}" >> $GITHUB_STEP_SUMMARY
+              echo "- Missed Lines: ${MISSED_LINES}" >> $GITHUB_STEP_SUMMARY
+              echo "- Total Lines: ${TOTAL_LINES}" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ -f "artifacts/coverage-badges/branches.json" ]; then
+              BRANCH_COVERAGE=$(cat artifacts/coverage-badges/branches.json | jq -r '.coverage')
+              COVERED_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.covered')
+              MISSED_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.missed')
+              TOTAL_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.total')
+              
+              echo "### Branch Coverage: ${BRANCH_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+              echo "- Covered Branches: ${COVERED_BRANCHES}" >> $GITHUB_STEP_SUMMARY
+              echo "- Missed Branches: ${MISSED_BRANCHES}" >> $GITHUB_STEP_SUMMARY
+              echo "- Total Branches: ${TOTAL_BRANCHES}" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            # If no coverage badges are found, try to find raw JaCoCo report files
+            if ls artifacts/android-test-coverage-report/android/app/build/reports/jacoco/jacocoAndroidTestReport/*.xml 1> /dev/null 2>&1; then
+              echo "JaCoCo reports found, but no processed coverage data is available." >> $GITHUB_STEP_SUMMARY
+              echo "Please check the artifacts for detailed coverage information." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "No coverage data found. Test coverage may not have been generated in this run." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+      - name: Add Coverage Badge to Summary
+        if: always()
+        run: |
+          if [ -d "artifacts/coverage-badges" ] && [ -f "artifacts/coverage-badges/jacoco.svg" ]; then
+            BADGE_URL=$(cat artifacts/coverage-badges/jacoco.svg)
+            echo "### Coverage Badge" >> $GITHUB_STEP_SUMMARY
+            echo "![Coverage](https://img.shields.io/badge/Coverage-$(cat artifacts/coverage-badges/jacoco.json | jq -r '.coverage')%25-$(cat artifacts/coverage-badges/jacoco.json | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
+            
+            echo "### Branch Coverage Badge" >> $GITHUB_STEP_SUMMARY
+            if [ -f "artifacts/coverage-badges/branches.svg" ]; then
+              echo "![Branch Coverage](https://img.shields.io/badge/Branch_Coverage-$(cat artifacts/coverage-badges/branches.json | jq -r '.coverage')%25-$(cat artifacts/coverage-badges/branches.json | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi 

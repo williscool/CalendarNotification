@@ -74,6 +74,8 @@ We use GitHub Actions for continuous integration with automated test reporting:
 - Test results are displayed directly in GitHub using [dorny/test-reporter](https://github.com/dorny/test-reporter)
 - Test summaries are available in the Actions tab and PR comments
 - Code coverage reports are generated and archived as artifacts
+- JaCoCo coverage analysis with coverage badges and PR comments
+- Coverage thresholds ensure code quality is maintained
 
 For more details, see our [Test Reporting Documentation](docs/TEST_REPORTING.md).
 
