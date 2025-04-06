@@ -244,7 +244,9 @@ runs:
         cd android && \
         ./gradlew externalNativeBuildDebug \
                   externalNativeBuildRelease \
-        --parallel --max-workers=4 --build-cache
+        --parallel --max-workers=4 --build-cache --configure-on-demand \
+        -Pandroid.prefabPublishing=true \
+        -Pandroid.prefabPackageType=STATIC
       shell: bash
     
     - name: Skip Native Build (Using Cache)
