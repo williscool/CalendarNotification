@@ -276,12 +276,26 @@ runs:
       if: inputs.arch != ''
       shell: bash
       run: |
-        if [ -d "android/app/build/intermediates/cmake" ] && [ "$(find android/app/build/intermediates/cmake -type f | wc -l)" -gt 0 ]; then
+        # Make the script executable
+        chmod +x scripts/check_native_build_artifacts.sh
+        
+        # Check all three directories
+        CMAKE_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        MERGED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        STRIPPED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        
+        if [ "$CMAKE_EXISTS" = "true" ] || [ "$MERGED_EXISTS" = "true" ] || [ "$STRIPPED_EXISTS" = "true" ]; then
           echo "exists=true" >> $GITHUB_OUTPUT
-          echo "Native build artifacts exist and are non-empty."
+          echo "Found native build artifacts in at least one directory."
+          echo "CMake exists: $CMAKE_EXISTS"
+          echo "Merged exists: $MERGED_EXISTS"
+          echo "Stripped exists: $STRIPPED_EXISTS"
         else
           echo "exists=false" >> $GITHUB_OUTPUT
-          echo "Native build artifacts don't exist or are empty, will rebuild."
+          echo "No native build artifacts found in any directory, will rebuild."
+          echo "CMake exists: $CMAKE_EXISTS"
+          echo "Merged exists: $MERGED_EXISTS"
+          echo "Stripped exists: $STRIPPED_EXISTS"
         fi
     
     # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
@@ -300,6 +314,7 @@ runs:
     
     # Upload native build artifacts immediately after building
     - name: Upload Native Build Artifacts After Build
+      if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
       uses: actions/upload-artifact@v4
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
