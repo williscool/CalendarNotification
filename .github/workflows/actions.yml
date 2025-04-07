@@ -83,16 +83,34 @@ jobs:
 
     # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
     
+    - name: Make check native build artifacts script executable
+      run: chmod +x scripts/check_native_build_artifacts.sh
+
+    # Check if CMake build artifacts exist for integration tests
+    - name: Check CMake build artifacts for integration tests
+      run: |
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
+      shell: bash
+    
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
+        echo "Building for architecture: $BUILD_ARCH"
         cd android && \
-        ./gradlew :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
+        # Pass BUILD_ARCH directly to Gradle process to ensure it's available during configuration
+        ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
+                  -PreactNativeArchitectures="${BUILD_ARCH}" \
+                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
                   :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
                   :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
                   :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
-        --parallel --max-workers=4 --build-cache \
+        --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC
+      env:
+        # Explicitly set BUILD_ARCH for Gradle process
+        BUILD_ARCH: ${{ matrix.arch }}
 
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
@@ -111,20 +129,13 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-    - name: Upload Coverage Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-test-coverage-report
-        path: |
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/debugAndroidTest/connected/
-        retention-days: 90
-        
     # Update all caches
     - name: Update Caches
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
+        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
+        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
         
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
@@ -278,6 +289,31 @@ jobs:
           name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
+  comment-pr:
+    name: Comment on PR with build links
+    if: github.event_name == 'pull_request'
+    needs: sign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment PR
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Build artifacts for this PR are available:
+
+              - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+              - [AAB](${workflowUrl}#artifacts)
+
+              You can download these artifacts from the "Artifacts" section of the workflow run.`
+            });
+
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
@@ -302,11 +338,32 @@ jobs:
     - name: Run Unit Tests
       run: |
         cd android && \
-        ./gradlew :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
+        ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
+                  -PreactNativeArchitectures="${{ matrix.arch }}" \
+                  :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-                  :${{ env.main_project_module }}:jacocoAndroidTestReport \
-        --continue
+        --continue --configure-on-demand
+      env:
+        BUILD_ARCH: ${{ matrix.arch }}
 
+    # Generate Jacoco coverage report
+    # always() is used to ensure the coverage report is generated even if the tests fail
+    - name: Generate Jacoco Coverage Report
+      if: always() 
+      run: |
+        cd android && \
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
+
+    # Publish test results using dorny/test-reporter
+    - name: Publish Unit Test Results
+      uses: dorny/test-reporter@v2
+      if: always()
+      with:
+        name: 'Unit Tests'
+        path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
+        reporter: java-junit
+        fail-on-error: true
+        
     # Upload test results
     - name: Upload Unit Test Results
       if: always() # Always upload results even if tests fail
@@ -318,6 +375,7 @@ jobs:
           android/app/build/test-results/
           android/app/build/outputs/logs/
         retention-days: 90
+
         
   integration-test:
     name: Test Android App
@@ -357,6 +415,17 @@ jobs:
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/apk/
+  
+    - name: Make check native build artifacts script executable
+      run: chmod +x scripts/check_native_build_artifacts.sh
+
+    # Check if CMake build artifacts exist for integration tests
+    - name: Check CMake build artifacts for integration tests
+      run: |
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
+      shell: bash
 
     - name: Make wait script executable
       run: chmod +x scripts/wait_for_emulator.sh
@@ -377,6 +446,24 @@ jobs:
         disable-animations: true
         script: |
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
+          
+    # Generate Jacoco coverage report
+    # always() is used to ensure the coverage report is generated even if the tests fail
+    - name: Generate Jacoco Coverage Report
+      if: always() 
+      run: |
+        cd android && \
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
+        
+    # Publish integration test results
+    - name: Publish Integration Test Results
+      uses: dorny/test-reporter@v2
+      if: always()
+      with:
+        name: 'Integration Tests'
+        path: 'android/${{ env.main_project_module }}/build/outputs/**/connected/**/*.xml'
+        reporter: java-junit
+        fail-on-error: true
 
     - name: Upload Coverage Report
       if: always()
@@ -384,10 +471,11 @@ jobs:
       with:
         name: android-test-coverage-report
         path: |
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
           android/app/build/reports/
-          android/app/build/test-results/
+          android/app/build/reports/jacoco/jacocoAndroidTestReport/
+          android/app/build/outputs/code_coverage/
           android/app/build/outputs/logs/
+          android/app/build/test-results/
         retention-days: 90
     
     - name: Upload Emulator Log
@@ -405,30 +493,82 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
+        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
+        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
         
-  comment-pr:
-    name: Comment on PR with build links
-    if: github.event_name == 'pull_request'
-    needs: sign
+  coverage-report:
+    name: Process Code Coverage
+    needs: [unit-tests, integration-test]
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Comment PR
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      
+      # Download coverage results from both unit and integration tests
+      - name: Download unit test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          # path relative to build directory. because highest common directory is build
+          path: coverage-data/unit-tests/android/app/build/
+        continue-on-error: true
+      
+      - name: Download integration test coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: android-test-coverage-report
+          # path relative to build directory. because highest common directory is build
+          path: coverage-data/integration-tests/android/app/build/
+        continue-on-error: true
+        
+      # Process and generate coverage report from Jacoco XML files
+      - name: Generate JaCoCo Coverage Report
+        id: jacoco
+        uses: madrapps/jacoco-report@v1.6.1
+        with:
+          paths: |
+            ${{ github.workspace }}/coverage-data/unit-tests/android/app/build/reports/coverage/**/*.xml
+            ${{ github.workspace }}/coverage-data/integration-tests/android/app/build/reports/jacoco/**/*.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 30
+          min-coverage-changed-files: 60
+          title: 'Code Coverage Report'
+          update-comment: true
+          
+      # Upload detailed HTML coverage report
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-html
+          path: |
+            coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
+            coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
+          retention-days: 90
+          
+      # Create a PR comment with coverage report link if this is a PR
+      - name: PR Comment with Coverage Report
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const coverageSummary = `
+            | Type | Coverage |
+            | ---- | -------- |
+            | Line | ${{ steps.jacoco.outputs.coverage-overall }} |
+            | Branch | ${{ steps.jacoco.outputs.branches-overall }} |
+            
+            [View detailed coverage report](${workflowUrl}#artifacts)
+            `;
+            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `Build artifacts for this PR are available:
-
-              - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [AAB](${workflowUrl}#artifacts)
-
-              You can download these artifacts from the "Artifacts" section of the workflow run.`
+              body: `## 📊 Code Coverage Summary\n${coverageSummary}`
             });
 
   create-release:

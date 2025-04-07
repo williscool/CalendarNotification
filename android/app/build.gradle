@@ -106,10 +106,9 @@ android {
     // Add test runner configuration
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-    // We removed abiFilters since it conflicts with splits
-    // ndk { 
-    //   abiFilters 'x86_64', 'arm64-v8a'
-    // }
+    ndk { 
+      abiFilters 'x86_64', 'arm64-v8a'
+    }
 
     // Add packagingOptions to include necessary .so files
     packagingOptions {
@@ -122,31 +121,34 @@ android {
     all*.exclude group: 'xpp3', module: 'xpp3'
   }
 
-  // Add splits configuration for APK size optimization
-  splits {
-    abi {
-      enable true
-      reset()
-      // Use BUILD_ARCH environment variable if set, otherwise default to x86_64
-      // currently we only support x86_64 and arm64-v8a
-      def buildArch = System.getenv("BUILD_ARCH") ?: "x86_64"
-      include buildArch
-      universalApk false
-    }
-  }
-
   // Define specific build variants for each architecture
   flavorDimensions "abi"
+  
+  // Get the architecture from environment variable or project property or default to supporting both
+  def buildArch = project.hasProperty('BUILD_ARCH') ? project.getProperty('BUILD_ARCH') : System.getenv("BUILD_ARCH")
+  println "Building for architecture: ${buildArch ?: 'defaulting to x86_64'}"
+  
   productFlavors {
-    if (isCIBuild) {
+    // Only create arm64v8a flavor if specifically requested
+    if (buildArch == "arm64-v8a") {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
+        ndk {
+          abiFilters 'arm64-v8a'  // Only include arm64-v8a libraries
+        }
       }
     }
-    x8664 {
-      dimension "abi"
-      versionNameSuffix "-x86_64"
+    
+    // Create x8664 flavor if specifically requested or no arch specified (default)
+    if (buildArch == "x86_64" || buildArch == null) {
+      x8664 {
+        dimension "abi"
+        versionNameSuffix "-x86_64"
+        ndk {
+          abiFilters 'x86_64'  // Only include x86_64 libraries
+        }
+      }
     }
   }
 
@@ -344,12 +346,12 @@ task jacocoAndroidTestReport(type: JacocoReport) {
     reports {
         xml.required = true
         html.required = true
-        csv.required = false
+        csv.required = true
     }
     sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
     classDirectories.setFrom(files([
-        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+        fileTree(dir: 'build/intermediates/javac/x8664Debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
+        fileTree(dir: 'build/tmp/kotlin-classes/x8664Debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
     ]))
-    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/debugAndroidTest/connected', include: '**/*.ec'))
+    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/', include: '**/*.ec'))
 }

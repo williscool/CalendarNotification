@@ -66,6 +66,19 @@ If you're interested in contributing or building the app yourself, check out our
 - [Data Sync Guide](docs/DATA_SYNC_README.md)
 - [Debugging Guide](docs/DEBUG.md)
 
+### Automated Testing
+
+We use GitHub Actions for continuous integration with automated test reporting:
+
+- Unit tests and instrumentation tests run on every PR and push
+- Test results are displayed directly in GitHub using [dorny/test-reporter](https://github.com/dorny/test-reporter)
+- Test summaries are available in the Actions tab and PR comments
+- Code coverage reports are generated and archived as artifacts
+- JaCoCo coverage analysis with coverage badges and PR comments
+- Coverage thresholds ensure code quality is maintained
+
+For more details, see our [Test Reporting Documentation](docs/TEST_REPORTING.md).
+
 ## 💖 Contributing
 
 We welcome contributions! Whether it's bug reports, feature requests, or code contributions, please feel free to get involved. Please report any bugs or feedback through the app's feedback page.
