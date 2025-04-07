@@ -350,8 +350,8 @@ task jacocoAndroidTestReport(type: JacocoReport) {
     }
     sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
     classDirectories.setFrom(files([
-        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+        fileTree(dir: 'build/intermediates/javac/x8664Debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
+        fileTree(dir: 'build/tmp/kotlin-classes/x8664Debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
     ]))
-    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/debugAndroidTest/connected', include: '**/*.ec'))
+    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/x8664DebugAndroidTest/connected', include: '**/*.ec'))
 }
