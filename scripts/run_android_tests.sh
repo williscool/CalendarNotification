@@ -28,6 +28,7 @@ export BUILD_ARCH=$ARCH
 
 # Run the tests with the appropriate architecture suffix
 ./gradlew -PBUILD_ARCH="$ARCH" \
+         -PreactNativeArchitectures="$ARCH" \
          :"$MAIN_PROJECT_MODULE":connected${ARCH_SUFFIX}DebugAndroidTest \
          --parallel --max-workers=4 --build-cache
 
