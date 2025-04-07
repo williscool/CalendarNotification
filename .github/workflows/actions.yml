@@ -325,7 +325,7 @@ jobs:
       if: always() 
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
 
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
@@ -426,7 +426,7 @@ jobs:
       if: always() 
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
         
     # Publish integration test results
     - name: Publish Integration Test Results
