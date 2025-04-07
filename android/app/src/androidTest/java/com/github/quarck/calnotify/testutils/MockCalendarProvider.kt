@@ -788,6 +788,54 @@ class MockCalendarProvider(
     }
     
     /**
+     * Mocks CalendarProvider.getAlertByTime for direct reminder tests
+     * 
+     * This method is critical for tests that simulate direct reminder broadcasts
+     * It ensures the CalendarMonitor gets the expected test event
+     */
+    fun mockGetAlertByTime(
+        eventId: Long, 
+        alertTime: Long, 
+        startTime: Long, 
+        title: String, 
+        description: String = "Test Description",
+        isAllDay: Boolean = false,
+        isRepeating: Boolean = false
+    ) {
+        DevLog.info(LOG_TAG, "Setting up mock for getAlertByTime with eventId=$eventId, alertTime=$alertTime, title='$title'")
+        
+        // Set up a specific mock for this exact alertTime
+        every { CalendarProvider.getAlertByTime(any(), eq(alertTime), any(), any()) } answers {
+            DevLog.info(LOG_TAG, "Mock getAlertByTime called for alertTime=$alertTime")
+            
+            // Return a list containing just our test event
+            listOf(EventAlertRecord(
+                calendarId = 1, // Will be overridden in real tests
+                eventId = eventId, 
+                isAllDay = isAllDay,
+                isRepeating = isRepeating,
+                alertTime = alertTime,
+                notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+                title = title,
+                desc = description,
+                startTime = startTime,
+                endTime = startTime + 3600000,
+                instanceStartTime = startTime,
+                instanceEndTime = startTime + 3600000,
+                location = "",
+                lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
+                displayStatus = EventDisplayStatus.Hidden,
+                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+                origin = EventOrigin.ProviderBroadcast,
+                timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
+                eventStatus = EventStatus.Confirmed,
+                attendanceStatus = AttendanceStatus.None,
+                flags = 0
+            ))
+        }
+    }
+    
+    /**
      * Call this during setup to initialize all event-related mocks
      */
     fun setupEventMocks() {

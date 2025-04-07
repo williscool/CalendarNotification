@@ -118,36 +118,26 @@ class DirectReminderTestFixture {
         // Advance time to the reminder time to ensure accurate timing
         baseFixture.timeProvider.setCurrentTime(baseFixture.reminderTime)
         
-        // Rather than triggering the broadcast receiver chain, directly create and add the event
-        // This avoids potential infinite recursion through the notification system
-        val eventRecord = EventAlertRecord(
-            calendarId = baseFixture.testCalendarId,
-            eventId = baseFixture.testEventId,
-            isAllDay = false,
-            isRepeating = false,
-            alertTime = baseFixture.reminderTime,
-            notificationId = com.github.quarck.calnotify.Consts.NOTIFICATION_ID_DYNAMIC_FROM,
-            title = eventTitle,
-            desc = eventDescription,
-            startTime = baseFixture.eventStartTime,
-            endTime = baseFixture.eventStartTime + 3600000, // 1 hour duration
-            instanceStartTime = baseFixture.eventStartTime,
-            instanceEndTime = baseFixture.eventStartTime + 3600000,
-            location = "",
-            lastStatusChangeTime = baseFixture.timeProvider.testClock.currentTimeMillis(),
-            displayStatus = com.github.quarck.calnotify.calendar.EventDisplayStatus.Hidden,
-            color = com.github.quarck.calnotify.Consts.DEFAULT_CALENDAR_EVENT_COLOR,
-            origin = com.github.quarck.calnotify.calendar.EventOrigin.ProviderBroadcast,
-            timeFirstSeen = baseFixture.timeProvider.testClock.currentTimeMillis(),
-            eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
-            attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None,
-            flags = 0
+        // Set up the mock for getAlertByTime to return our test event when called
+        // This is the key difference - we need to mock this method to return our test event
+        // when the real CalendarMonitor.onProviderReminderBroadcast calls it
+        baseFixture.calendarProvider.mockGetAlertByTime(
+            baseFixture.testEventId,
+            baseFixture.reminderTime,
+            baseFixture.eventStartTime,
+            eventTitle,
+            eventDescription
         )
-        
-        // Add the event directly to storage
-        EventsStorage(context).classCustomUse { db ->
-            db.addEvent(eventRecord)
+            
+        // Create a direct reminder broadcast intent like the system would send
+        val reminderIntent = Intent(CalendarContract.ACTION_EVENT_REMINDER).apply {
+            data = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, baseFixture.reminderTime)
         }
+
+        // Simulate the broadcast by calling the CalendarMonitor directly
+        // This mirrors what happens when a real reminder is broadcast by the system
+        DevLog.info(LOG_TAG, "Calling CalendarMonitor.onProviderReminderBroadcast")
+        baseFixture.calendarProvider.mockCalendarMonitor.onProviderReminderBroadcast(context, reminderIntent)
         
         // Small delay for processing
         baseFixture.advanceTime(500)
