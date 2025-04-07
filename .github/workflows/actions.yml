@@ -83,43 +83,15 @@ jobs:
 
     # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
     
-    # Check if CMake build artifacts exist
-    - name: Check CMake build artifacts
+    - name: Make check native build artifacts script executable
+      run: chmod +x scripts/check_native_build_artifacts.sh
+
+    # Check if CMake build artifacts exist for integration tests
+    - name: Check CMake build artifacts for integration tests
       run: |
-        CMAKE_DIR="android/app/build/intermediates/cmake"
-        if [ -d "$CMAKE_DIR" ]; then
-          echo "✅ CMake build directory exists at $CMAKE_DIR"
-          
-          # Count files in the directory
-          FILE_COUNT=$(find "$CMAKE_DIR" -type f | wc -l)
-          echo "📊 Number of files in CMake build directory: $FILE_COUNT"
-          
-          # Check key subdirectories
-          for ARCH_DIR in "$CMAKE_DIR"/*; do
-            if [ -d "$ARCH_DIR" ]; then
-              ARCH_NAME=$(basename "$ARCH_DIR")
-              ARCH_FILE_COUNT=$(find "$ARCH_DIR" -type f | wc -l)
-              echo "📁 Architecture $ARCH_NAME: $ARCH_FILE_COUNT files"
-              
-              # Show some key file types
-              SO_COUNT=$(find "$ARCH_DIR" -name "*.so" | wc -l)
-              echo "   - .so files: $SO_COUNT"
-              
-              CMAKE_CACHE_COUNT=$(find "$ARCH_DIR" -name "CMakeCache.txt" | wc -l)
-              echo "   - CMakeCache.txt files: $CMAKE_CACHE_COUNT"
-              
-              # List some example files (limited to avoid excessive output)
-              echo "   - Sample files (up to 5):"
-              find "$ARCH_DIR" -type f -name "*.so" | head -n 5 | sed 's/^/     /'
-            fi
-          done
-          
-          # Show directory tree
-          echo "🌳 Directory tree:"
-          tree "$CMAKE_DIR"
-        else
-          echo "❌ CMake build directory does not exist at $CMAKE_DIR"
-        fi
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
       shell: bash
     
     - name: Build Android APKs (Debug and Release) with Gradle
@@ -417,42 +389,16 @@ jobs:
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/apk/
+  
+    - name: Make check native build artifacts script executable
+      run: chmod +x scripts/check_native_build_artifacts.sh
 
     # Check if CMake build artifacts exist for integration tests
     - name: Check CMake build artifacts for integration tests
       run: |
-        CMAKE_DIR="android/app/build/intermediates/cmake"
-        echo "🧪 Checking CMake artifacts for integration tests (architecture: ${{ matrix.arch }})"
-        if [ -d "$CMAKE_DIR" ]; then
-          echo "✅ CMake build directory exists at $CMAKE_DIR"
-          
-          # Count files in the directory
-          FILE_COUNT=$(find "$CMAKE_DIR" -type f | wc -l)
-          echo "📊 Number of files in CMake build directory: $FILE_COUNT"
-          
-          # Check key subdirectories
-          for ARCH_DIR in "$CMAKE_DIR"/*; do
-            if [ -d "$ARCH_DIR" ]; then
-              ARCH_NAME=$(basename "$ARCH_DIR")
-              ARCH_FILE_COUNT=$(find "$ARCH_DIR" -type f | wc -l)
-              echo "📁 Architecture $ARCH_NAME: $ARCH_FILE_COUNT files"
-              
-              # Show some key file types
-              SO_COUNT=$(find "$ARCH_DIR" -name "*.so" | wc -l)
-              echo "   - .so files: $SO_COUNT"
-              
-              CMAKE_CACHE_COUNT=$(find "$ARCH_DIR" -name "CMakeCache.txt" | wc -l)
-              echo "   - CMakeCache.txt files: $CMAKE_CACHE_COUNT"
-            fi
-          done
-          
-          # Show directory tree
-          echo "🌳 Directory tree:"
-          tree "$CMAKE_DIR"
-        else
-          echo "❌ CMake build directory does not exist at $CMAKE_DIR"
-          echo "⚠️ This may cause integration tests to fail if they depend on native libraries"
-        fi
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
+        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
       shell: bash
 
     - name: Make wait script executable

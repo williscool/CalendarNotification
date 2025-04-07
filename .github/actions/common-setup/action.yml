@@ -265,7 +265,10 @@ runs:
       continue-on-error: true
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: android/app/build/intermediates/cmake
+        path: |
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
     
     # Check if downloaded artifacts exist and are non-empty
     - name: Check if native build artifacts exist
@@ -300,7 +303,10 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: android/app/build/intermediates/cmake
+        path: |
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
         retention-days: 7
         if-no-files-found: warn
     
@@ -308,7 +314,7 @@ runs:
       if: steps.ndk-cache.outputs.cache-hit == 'true' || steps.check-native-artifacts.outputs.exists == 'true'
       run: echo "Skipping native build - using cached version or downloaded artifacts"
       shell: bash
-      
+
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'
