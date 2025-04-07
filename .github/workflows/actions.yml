@@ -529,7 +529,7 @@ jobs:
         uses: madrapps/jacoco-report@v1.6.1
         with:
           paths: |
-            ${{ github.workspace }}/coverage-data/unit-tests/android/app/build/reports/jacoco/**/*.xml
+            ${{ github.workspace }}/coverage-data/unit-tests/android/app/build/reports/coverage/**/*.xml
             ${{ github.workspace }}/coverage-data/integration-tests/android/app/build/reports/jacoco/**/*.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-overall: 30
