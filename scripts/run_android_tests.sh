@@ -29,7 +29,6 @@ export BUILD_ARCH=$ARCH
 # Run the tests with the appropriate architecture suffix
 ./gradlew -PBUILD_ARCH="$ARCH" \
          :"$MAIN_PROJECT_MODULE":connected${ARCH_SUFFIX}DebugAndroidTest \
-         :"$MAIN_PROJECT_MODULE":jacocoAndroidTestReport \
          --parallel --max-workers=4 --build-cache
 
 echo "Android tests completed successfully!" 

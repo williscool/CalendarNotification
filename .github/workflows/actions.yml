@@ -128,15 +128,6 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-    - name: Upload Coverage Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-test-coverage-report
-        path: |
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/debugAndroidTest/connected/
-        retention-days: 90
-        
     # Update all caches
     - name: Update Caches
       uses: ./.github/actions/cache-update
@@ -324,10 +315,17 @@ jobs:
         ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-                  :${{ env.main_project_module }}:jacocoAndroidTestReport \
         --continue --configure-on-demand
       env:
         BUILD_ARCH: ${{ matrix.arch }}
+
+    # Generate Jacoco coverage report
+    # always() is used to ensure the coverage report is generated even if the tests fail
+    - name: Generate Jacoco Coverage Report
+      if: always() 
+      run: |
+        cd android && \
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache
 
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
@@ -350,6 +348,7 @@ jobs:
           android/app/build/test-results/
           android/app/build/outputs/logs/
         retention-days: 90
+
         
   integration-test:
     name: Test Android App
@@ -421,13 +420,21 @@ jobs:
         script: |
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
           
+    # Generate Jacoco coverage report
+    # always() is used to ensure the coverage report is generated even if the tests fail
+    - name: Generate Jacoco Coverage Report
+      if: always() 
+      run: |
+        cd android && \
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache
+        
     # Publish integration test results
     - name: Publish Integration Test Results
       uses: dorny/test-reporter@v2
       if: always()
       with:
         name: 'Integration Tests'
-        path: 'android/${{ env.main_project_module }}/build/outputs/**/connected/**/TEST-*.xml'
+        path: 'android/${{ env.main_project_module }}/build/outputs/**/connected/**/*.xml'
         reporter: java-junit
         fail-on-error: true
 
@@ -437,10 +444,11 @@ jobs:
       with:
         name: android-test-coverage-report
         path: |
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
           android/app/build/reports/
-          android/app/build/test-results/
+          android/app/build/reports/jacoco/jacocoAndroidTestReport/
+          android/app/build/outputs/code_coverage/
           android/app/build/outputs/logs/
+          android/app/build/test-results/
         retention-days: 90
     
     - name: Upload Emulator Log
