@@ -289,6 +289,31 @@ jobs:
           name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
+  comment-pr:
+    name: Comment on PR with build links
+    if: github.event_name == 'pull_request'
+    needs: sign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment PR
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Build artifacts for this PR are available:
+
+              - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
+              - [AAB](${workflowUrl}#artifacts)
+
+              You can download these artifacts from the "Artifacts" section of the workflow run.`
+            });
+
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
@@ -471,31 +496,6 @@ jobs:
         native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
         already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
         
-  comment-pr:
-    name: Comment on PR with build links
-    if: github.event_name == 'pull_request'
-    needs: sign
-    runs-on: ubuntu-latest
-    steps:
-      - name: Comment PR
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `Build artifacts for this PR are available:
-
-              - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [AAB](${workflowUrl}#artifacts)
-
-              You can download these artifacts from the "Artifacts" section of the workflow run.`
-            });
-            
   coverage-report:
     name: Process Code Coverage
     needs: [unit-tests, integration-test]
@@ -511,14 +511,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: unit-test-results
-          path: coverage-data/unit-tests
+          # path relative to build directory. because highest common directory is build
+          path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
       
       - name: Download integration test coverage
         uses: actions/download-artifact@v4
         with:
           name: android-test-coverage-report
-          path: coverage-data/integration-tests
+          # path relative to build directory. because highest common directory is build
+          path: coverage-data/integration-tests/android/app/build/
         continue-on-error: true
         
       # Process and generate coverage report from Jacoco XML files
