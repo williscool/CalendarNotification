@@ -1,8 +1,13 @@
 package expo.modules.mymodule
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import kotlinx.serialization.json.Json
+
 
 class MyModule : Module() {
   // Each module class must implement the definition function. The definition consists of components
@@ -32,8 +37,15 @@ class MyModule : Module() {
 
     // Defines a JavaScript function that always returns a Promise and whose native code
     // is by default dispatched on the different thread than the JavaScript runtime runs on.
+    // TODO: this is the other side of the bridge!
     AsyncFunction("setValueAsync") { value: String ->
       // Send an event to JavaScript.
+
+      val eventObject = Json.decodeFromString<JsDismissEventObject>(value)
+
+      Log.i(TAG, eventObject.toString())
+      // TOOD: setup an intent here to send the ids for the main app to consume
+
       sendEvent("onChange", mapOf(
         "value" to value
       ))

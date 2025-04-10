@@ -14,8 +14,13 @@ export function hello(): string {
   return MyModule.hello();
 }
 
-export async function setValueAsync(value: string) {
-  return await MyModule.setValueAsync(value);
+export async function setValueAsync(value: { ids: number[] }) {
+  try {
+    return await MyModule.setValueAsync(JSON.stringify(value));
+  } catch (error) {
+    console.error('Error in setValueAsync:', error);
+    throw error;
+  }
 }
 
 const emitter = new EventEmitter(MyModule ?? NativeModulesProxy.MyModule);
