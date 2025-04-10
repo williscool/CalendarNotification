@@ -25,7 +25,8 @@ enum class EventDismissType(val code: Int) {
     ManuallyDismissedFromNotification(0),
     ManuallyDismissedFromActivity(1),
     AutoDismissedDueToCalendarMove(2),
-    EventMovedUsingApp(3);
+    EventMovedUsingApp(3),
+    AutoDismissedDueToRescheduleConfirmation(4);
 
     companion object {
         @JvmStatic
@@ -36,7 +37,7 @@ enum class EventDismissType(val code: Int) {
         get() = true; // this != EventMovedUsingApp
 
     val canBeRestored: Boolean
-        get() = this != AutoDismissedDueToCalendarMove && this != EventMovedUsingApp
+        get() = this != AutoDismissedDueToCalendarMove && this != EventMovedUsingApp && this != AutoDismissedDueToRescheduleConfirmation
 }
 
 data class DismissedEventAlertRecord(

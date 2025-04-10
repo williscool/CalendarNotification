@@ -55,6 +55,9 @@ fun DismissedEventAlertRecord.formatReason(ctx: Context): String =
 
             EventDismissType.EventMovedUsingApp ->
                 String.format(ctx.resources.getString(R.string.event_moved_new_time), dateToStr(ctx, this.event.startTime))
+
+            EventDismissType.AutoDismissedDueToRescheduleConfirmation ->
+              String.format(ctx.resources.getString(R.string.event_rescheduled_new_time), dateToStr(ctx, this.dismissTime))
         }
 
 interface DismissedEventListCallback {
