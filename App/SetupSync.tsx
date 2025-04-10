@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView, Linking } from 'react-native';
-import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
+import { hello, MyModuleView, setValueAsync, addChangeListener, RawRescheduleConfirmation } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -34,7 +34,7 @@ export const SetupSync = () => {
   const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit ${numEventsToDisplay}`;
 
   const { data: psEvents } = useQuery<string>(debugDisplayQuery);
-  const { data: psRescheduleConfirmations } = useQuery<string>(`select * from reschedule_confirmations limit ${numEventsToDisplay}`);
+  const { data: rawConfirmations } = useQuery<RawRescheduleConfirmation>(`select event_id, calendar_id, original_instance_start_time, title, new_instance_start_time, is_in_future, created_at, updated_at from reschedule_confirmations limit ${numEventsToDisplay}`);
 
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
@@ -42,8 +42,6 @@ export const SetupSync = () => {
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const regDb = open({ name: 'Events' }); 
   const providerDb = useContext(PowerSyncContext);
-
-  const dismissIds = { ids: [1, 2, 3]};
 
   useEffect(() => {
     (async () => {
@@ -170,7 +168,7 @@ export const SetupSync = () => {
           <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
           <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
 
-          <Text style={styles.hello}> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(psRescheduleConfirmations)}</Text>
+          <Text style={styles.hello}> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations)}</Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
             <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
           )}
@@ -228,18 +226,20 @@ export const SetupSync = () => {
         </>
       )}
 
-      {/* we gona use this for the bridge! */}
-      {/* TODO: this native module can be used to communicate with the kolin code */}
+
+      {/* this native module can be used to communicate with the kolin code */}
       {/* I want to use it to get things like the mute status of a notification  */}
       {/* or whatever other useful things. so dont delete it so I remember to use it later  */}
 
       
+      {/* <MyModuleView name="MyModuleView" /> */}
 
-      <MyModuleView name="MyModuleView" />
       <Button
-        title="Send Event Ids to Dismiss"
+        title="Send Reschedule Confirmations"
         onPress={async () => {
-          await setValueAsync(dismissIds);
+          if (rawConfirmations) {
+            await setValueAsync(rawConfirmations);
+          }
         }}
       ></Button>
 
