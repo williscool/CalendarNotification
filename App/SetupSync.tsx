@@ -17,7 +17,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
   const { settings } = useSettings();
-  const debugDisplayKeys = ['id', 'ttl', 'loc'];
+  const debugDisplayKeys = ['id', 'ttl', 'istart' ,'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
@@ -165,12 +165,12 @@ export const SetupSync = () => {
 
       {showDebugOutput && (
         <View style={styles.debugSection}>
-          <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
-          <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
+          <Text style={styles.hello} selectable> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
+          <Text style={styles.hello} selectable> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
 
-          <Text style={styles.hello}> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations)}</Text>
+          <Text style={styles.hello} selectable> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations)}</Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
-            <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
+            <Text style={styles.hello} selectable>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
           )}
         </View>
       )}
