@@ -42,6 +42,7 @@ buildscript {
     dependencies {
         classpath "com.android.tools.build:gradle:$android_gradle_plugin_version"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
         classpath("com.facebook.react:react-native-gradle-plugin")
 
         // NOTE: Do not place your application dependencies here; they belong

@@ -41,9 +41,9 @@ class MyModule : Module() {
     AsyncFunction("setValueAsync") { value: String ->
       // Send an event to JavaScript.
 
-      val eventObject = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
+      val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
 
-      Log.i(TAG, eventObject.toString())
+      Log.i(TAG, rescheduleConfirmations.toString())
       // TOOD: setup an intent here to send the ids for the main app to consume
 
       sendEvent("onChange", mapOf(
