@@ -23,6 +23,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
+import android.util.Log
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequestMonitor
@@ -53,6 +54,8 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import expo.modules.mymodule.JsRescheduleConfirmationObject
+import kotlinx.serialization.json.Json
 
 interface ApplicationControllerInterface {
     // Clock interface for time-related operations
@@ -212,6 +215,17 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 reloadCalendar = true,
                 rescanMonitor = true
         )
+    }
+
+    fun onReceivedRescheduleConfirmations(context: Context) {
+
+      DevLog.info(LOG_TAG, "onReceivedRescheduleConfirmations")
+
+      val value = "[]"
+
+      val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
+
+      Log.i(LOG_TAG, rescheduleConfirmations.toString())
     }
 
     override fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {

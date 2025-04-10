@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'kotlinx-serialization'
 apply plugin: "com.facebook.react"
 apply plugin: 'jacoco'
 
@@ -254,7 +255,7 @@ dependencies {
             strictly '3.45.0'
         }
     }
-
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
   // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'
 
