@@ -1,5 +1,6 @@
 package expo.modules.mymodule
 
+import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -44,7 +45,11 @@ class MyModule : Module() {
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
 
       Log.i(TAG, rescheduleConfirmations.toString())
-      // TOOD: setup an intent here to send the ids for the main app to consume
+      
+      // Send intent with reschedule confirmations data
+      val intent = Intent("com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS")
+      intent.putExtra("reschedule_confirmations", value)
+      appContext.reactContext?.sendBroadcast(intent)
 
       sendEvent("onChange", mapOf(
         "value" to value

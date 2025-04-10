@@ -217,14 +217,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         )
     }
 
-    fun onReceivedRescheduleConfirmations(context: Context) {
-
+    fun onReceivedRescheduleConfirmations(context: Context, value: String) {
       DevLog.info(LOG_TAG, "onReceivedRescheduleConfirmations")
 
-      val value = "[]"
-
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
-
       Log.i(LOG_TAG, rescheduleConfirmations.toString())
     }
 
