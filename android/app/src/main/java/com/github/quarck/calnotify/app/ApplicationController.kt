@@ -221,7 +221,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
       DevLog.info(LOG_TAG, "onReceivedRescheduleConfirmations")
 
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
-      Log.i(LOG_TAG, rescheduleConfirmations.toString())
+      Log.i(LOG_TAG, "onReceivedRescheduleConfirmations info: $rescheduleConfirmations" )
+
+      val toDismissId = 10000375L 
+      val iStart = 1744279463375L
+
+      // Note: notification id never used consider deleting from method signature
+      dismissEvent(context,EventDismissType.AutoDismissedDueToCalendarMove,toDismissId, iStart, 0, false   )
     }
 
     override fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {
