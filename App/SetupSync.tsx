@@ -34,6 +34,8 @@ export const SetupSync = () => {
   const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit ${numEventsToDisplay}`;
 
   const { data: psEvents } = useQuery<string>(debugDisplayQuery);
+  const { data: psRescheduleConfirmations } = useQuery<string>(`select * from reschedule_confirmations limit ${numEventsToDisplay}`);
+
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
@@ -164,9 +166,9 @@ export const SetupSync = () => {
       {showDebugOutput && (
         <View style={styles.debugSection}>
           <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
-          
           <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
 
+          <Text style={styles.hello}> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(psRescheduleConfirmations)}</Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
             <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
           )}
@@ -224,6 +226,7 @@ export const SetupSync = () => {
         </>
       )}
 
+      {/* we gona use this for the bridge! */}
       {/* TODO: this native module can be used to communicate with the kolin code */}
       {/* I want to use it to get things like the mute status of a notification  */}
       {/* or whatever other useful things. so dont delete it so I remember to use it later  */}
