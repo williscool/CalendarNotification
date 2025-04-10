@@ -241,12 +241,38 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
       Log.i(LOG_TAG, "onReceivedRescheduleConfirmations info: $rescheduleConfirmations" )
 
-      val toDismissId = 2178L
-      val iStart = 1744316068228L
+      // Filter for future events
+      val futureEvents = rescheduleConfirmations.filter { it.is_in_future }
+      if (futureEvents.isEmpty()) {
+          DevLog.info(LOG_TAG, "No future events to dismiss")
+          return
+      }
 
-      // TODO: add a toast with the amount successfully dismissed and failed
-      // Note: notification id never used consider deleting from method signature
-      dismissEvent(context,EventDismissType.AutoDismissedDueToRescheduleConfirmation,toDismissId, iStart, 0, false   )
+      // Get event IDs to dismiss
+      val eventIds = futureEvents.map { it.event_id }
+
+      // Use safeDismissEventsById to handle the dismissals
+      EventsStorage(context).classCustomUse { db ->
+          val results = safeDismissEventsById(
+              context,
+              db,
+              eventIds,
+              EventDismissType.AutoDismissedDueToRescheduleConfirmation,
+              false
+          )
+
+          // Log results
+          val successCount = results.count { it.second == EventDismissResult.Success }
+          val failureCount = results.count { it.second != EventDismissResult.Success }
+          
+          DevLog.info(LOG_TAG, "Dismissed $successCount events successfully, $failureCount events failed")
+          
+          // Log any failures
+          results.filter { it.second != EventDismissResult.Success }
+              .forEach { (eventId, result) ->
+                  DevLog.warn(LOG_TAG, "Failed to dismiss event $eventId: $result")
+              }
+      }
     }
 
     override fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {
