@@ -8,6 +8,7 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.AttendanceStatus
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.testutils.MockApplicationComponents
@@ -57,8 +58,8 @@ class EventDismissTest {
     fun testOriginalDismissEventWithValidEvent() {
         // Given
         val event = createTestEvent()
-        every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns event
-        every { mockDb.deleteEvent(event.eventId, event.instanceStartTime) } returns true
+        every { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) } returns event
+        every { EventsStorage(mockContext).deleteEvent(event.eventId, event.instanceStartTime) } returns true
         
         // When
         ApplicationController.dismissEvent(
@@ -71,15 +72,15 @@ class EventDismissTest {
         )
         
         // Then
-        verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
-        verify { mockDb.deleteEvent(event.eventId, event.instanceStartTime) }
+        verify { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) }
+        verify { EventsStorage(mockContext).deleteEvent(event.eventId, event.instanceStartTime) }
     }
     
     @Test
     fun testOriginalDismissEventWithNonExistentEvent() {
         // Given
         val event = createTestEvent()
-        every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns null
+        every { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) } returns null
         
         // When
         ApplicationController.dismissEvent(
@@ -92,8 +93,8 @@ class EventDismissTest {
         )
         
         // Then
-        verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
-        verify(exactly = 0) { mockDb.deleteEvent(any(), any()) }
+        verify { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) }
+        verify(exactly = 0) { EventsStorage(mockContext).deleteEvent(any(), any()) }
     }
     
     @Test
