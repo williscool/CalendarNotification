@@ -37,8 +37,25 @@ const eventsV9 = new Table(
   { indexes: {} }
 );
 
+const reschedule_confirmations = new Table(
+  {
+    // id column (text) is automatically included
+    event_id: column.integer,
+    calendar_id: column.integer,
+    original_instance_start_time: column.integer,
+    title: column.text,
+    new_instance_start_time: column.integer,
+    is_in_future: column.integer,
+    meta: column.text,
+    created_at: column.text,
+    updated_at: column.text
+  },
+  { indexes: {} }
+);
+
 export const AppSchema = new Schema({
-  eventsV9
+  eventsV9,
+  reschedule_confirmations
 });
 
 export type Database = (typeof AppSchema)['types'];
