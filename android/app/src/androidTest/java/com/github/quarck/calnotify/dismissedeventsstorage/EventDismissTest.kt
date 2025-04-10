@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.dismissedeventsstorage
 
 import android.content.Context
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -17,13 +18,9 @@ import io.mockk.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import org.junit.Assert.*
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@RunWith(AndroidJUnit4::class)
 class EventDismissTest {
     private val LOG_TAG = "EventDismissTest"
     
@@ -34,24 +31,30 @@ class EventDismissTest {
     @Before
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up EventDismissTest")
-        
-        // Setup mock context
-        mockContext = mockk<Context>(relaxed = true)
-        
+
         // Setup mock database
         mockDb = mockk<EventsStorageInterface>(relaxed = true)
         
+        // Setup mock providers
+        val mockTimeProvider = MockTimeProvider()
+        val mockContextProvider = MockContextProvider(mockTimeProvider)
+        mockContextProvider.setup()
+        val mockCalendarProvider = MockCalendarProvider(mockContextProvider, mockTimeProvider)
+        mockCalendarProvider.setup()
+        
         // Setup mock components
         mockComponents = MockApplicationComponents(
-            MockContextProvider(mockContext),
-            MockTimeProvider(),
-            MockCalendarProvider()
+            contextProvider = mockContextProvider,
+            timeProvider = mockTimeProvider,
+            calendarProvider = mockCalendarProvider
         )
         mockComponents.setup()
+
+        mockContext = mockContextProvider.fakeContext
     }
     
     @Test
-    fun `test original dismissEvent with valid event`() {
+    fun testOriginalDismissEventWithValidEvent() {
         // Given
         val event = createTestEvent()
         every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns event
@@ -73,7 +76,7 @@ class EventDismissTest {
     }
     
     @Test
-    fun `test original dismissEvent with non-existent event`() {
+    fun testOriginalDismissEventWithNonExistentEvent() {
         // Given
         val event = createTestEvent()
         every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns null
@@ -94,7 +97,7 @@ class EventDismissTest {
     }
     
     @Test
-    fun `test safeDismissEvents with valid events`() {
+    fun testSafeDismissEventsWithValidEvents() {
         // Given
         val events = listOf(createTestEvent(1), createTestEvent(2))
         every { mockDb.getEvent(any(), any()) } returns events[0]
@@ -118,7 +121,7 @@ class EventDismissTest {
     }
     
     @Test
-    fun `test safeDismissEvents with mixed valid and invalid events`() {
+    fun testSafeDismissEventsWithMixedValidAndInvalidEvents() {
         // Given
         val validEvent = createTestEvent(1)
         val invalidEvent = createTestEvent(2)
@@ -139,17 +142,17 @@ class EventDismissTest {
         
         // Then
         assertEquals(events.size, results.size)
-        val validResult = results.find { it.first == validEvent }
-        val invalidResult = results.find { it.first == invalidEvent }
+        val validResult = results.find { it.first == validEvent }?.second
+        val invalidResult = results.find { it.first == invalidEvent }?.second
         
         assertNotNull(validResult)
         assertNotNull(invalidResult)
-        assertEquals(EventDismissResult.Success, validResult.second)
-        assertEquals(EventDismissResult.EventNotFound, invalidResult.second)
+        assertEquals(EventDismissResult.Success, validResult)
+        assertEquals(EventDismissResult.EventNotFound, invalidResult)
     }
     
     @Test
-    fun `test safeDismissEvents by ID with valid events`() {
+    fun testSafeDismissEventsByIdWithValidEvents() {
         // Given
         val eventIds = listOf(1L, 2L)
         val events = eventIds.map { createTestEvent(it) }
@@ -159,7 +162,7 @@ class EventDismissTest {
         every { mockDb.deleteEvents(any()) } returns events.size
         
         // When
-        val results = ApplicationController.safeDismissEvents(
+        val results = ApplicationController.safeDismissEventsById(
             mockContext,
             mockDb,
             eventIds,
@@ -175,13 +178,13 @@ class EventDismissTest {
     }
     
     @Test
-    fun `test safeDismissEvents by ID with non-existent events`() {
+    fun testSafeDismissEventsByIdWithNonExistentEvents() {
         // Given
         val eventIds = listOf(1L, 2L)
         every { mockDb.getEventInstances(any()) } returns emptyList()
         
         // When
-        val results = ApplicationController.safeDismissEvents(
+        val results = ApplicationController.safeDismissEventsById(
             mockContext,
             mockDb,
             eventIds,
@@ -197,7 +200,7 @@ class EventDismissTest {
     }
     
     @Test
-    fun `test safeDismissEvents with database error`() {
+    fun testSafeDismissEventsWithDatabaseError() {
         // Given
         val event = createTestEvent()
         every { mockDb.getEvent(any(), any()) } returns event

@@ -54,6 +54,7 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissResult
 import expo.modules.mymodule.JsRescheduleConfirmationObject
 import kotlinx.serialization.json.Json
 
@@ -102,7 +103,7 @@ interface ApplicationControllerInterface {
         notifyActivity: Boolean
     ): List<Pair<EventAlertRecord, EventDismissResult>>
 
-    fun safeDismissEvents(
+    fun safeDismissEventsById(
         context: Context,
         db: EventsStorageInterface,
         eventIds: Collection<Long>,
@@ -1254,7 +1255,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //        }
     }
 
-    fun ApplicationController.safeDismissEvents(
+    override fun safeDismissEvents(
         context: Context,
         db: EventsStorageInterface,
         events: Collection<EventAlertRecord>,
@@ -1366,7 +1367,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return results
     }
 
-    fun ApplicationController.safeDismissEvents(
+    override fun safeDismissEventsById(
         context: Context,
         db: EventsStorageInterface,
         eventIds: Collection<Long>,
