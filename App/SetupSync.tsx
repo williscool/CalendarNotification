@@ -43,6 +43,8 @@ export const SetupSync = () => {
   const regDb = open({ name: 'Events' }); 
   const providerDb = useContext(PowerSyncContext);
 
+  const dismissIds = { ids: [1, 2, 3]};
+
   useEffect(() => {
     (async () => {
       if (settings.syncEnabled && settings.syncType === 'bidirectional') {
@@ -231,13 +233,15 @@ export const SetupSync = () => {
       {/* I want to use it to get things like the mute status of a notification  */}
       {/* or whatever other useful things. so dont delete it so I remember to use it later  */}
 
-      {/* <MyModuleView name="MyModuleView" />
+      
+
+      <MyModuleView name="MyModuleView" />
       <Button
-        title="Click me!"
+        title="Send Event Ids to Dismiss"
         onPress={async () => {
-          await setValueAsync('blarf');
+          await setValueAsync(dismissIds);
         }}
-      ></Button> */}
+      ></Button>
 
     </ScrollView>
   );

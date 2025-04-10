@@ -254,8 +254,8 @@ dependencies {
             strictly '3.45.0'
         }
     }
-    
-    // Unit test dependencies
+
+  // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'
 
   // Test dependencies - use test-compatible versions
