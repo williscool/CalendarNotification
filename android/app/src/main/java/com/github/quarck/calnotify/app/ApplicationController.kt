@@ -92,6 +92,23 @@ interface ApplicationControllerInterface {
     fun applyCustomQuietHoursForSeconds(ctx: Context, quietForSeconds: Int)
     fun onReminderAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long)
     fun onSnoozeAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long)
+
+    // New safe dismiss methods
+    fun safeDismissEvents(
+        context: Context,
+        db: EventsStorageInterface,
+        events: Collection<EventAlertRecord>,
+        dismissType: EventDismissType,
+        notifyActivity: Boolean
+    ): List<Pair<EventAlertRecord, EventDismissResult>>
+
+    fun safeDismissEvents(
+        context: Context,
+        db: EventsStorageInterface,
+        eventIds: Collection<Long>,
+        dismissType: EventDismissType,
+        notifyActivity: Boolean
+    ): List<Pair<Long, EventDismissResult>>
 }
 
 object ApplicationController : ApplicationControllerInterface, EventMovedHandler {
