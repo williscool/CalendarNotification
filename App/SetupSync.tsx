@@ -34,7 +34,7 @@ export const SetupSync = () => {
   const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit ${numEventsToDisplay}`;
 
   const { data: psEvents } = useQuery<string>(debugDisplayQuery);
-  const { data: rawConfirmations } = useQuery<RawRescheduleConfirmation>(`select event_id, calendar_id, original_instance_start_time, title, new_instance_start_time, is_in_future, created_at, updated_at from reschedule_confirmations limit ${numEventsToDisplay}`);
+  const { data: rawConfirmations } = useQuery<RawRescheduleConfirmation>(`select event_id, calendar_id, original_instance_start_time, title, new_instance_start_time, is_in_future, created_at, updated_at from reschedule_confirmations`);
 
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
@@ -168,7 +168,7 @@ export const SetupSync = () => {
           <Text style={styles.hello} selectable> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
           <Text style={styles.hello} selectable> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
 
-          <Text style={styles.hello} selectable> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations)}</Text>
+          <Text style={styles.hello} selectable> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations?.slice(0, numEventsToDisplay))}</Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
             <Text style={styles.hello} selectable>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
           )}
