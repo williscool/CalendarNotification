@@ -206,6 +206,21 @@ export const SetupSync = () => {
         <>
           <View style={styles.warningContainer}>
             <Text style={styles.warningText}>
+              ⚠️ WARNING: This will dismiss events from your local device!
+            </Text>
+          </View>
+
+          <Button
+            title="Send Reschedule Confirmations"
+            onPress={async () => {
+              if (rawConfirmations) {
+                await setValueAsync(rawConfirmations);
+              }
+            }}
+          ></Button>
+          
+          <View style={styles.warningContainer}>
+            <Text style={styles.warningText}>
               ⚠️ WARNING: This will only delete events from the remote PowerSync database.{'\n'}
               Your local device events will remain unchanged.
             </Text>
@@ -233,15 +248,6 @@ export const SetupSync = () => {
 
       
       {/* <MyModuleView name="MyModuleView" /> */}
-
-      <Button
-        title="Send Reschedule Confirmations"
-        onPress={async () => {
-          if (rawConfirmations) {
-            await setValueAsync(rawConfirmations);
-          }
-        }}
-      ></Button>
 
     </ScrollView>
   );
