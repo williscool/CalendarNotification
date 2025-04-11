@@ -23,6 +23,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
+import android.util.Log
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequestMonitor
@@ -53,6 +54,9 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissResult
+import expo.modules.mymodule.JsRescheduleConfirmationObject
+import kotlinx.serialization.json.Json
 
 interface ApplicationControllerInterface {
     // Clock interface for time-related operations
@@ -89,6 +93,23 @@ interface ApplicationControllerInterface {
     fun applyCustomQuietHoursForSeconds(ctx: Context, quietForSeconds: Int)
     fun onReminderAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long)
     fun onSnoozeAlarmLate(context: Context, currentTime: Long, alarmWasExpectedAt: Long)
+
+    // New safe dismiss methods
+    fun safeDismissEvents(
+        context: Context,
+        db: EventsStorageInterface,
+        events: Collection<EventAlertRecord>,
+        dismissType: EventDismissType,
+        notifyActivity: Boolean
+    ): List<Pair<EventAlertRecord, EventDismissResult>>
+
+    fun safeDismissEventsById(
+        context: Context,
+        db: EventsStorageInterface,
+        eventIds: Collection<Long>,
+        dismissType: EventDismissType,
+        notifyActivity: Boolean
+    ): List<Pair<Long, EventDismissResult>>
 }
 
 object ApplicationController : ApplicationControllerInterface, EventMovedHandler {
@@ -212,6 +233,57 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 reloadCalendar = true,
                 rescanMonitor = true
         )
+    }
+
+    fun onReceivedRescheduleConfirmations(context: Context, value: String) {
+      DevLog.info(LOG_TAG, "onReceivedRescheduleConfirmations")
+
+      val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
+      Log.i(LOG_TAG, "onReceivedRescheduleConfirmations example info: ${rescheduleConfirmations.take(3)}" )
+
+      // Filter for future events
+      val futureEvents = rescheduleConfirmations.filter { it.is_in_future }
+      if (futureEvents.isEmpty()) {
+          DevLog.info(LOG_TAG, "No future events to dismiss")
+          android.widget.Toast.makeText(context, "No future events to dismiss", android.widget.Toast.LENGTH_SHORT).show()
+          return
+      }
+
+      // Get event IDs to dismiss
+      val eventIds = futureEvents.map { it.event_id }
+      
+      android.widget.Toast.makeText(context, "Attempting to dismiss ${eventIds.size} events", android.widget.Toast.LENGTH_SHORT).show()
+
+      // Use safeDismissEventsById to handle the dismissals
+      EventsStorage(context).classCustomUse { db ->
+          val results = safeDismissEventsById(
+              context,
+              db,
+              eventIds,
+              EventDismissType.AutoDismissedDueToRescheduleConfirmation,
+              false
+          )
+
+          // Log results
+          val successCount = results.count { it.second == EventDismissResult.Success }
+          val failureCount = results.count { it.second != EventDismissResult.Success }
+          
+          DevLog.info(LOG_TAG, "Dismissed $successCount events successfully, $failureCount events failed")
+          android.widget.Toast.makeText(context, "Dismissed $successCount events successfully, $failureCount events failed", android.widget.Toast.LENGTH_LONG).show()
+          
+          // Group and log failures by reason
+          if (failureCount > 0) {
+              val failuresByReason = results
+                  .filter { it.second != EventDismissResult.Success }
+                  .groupBy { it.second }
+                  .mapValues { it.value.size }
+
+              failuresByReason.forEach { (reason, count) ->
+                  DevLog.warn(LOG_TAG, "Failed to dismiss $count events: $reason")
+                  android.widget.Toast.makeText(context, "Failed to dismiss $count events: $reason", android.widget.Toast.LENGTH_LONG).show()
+              }
+          }
+      }
     }
 
     override fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {
@@ -1218,5 +1290,165 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
 //            notificationManager.postNotificationsSnoozeAlarmDelayDebugMessage(context, "Snooze alarm was late!", warningMessage)
 //        }
+    }
+
+    override fun safeDismissEvents(
+        context: Context,
+        db: EventsStorageInterface,
+        events: Collection<EventAlertRecord>,
+        dismissType: EventDismissType,
+        notifyActivity: Boolean
+    ): List<Pair<EventAlertRecord, EventDismissResult>> {
+        val results = mutableListOf<Pair<EventAlertRecord, EventDismissResult>>()
+        
+        try {
+            // First validate all events exist in the database
+            val validEvents = events.filter { event ->
+                val exists = db.getEvent(event.eventId, event.instanceStartTime) != null
+                results.add(Pair(event, if (exists) EventDismissResult.Success else EventDismissResult.EventNotFound))
+                exists
+            }
+
+            if (validEvents.isEmpty()) {
+                DevLog.info(LOG_TAG, "No valid events to dismiss")
+                return results
+            }
+
+            DevLog.info(LOG_TAG, "Attempting to dismiss ${validEvents.size} events")
+
+            // Store dismissed events if needed
+            if (dismissType.shouldKeep) {
+                try {
+                    DismissedEventsStorage(context).classCustomUse {
+                        it.addEvents(dismissType, validEvents)
+                    }
+                } catch (ex: Exception) {
+                    DevLog.error(LOG_TAG, "Error storing dismissed events: ${ex.detailed}")
+                    validEvents.forEach { event ->
+                        val index = results.indexOfFirst { it.first == event }
+                        if (index != -1) {
+                            results[index] = Pair(event, EventDismissResult.StorageError)
+                        }
+                    }
+                    return results
+                }
+            }
+
+            // Notify about dismissing
+            try {
+                notificationManager.onEventsDismissing(context, validEvents)
+            } catch (ex: Exception) {
+                DevLog.error(LOG_TAG, "Error notifying about dismissing events: ${ex.detailed}")
+                validEvents.forEach { event ->
+                    val index = results.indexOfFirst { it.first == event }
+                    if (index != -1) {
+                        results[index] = Pair(event, EventDismissResult.NotificationError)
+                    }
+                }
+                return results
+            }
+
+            // Delete events
+            val success = db.deleteEvents(validEvents) == validEvents.size
+
+            if (success) {
+                val hasActiveEvents = db.events.any { it.snoozedUntil != 0L && !it.isSpecial }
+
+                // Notify about dismissal
+                try {
+                    notificationManager.onEventsDismissed(
+                        context,
+                        EventFormatter(context),
+                        validEvents,
+                        true,
+                        hasActiveEvents
+                    )
+                } catch (ex: Exception) {
+                    DevLog.error(LOG_TAG, "Error notifying about dismissed events: ${ex.detailed}")
+                    validEvents.forEach { event ->
+                        val index = results.indexOfFirst { it.first == event }
+                        if (index != -1) {
+                            results[index] = Pair(event, EventDismissResult.NotificationError)
+                        }
+                    }
+                    return results
+                }
+
+                ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+                alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
+
+                if (notifyActivity) {
+                    UINotifier.notify(context, true)
+                }
+            } else {
+                DevLog.error(LOG_TAG, "Failed to delete all events from database")
+                // Update results for events that failed to delete
+                validEvents.forEach { event ->
+                    val index = results.indexOfFirst { it.first == event }
+                    if (index != -1) {
+                        results[index] = Pair(event, EventDismissResult.DatabaseError)
+                    }
+                }
+            }
+        } catch (ex: Exception) {
+            DevLog.error(LOG_TAG, "Unexpected error in safeDismissEvents: ${ex.detailed}")
+            // Update all results to indicate error
+            events.forEach { event ->
+                val index = results.indexOfFirst { it.first == event }
+                if (index != -1) {
+                    results[index] = Pair(event, EventDismissResult.DatabaseError)
+                }
+            }
+        }
+
+        return results
+    }
+
+    override fun safeDismissEventsById(
+        context: Context,
+        db: EventsStorageInterface,
+        eventIds: Collection<Long>,
+        dismissType: EventDismissType,
+        notifyActivity: Boolean
+    ): List<Pair<Long, EventDismissResult>> {
+        val results = mutableListOf<Pair<Long, EventDismissResult>>()
+        
+        try {
+            // Get all events for these IDs
+            val events = eventIds.mapNotNull { eventId ->
+                val event = db.getEventInstances(eventId).firstOrNull()
+                results.add(Pair(eventId, if (event != null) EventDismissResult.Success else EventDismissResult.EventNotFound))
+                event
+            }
+
+            if (events.isEmpty()) {
+                DevLog.info(LOG_TAG, "No events found for the provided IDs")
+                return results
+            }
+
+            DevLog.info(LOG_TAG, "Found ${events.size} events to dismiss out of ${eventIds.size} IDs")
+
+            // Call the other version with the found events
+            val dismissResults = safeDismissEvents(context, db, events, dismissType, notifyActivity)
+
+            // Update our results based on the dismiss results
+            dismissResults.forEach { (event, result) ->
+                val index = results.indexOfFirst { it.first == event.eventId }
+                if (index != -1) {
+                    results[index] = Pair(event.eventId, result)
+                }
+            }
+        } catch (ex: Exception) {
+            DevLog.error(LOG_TAG, "Unexpected error in safeDismissEvents by ID: ${ex.detailed}")
+            // Update all results to indicate error
+            eventIds.forEach { eventId ->
+                val index = results.indexOfFirst { it.first == eventId }
+                if (index != -1) {
+                    results[index] = Pair(eventId, EventDismissResult.DatabaseError)
+                }
+            }
+        }
+
+        return results
     }
 }

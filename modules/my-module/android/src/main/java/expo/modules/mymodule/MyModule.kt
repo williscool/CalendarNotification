@@ -1,8 +1,14 @@
 package expo.modules.mymodule
 
+import android.content.Intent
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import kotlinx.serialization.json.Json
+
 
 class MyModule : Module() {
   // Each module class must implement the definition function. The definition consists of components
@@ -32,8 +38,19 @@ class MyModule : Module() {
 
     // Defines a JavaScript function that always returns a Promise and whose native code
     // is by default dispatched on the different thread than the JavaScript runtime runs on.
+    // TODO: this is the other side of the bridge!
     AsyncFunction("setValueAsync") { value: String ->
       // Send an event to JavaScript.
+
+      val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
+
+      Log.i(TAG, rescheduleConfirmations.take(3).toString())
+      
+      // Send intent with reschedule confirmations data
+      val intent = Intent("com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS")
+      intent.putExtra("reschedule_confirmations", value)
+      appContext.reactContext?.sendBroadcast(intent)
+
       sendEvent("onChange", mapOf(
         "value" to value
       ))

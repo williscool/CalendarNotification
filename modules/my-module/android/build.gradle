@@ -1,5 +1,6 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
+apply plugin: 'kotlinx-serialization'  // Add this line
 apply plugin: 'maven-publish'
 
 group = 'expo.modules.mymodule'
@@ -32,6 +33,7 @@ buildscript {
 
   dependencies {
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${getKotlinVersion()}")
+    classpath "org.jetbrains.kotlin:kotlin-serialization:${getKotlinVersion()}"
   }
 }
 
@@ -88,4 +90,5 @@ repositories {
 dependencies {
   implementation project(':expo-modules-core')
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${getKotlinVersion()}"
+  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
