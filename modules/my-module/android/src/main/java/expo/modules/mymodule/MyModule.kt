@@ -44,7 +44,7 @@ class MyModule : Module() {
 
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
 
-      Log.i(TAG, rescheduleConfirmations.toString())
+      Log.i(TAG, rescheduleConfirmations.take(3).toString())
       
       // Send intent with reschedule confirmations data
       val intent = Intent("com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS")

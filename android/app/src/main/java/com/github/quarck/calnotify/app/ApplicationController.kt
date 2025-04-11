@@ -239,17 +239,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
       DevLog.info(LOG_TAG, "onReceivedRescheduleConfirmations")
 
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
-      Log.i(LOG_TAG, "onReceivedRescheduleConfirmations info: $rescheduleConfirmations" )
+      Log.i(LOG_TAG, "onReceivedRescheduleConfirmations example info: ${rescheduleConfirmations.take(3)}" )
 
       // Filter for future events
       val futureEvents = rescheduleConfirmations.filter { it.is_in_future }
       if (futureEvents.isEmpty()) {
           DevLog.info(LOG_TAG, "No future events to dismiss")
+          android.widget.Toast.makeText(context, "No future events to dismiss", android.widget.Toast.LENGTH_SHORT).show()
           return
       }
 
       // Get event IDs to dismiss
       val eventIds = futureEvents.map { it.event_id }
+      
+      android.widget.Toast.makeText(context, "Attempting to dismiss ${eventIds.size} events", android.widget.Toast.LENGTH_SHORT).show()
 
       // Use safeDismissEventsById to handle the dismissals
       EventsStorage(context).classCustomUse { db ->
@@ -266,12 +269,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
           val failureCount = results.count { it.second != EventDismissResult.Success }
           
           DevLog.info(LOG_TAG, "Dismissed $successCount events successfully, $failureCount events failed")
+          android.widget.Toast.makeText(context, "Dismissed $successCount events successfully, $failureCount events failed", android.widget.Toast.LENGTH_LONG).show()
           
-          // Log any failures
-          results.filter { it.second != EventDismissResult.Success }
-              .forEach { (eventId, result) ->
-                  DevLog.warn(LOG_TAG, "Failed to dismiss event $eventId: $result")
+          // Group and log failures by reason
+          if (failureCount > 0) {
+              val failuresByReason = results
+                  .filter { it.second != EventDismissResult.Success }
+                  .groupBy { it.second }
+                  .mapValues { it.value.size }
+
+              failuresByReason.forEach { (reason, count) ->
+                  DevLog.warn(LOG_TAG, "Failed to dismiss $count events: $reason")
+                  android.widget.Toast.makeText(context, "Failed to dismiss $count events: $reason", android.widget.Toast.LENGTH_LONG).show()
               }
+          }
       }
     }
 
