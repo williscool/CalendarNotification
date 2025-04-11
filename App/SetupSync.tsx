@@ -206,19 +206,22 @@ export const SetupSync = () => {
         <>
           <View style={styles.warningContainer}>
             <Text style={styles.warningText}>
-              ⚠️ WARNING: This will dismiss events from your local device!
+              ⚠️ WARNING: This will dismiss potentially many events from your local device!{'\n'}
+              You can restore them from the bin. 
             </Text>
           </View>
 
-          <Button
-            title="Send Reschedule Confirmations"
+          <TouchableOpacity 
+            style={[styles.syncButton, styles.yellowButton]}
             onPress={async () => {
               if (rawConfirmations) {
                 await setValueAsync(rawConfirmations);
               }
             }}
-          ></Button>
-          
+          >
+            <Text style={styles.yellowButtonText}>Send Reschedule Confirmations</Text>
+          </TouchableOpacity>
+
           <View style={styles.warningContainer}>
             <Text style={styles.warningText}>
               ⚠️ WARNING: This will only delete events from the remote PowerSync database.{'\n'}
@@ -323,6 +326,15 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     backgroundColor: '#FF3B30',
+  },
+  yellowButton: {
+    backgroundColor: '#FFD700',
+  },
+  yellowButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   warningContainer: {
     backgroundColor: '#fff',
