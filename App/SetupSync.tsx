@@ -1,16 +1,19 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView, Linking } from 'react-native';
-import { hello, MyModuleView, setValueAsync, addChangeListener, RawRescheduleConfirmation } from '../modules/my-module';
+import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
 import { psInsertDbTable, psClearTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from './index';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { GITHUB_README_URL } from '@lib/constants';
+
+// Split out type imports for better readability
+import type { RawRescheduleConfirmation } from '../modules/my-module';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from './index';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
