@@ -233,6 +233,12 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".broadcastreceivers.RescheduleConfirmationsBroadcastReceiver">
+            <intent-filter>
+                <action android:name="com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
