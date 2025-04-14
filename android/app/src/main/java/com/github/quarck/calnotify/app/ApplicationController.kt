@@ -265,12 +265,22 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
           )
 
           // Log results
-          val successCount = results.count { it.second == EventDismissResult.Success || it.second == EventDismissResult.DeletionWarning }
+          val successCount = results.count { it.second == EventDismissResult.Success }
+          val warningCount = results.count { it.second == EventDismissResult.DeletionWarning }
           val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
           val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
           
-          DevLog.info(LOG_TAG, "Dismissed $successCount events successfully (including warnings), $notFoundCount events not found, $errorCount events failed")
-          android.widget.Toast.makeText(context, "Dismissed $successCount events successfully (including warnings), $notFoundCount events not found, $errorCount events failed", android.widget.Toast.LENGTH_LONG).show()
+          // Main success/failure message
+          val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed"
+          DevLog.info(LOG_TAG, mainMessage)
+          android.widget.Toast.makeText(context, mainMessage, android.widget.Toast.LENGTH_LONG).show()
+          
+          // Separate warning message for deletion issues
+          if (warningCount > 0) {
+              val warningMessage = "Warning: Failed to delete $warningCount events from events storage (they were safely stored in dismissed storage)"
+              DevLog.warn(LOG_TAG, warningMessage)
+              android.widget.Toast.makeText(context, warningMessage, android.widget.Toast.LENGTH_LONG).show()
+          }
           
           // Group and log failures by reason
           if (errorCount > 0) {
