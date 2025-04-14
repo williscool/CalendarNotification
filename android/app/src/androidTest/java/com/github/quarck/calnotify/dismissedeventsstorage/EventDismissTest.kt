@@ -156,6 +156,28 @@ class EventDismissTest {
     }
     
     @Test
+    fun testSafeDismissEventsWithDeletionWarning() {
+        // Given
+        val event = createTestEvent()
+        every { mockDb.getEvent(any(), any()) } returns event
+        every { mockDb.deleteEvents(any()) } returns 0 // Simulate deletion failure
+        
+        // When
+        val results = ApplicationController.safeDismissEvents(
+            mockContext,
+            mockDb,
+            listOf(event),
+            EventDismissType.ManuallyDismissedFromActivity,
+            false
+        )
+        
+        // Then
+        assertEquals(1, results.size)
+        assertEquals(EventDismissResult.DeletionWarning, results[0].second)
+        verify { mockDb.deleteEvents(listOf(event)) }
+    }
+    
+    @Test
     fun testSafeDismissEventsByIdWithValidEvents() {
         // Given
         val eventIds = listOf(1L, 2L)
@@ -204,11 +226,11 @@ class EventDismissTest {
     }
     
     @Test
-    fun testSafeDismissEventsWithDatabaseError() {
+    fun testSafeDismissEventsWithStorageError() {
         // Given
         val event = createTestEvent()
         every { mockDb.getEvent(any(), any()) } returns event
-        every { mockDb.deleteEvents(any()) } throws RuntimeException("Database error")
+        every { mockDb.deleteEvents(any()) } throws RuntimeException("Storage error")
         
         // When
         val results = ApplicationController.safeDismissEvents(
@@ -221,7 +243,7 @@ class EventDismissTest {
         
         // Then
         assertEquals(1, results.size)
-        assertEquals(EventDismissResult.DatabaseError, results[0].second)
+        assertEquals(EventDismissResult.StorageError, results[0].second)
     }
     
     private fun createTestEvent(id: Long = 1L): EventAlertRecord {
