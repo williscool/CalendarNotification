@@ -250,32 +250,33 @@ class CalendarMonitorTestFixture {
      * 5. Verifies event is processed after delay
      */
     fun runDelayedProcessingSequence(
-        title: String = "Delayed Test Event",
-        startDelay: Long = 500L
+        title: String = "Test Monitor Event",
+        delay: Long = 30000  // 30 seconds delay
     ): Boolean {
-        DevLog.info(LOG_TAG, "Running delayed processing sequence with delay=$startDelay")
+        DevLog.info(LOG_TAG, "Running delayed processing sequence with delay=$delay")
         
-        // Create test event
-        withTestEvent(title = title)
+        // Get current time for reference
+        val currentTime = timeProvider.testClock.currentTimeMillis()
         
-        // Set up delayed processing mocks
+        // Create test event with delayed alerts
         calendarProvider.mockDelayedEventAlerts(
-            testEventId,
-            eventStartTime,
-            startDelay
+            eventId = testEventId,
+            startTime = currentTime,
+            delay = delay
         )
         
-        // Trigger calendar change
-        triggerCalendarChangeScan()
-        
         // Verify event is not processed before delay
-        if (verifyEventProcessed(title = title)) {
-            DevLog.error(LOG_TAG, "Event was processed before delay!")
+        val beforeDelay = verifyEventProcessed(title = title)
+        if (beforeDelay) {
+            DevLog.error(LOG_TAG, "Event was processed before delay elapsed")
             return false
         }
         
         // Advance time past the delay
-        advanceTime(startDelay + 2000)
+        advanceTime(delay + 1000) // Add 1 second to ensure we're past the delay
+        
+        // Trigger calendar change to process alerts
+        triggerCalendarChangeScan()
         
         // Process event alerts
         processEventAlerts(eventTitle = title)

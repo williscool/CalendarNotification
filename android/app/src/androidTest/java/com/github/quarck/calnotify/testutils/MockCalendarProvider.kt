@@ -467,31 +467,37 @@ class MockCalendarProvider(
     }
     
     /**
-     * Mocks delayed event alerts that respect a specified delay period
+     * Creates a delayed event alert that respects a specified delay period
+     * Uses real calendar events and reminders instead of mocking
      */
     fun mockDelayedEventAlerts(eventId: Long, startTime: Long, delay: Long) {
-        every { getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
-            val scanFrom = secondArg<Long>()
-            val scanTo = thirdArg<Long>()
-
-            DevLog.info(LOG_TAG, "getEventAlertsForInstancesInRange called at currentTime=${timeProvider.testClock.currentTimeMillis()}, startTime=$startTime, delay=$delay")
-
-            if (timeProvider.testClock.currentTimeMillis() >= (startTime + delay)) {
-                DevLog.info(LOG_TAG, "Returning event alert after delay")
-                listOf(MonitorEventAlertEntry(
-                    eventId = eventId,
-                    isAllDay = false,
-                    alertTime = startTime + 3600000 - 30000,
-                    instanceStartTime = startTime + 3600000,
-                    instanceEndTime = startTime + 7200000,
-                    alertCreatedByUs = false,
-                    wasHandled = false
-                ))
-            } else {
-                DevLog.info(LOG_TAG, "Skipping event alert due to delay not elapsed: current=${timeProvider.testClock.currentTimeMillis()}, start=$startTime, delay=$delay")
-                emptyList()
-            }
-        }
+        val context = contextProvider.fakeContext
+        
+        // Create a test calendar if needed
+        val calendarId = createTestCalendar(
+            context = context,
+            displayName = "Test Calendar",
+            accountName = "test@test.com",
+            ownerAccount = "test@test.com"
+        )
+        
+        // Calculate the actual event start time (after the delay)
+        val eventStartTime = startTime + delay
+        
+        // Create the event with a reminder that will trigger after the delay
+        createTestEvent(
+            context = context,
+            calendarId = calendarId,
+            title = "Delayed Test Event",
+            startTime = eventStartTime,
+            duration = 3600000, // 1 hour
+            reminderMinutes = 15 // 15 minutes before event
+        )
+        
+        // Set the test clock to control when alerts become visible
+        timeProvider.testClock.setCurrentTime(startTime)
+        
+        DevLog.info(LOG_TAG, "Created delayed event: id=$eventId, startTime=$eventStartTime, delay=$delay")
     }
     
     /**
