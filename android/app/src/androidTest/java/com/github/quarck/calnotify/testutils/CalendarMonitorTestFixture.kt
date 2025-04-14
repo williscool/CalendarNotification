@@ -90,11 +90,11 @@ class CalendarMonitorTestFixture {
         )
         
         // Ensure the event details use this title
-        baseFixture.calendarProvider.mockEventDetails(
-            baseFixture.testEventId,
-            baseFixture.eventStartTime,
-            title
-        )
+        val event = baseFixture.calendarProvider.getEvent(contextProvider.fakeContext, baseFixture.testEventId)
+        if (event != null) {
+            val newDetails = event.details.copy(title = title)
+            baseFixture.calendarProvider.updateEvent(contextProvider.fakeContext, event, newDetails)
+        }
         
         return this
     }
@@ -138,13 +138,12 @@ class CalendarMonitorTestFixture {
             baseFixture.calendarProvider.getEventTitle(ctx, baseFixture.testEventId) ?: "Test Monitor Event"
         }
         
-        // Update mocks to ensure they use the correct title
-        DevLog.info(LOG_TAG, "Using title '$title' for event processing")
-        baseFixture.calendarProvider.mockEventDetails(
-            baseFixture.testEventId,
-            baseFixture.eventStartTime,
-            title
-        )
+        // Update event title if needed
+        val event = baseFixture.calendarProvider.getEvent(contextProvider.fakeContext, baseFixture.testEventId)
+        if (event != null) {
+            val newDetails = event.details.copy(title = title)
+            baseFixture.calendarProvider.updateEvent(contextProvider.fakeContext, event, newDetails)
+        }
         
         // Process the event alert
         baseFixture.processEventAlert(reminderTime)
