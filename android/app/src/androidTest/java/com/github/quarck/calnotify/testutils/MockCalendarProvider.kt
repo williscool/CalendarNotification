@@ -446,6 +446,12 @@ class MockCalendarProvider(
     ): EventAlertRecord? {
         DevLog.info(LOG_TAG, "Creating EventAlertRecord for eventId=$eventId, title=$title")
         
+        // Use the current test clock time for timeFirstSeen to properly simulate
+        // when the event was first detected by the system
+        val timeFirstSeen = timeProvider.testClock.currentTimeMillis()
+        
+        DevLog.info(LOG_TAG, "Using timeFirstSeen=$timeFirstSeen for event with startTime=$startTime")
+        
         return EventAlertRecord(
             calendarId = calendarId,
             eventId = eventId,
@@ -464,7 +470,7 @@ class MockCalendarProvider(
             displayStatus = EventDisplayStatus.Hidden,
             color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
             origin = EventOrigin.ProviderBroadcast,
-            timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
+            timeFirstSeen = timeFirstSeen,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None
         )
@@ -507,7 +513,7 @@ class MockCalendarProvider(
         val eventStartTime = startTime + delay
         
         // Create the event with a reminder that will trigger after the delay
-        createTestEvent(
+        val createdEventId = createTestEvent(
             context = context,
             calendarId = calendarId,
             title = "Delayed Test Event",
@@ -517,9 +523,44 @@ class MockCalendarProvider(
         )
         
         // Set the test clock to control when alerts become visible
+        // Important: Set the time to the start time, before the delay has elapsed
         timeProvider.testClock.setCurrentTime(startTime)
         
-        DevLog.info(LOG_TAG, "Created delayed event: id=$eventId, startTime=$eventStartTime, delay=$delay")
+        DevLog.info(LOG_TAG, "Created delayed event: id=$createdEventId, startTime=$eventStartTime, delay=$delay")
+        
+        // Create the alert in monitor storage, but DO NOT add it to event storage yet
+        MonitorStorage(context).classCustomUse { db ->
+            val alert = MonitorEventAlertEntry(
+                eventId = createdEventId,
+                isAllDay = false,
+                alertTime = eventStartTime - (15 * 60 * 1000), // 15 minutes before
+                instanceStartTime = eventStartTime,
+                instanceEndTime = eventStartTime + 3600000, // 1 hour duration
+                alertCreatedByUs = false,
+                wasHandled = false
+            )
+            db.addAlert(alert)
+            DevLog.info(LOG_TAG, "Added alert to storage: eventId=$createdEventId, alertTime=${alert.alertTime}")
+            
+            // CRITICAL: Don't add the event to events storage yet
+            // The test should call processEventAlerts() after advancing the test clock
+            // past the delay to add the event to storage, simulating proper delay behavior
+            
+            // Store event details for later processing if needed
+            val eventRecord = createEventAlertRecord(
+                context = context,
+                calendarId = calendarId,
+                eventId = createdEventId,
+                title = "Delayed Test Event",
+                startTime = eventStartTime,
+                alertTime = alert.alertTime
+            )
+            
+            // Log that we created the event record but are NOT storing it yet
+            if (eventRecord != null) {
+                DevLog.info(LOG_TAG, "Created event record for delayed event: id=$createdEventId, title=${eventRecord.title}, but NOT adding to storage yet")
+            }
+        }
     }
     
     /**

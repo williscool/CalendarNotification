@@ -271,8 +271,8 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
     /**
      * Processes an event alert by advancing time and triggering the alert
      */
-    fun processEventAlert(alertTime: Long = reminderTime) {
-        DevLog.info(LOG_TAG, "Processing event alert at time $alertTime")
+    fun processEventAlert(alertTime: Long = reminderTime, eventId: Long = testEventId) {
+        DevLog.info(LOG_TAG, "Processing event alert at time $alertTime for eventId=$eventId")
         
         // Current time before advancing
         val currentTime = timeProvider.testClock.currentTimeMillis()
@@ -290,11 +290,11 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         // First verify alert exists but isn't handled yet
         var existingAlert: MonitorEventAlertEntry? = null
         MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
-            val alerts = db.alerts.filter { it.eventId == testEventId && it.alertTime == alertTime }
+            val alerts = db.alerts.filter { it.eventId == eventId && it.alertTime == alertTime }
             existingAlert = alerts.firstOrNull()
             
             if (existingAlert == null) {
-                DevLog.error(LOG_TAG, "No alert found for eventId=$testEventId, alertTime=$alertTime")
+                DevLog.error(LOG_TAG, "No alert found for eventId=$eventId, alertTime=$alertTime")
             } else {
                 DevLog.info(LOG_TAG, "Found existing alert: eventId=${existingAlert?.eventId}, alertTime=${existingAlert?.alertTime}, wasHandled=${existingAlert?.wasHandled}")
             }
@@ -328,7 +328,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         // Verify alert was marked as handled
         var alertWasHandled = false
         MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
-            val alerts = db.alerts.filter { it.eventId == testEventId && it.alertTime == alertTime }
+            val alerts = db.alerts.filter { it.eventId == eventId && it.alertTime == alertTime }
             val alert = alerts.firstOrNull()
             
             if (alert != null) {
@@ -343,15 +343,26 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
                     
                     // Also manually create an event record if it doesn't exist
                     EventsStorage(contextProvider.fakeContext).classCustomUse { eventsDb ->
-                        val events = eventsDb.events.filter { it.eventId == testEventId }
+                        val events = eventsDb.events.filter { it.eventId == eventId }
                         if (events.isEmpty()) {
                             DevLog.warn(LOG_TAG, "No event record exists, creating one manually")
+                            
+                            // Get calendar ID for this event
+                            val calendarId = try {
+                                calendarProvider.getEvent(contextProvider.fakeContext, eventId)?.calendarId ?: testCalendarId
+                            } catch (e: Exception) {
+                                testCalendarId
+                            }
+                            
+                            // Get start time for this event
+                            val startTime = existingAlert?.instanceStartTime
+                            
                             val event = calendarProvider.createEventAlertRecord(
                                 contextProvider.fakeContext,
-                                testCalendarId,
-                                testEventId,
+                                calendarId,
+                                eventId,
                                 "Manual Test Event",
-                                eventStartTime,
+                                startTime!!,
                                 alertTime
                             )
                             if (event != null) {
