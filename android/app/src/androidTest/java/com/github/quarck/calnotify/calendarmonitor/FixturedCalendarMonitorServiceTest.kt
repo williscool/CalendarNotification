@@ -282,16 +282,12 @@ class FixturedCalendarMonitorServiceTest {
                 fixture.testCalendarId,
                 eventTitle,
                 "Test Description $i",
-                eventStartTime
+                eventStartTime,
+                duration = 3600000,  // 1 hour duration
+                reminderMinutes = 15  // 15 minutes reminder
             )
             
             eventIds.add(eventId)
-            
-            // Mock event details and alerts
-            fixture.calendarProvider.mockEventReminders(
-                eventId,
-                15 * 60 * 1000 // 15 minutes in milliseconds
-            )
             
             // Add the alert to monitor storage (simulating what the calendar scan would do)
             fixture.baseFixture.addAlertToMonitorStorage(
@@ -311,9 +307,6 @@ class FixturedCalendarMonitorServiceTest {
             assertEquals("Should have correct number of test alerts", eventCount, testAlerts.size)
             assertFalse("Test alerts should not be handled yet", testAlerts.any { it.wasHandled })
         }
-        
-        // Mock event alerts function to handle multiple events
-        fixture.calendarProvider.mockMultipleEventAlerts(eventIds, eventTitles, startTime)
         
         // Process each event's alert sequentially
         DevLog.info(LOG_TAG, "Processing ${eventIds.size} events sequentially")
