@@ -80,31 +80,34 @@ class CalendarProviderReminderTest {
     fun testMultipleReminders() {
         DevLog.info(LOG_TAG, "Running testMultipleReminders")
         
-        // Create event with a default reminder
+        // Create event with multiple reminders
         val eventId = fixture.createEventWithSettings(
             testCalendarId,
             "Event with Multiple Reminders",
-            reminderMinutes = 5  // Initial reminder of 5 minutes
+            reminderMinutes = 5,  // Initial reminder of 5 minutes
+            reminderMethod = CalendarContract.Reminders.METHOD_ALERT
         )
         
-        // Add additional reminders using the new multiple reminders API
+        // Add additional reminders using the real implementation
         val reminderTimes = listOf(5, 15, 30) // 5 minutes, 15 minutes, 30 minutes before
-        val reminderMethods = List(reminderTimes.size) { CalendarContract.Reminders.METHOD_ALERT }
+        val context = fixture.contextProvider.fakeContext
         
-        // Convert minutes to milliseconds and pair with method values
-        val remindersList = reminderTimes.mapIndexed { index, minutes ->
-            Pair(minutes * 60000L, reminderMethods[index])
+        // Add each reminder using the real implementation
+        reminderTimes.forEach { minutes ->
+            val reminderValues = android.content.ContentValues().apply {
+                put(CalendarContract.Reminders.EVENT_ID, eventId)
+                put(CalendarContract.Reminders.MINUTES, minutes)
+                put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+            }
+            context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
         }
-        
-        // Mock the complete set of reminders
-        fixture.calendarProvider.mockMultipleEventReminders(eventId, remindersList)
         
         // Verify all reminders are present
         fixture.verifyReminders(
             eventId = eventId,
             expectedReminderCount = reminderTimes.size,
             expectedReminderMinutes = reminderTimes,
-            expectedMethods = reminderMethods
+            expectedMethods = List(reminderTimes.size) { CalendarContract.Reminders.METHOD_ALERT }
         )
     }
     
@@ -211,25 +214,16 @@ class CalendarProviderReminderTest {
         // Create event with email reminder
         val eventId = fixture.createEventWithSettings(
             testCalendarId,
-            "Event with Email Reminder"
-        )
-        
-        // Mock an email reminder by creating an alert with email method
-        val alertTime = fixture.timeProvider.testClock.currentTimeMillis() + 3600000 // 1 hour from now
-        fixture.calendarProvider.mockEventReminders(eventId, 30 * 60000L) // 30 minutes
-        
-        // Mock the alert to have email method
-        every { CalendarProvider.getEventReminders(any(), eq(eventId)) } returns listOf(
-            EventReminderRecord(
-                millisecondsBefore = 30 * 60000L,
-                method = CalendarContract.Reminders.METHOD_EMAIL
-            )
+            "Event with Email Reminder",
+            reminderMinutes = 30,
+            reminderMethod = CalendarContract.Reminders.METHOD_EMAIL
         )
         
         // Verify reminder method
         fixture.verifyReminders(
             eventId = eventId,
             expectedReminderCount = 1,
+            expectedReminderMinutes = listOf(30),
             expectedMethods = listOf(CalendarContract.Reminders.METHOD_EMAIL)
         )
     }

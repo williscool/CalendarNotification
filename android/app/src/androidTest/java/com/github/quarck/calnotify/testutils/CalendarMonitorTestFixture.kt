@@ -93,7 +93,7 @@ class CalendarMonitorTestFixture {
         val event = baseFixture.calendarProvider.getEvent(contextProvider.fakeContext, baseFixture.testEventId)
         if (event != null) {
             val newDetails = event.details.copy(title = title)
-            baseFixture.calendarProvider.updateEvent(contextProvider.fakeContext, event, newDetails)
+            baseFixture.calendarProvider.updateEvent(contextProvider.fakeContext, baseFixture.testEventId, baseFixture.testCalendarId, event.details, newDetails)
         }
         
         return this
@@ -135,14 +135,15 @@ class CalendarMonitorTestFixture {
         
         // Use the title from the test event if none specified, with a fallback
         val title = eventTitle ?: contextProvider.fakeContext.let { ctx ->
-            baseFixture.calendarProvider.getEventTitle(ctx, baseFixture.testEventId) ?: "Test Monitor Event"
+            val event = baseFixture.calendarProvider.getEvent(ctx, baseFixture.testEventId)
+            event?.details?.title ?: "Test Monitor Event"
         }
         
         // Update event title if needed
         val event = baseFixture.calendarProvider.getEvent(contextProvider.fakeContext, baseFixture.testEventId)
         if (event != null) {
             val newDetails = event.details.copy(title = title)
-            baseFixture.calendarProvider.updateEvent(contextProvider.fakeContext, event, newDetails)
+            baseFixture.calendarProvider.updateEvent(contextProvider.fakeContext, baseFixture.testEventId, baseFixture.testCalendarId, event.details, newDetails)
         }
         
         // Process the event alert

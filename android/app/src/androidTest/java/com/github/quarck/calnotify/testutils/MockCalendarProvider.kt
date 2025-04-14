@@ -92,6 +92,24 @@ class MockCalendarProvider(
         every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
             callOriginal()
         }
+
+        // Add delegation for getEvent and updateEvent with proper parameter types
+        every { CalendarProvider.getEvent(any(), any<Long>()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            DevLog.info(LOG_TAG, "Delegating getEvent to real implementation: eventId=$eventId")
+            callOriginal()
+        }
+
+        every { CalendarProvider.updateEvent(any(), any<Long>(), any<Long>(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            val calendarId = thirdArg<Long>()
+            val oldDetails = arg<CalendarEventDetails>(3)
+            val newDetails = arg<CalendarEventDetails>(4)
+            DevLog.info(LOG_TAG, "Delegating updateEvent to real implementation: eventId=$eventId, calendarId=$calendarId")
+            callOriginal()
+        }
     }
     
     /**
@@ -555,5 +573,35 @@ class MockCalendarProvider(
         mockMoveEvent()
         mockDeleteEvent()
         mockGetEvent()
+    }
+
+    /**
+     * Gets an event by its ID
+     */
+    fun getEvent(context: Context, eventId: Long): EventRecord? {
+        DevLog.info(LOG_TAG, "Getting event: id=$eventId")
+        return realProvider.getEvent(context, eventId)
+    }
+
+    /**
+     * Updates an event with new details
+     */
+    fun updateEvent(
+        context: Context,
+        eventId: Long,
+        calendarId: Long,
+        oldDetails: CalendarEventDetails,
+        newDetails: CalendarEventDetails
+    ): Boolean {
+        DevLog.info(LOG_TAG, "Updating event: id=$eventId, title=${newDetails.title}")
+        return realProvider.updateEvent(context, eventId, calendarId, oldDetails, newDetails)
+    }
+
+    /**
+     * Updates an event with new details using an EventRecord
+     */
+    fun updateEvent(context: Context, event: EventRecord, newDetails: CalendarEventDetails): Boolean {
+        DevLog.info(LOG_TAG, "Updating event record: id=${event.eventId}, title=${newDetails.title}")
+        return realProvider.updateEvent(context, event, newDetails)
     }
 } 
