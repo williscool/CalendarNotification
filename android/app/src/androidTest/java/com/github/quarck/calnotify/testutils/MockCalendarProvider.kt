@@ -68,9 +68,10 @@ class MockCalendarProvider(
         // Mock the CalendarProvider object but delegate to real implementation by default
         mockkObject(CalendarProvider)
         
-        // Default to real implementation for common methods
+        // For getEventReminders, we need to be careful to avoid recursion
+        // We'll use a special handler that avoids infinite loops
         every { CalendarProvider.getEventReminders(any(), any<Long>()) } answers {
-            realProvider.getEventReminders(firstArg(), secondArg())
+            callOriginal()
         }
         
         // Default implementation for isRepeatingEvent with Long parameter
@@ -279,8 +280,8 @@ class MockCalendarProvider(
         val eventId = eventUri?.lastPathSegment?.toLong() ?: -1L
         
         if (eventId > 0) {
-            // Add a default reminder
-            addReminderToEvent(context, eventId)
+            // Add a default reminder - pass the start time to avoid recursion
+            addReminderToEvent(context, eventId, 15, startTime)
             
             DevLog.info(LOG_TAG, "Created test event: id=$eventId")
         } else {
@@ -296,16 +297,10 @@ class MockCalendarProvider(
     private fun addReminderToEvent(
         context: Context,
         eventId: Long,
-        minutesBefore: Int = 15
+        minutesBefore: Int = 15,
+        startTime: Long? = null
     ) {
         DevLog.info(LOG_TAG, "Adding reminder to event $eventId: $minutesBefore minutes before")
-        
-        // First get the event details to calculate alert time
-        val event = CalendarProvider.getEvent(context, eventId)
-        if (event == null) {
-            DevLog.error(LOG_TAG, "Failed to get event $eventId for adding reminder")
-            return
-        }
         
         // Add reminder
         val reminderValues = ContentValues().apply {
@@ -321,14 +316,17 @@ class MockCalendarProvider(
             return
         }
         
+        // Only add alert if we have a start time
+        val eventStartTime = startTime ?: timeProvider.testClock.currentTimeMillis() + 3600000
+        
         // Calculate alert time
-        val alertTime = event.details.startTime - (minutesBefore * 60 * 1000)
+        val alertTime = eventStartTime - (minutesBefore * 60 * 1000)
         
         // Add corresponding alert
         val alertValues = ContentValues().apply {
             put(CalendarContract.CalendarAlerts.EVENT_ID, eventId)
-            put(CalendarContract.CalendarAlerts.BEGIN, event.details.startTime)
-            put(CalendarContract.CalendarAlerts.END, event.details.endTime)
+            put(CalendarContract.CalendarAlerts.BEGIN, eventStartTime)
+            put(CalendarContract.CalendarAlerts.END, eventStartTime + 3600000)  // 1 hour duration
             put(CalendarContract.CalendarAlerts.ALARM_TIME, alertTime)
             put(CalendarContract.CalendarAlerts.STATE, CalendarContract.CalendarAlerts.STATE_SCHEDULED)
             put(CalendarContract.CalendarAlerts.MINUTES, minutesBefore)
@@ -816,5 +814,50 @@ class MockCalendarProvider(
         mockMoveEvent()
         mockDeleteEvent()
         mockGetEvent()
+    }
+
+    /**
+     * Mocks CalendarProvider.getAlertByTime for direct reminder tests
+     * 
+     * This method is critical for tests that simulate direct reminder broadcasts
+     * It ensures the CalendarMonitor gets the expected test event
+     */
+    fun mockGetAlertByTime(
+        eventId: Long, 
+        alertTime: Long, 
+        startTime: Long, 
+        title: String, 
+        description: String = "Test Description",
+        isAllDay: Boolean = false,
+        isRepeating: Boolean = false
+    ) {
+        DevLog.info(LOG_TAG, "Setting up mock for getAlertByTime with eventId=$eventId, alertTime=$alertTime, title='$title'")
+        
+        // Set up a specific mock for this exact alertTime with a non-recursive implementation
+        every { CalendarProvider.getAlertByTime(any(), eq(alertTime), any(), any()) } returns listOf(
+            EventAlertRecord(
+                calendarId = 1, // Will be overridden in real tests
+                eventId = eventId, 
+                isAllDay = isAllDay,
+                isRepeating = isRepeating,
+                alertTime = alertTime,
+                notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
+                title = title,
+                desc = description,
+                startTime = startTime,
+                endTime = startTime + 3600000,
+                instanceStartTime = startTime,
+                instanceEndTime = startTime + 3600000,
+                location = "",
+                lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
+                displayStatus = EventDisplayStatus.Hidden,
+                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
+                origin = EventOrigin.ProviderBroadcast,
+                timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
+                eventStatus = EventStatus.Confirmed,
+                attendanceStatus = AttendanceStatus.None,
+                flags = 0
+            )
+        )
     }
 } 
