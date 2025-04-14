@@ -74,12 +74,11 @@ class MockCalendarProvider(
         }
         
         every { CalendarProvider.isRepeatingEvent(any(), any<Long>()) } answers {
-            realProvider.isRepeatingEvent(firstArg(), secondArg<Long>())
+            callOriginal()
         }
         
         every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
-            val event = secondArg<EventAlertRecord>()
-            event.isRepeating
+            callOriginal()
         }
         
         every { CalendarProvider.dismissNativeEventAlert(any(), any()) } answers {

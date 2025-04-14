@@ -88,20 +88,9 @@ class DirectReminderTestFixture {
             baseFixture.testCalendarId,
             eventTitle,
             eventDescription,
-            baseFixture.eventStartTime
-        )
-        
-        // Set up mocks specific to this test event
-        baseFixture.calendarProvider.mockEventDetails(
-            baseFixture.testEventId,
             baseFixture.eventStartTime,
-            eventTitle
-        )
-        
-        baseFixture.calendarProvider.mockEventAlerts(
-            baseFixture.testEventId,
-            baseFixture.eventStartTime,
-            30000 // Default 30 seconds alert offset
+            duration = 3600000,  // 1 hour duration
+            reminderMinutes = 1  // 1 minute reminder to match the 30 seconds offset
         )
     }
     

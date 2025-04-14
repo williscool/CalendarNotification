@@ -169,13 +169,10 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
             testCalendarId,
             title,
             description,
-            eventStartTime
+            eventStartTime,
+            duration = 3600000,  // 1 hour duration
+            reminderMinutes = (reminderOffset / 60000).toInt()  // Convert milliseconds to minutes
         )
-        
-        // Set up mocks for this event
-        calendarProvider.mockEventDetails(testEventId, eventStartTime, title)
-        calendarProvider.mockEventReminders(testEventId, reminderOffset)
-        calendarProvider.mockEventAlerts(testEventId, eventStartTime, reminderOffset)
         
         return testEventId
     }
