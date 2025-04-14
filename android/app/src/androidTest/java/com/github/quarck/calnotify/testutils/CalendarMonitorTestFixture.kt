@@ -130,8 +130,72 @@ class CalendarMonitorTestFixture {
     /**
      * Processes event alerts after advancing time
      */
-    fun processEventAlerts(eventTitle: String? = null): CalendarMonitorTestFixture {
-        DevLog.info(LOG_TAG, "Processing event alerts")
+    fun processEventAlerts(eventTitle: String? = null, eventId: Long? = null, alertTime: Long? = null): CalendarMonitorTestFixture {
+        DevLog.info(LOG_TAG, "Processing event alerts for title=$eventTitle, eventId=$eventId")
+        
+        // Determine which event ID to use
+        val targetEventId = eventId ?: testEventId
+        
+        // Determine which alert time to use
+        val targetAlertTime = alertTime ?: reminderTime
+        
+        // If a specific event ID was provided, check if it exists in alerts storage
+        if (eventId != null) {
+            var foundAlerts = false
+            var foundAlertTime: Long? = null
+            
+            MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+                val alerts = db.alerts.filter { it.eventId == targetEventId }
+                if (alerts.isNotEmpty()) {
+                    foundAlerts = true
+                    // Use the alert time from the first found alert as a fallback
+                    foundAlertTime = alerts.firstOrNull()?.alertTime
+                    DevLog.info(LOG_TAG, "Found alerts for eventId=$targetEventId, alertTime=${foundAlertTime}")
+                } else {
+                    DevLog.warn(LOG_TAG, "No alerts found for eventId=$targetEventId")
+                }
+            }
+            
+            if (foundAlerts && foundAlertTime != null && alertTime == null) {
+                DevLog.info(LOG_TAG, "Using alert time $foundAlertTime from storage for eventId=$targetEventId")
+                baseFixture.processEventAlert(foundAlertTime!!, targetEventId)
+            } else if (alertTime != null) {
+                DevLog.info(LOG_TAG, "Using provided alert time $alertTime for eventId=$targetEventId")
+                baseFixture.processEventAlert(alertTime, targetEventId)
+            }
+            
+            // If we're processing a specific event ID, we need to ensure it has the right title
+            if (eventTitle != null) {
+                // Try to get or create this event if needed
+                val event = baseFixture.calendarProvider.getEvent(contextProvider.fakeContext, targetEventId)
+                if (event != null) {
+                    // Update title if needed
+                    if (event.details.title != eventTitle) {
+                        val newDetails = event.details.copy(title = eventTitle)
+                        baseFixture.calendarProvider.updateEvent(
+                            contextProvider.fakeContext, 
+                            targetEventId, 
+                            event.calendarId, 
+                            event.details, 
+                            newDetails
+                        )
+                    }
+                } else {
+                    // If event not found but we have alerts, ensure it exists in storage
+                    if (foundAlerts && foundAlertTime != null) {
+                        baseFixture.ensureEventInStorage(
+                            eventId = targetEventId,
+                            title = eventTitle,
+                            alertTime = foundAlertTime!!
+                        )
+                    }
+                }
+            }
+            
+            return this
+        }
+        
+        // Standard processing for default event
         
         // Use the title from the test event if none specified, with a fallback
         val title = eventTitle ?: contextProvider.fakeContext.let { ctx ->
@@ -147,18 +211,18 @@ class CalendarMonitorTestFixture {
         }
         
         // Process the event alert
-        baseFixture.processEventAlert(reminderTime)
+        baseFixture.processEventAlert(targetAlertTime, targetEventId)
         
         // Verify alerts are now handled
         verifyAlertsInStorage(shouldBeHandled = true)
         
         // Always ensure the event exists in storage with the correct title
         baseFixture.ensureEventInStorage(
-            eventId = testEventId,
+            eventId = targetEventId,
             calendarId = testCalendarId,
             title = title,
             startTime = eventStartTime,
-            alertTime = reminderTime
+            alertTime = targetAlertTime
         )
         
         return this
@@ -260,13 +324,23 @@ class CalendarMonitorTestFixture {
         
         // Create test event with delayed alerts
         calendarProvider.mockDelayedEventAlerts(
-            eventId = testEventId,
+            eventId = 0, // This will be replaced by the actual event ID
             startTime = currentTime,
             delay = delay
         )
         
+        // Get the actual event ID from the created event
+        val actualEventId = MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+            db.alerts.firstOrNull()?.eventId ?: 0L
+        }
+        
+        if (actualEventId == 0L) {
+            DevLog.error(LOG_TAG, "Failed to get actual event ID")
+            return false
+        }
+        
         // Verify event is not processed before delay
-        val beforeDelay = verifyEventProcessed(title = title)
+        val beforeDelay = verifyEventProcessed(actualEventId, currentTime + delay, title)
         if (beforeDelay) {
             DevLog.error(LOG_TAG, "Event was processed before delay elapsed")
             return false
@@ -278,11 +352,11 @@ class CalendarMonitorTestFixture {
         // Trigger calendar change to process alerts
         triggerCalendarChangeScan()
         
-        // Process event alerts
-        processEventAlerts(eventTitle = title)
+        // Process event alerts - use the specific event ID for the delayed event
+        processEventAlerts(eventTitle = title, eventId = actualEventId)
         
         // Verify event was processed after delay
-        return verifyEventProcessed(title = title)
+        return verifyEventProcessed(actualEventId, currentTime + delay, title)
     }
     
     /**
