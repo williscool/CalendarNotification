@@ -265,16 +265,17 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
           )
 
           // Log results
-          val successCount = results.count { it.second == EventDismissResult.Success }
-          val failureCount = results.count { it.second != EventDismissResult.Success }
+          val successCount = results.count { it.second == EventDismissResult.Success || it.second == EventDismissResult.DeletionWarning }
+          val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
+          val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
           
-          DevLog.info(LOG_TAG, "Dismissed $successCount events successfully, $failureCount events failed")
-          android.widget.Toast.makeText(context, "Dismissed $successCount events successfully, $failureCount events failed", android.widget.Toast.LENGTH_LONG).show()
+          DevLog.info(LOG_TAG, "Dismissed $successCount events successfully (including warnings), $notFoundCount events not found, $errorCount events failed")
+          android.widget.Toast.makeText(context, "Dismissed $successCount events successfully (including warnings), $notFoundCount events not found, $errorCount events failed", android.widget.Toast.LENGTH_LONG).show()
           
           // Group and log failures by reason
-          if (failureCount > 0) {
+          if (errorCount > 0) {
               val failuresByReason = results
-                  .filter { it.second != EventDismissResult.Success }
+                  .filter { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
                   .groupBy { it.second }
                   .mapValues { it.value.size }
 
@@ -1333,11 +1334,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             DevLog.info(LOG_TAG, "Attempting to dismiss ${validEvents.size} events")
 
             // Store dismissed events if needed
-            if (dismissType.shouldKeep) {
+            val successfullyStoredEvents = if (dismissType.shouldKeep) {
                 try {
                     DismissedEventsStorage(context).classCustomUse {
                         it.addEvents(dismissType, validEvents)
                     }
+                    validEvents
                 } catch (ex: Exception) {
                     DevLog.error(LOG_TAG, "Error storing dismissed events: ${ex.detailed}")
                     validEvents.forEach { event ->
@@ -1348,14 +1350,16 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                     }
                     return results
                 }
+            } else {
+                validEvents
             }
 
             // Notify about dismissing
             try {
-                notificationManager.onEventsDismissing(context, validEvents)
+                notificationManager.onEventsDismissing(context, successfullyStoredEvents)
             } catch (ex: Exception) {
                 DevLog.error(LOG_TAG, "Error notifying about dismissing events: ${ex.detailed}")
-                validEvents.forEach { event ->
+                successfullyStoredEvents.forEach { event ->
                     val index = results.indexOfFirst { it.first == event }
                     if (index != -1) {
                         results[index] = Pair(event, EventDismissResult.NotificationError)
@@ -1364,9 +1368,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 return results
             }
 
-            // Try to delete events from main storage
+            // Try to delete events from main storage - only for events that were successfully stored
             val deleteSuccess = try {
-                db.deleteEvents(validEvents) == validEvents.size
+                db.deleteEvents(successfullyStoredEvents) == successfullyStoredEvents.size
             } catch (ex: Exception) {
                 DevLog.warn(LOG_TAG, "Warning: Failed to delete events from main storage: ${ex.detailed}")
                 false
@@ -1374,7 +1378,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             if (!deleteSuccess) {
                 // Update results to indicate deletion warning
-                validEvents.forEach { event ->
+                successfullyStoredEvents.forEach { event ->
                     val index = results.indexOfFirst { it.first == event }
                     if (index != -1) {
                         results[index] = Pair(event, EventDismissResult.DeletionWarning)
@@ -1389,13 +1393,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 notificationManager.onEventsDismissed(
                     context,
                     EventFormatter(context),
-                    validEvents,
+                    successfullyStoredEvents,
                     true,
                     hasActiveEvents
                 )
             } catch (ex: Exception) {
                 DevLog.error(LOG_TAG, "Error notifying about dismissed events: ${ex.detailed}")
-                validEvents.forEach { event ->
+                successfullyStoredEvents.forEach { event ->
                     val index = results.indexOfFirst { it.first == event }
                     if (index != -1) {
                         results[index] = Pair(event, EventDismissResult.NotificationError)
