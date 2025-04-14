@@ -117,15 +117,6 @@ class DirectReminderTestFixture {
         
         // Advance time to the reminder time to ensure accurate timing
         baseFixture.timeProvider.setCurrentTime(baseFixture.reminderTime)
-        
-        // Set up the mock for getAlertByTime to return our test event
-        baseFixture.calendarProvider.mockGetAlertByTime(
-            baseFixture.testEventId,
-            baseFixture.reminderTime,
-            baseFixture.eventStartTime,
-            eventTitle,
-            eventDescription
-        )
             
         // Create a direct reminder broadcast intent like the system would send
         val reminderIntent = Intent(CalendarContract.ACTION_EVENT_REMINDER).apply {
