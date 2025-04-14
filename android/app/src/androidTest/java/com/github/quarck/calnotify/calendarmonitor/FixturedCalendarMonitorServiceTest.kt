@@ -131,7 +131,7 @@ class FixturedCalendarMonitorServiceTest {
         // Run the delayed processing sequence
         val eventProcessed = fixture.runDelayedProcessingSequence(
             title = "Delayed Test Event",
-            startDelay = startDelay
+            delay = startDelay
         )
         
         // Verify the event was processed correctly
