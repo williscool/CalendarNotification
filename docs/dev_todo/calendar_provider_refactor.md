@@ -34,14 +34,8 @@ This document outlines the plan to refactor the `MockCalendarProvider` to use th
        
        // Default to real implementation
        every { CalendarProvider.getEventReminders(any(), any<Long>()) } answers {
-           realProvider.getEventReminders(firstArg(), secondArg())
-       }
-       
-       // Keep ability to override specific events when needed
-       every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
-           val event = secondArg<EventAlertRecord>()
-           event.isRepeating
-       }
+		   callOriginal()
+       }   
    }
    ```
 

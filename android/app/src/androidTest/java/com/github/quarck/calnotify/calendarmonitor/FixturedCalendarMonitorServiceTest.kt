@@ -288,12 +288,6 @@ class FixturedCalendarMonitorServiceTest {
             eventIds.add(eventId)
             
             // Mock event details and alerts
-            fixture.calendarProvider.mockEventDetails(
-                eventId,
-                eventStartTime,
-                eventTitle
-            )
-            
             fixture.calendarProvider.mockEventReminders(
                 eventId,
                 15 * 60 * 1000 // 15 minutes in milliseconds
