@@ -166,7 +166,9 @@ class MockCalendarProvider(
                 
                 // Get unhandled alerts for this alert time
                 MonitorStorage(context).classCustomUse { db ->
-                    val alerts = db.getAlertsAt(alertTime).filter { !it.wasHandled }
+                    val alerts = db.alerts.filter { 
+                        !it.wasHandled && it.alertTime <= alertTime 
+                    }
                     
                     if (alerts.isNotEmpty()) {
                         DevLog.info(LOG_TAG, "Found ${alerts.size} unhandled alerts to process")
@@ -192,10 +194,16 @@ class MockCalendarProvider(
                                     DevLog.info(LOG_TAG, "Added event to storage: id=${eventRecord.eventId}, title=${eventRecord.title}")
                                 }
                                 
-                                // Mark the alert as handled
+                                // Mark the alert as handled and update in database
                                 alert.wasHandled = true
                                 db.updateAlert(alert)
                                 DevLog.info(LOG_TAG, "Marked alert as handled: eventId=${alert.eventId}, alertTime=${alert.alertTime}")
+                                
+                                // Verify the update was successful
+                                val updatedAlert = db.alerts.firstOrNull { it.eventId == alert.eventId && it.alertTime == alert.alertTime }
+                                if (updatedAlert?.wasHandled != true) {
+                                    DevLog.error(LOG_TAG, "Failed to update alert in database: eventId=${alert.eventId}")
+                                }
                             } else {
                                 DevLog.error(LOG_TAG, "Failed to create event record for alert: eventId=${alert.eventId}")
                             }
