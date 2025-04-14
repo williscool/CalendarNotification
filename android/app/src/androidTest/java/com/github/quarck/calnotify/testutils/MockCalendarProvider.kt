@@ -68,18 +68,15 @@ class MockCalendarProvider(
         // Mock the CalendarProvider object but delegate to real implementation by default
         mockkObject(CalendarProvider)
         
-        // For getEventReminders, we need to be careful to avoid recursion
-        // We'll use a special handler that avoids infinite loops
+        // Use real implementations for all methods
         every { CalendarProvider.getEventReminders(any(), any<Long>()) } answers {
             callOriginal()
         }
         
-        // Default implementation for isRepeatingEvent with Long parameter
         every { CalendarProvider.isRepeatingEvent(any(), any<Long>()) } answers {
             realProvider.isRepeatingEvent(firstArg(), secondArg<Long>())
         }
         
-        // Keep ability to override specific events when needed
         every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
             val event = secondArg<EventAlertRecord>()
             event.isRepeating
@@ -87,6 +84,10 @@ class MockCalendarProvider(
         
         every { CalendarProvider.dismissNativeEventAlert(any(), any()) } answers {
             realProvider.dismissNativeEventAlert(firstArg(), secondArg())
+        }
+        
+        every { CalendarProvider.getAlertByTime(any(), any(), any(), any()) } answers {
+            callOriginal()
         }
     }
     
@@ -814,50 +815,5 @@ class MockCalendarProvider(
         mockMoveEvent()
         mockDeleteEvent()
         mockGetEvent()
-    }
-
-    /**
-     * Mocks CalendarProvider.getAlertByTime for direct reminder tests
-     * 
-     * This method is critical for tests that simulate direct reminder broadcasts
-     * It ensures the CalendarMonitor gets the expected test event
-     */
-    fun mockGetAlertByTime(
-        eventId: Long, 
-        alertTime: Long, 
-        startTime: Long, 
-        title: String, 
-        description: String = "Test Description",
-        isAllDay: Boolean = false,
-        isRepeating: Boolean = false
-    ) {
-        DevLog.info(LOG_TAG, "Setting up mock for getAlertByTime with eventId=$eventId, alertTime=$alertTime, title='$title'")
-        
-        // Set up a specific mock for this exact alertTime with a non-recursive implementation
-        every { CalendarProvider.getAlertByTime(any(), eq(alertTime), any(), any()) } returns listOf(
-            EventAlertRecord(
-                calendarId = 1, // Will be overridden in real tests
-                eventId = eventId, 
-                isAllDay = isAllDay,
-                isRepeating = isRepeating,
-                alertTime = alertTime,
-                notificationId = Consts.NOTIFICATION_ID_DYNAMIC_FROM,
-                title = title,
-                desc = description,
-                startTime = startTime,
-                endTime = startTime + 3600000,
-                instanceStartTime = startTime,
-                instanceEndTime = startTime + 3600000,
-                location = "",
-                lastStatusChangeTime = timeProvider.testClock.currentTimeMillis(),
-                displayStatus = EventDisplayStatus.Hidden,
-                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR,
-                origin = EventOrigin.ProviderBroadcast,
-                timeFirstSeen = timeProvider.testClock.currentTimeMillis(),
-                eventStatus = EventStatus.Confirmed,
-                attendanceStatus = AttendanceStatus.None,
-                flags = 0
-            )
-        )
     }
 } 
