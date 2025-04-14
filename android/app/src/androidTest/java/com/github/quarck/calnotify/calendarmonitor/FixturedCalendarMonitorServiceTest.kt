@@ -162,19 +162,16 @@ class FixturedCalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "Testing calendar change broadcast handling")
         
         // Create a test event first
-        fixture.withTestEvent(title = "Edge Case Test Event")
+        fixture.withTestEvent(
+            title = "Edge Case Test Event",
+            startTimeOffset = 60000,  // 1 minute from now
+            reminderOffset = 30000    // 30 seconds before event
+        )
         
         // Get the event details for the test alert
         val eventStartTime = fixture.eventStartTime
         val alertTime = eventStartTime - 30000 // 30 seconds before start
         val eventId = fixture.testEventId
-
-        // Mock event alerts to ensure nextEventFireFromScan is set properly
-        fixture.calendarProvider.mockEventAlerts(
-            eventId = eventId,
-            startTime = eventStartTime,
-            alertOffset = 30000
-        )
         
         // Simulate calendar change and verify it's processed
         fixture.triggerCalendarChangeScan()

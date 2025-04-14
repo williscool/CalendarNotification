@@ -31,9 +31,6 @@ class CalendarProviderTestFixture {
         // Clear any existing settings that might affect calendar handling
         val settings = Settings(contextProvider.fakeContext)
         settings.setBoolean("enable_manual_calendar_rescan", false)
-        
-        // Initialize event-related mocks
-        calendarProvider.setupEventMocks()
     }
     
     /**
@@ -156,27 +153,17 @@ class CalendarProviderTestFixture {
             }
             context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
             
-            // Set up more comprehensive mocks for this event
-            calendarProvider.mockEventDetails(
-                eventId = eventId, 
-                startTime = startTime, 
-                title = title, 
-                duration = duration,
-                description = description,
-                location = location,
-                isAllDay = isAllDay,
-                repeatingRule = repeatingRule,
-                timeZone = timeZone
-            )
-            
-            // Mock the reminder with the correct method
-            calendarProvider.mockEventReminders(
-                eventId = eventId,
-                millisecondsBefore = reminderMinutes * 60000L,
-                method = reminderMethod
-            )
-            
-            calendarProvider.mockEventAlerts(eventId, startTime, reminderMinutes * 60000L)
+            // Add corresponding alert
+            val alertTime = startTime - (reminderMinutes * 60000L)
+            val alertValues = ContentValues().apply {
+                put(CalendarContract.CalendarAlerts.EVENT_ID, eventId)
+                put(CalendarContract.CalendarAlerts.BEGIN, startTime)
+                put(CalendarContract.CalendarAlerts.END, startTime + duration)
+                put(CalendarContract.CalendarAlerts.ALARM_TIME, alertTime)
+                put(CalendarContract.CalendarAlerts.STATE, CalendarContract.CalendarAlerts.STATE_SCHEDULED)
+                put(CalendarContract.CalendarAlerts.MINUTES, reminderMinutes)
+            }
+            context.contentResolver.insert(CalendarContract.CalendarAlerts.CONTENT_URI, alertValues)
         }
         
         DevLog.info(LOG_TAG, "Created event: id=$eventId, title=$title, startTime=$startTime, isAllDay=$isAllDay, repeatingRule=$repeatingRule")
