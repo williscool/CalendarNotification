@@ -89,7 +89,21 @@ class MockCalendarProvider(
             callOriginal()
         }
         
+        every { CalendarProvider.getAlertByEventIdAndTime(any(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val eventId = secondArg<Long>()
+            val time = thirdArg<Long>()
+            
+            DevLog.info(LOG_TAG, "Delegating getAlertByEventIdAndTime to real implementation: eventId=$eventId, time=$time")
+            callOriginal()
+        }
+        
         every { CalendarProvider.getEventAlertsForInstancesInRange(any(), any(), any()) } answers {
+            val context = firstArg<Context>()
+            val scanFrom = secondArg<Long>()
+            val scanTo = thirdArg<Long>()
+            
+            DevLog.info(LOG_TAG, "Delegating getEventAlertsForInstancesInRange to real implementation: scanFrom=$scanFrom, scanTo=$scanTo")
             callOriginal()
         }
 
