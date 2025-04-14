@@ -1292,6 +1292,22 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //        }
     }
 
+    /**
+     * Safely dismisses a collection of events with detailed error handling and result reporting.
+     * This method:
+     * 1. Validates that each event exists in the database
+     * 2. Stores dismissed events in the dismissed events storage if the dismiss type requires it
+     * 3. Notifies about the dismissal process
+     * 4. Deletes the events from the database
+     * 5. Updates notifications and reschedules alarms
+     * 
+     * @param context The application context
+     * @param db The events storage interface
+     * @param events The collection of events to dismiss
+     * @param dismissType The type of dismissal (e.g., manual, auto, etc.)
+     * @param notifyActivity Whether to notify the UI about the dismissal
+     * @return A list of pairs containing each event and its dismissal result (Success, EventNotFound, etc.)
+     */
     override fun safeDismissEvents(
         context: Context,
         db: EventsStorageInterface,
@@ -1348,47 +1364,51 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 return results
             }
 
-            // Delete events
-            val success = db.deleteEvents(validEvents) == validEvents.size
+            // Try to delete events from main storage
+            val deleteSuccess = try {
+                db.deleteEvents(validEvents) == validEvents.size
+            } catch (ex: Exception) {
+                DevLog.warn(LOG_TAG, "Warning: Failed to delete events from main storage: ${ex.detailed}")
+                false
+            }
 
-            if (success) {
-                val hasActiveEvents = db.events.any { it.snoozedUntil != 0L && !it.isSpecial }
-
-                // Notify about dismissal
-                try {
-                    notificationManager.onEventsDismissed(
-                        context,
-                        EventFormatter(context),
-                        validEvents,
-                        true,
-                        hasActiveEvents
-                    )
-                } catch (ex: Exception) {
-                    DevLog.error(LOG_TAG, "Error notifying about dismissed events: ${ex.detailed}")
-                    validEvents.forEach { event ->
-                        val index = results.indexOfFirst { it.first == event }
-                        if (index != -1) {
-                            results[index] = Pair(event, EventDismissResult.NotificationError)
-                        }
-                    }
-                    return results
-                }
-
-                ReminderState(context).onUserInteraction(clock.currentTimeMillis())
-                alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
-
-                if (notifyActivity) {
-                    UINotifier.notify(context, true)
-                }
-            } else {
-                DevLog.error(LOG_TAG, "Failed to delete all events from database")
-                // Update results for events that failed to delete
+            if (!deleteSuccess) {
+                // Update results to indicate deletion warning
                 validEvents.forEach { event ->
                     val index = results.indexOfFirst { it.first == event }
                     if (index != -1) {
-                        results[index] = Pair(event, EventDismissResult.DatabaseError)
+                        results[index] = Pair(event, EventDismissResult.DeletionWarning)
                     }
                 }
+                DevLog.warn(LOG_TAG, "Warning: Failed to delete some events from main storage")
+            }
+
+            // Notify about dismissal
+            try {
+                val hasActiveEvents = db.events.any { it.snoozedUntil != 0L && !it.isSpecial }
+                notificationManager.onEventsDismissed(
+                    context,
+                    EventFormatter(context),
+                    validEvents,
+                    true,
+                    hasActiveEvents
+                )
+            } catch (ex: Exception) {
+                DevLog.error(LOG_TAG, "Error notifying about dismissed events: ${ex.detailed}")
+                validEvents.forEach { event ->
+                    val index = results.indexOfFirst { it.first == event }
+                    if (index != -1) {
+                        results[index] = Pair(event, EventDismissResult.NotificationError)
+                    }
+                }
+                return results
+            }
+
+            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+            alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
+
+            if (notifyActivity) {
+                UINotifier.notify(context, true)
             }
         } catch (ex: Exception) {
             DevLog.error(LOG_TAG, "Unexpected error in safeDismissEvents: ${ex.detailed}")
@@ -1396,7 +1416,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             events.forEach { event ->
                 val index = results.indexOfFirst { it.first == event }
                 if (index != -1) {
-                    results[index] = Pair(event, EventDismissResult.DatabaseError)
+                    results[index] = Pair(event, EventDismissResult.StorageError)
                 }
             }
         }
@@ -1404,6 +1424,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return results
     }
 
+    /**
+     * Safely dismisses events by their IDs with detailed error handling and result reporting.
+     * This method:
+     * 1. Looks up each event ID in the database
+     * 2. Calls safeDismissEvents with the found events
+     * 3. Returns results for all provided IDs, even if the event wasn't found
+     * 
+     * @param context The application context
+     * @param db The events storage interface
+     * @param eventIds The collection of event IDs to dismiss
+     * @param dismissType The type of dismissal (e.g., manual, auto, etc.)
+     * @param notifyActivity Whether to notify the UI about the dismissal
+     * @return A list of pairs containing each event ID and its dismissal result (Success, EventNotFound, etc.)
+     */
     override fun safeDismissEventsById(
         context: Context,
         db: EventsStorageInterface,
