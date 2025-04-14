@@ -37,6 +37,9 @@ class MockCalendarProvider(
     // Track initialization state
     private var isInitialized = false
     
+    // Reference to real provider for delegation
+    private val realProvider = CalendarProvider
+    
     /**
      * Sets up the mock calendar provider and related components
      */
@@ -60,24 +63,30 @@ class MockCalendarProvider(
      * Creates and configures the mock calendar provider
      */
     private fun setupCalendarProvider() {
-        DevLog.info(LOG_TAG, "Setting up mock CalendarProvider")
+        DevLog.info(LOG_TAG, "Setting up CalendarProvider delegation")
         
-        // Mock the CalendarProvider object with minimal implementations
+        // Mock the CalendarProvider object but delegate to real implementation by default
         mockkObject(CalendarProvider)
         
-        // Default behaviors for common methods, more specific behaviors will be added as needed
+        // Default to real implementation for common methods
         every { CalendarProvider.getEventReminders(any(), any<Long>()) } answers {
-            listOf(EventReminderRecord(millisecondsBefore = 30000))
+            realProvider.getEventReminders(firstArg(), secondArg())
         }
         
-        // Default implementation for isRepeatingEvent
-        every { CalendarProvider.isRepeatingEvent(any(), any<Long>()) } returns false
+        // Default implementation for isRepeatingEvent with Long parameter
+        every { CalendarProvider.isRepeatingEvent(any(), any<Long>()) } answers {
+            realProvider.isRepeatingEvent(firstArg(), secondArg<Long>())
+        }
+        
+        // Keep ability to override specific events when needed
         every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
             val event = secondArg<EventAlertRecord>()
             event.isRepeating
         }
         
-        every { CalendarProvider.dismissNativeEventAlert(any(), any()) } just Runs
+        every { CalendarProvider.dismissNativeEventAlert(any(), any()) } answers {
+            realProvider.dismissNativeEventAlert(firstArg(), secondArg())
+        }
     }
     
     /**
