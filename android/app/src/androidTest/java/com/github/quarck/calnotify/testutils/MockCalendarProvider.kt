@@ -347,57 +347,6 @@ class MockCalendarProvider(
     }
     
     /**
-     * Mocks event details for a specific event
-     */
-    fun mockEventDetails(
-        eventId: Long,
-        startTime: Long,
-        title: String = "Test Event",
-        duration: Long = 3600000,
-        description: String = "Test Description",
-        location: String = "",
-        isAllDay: Boolean = false,
-        repeatingRule: String = "",
-        timeZone: String = "UTC"
-    ) {
-        DevLog.info(LOG_TAG, "Mocking event details for eventId=$eventId, title=$title, startTime=$startTime, repeatingRule=$repeatingRule, timeZone=$timeZone")
-        
-        // Use a more specific mock to avoid potential conflicts with other mocks
-        every { CalendarProvider.getEvent(any(), eq(eventId)) } returns EventRecord(
-            calendarId = 1, // This will be replaced by the actual calendar ID in real tests
-            eventId = eventId,
-            details = CalendarEventDetails(
-                title = title,
-                desc = description,
-                location = location,
-                timezone = timeZone,
-                startTime = startTime,
-                endTime = startTime + duration,
-                isAllDay = isAllDay,
-                reminders = listOf(EventReminderRecord(millisecondsBefore = 30000)),
-                repeatingRule = repeatingRule,
-                repeatingRDate = "",
-                repeatingExRule = "",
-                repeatingExRDate = "",
-                color = Consts.DEFAULT_CALENDAR_EVENT_COLOR
-            ),
-            eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None
-        )
-        
-        // If this is a recurring event, also mock the isRepeatingEvent method
-        if (repeatingRule.isNotEmpty()) {
-            every { CalendarProvider.isRepeatingEvent(any(), eq(eventId)) } returns true
-            
-            // Also mock the same result for isRepeatingEvent with the event parameter
-            every { CalendarProvider.isRepeatingEvent(any(), any<EventAlertRecord>()) } answers {
-                val event = secondArg<EventAlertRecord>()
-                event.eventId == eventId
-            }
-        }
-    }
-    
-    /**
      * Clears all storage databases
      */
     fun clearStorages(context: Context) {
