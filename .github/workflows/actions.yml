@@ -107,7 +107,8 @@ jobs:
                   :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
-        -Pandroid.prefabPackageType=STATIC
+        -Pandroid.prefabPackageType=STATIC \
+        -Pandroid.externalNativeBuild.skip=true
       env:
         # Explicitly set BUILD_ARCH for Gradle process
         BUILD_ARCH: ${{ matrix.arch }}
@@ -342,7 +343,8 @@ jobs:
                   -PreactNativeArchitectures="${{ matrix.arch }}" \
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-        --continue --configure-on-demand
+        --continue --configure-on-demand \
+        -Pandroid.externalNativeBuild.skip=true
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 

@@ -30,6 +30,7 @@ export BUILD_ARCH=$ARCH
 ./gradlew -PBUILD_ARCH="$ARCH" \
          -PreactNativeArchitectures="$ARCH" \
          :"$MAIN_PROJECT_MODULE":connected${ARCH_SUFFIX}DebugAndroidTest \
-         --parallel --max-workers=4 --build-cache
+         --parallel --max-workers=4 --build-cache \
+         -Pandroid.externalNativeBuild.skip=true
 
 echo "Android tests completed successfully!" 
