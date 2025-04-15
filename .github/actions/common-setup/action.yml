@@ -304,12 +304,19 @@ runs:
       if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
       run: |
         echo "Building native components as cache miss occurred or artifacts were not available"
+        # Set default to false (don't skip)
+        echo "SKIP_NATIVE_BUILD=false" >> $GITHUB_ENV
+        # Only skip if we have both cache hit AND artifacts exist
+        if [ "${{ steps.ndk-cache.outputs.cache-hit }}" == "true" ] && [ "${{ steps.check-native-artifacts.outputs.exists }}" == "true" ]; then
+          echo "SKIP_NATIVE_BUILD=true" >> $GITHUB_ENV
+        fi
         cd android && \
         ./gradlew externalNativeBuildDebug \
                   externalNativeBuildRelease \
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
-        -Pandroid.prefabPackageType=STATIC
+        -Pandroid.prefabPackageType=STATIC \
+        -Pandroid.externalNativeBuild.skip=${{ env.SKIP_NATIVE_BUILD }}
       shell: bash
     
     # Upload native build artifacts immediately after building
