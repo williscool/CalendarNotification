@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.testutils
 
 import android.content.ContentValues
+import android.content.Context
 import android.provider.CalendarContract
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.*
@@ -324,5 +325,70 @@ class CalendarProviderTestFixture {
      */
     fun cleanup() {
         baseFixture.cleanup()
+    }
+
+    /**
+     * Clears all test state to ensure test isolation
+     */
+    fun clearTestState() {
+        DevLog.info(LOG_TAG, "Clearing test state")
+        
+        // Clear all calendar data
+        clearAllEvents()
+        clearAllReminders()
+        clearAllAlerts()
+        
+        // Clear storage databases
+        clearStorages(contextProvider.fakeContext)
+        
+        // Reset test clock to a known state
+        timeProvider.testClock.setCurrentTime(System.currentTimeMillis())
+        
+        // Clear any mock overrides
+        unmockkAll()
+        
+        // Reset calendar provider state
+        setupCalendarProvider()
+    }
+
+    private fun clearAllEvents() {
+        val context = contextProvider.fakeContext
+        val eventsUri = CalendarContract.Events.CONTENT_URI
+        context.contentResolver.delete(eventsUri, null, null)
+    }
+
+    private fun clearAllReminders() {
+        val context = contextProvider.fakeContext
+        val remindersUri = CalendarContract.Reminders.CONTENT_URI
+        context.contentResolver.delete(remindersUri, null, null)
+    }
+
+    private fun clearAllAlerts() {
+        val context = contextProvider.fakeContext
+        val alertsUri = CalendarContract.CalendarAlerts.CONTENT_URI
+        context.contentResolver.delete(alertsUri, null, null)
+    }
+
+    /**
+     * Clears all storage databases
+     */
+    private fun clearStorages(context: Context) {
+        baseFixture.clearStorages()
+    }
+
+    /**
+     * Clears all MockK overrides
+     */
+    private fun unmockkAll() {
+        // Use MockK's unmockAll function to clear all mocks
+        io.mockk.unmockkAll()
+    }
+
+    /**
+     * Resets the calendar provider to its initial state
+     */
+    private fun setupCalendarProvider() {
+        // Re-setup the calendar provider from the base fixture
+        baseFixture.calendarProvider.setup()
     }
 } 

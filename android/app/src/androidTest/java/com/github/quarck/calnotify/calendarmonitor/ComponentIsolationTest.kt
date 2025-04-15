@@ -54,6 +54,9 @@ class ComponentIsolationTest {
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up base test environment")
         MockKAnnotations.init(this)
+        
+        // Clear any previous mock states
+        unmockkAll()
     }
     
     @After

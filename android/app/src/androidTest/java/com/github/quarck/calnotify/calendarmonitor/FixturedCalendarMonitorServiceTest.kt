@@ -39,6 +39,9 @@ class FixturedCalendarMonitorServiceTest {
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up fixture for calendar monitor tests")
         fixture = CalendarMonitorTestFixture()
+        
+        // Clear any existing test state
+        fixture.clearTestState()
     }
     
     @After
