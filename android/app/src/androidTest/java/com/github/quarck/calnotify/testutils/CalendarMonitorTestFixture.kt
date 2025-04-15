@@ -366,4 +366,33 @@ class CalendarMonitorTestFixture {
         DevLog.info(LOG_TAG, "Cleaning up CalendarMonitorTestFixture")
         baseFixture.cleanup()
     }
+    
+    /**
+     * Clears all test state to ensure test isolation
+     */
+    fun clearTestState() {
+        DevLog.info(LOG_TAG, "Clearing test state for CalendarMonitorTestFixture")
+        
+        // Get the context from the base fixture
+        val context = contextProvider.fakeContext
+        
+        // Clear monitoring state
+        MonitorStorage(context).classCustomUse { db ->
+            db.deleteAlertsMatching { true }
+            DevLog.info(LOG_TAG, "Cleared all alerts from monitor storage")
+        }
+        
+        // Clear events storage if needed
+        // TODO: do we need this here?
+        // applicationComponents.clearEventsStorage()
+
+        // Reset calendar monitor state
+        val monitorState = CalendarMonitorState(context)
+        monitorState.firstScanEver = false
+        monitorState.prevEventScanTo = timeProvider.testClock.currentTimeMillis()
+        monitorState.prevEventFireFromScan = timeProvider.testClock.currentTimeMillis()
+        
+        // Reset the base fixture test state
+        baseFixture.clearTestState()
+    }
 } 

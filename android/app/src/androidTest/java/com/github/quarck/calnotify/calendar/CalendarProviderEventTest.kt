@@ -29,6 +29,9 @@ class CalendarProviderEventTest {
         DevLog.info(LOG_TAG, "Setting up test environment")
         fixture = CalendarProviderTestFixture()
         
+        // Clear any existing test state
+        fixture.clearTestState()
+        
         // Create a test calendar for all event tests
         testCalendarId = fixture.createCalendarWithSettings(
             "Test Calendar",

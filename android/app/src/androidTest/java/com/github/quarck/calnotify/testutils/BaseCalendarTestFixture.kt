@@ -389,6 +389,34 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
     }
     
     /**
+     * Clears all test state to ensure test isolation
+     */
+    fun clearTestState() {
+        DevLog.info(LOG_TAG, "Clearing test state for BaseCalendarTestFixture")
+        
+        // Clear storage databases
+        clearStorages()
+        
+        // Reset test clock to a known state
+        timeProvider.testClock.setCurrentTime(System.currentTimeMillis())
+        
+        // Clear any mock overrides
+        unmockkAll()
+        
+        // Reinitialize components
+        timeProvider.setup()
+        contextProvider.setup()
+        calendarProvider.setup()
+        applicationComponents.setup()
+        
+        // Reset calendar monitor state
+        val monitorState = CalendarMonitorState(contextProvider.fakeContext)
+        monitorState.firstScanEver = false
+        monitorState.prevEventScanTo = timeProvider.testClock.currentTimeMillis()
+        monitorState.prevEventFireFromScan = timeProvider.testClock.currentTimeMillis()
+    }
+    
+    /**
      * Cleans up all mocks and resources
      */
     fun cleanup() {
