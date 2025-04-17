@@ -299,22 +299,6 @@ runs:
         fi
     
     # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
-    - name: Debug Task Graph
-      id: debug-tasks
-      if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
-      run: |
-        cd android && \
-        echo "=== Task Graph for Native Build ===" && \
-        ./gradlew externalNativeBuildDebug \
-                  externalNativeBuildRelease \
-                  --dry-run \
-                  --info \
-                  --console=verbose \
-                  --parallel --max-workers=4 --build-cache --configure-on-demand \
-                  -Pandroid.prefabPublishing=true \
-                  -Pandroid.prefabPackageType=STATIC
-      shell: bash
-
     - name: Build Native aka CMake Components first
       id: build-native
       if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
@@ -333,10 +317,7 @@ runs:
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC \
-        -x configureCMakeDebug \
-        -x configureCMakeRelease \
-        -x buildCMakeDebug \
-        -x buildCMakeRelease
+        -Pandroid.externalNativeBuild.skip=${{ env.SKIP_NATIVE_BUILD }}
       shell: bash
     
     # Upload native build artifacts immediately after building

@@ -94,6 +94,26 @@ jobs:
         ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
       shell: bash
     
+    - name: Debug Main Build Task Graph
+      run: |
+        cd android && \
+        echo "=== Main Build Task Graph ===" && \
+        ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
+                  -PreactNativeArchitectures="${BUILD_ARCH}" \
+                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
+                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+                  :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
+                  --dry-run \
+                  --info \
+                  --console=verbose \
+                  --parallel --max-workers=4 --build-cache --configure-on-demand \
+                  -Pandroid.prefabPublishing=true \
+                  -Pandroid.prefabPackageType=STATIC \
+                  -Pandroid.externalNativeBuild.skip=true
+      env:
+        BUILD_ARCH: ${{ matrix.arch }}
+
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
         echo "Building for architecture: $BUILD_ARCH"
@@ -334,6 +354,23 @@ jobs:
       with:
         gradle_max_workers: "4"
         node_version: "22.x"
+    
+    # Debug unit test task graph
+    - name: Debug Unit Test Task Graph
+      run: |
+        cd android && \
+        echo "=== Unit Test Task Graph ===" && \
+        ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
+                  -PreactNativeArchitectures="${{ matrix.arch }}" \
+                  :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
+                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
+                  --dry-run \
+                  --info \
+                  --console=verbose \
+                  --continue --configure-on-demand \
+                  -Pandroid.externalNativeBuild.skip=true
+      env:
+        BUILD_ARCH: ${{ matrix.arch }}
     
     # Run the unit tests
     - name: Run Unit Tests
