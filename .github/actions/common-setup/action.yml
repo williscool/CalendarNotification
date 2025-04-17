@@ -317,7 +317,8 @@ runs:
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC \
-        -Pandroid.externalNativeBuild.skip=${{ env.SKIP_NATIVE_BUILD }}
+        -Pandroid.externalNativeBuild.skip=${{ env.SKIP_NATIVE_BUILD }} \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
       shell: bash
     
     # Upload native build artifacts immediately after building

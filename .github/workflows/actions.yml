@@ -128,7 +128,8 @@ jobs:
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC \
-        -Pandroid.externalNativeBuild.skip=true
+        -Pandroid.externalNativeBuild.skip=true \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         # Explicitly set BUILD_ARCH for Gradle process
         BUILD_ARCH: ${{ matrix.arch }}
