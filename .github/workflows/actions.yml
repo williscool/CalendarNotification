@@ -159,11 +159,11 @@ jobs:
         echo "=== Main Build Task Graph ===" && \
         ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
                   -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  :${{ env.main_project_module }}:generatePackageList \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
+                  ":${{ env.main_project_module }}:generatePackageList" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
                   --dry-run \
                   --info \
                   --console=verbose \
@@ -184,11 +184,11 @@ jobs:
         # Pass BUILD_ARCH directly to Gradle process to ensure it's available during configuration
         ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
                   -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  :${{ env.main_project_module }}:generatePackageList \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
+                  ":${{ env.main_project_module }}:generatePackageList" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC \
