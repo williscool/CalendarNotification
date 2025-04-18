@@ -112,7 +112,6 @@ jobs:
     strategy:
       matrix:
         arch: [arm64-v8a, x86_64]
-      # Add fail-fast:false to allow both architectures to complete independently
       fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
@@ -126,7 +125,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        fetch-depth: 1 # Shallow clone for faster checkout
+        fetch-depth: 1
     
     # Set current date and repository name
     - name: Set current date as env variable
@@ -139,6 +138,35 @@ jobs:
       run: |
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+    
+    # Download both native and APK build artifacts
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-build-artifacts-${{ matrix.arch }}|android-apk-artifacts-${{ matrix.arch }}
+        path: android/
+        merge-multiple: true
+
+    # Check if CMake build artifacts exist
+    - name: Make check native build artifacts script executable
+      run: chmod +x scripts/check_native_build_artifacts.sh
+
+    # Fail the build if native artifacts are not found
+    - name: Ensure native artifacts are available
+      run: |
+        # Check all three directories
+        CMAKE_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        MERGED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        STRIPPED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        
+        if [ "$CMAKE_EXISTS" = "true" ] || [ "$MERGED_EXISTS" = "true" ] || [ "$STRIPPED_EXISTS" = "true" ]; then
+          echo "✅ Native build artifacts found. Proceeding with build."
+        else
+          echo "❌ ERROR: No native build artifacts found. Build cannot proceed without native components."
+          echo "Build process will now fail."
+          exit 1
+        fi
+      shell: bash
     
     # Execute the common setup with emulator configuration
     - name: Common Setup
@@ -153,26 +181,7 @@ jobs:
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
 
-    # Download both native and APK build artifacts
-    - name: Download Build Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: native-build-artifacts-${{ matrix.arch }}|android-apk-artifacts-${{ matrix.arch }}
-        path: android/
-        merge-multiple: true
-
     # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
-    
-    - name: Make check native build artifacts script executable
-      run: chmod +x scripts/check_native_build_artifacts.sh
-
-    # Check if CMake build artifacts exist for integration tests
-    - name: Check CMake build artifacts for integration tests
-      run: |
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
-      shell: bash
     
     - name: Debug Main Build Task Graph
       run: |
