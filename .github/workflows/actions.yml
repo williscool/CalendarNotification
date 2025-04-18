@@ -53,7 +53,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
-    
+
     # Set up Java, Node, and basic caches (but don't build native components in common setup)
     - name: Basic Setup
       id: basic-setup
@@ -71,6 +71,12 @@ jobs:
         cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
         echo "hash=$(sha256sum external-native-tasks.txt | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
         cat external-native-tasks.txt
+    
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
+        create-symlink: true
     
     # Check cache for native build artifacts
     - name: Cache Native Build Artifacts
@@ -123,6 +129,12 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
+    
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-${{ matrix.arch }}-${{ needs.build-native.outputs.native_build_hash }}
+        create-symlink: true
     
     # Set current date and repository name
     - name: Set current date as env variable
@@ -408,6 +420,12 @@ jobs:
       with:
         fetch-depth: 1
     
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-${{ matrix.arch }}-${{ needs.build-native.outputs.native_build_hash }}
+        create-symlink: true
+    
     # Execute the common setup
     - name: Common Setup
       uses: ./.github/actions/common-setup
@@ -501,6 +519,12 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-${{ matrix.arch }}-${{ needs.build-native.outputs.native_build_hash }}
+        create-symlink: true
     
     # Execute the common setup with emulator configuration
     - name: Common Setup
