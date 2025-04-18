@@ -38,6 +38,10 @@ inputs:
     description: 'Whether to run emulator setup steps'
     required: false
     default: "false"
+  require_native_artifacts:
+    description: 'Whether to require native artifacts'
+    required: false
+    default: "false"
 
 outputs:
   ndk-cache-hit:
@@ -257,6 +261,16 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cmake-${{ inputs.arch }}-
     
+    # Download native build artifacts if required
+    - name: Download Native Build Artifacts
+      if: inputs.arch != '' && inputs.require_native_artifacts == 'true'
+      uses: actions/download-artifact@v4
+      id: download-native-artifacts
+      continue-on-error: true
+      with:
+        name: native-build-artifacts-${{ inputs.arch }}
+        path: android/
+    
     # Check if native build artifacts exist
     - name: Check if native build artifacts exist
       id: check-native-artifacts
@@ -279,11 +293,20 @@ runs:
           echo "Stripped exists: $STRIPPED_EXISTS"
         else
           echo "exists=false" >> $GITHUB_OUTPUT
-          echo "No native build artifacts found in any directory, will rebuild."
+          echo "No native build artifacts found in any directory."
           echo "CMake exists: $CMAKE_EXISTS"
           echo "Merged exists: $MERGED_EXISTS"
           echo "Stripped exists: $STRIPPED_EXISTS"
         fi
+    
+    # Fail if native artifacts are required but not available
+    - name: Ensure native artifacts are available if required
+      if: inputs.arch != '' && inputs.require_native_artifacts == 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      shell: bash
+      run: |
+        echo "❌ ERROR: Native build artifacts are required but not found."
+        echo "Build process will now fail."
+        exit 1
 
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
