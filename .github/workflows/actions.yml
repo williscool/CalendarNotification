@@ -150,7 +150,6 @@ jobs:
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
-        run_emulator_setup: "true"
         require_native_artifacts: "true"
 
     # Debug Main Build Task Graph
