@@ -534,12 +534,6 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2
-      with:
-        key: ccache-${{ matrix.arch }}-${{ needs.build-native.outputs.native_build_hash }}
-        create-symlink: true
-    
     # Execute the common setup with emulator configuration
     - name: Common Setup
       id: common-setup

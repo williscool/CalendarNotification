@@ -106,6 +106,12 @@ android {
     // Add test runner configuration
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
+    externalNativeBuild {
+      cmake{
+        abiFilters 'x86_64', 'arm64-v8a'
+      }
+    }
+    
     ndk { 
       abiFilters 'x86_64', 'arm64-v8a'
     }
@@ -161,6 +167,9 @@ android {
         preDexLibraries true
         threadCount = 4
       }
+      ndk {
+        abiFilters 'x86_64', 'arm64-v8a'
+      }
     }
     release {
       testCoverageEnabled true
@@ -177,6 +186,9 @@ android {
       lintOptions {
         disable 'MissingTranslation'
         abortOnError false
+      }
+      ndk {
+        abiFilters 'x86_64', 'arm64-v8a'
       }
     }
 
