@@ -134,6 +134,28 @@ runs:
         -PreactNativeArchitectures="${{ inputs.arch }}" \
         -x preBuild -x preDebugBuild -x preReleaseBuild
       shell: bash
+
+    # Archive op-sqlite native build artifacts
+    - name: Archive op-sqlite native build artifacts
+      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      run: |
+        # Create tar archive preserving timestamps and permissions
+        tar -czf op-sqlite-native-build-${{ inputs.arch }}.tar.gz \
+          --preserve-permissions \
+          --preserve-order \
+          node_modules/@op-engineering/op-sqlite/android/.cxx \
+          node_modules/@op-engineering/op-sqlite/android/build/intermediates/
+      shell: bash
+
+    # Upload op-sqlite native build artifacts
+    - name: Upload op-sqlite native build artifacts
+      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: op-sqlite-native-build-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
+        path: op-sqlite-native-build-${{ inputs.arch }}.tar.gz
+        retention-days: 7
+        if-no-files-found: warn
     
     # Check ccache stats after build
     - name: Check ccache stats after build

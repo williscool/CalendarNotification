@@ -271,6 +271,26 @@ runs:
         name: native-build-artifacts-${{ inputs.arch }}
         path: android/
     
+    # Download op-sqlite native build artifacts
+    - name: Download op-sqlite native build artifacts
+      if: inputs.arch != '' && inputs.require_native_artifacts == 'true'
+      uses: actions/download-artifact@v4
+      id: download-op-sqlite-artifacts
+      continue-on-error: true
+      with:
+        name: op-sqlite-native-build-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
+        path: op-sqlite-native-build-${{ inputs.arch }}.tar.gz
+
+    # Extract op-sqlite native build artifacts
+    - name: Extract op-sqlite native build artifacts
+      if: steps.download-op-sqlite-artifacts.outputs.cache-hit == 'true'
+      run: |
+        # Extract tar archive preserving timestamps and permissions
+        tar -xzf op-sqlite-native-build-${{ inputs.arch }}.tar.gz \
+          --preserve-permissions \
+          --preserve-order
+      shell: bash
+    
     # Check if native build artifacts exist
     - name: Check if native build artifacts exist
       id: check-native-artifacts
