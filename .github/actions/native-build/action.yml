@@ -5,18 +5,12 @@ inputs:
   arch:
     description: 'Architecture (arm64-v8a, x86_64)'
     required: true
-  native_build_hash:
-    description: 'Hash of the external native tasks file'
-    required: true
   skip_native_build:
     description: 'Whether to skip native build steps'
     required: false
     default: "false"
 
 outputs:
-  native_build_success:
-    description: 'Whether native build was successful'
-    value: ${{ steps.build-native.outcome == 'success' }}
   native_build_hash:
     description: 'Hash of the external native tasks file'
     value: ${{ steps.native-build-hash.outputs.hash }}
@@ -72,56 +66,25 @@ runs:
           echo "external-native-tasks.txt not found, using default hash"
         fi
       
-    # Download native build artifacts
-    - name: Download Native Build Artifacts
+    # Check if op-sqlite native build artifacts exist
+    - name: Check if op-sqlite native build artifacts exist
+      id: check-op-sqlite-artifacts
       uses: actions/download-artifact@v4
-      id: download-native-artifacts
       continue-on-error: true
       with:
-        name: native-build-cmake-${{ inputs.arch }}-${{ inputs.native_build_hash }}
-        path: |
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-    
-    # Check if downloaded artifacts exist and are non-empty
-    - name: Check if native build artifacts exist
-      id: check-native-artifacts
-      shell: bash
-      run: |
-        # Make the script executable
-        chmod +x scripts/check_native_build_artifacts.sh
-        
-        # Check all three directories
-        CMAKE_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
-        MERGED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
-        STRIPPED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
-        
-        if [ "$CMAKE_EXISTS" = "true" ] || [ "$MERGED_EXISTS" = "true" ] || [ "$STRIPPED_EXISTS" = "true" ]; then
-          echo "exists=true" >> $GITHUB_OUTPUT
-          echo "Found native build artifacts in at least one directory."
-          echo "CMake exists: $CMAKE_EXISTS"
-          echo "Merged exists: $MERGED_EXISTS"
-          echo "Stripped exists: $STRIPPED_EXISTS"
-        else
-          echo "exists=false" >> $GITHUB_OUTPUT
-          echo "No native build artifacts found in any directory, will rebuild."
-          echo "CMake exists: $CMAKE_EXISTS"
-          echo "Merged exists: $MERGED_EXISTS"
-          echo "Stripped exists: $STRIPPED_EXISTS"
-        fi
+        name: op-sqlite-native-build-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
+        path: op-sqlite-native-build-${{ inputs.arch }}.tar.gz
     
     # Build native components if needed
     - name: Build Native Components
       id: build-native
-      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      if: inputs.skip_native_build != 'true' && steps.check-op-sqlite-artifacts.outputs.cache-hit != 'true'
       env:
         CCACHE_DEBUG: 1
         CCACHE_VERBOSE: 1
         CCACHE_LOGFILE: "/tmp/ccache.log"
       run: |
-        echo "Building native components as artifacts were not available"
+        echo "Building native components as op-sqlite artifacts were not available"
         echo "Setting up environment variables for ccache:"
         env | grep -i ccache
         cd android && \
@@ -137,7 +100,7 @@ runs:
 
     # Archive op-sqlite native build artifacts
     - name: Archive op-sqlite native build artifacts
-      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      if: inputs.skip_native_build != 'true'
       run: |
         # Create tar archive preserving timestamps and permissions
         tar -czf op-sqlite-native-build-${{ inputs.arch }}.tar.gz \
@@ -149,7 +112,7 @@ runs:
 
     # Upload op-sqlite native build artifacts
     - name: Upload op-sqlite native build artifacts
-      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      if: inputs.skip_native_build != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: op-sqlite-native-build-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
@@ -171,7 +134,7 @@ runs:
     
     # Upload native build artifacts after building
     - name: Upload Native Build Artifacts
-      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      if: inputs.skip_native_build != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
@@ -184,6 +147,11 @@ runs:
         if-no-files-found: warn
     
     - name: Skip Native Build (Using Cache or Explicit Skip)
-      if: inputs.skip_native_build == 'true' || steps.check-native-artifacts.outputs.exists == 'true'
-      run: echo "Skipping native build - using cached version, downloaded artifacts, or explicitly skipped"
+      if: inputs.skip_native_build == 'true' || steps.check-op-sqlite-artifacts.outputs.cache-hit == 'true'
+      run: |
+        if [ "${{ inputs.skip_native_build }}" == "true" ]; then
+          echo "Skipping native build - explicitly skipped via input parameter"
+        elif [ "${{ steps.check-op-sqlite-artifacts.outputs.cache-hit }}" == "true" ]; then
+          echo "Skipping native build - using cached op-sqlite native build artifacts"
+        fi
       shell: bash 

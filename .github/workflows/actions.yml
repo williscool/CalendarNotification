@@ -53,7 +53,7 @@ jobs:
       BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 20
     outputs:
-      native_build_hash: ${{ steps.native_hash.outputs.hash }}
+      native_build_hash: ${{ steps.native-build-task.outputs.native_build_hash }}
     
     steps:
     - uses: actions/checkout@v3
@@ -69,63 +69,14 @@ jobs:
         node_version: "22.x"
         arch: ${{ matrix.arch }}
     
-    # Generate a hash of the native code for caching
-    - name: Generate Native Code Hash
-      id: native_hash
-      run: |
-        cd android && \
-        cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
-        echo "hash=$(sha256sum external-native-tasks.txt | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
-        cat external-native-tasks.txt
-    
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2
-      with:
-        key: ccache-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
-        create-symlink: true
-    
-    # Check ccache stats before build
-    - name: Check ccache stats before build
-      run: |
-        ccache -p
-        ccache -s
-        ccache -z  # Zero stats for accurate measurements
-    
-    # Check cache for native build artifacts
-    - name: Cache Native Build Artifacts
-      id: cache-native-build
-      uses: actions/cache@v3
-      with:
-        path: |
-          android/app/build/
-        key: native-build-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
 
     # Use the new native build action
     - name: Build Native Components
+      id: native-build-task
       uses: ./.github/actions/native-build
       with:
         arch: ${{ matrix.arch }}
-        native_build_hash: ${{ steps.native_hash.outputs.hash }}
-        skip_native_build: ${{ steps.cache-native-build.outputs.cache-hit == 'true' }}
     
-    # Check ccache stats after build
-    - name: Check ccache stats after build
-      run: |
-        echo "CCACHE STATISTICS AFTER BUILD:"
-        ccache -s
-    
-    # Upload native build artifacts
-    - name: Upload Native Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: native-build-artifacts-${{ matrix.arch }}
-        path: |
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/**/build/intermediates/cmake
-        retention-days: 1
-        if-no-files-found: error
 
   build:
     name: Build Android App

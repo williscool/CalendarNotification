@@ -47,25 +47,6 @@ runs:
           echo "Native build directory does not exist or is empty."
         fi
         
-    # Update NDK and CMake Cache
-    - name: Update NDK and CMake Cache
-      if: always() && inputs.arch != ''
-      uses: actions/cache@v4
-      with:
-        path: |
-          .cxx
-          ~/.android/ndk
-          ~/.android/cmake
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/app/build/intermediates/transforms
-          android/app/build/intermediates/prefab
-          android/app/build/intermediates/prefab_package
-          android/app/build/intermediates/prefab_metadata
-        key: ${{ runner.os }}-cmake-${{ inputs.arch }}-${{ hashFiles('android/app/src/main/jniLibs/**/*.so') }}-${{ hashFiles('android/external-native-tasks.txt') }}
-      
     # Update Build Outputs Cache
     - name: Update Build Outputs Cache
       if: always() && inputs.arch != ''

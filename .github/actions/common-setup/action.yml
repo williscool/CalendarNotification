@@ -44,9 +44,6 @@ inputs:
     default: "false"
 
 outputs:
-  ndk-cache-hit:
-    description: 'Whether the NDK cache was hit'
-    value: ${{ steps.ndk-cache.outputs.cache-hit }}
   build-outputs-cache-hit:
     description: 'Whether the build outputs cache was hit'
     value: ${{ steps.build-outputs-cache.outputs.cache-hit }}
@@ -56,9 +53,6 @@ outputs:
   native_build_hash:
     description: 'Hash of the external native tasks file'
     value: ${{ steps.native-build-hash.outputs.hash }}
-  native_build_artifacts_available:
-    description: 'Whether native build artifacts are available'
-    value: ${{ steps.check-native-artifacts.outputs.exists }}
 
 runs:
   using: "composite"
@@ -291,43 +285,6 @@ runs:
           --preserve-order
       shell: bash
     
-    # Check if native build artifacts exist
-    - name: Check if native build artifacts exist
-      id: check-native-artifacts
-      if: inputs.arch != ''
-      shell: bash
-      run: |
-        # Make the script executable
-        chmod +x scripts/check_native_build_artifacts.sh
-        
-        # Check all three directories
-        CMAKE_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
-        MERGED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
-        STRIPPED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
-        
-        if [ "$CMAKE_EXISTS" = "true" ] || [ "$MERGED_EXISTS" = "true" ] || [ "$STRIPPED_EXISTS" = "true" ]; then
-          echo "exists=true" >> $GITHUB_OUTPUT
-          echo "Found native build artifacts in at least one directory."
-          echo "CMake exists: $CMAKE_EXISTS"
-          echo "Merged exists: $MERGED_EXISTS"
-          echo "Stripped exists: $STRIPPED_EXISTS"
-        else
-          echo "exists=false" >> $GITHUB_OUTPUT
-          echo "No native build artifacts found in any directory."
-          echo "CMake exists: $CMAKE_EXISTS"
-          echo "Merged exists: $MERGED_EXISTS"
-          echo "Stripped exists: $STRIPPED_EXISTS"
-        fi
-    
-    # Fail if native artifacts are required but not available
-    - name: Ensure native artifacts are available if required
-      if: inputs.arch != '' && inputs.require_native_artifacts == 'true' && steps.check-native-artifacts.outputs.exists != 'true'
-      shell: bash
-      run: |
-        echo "❌ ERROR: Native build artifacts are required but not found."
-        echo "Build process will now fail."
-        exit 1
-
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'
