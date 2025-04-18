@@ -111,7 +111,8 @@ jobs:
                   --parallel --max-workers=4 --build-cache --configure-on-demand \
                   -Pandroid.prefabPublishing=true \
                   -Pandroid.prefabPackageType=STATIC \
-                  -Pandroid.externalNativeBuild.skip=true
+                  -Pandroid.externalNativeBuild.skip=true \
+                  -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
@@ -372,7 +373,8 @@ jobs:
                   --info \
                   --console=verbose \
                   --continue --configure-on-demand \
-                  -Pandroid.externalNativeBuild.skip=true
+                  -Pandroid.externalNativeBuild.skip=true \
+                  -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         BUILD_ARCH: ${{ matrix.arch }}
     
@@ -386,7 +388,8 @@ jobs:
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
         --continue --configure-on-demand \
-        -Pandroid.externalNativeBuild.skip=true
+        -Pandroid.externalNativeBuild.skip=true \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
@@ -396,7 +399,9 @@ jobs:
       if: always() 
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace \
+        -Pandroid.externalNativeBuild.skip=true \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
 
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
@@ -490,7 +495,7 @@ jobs:
         disable-animations: true
         script: |
           # Ensure the PackageList is generated before running tests
-          cd android && ./gradlew :${{ env.main_project_module }}:generatePackageList && cd ..
+          cd android && ./gradlew :${{ env.main_project_module }}:generatePackageList -Pandroid.externalNativeBuild.skip=true -x preBuild -x preDebugBuild -x preReleaseBuild && cd ..
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
           
     # Generate Jacoco coverage report
@@ -499,7 +504,9 @@ jobs:
       if: always() 
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace \
+        -Pandroid.externalNativeBuild.skip=true \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
         
     # Publish integration test results
     - name: Publish Integration Test Results
