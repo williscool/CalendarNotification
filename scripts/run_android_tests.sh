@@ -42,7 +42,35 @@ TEST_RUNNER="androidx.test.runner.AndroidJUnitRunner"
 # Create coverage file name based on architecture
 COVERAGE_FILE_NAME="${ARCH_SUFFIX}DebugAndroidTest.ec"
 
+# Find the app APK and test APK
+APP_APK=$(find ./$MAIN_PROJECT_MODULE/build/outputs/apk/${ARCH_SUFFIX,,}/debug -name "*-debug.apk" | head -1)
+TEST_APK=$(find ./$MAIN_PROJECT_MODULE/build/outputs/apk/androidTest/${ARCH_SUFFIX,,}/debug -name "*-debug-androidTest.apk" | head -1)
+
+if [ -z "$APP_APK" ]; then
+  echo "Error: App APK not found"
+  exit 1
+fi
+
+if [ -z "$TEST_APK" ]; then
+  echo "Error: Test APK not found"
+  exit 1
+fi
+
+echo "Found App APK: $APP_APK"
+echo "Found Test APK: $TEST_APK"
+
+# Uninstall previous versions if they exist (don't fail if they don't)
+adb uninstall $APP_PACKAGE || true
+adb uninstall $TEST_PACKAGE || true
+
+# Install the app and test APKs
+echo "Installing app APK..."
+adb install -r "$APP_APK"
+echo "Installing test APK..."
+adb install -r "$TEST_APK"
+
 # Run the tests using adb directly
+echo "Running instrumentation tests..."
 adb shell am instrument -w -r \
   -e debug false \
   -e coverage true \
