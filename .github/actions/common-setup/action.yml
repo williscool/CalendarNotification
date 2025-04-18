@@ -49,12 +49,12 @@ outputs:
   android-cache-hit:
     description: 'Whether the Android SDK and AVD cache was hit'
     value: ${{ steps.android-cache.outputs.cache-hit }}
-  native-build-hash:
+  native_build_hash:
     description: 'Hash of the external native tasks file'
     value: ${{ steps.native-build-hash.outputs.hash }}
-  native-build-artifacts-uploaded:
-    description: 'Whether native build artifacts were uploaded during the build step'
-    value: ${{ steps.build-native.outcome == 'success' }}
+  native_build_artifacts_available:
+    description: 'Whether native build artifacts are available'
+    value: ${{ steps.check-native-artifacts.outputs.exists }}
 
 runs:
   using: "composite"
@@ -257,20 +257,7 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cmake-${{ inputs.arch }}-
     
-    # Check if we should download previously uploaded native build artifacts
-    - name: Download Native Build Artifacts
-      uses: actions/download-artifact@v4
-      id: download-native-artifacts
-      if: inputs.arch != ''
-      continue-on-error: true
-      with:
-        name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: |
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-    
-    # Check if downloaded artifacts exist and are non-empty
+    # Check if native build artifacts exist
     - name: Check if native build artifacts exist
       id: check-native-artifacts
       if: inputs.arch != ''
@@ -297,47 +284,6 @@ runs:
           echo "Merged exists: $MERGED_EXISTS"
           echo "Stripped exists: $STRIPPED_EXISTS"
         fi
-    
-    # Note that the arch is set in android/app/build.gradle through the BUILD_ARCH environment variable
-    - name: Build Native aka CMake Components first
-      id: build-native
-      if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
-      run: |
-        echo "Building native components as cache miss occurred or artifacts were not available"
-        # Set default to false (don't skip)
-        echo "SKIP_NATIVE_BUILD=false" >> $GITHUB_ENV
-        # Only skip if we have both cache hit AND artifacts exist
-        if [ "${{ steps.ndk-cache.outputs.cache-hit }}" == "true" ] && [ "${{ steps.check-native-artifacts.outputs.exists }}" == "true" ]; then
-          echo "SKIP_NATIVE_BUILD=true" >> $GITHUB_ENV
-        fi
-        
-        cd android && \
-        ./gradlew externalNativeBuildDebug \
-                  externalNativeBuildRelease \
-        --parallel --max-workers=4 --build-cache --configure-on-demand \
-        -Pandroid.prefabPublishing=true \
-        -Pandroid.prefabPackageType=STATIC \
-        -Pandroid.externalNativeBuild.skip=${{ env.SKIP_NATIVE_BUILD }} \
-        -x preBuild -x preDebugBuild -x preReleaseBuild
-      shell: bash
-    
-    # Upload native build artifacts immediately after building
-    - name: Upload Native Build Artifacts After Build
-      if: steps.ndk-cache.outputs.cache-hit != 'true' || (steps.check-native-artifacts.outputs.exists != 'true')
-      uses: actions/upload-artifact@v4
-      with:
-        name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: |
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-        retention-days: 7
-        if-no-files-found: warn
-    
-    - name: Skip Native Build (Using Cache)
-      if: steps.ndk-cache.outputs.cache-hit == 'true' || steps.check-native-artifacts.outputs.exists == 'true'
-      run: echo "Skipping native build - using cached version or downloaded artifacts"
-      shell: bash
 
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
@@ -389,5 +335,5 @@ runs:
         script: |
           adb wait-for-device
           adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done;'
-          echo "Generated AVD snapshot for caching." 
+          echo "Generated AVD snapshot for caching."
 

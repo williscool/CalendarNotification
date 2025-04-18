@@ -1,0 +1,119 @@
+name: 'Native Build'
+description: 'Handles native build operations for Android'
+
+inputs:
+  arch:
+    description: 'Architecture (arm64-v8a, x86_64)'
+    required: true
+  native_build_hash:
+    description: 'Hash of the external native tasks file'
+    required: true
+  skip_native_build:
+    description: 'Whether to skip native build steps'
+    required: false
+    default: "false"
+
+outputs:
+  native_build_success:
+    description: 'Whether native build was successful'
+    value: ${{ steps.build-native.outcome == 'success' }}
+  native_build_hash:
+    description: 'Hash of the external native tasks file'
+    value: ${{ steps.native-build-hash.outputs.hash }}
+
+runs:
+  using: "composite"
+  steps:
+    # Extract external native build tasks for cache key
+    - name: Extract external native build tasks
+      shell: bash
+      run: |
+        cd android && \
+        cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
+        cat external-native-tasks.txt
+    
+    # Generate a hash of the external-native-tasks.txt file
+    - name: Generate native build hash
+      id: native-build-hash
+      shell: bash
+      run: |
+        if [ -f android/external-native-tasks.txt ]; then
+          HASH=$(sha256sum android/external-native-tasks.txt | cut -d ' ' -f 1)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Native build hash: $HASH"
+        else
+          echo "hash=nohash" >> $GITHUB_OUTPUT
+          echo "external-native-tasks.txt not found, using default hash"
+        fi
+      
+    # Download native build artifacts
+    - name: Download Native Build Artifacts
+      uses: actions/download-artifact@v4
+      id: download-native-artifacts
+      continue-on-error: true
+      with:
+        name: native-build-cmake-${{ inputs.arch }}-${{ inputs.native_build_hash }}
+        path: |
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+    
+    # Check if downloaded artifacts exist and are non-empty
+    - name: Check if native build artifacts exist
+      id: check-native-artifacts
+      shell: bash
+      run: |
+        # Make the script executable
+        chmod +x scripts/check_native_build_artifacts.sh
+        
+        # Check all three directories
+        CMAKE_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        MERGED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        STRIPPED_EXISTS=$(./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs" | grep -q "✅ Native build directory exists" && echo "true" || echo "false")
+        
+        if [ "$CMAKE_EXISTS" = "true" ] || [ "$MERGED_EXISTS" = "true" ] || [ "$STRIPPED_EXISTS" = "true" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Found native build artifacts in at least one directory."
+          echo "CMake exists: $CMAKE_EXISTS"
+          echo "Merged exists: $MERGED_EXISTS"
+          echo "Stripped exists: $STRIPPED_EXISTS"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "No native build artifacts found in any directory, will rebuild."
+          echo "CMake exists: $CMAKE_EXISTS"
+          echo "Merged exists: $MERGED_EXISTS"
+          echo "Stripped exists: $STRIPPED_EXISTS"
+        fi
+    
+    # Build native components if needed
+    - name: Build Native Components
+      id: build-native
+      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      run: |
+        echo "Building native components as artifacts were not available"
+        cd android && \
+        ./gradlew externalNativeBuildDebug \
+                  externalNativeBuildRelease \
+        --parallel --max-workers=4 --build-cache --configure-on-demand \
+        -Pandroid.prefabPublishing=true \
+        -Pandroid.prefabPackageType=STATIC \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
+      shell: bash
+    
+    # Upload native build artifacts after building
+    - name: Upload Native Build Artifacts
+      if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
+        path: |
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+        retention-days: 7
+        if-no-files-found: warn
+    
+    - name: Skip Native Build (Using Cache or Explicit Skip)
+      if: inputs.skip_native_build == 'true' || steps.check-native-artifacts.outputs.exists == 'true'
+      run: echo "Skipping native build - using cached version, downloaded artifacts, or explicitly skipped"
+      shell: bash 

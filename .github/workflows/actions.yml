@@ -36,8 +36,78 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-native:
+    name: Build Native Components
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a, x86_64]
+      fail-fast: false
+    env:
+      BUILD_ARCH: ${{ matrix.arch }}
+    timeout-minutes: 20
+    outputs:
+      native_build_hash: ${{ steps.native_hash.outputs.hash }}
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+    
+    # Set up Java, Node, and basic caches (but don't build native components in common setup)
+    - name: Basic Setup
+      id: basic-setup
+      uses: ./.github/actions/common-setup
+      with:
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
+    
+    # Generate a hash of the native code for caching
+    - name: Generate Native Code Hash
+      id: native_hash
+      run: |
+        cd android && \
+        cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
+        echo "hash=$(sha256sum external-native-tasks.txt | cut -d ' ' -f 1)" >> $GITHUB_OUTPUT
+        cat external-native-tasks.txt
+    
+    # Check cache for native build artifacts
+    - name: Cache Native Build Artifacts
+      id: cache-native-build
+      uses: actions/cache@v3
+      with:
+        path: |
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+          android/**/build/intermediates/cmake
+        key: native-build-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
+
+    # Use the new native build action
+    - name: Build Native Components
+      uses: ./.github/actions/native-build
+      with:
+        arch: ${{ matrix.arch }}
+        native_build_hash: ${{ steps.native_hash.outputs.hash }}
+        skip_native_build: ${{ steps.cache-native-build.outputs.cache-hit == 'true' }}
+    
+    # Upload native build artifacts
+    - name: Upload Native Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-build-artifacts-${{ matrix.arch }}
+        path: |
+          android/app/build/intermediates/cmake
+          android/app/build/intermediates/merged_native_libs
+          android/app/build/intermediates/stripped_native_libs
+          android/**/build/intermediates/cmake
+        retention-days: 1
+        if-no-files-found: error
+
   build:
     name: Build Android App
+    needs: build-native
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -70,7 +140,7 @@ jobs:
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
     
-    # Execute the common setup
+    # Execute the common setup with emulator configuration
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
@@ -78,8 +148,18 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
+        android_api_level: ${{ env.ANDROID_API_LEVEL }}
+        android_target: ${{ env.ANDROID_TARGET }}
+        android_profile: ${{ env.ANDROID_PROFILE }}
+        run_emulator_setup: "true"
 
-    # Note: All caches are now handled in common-setup
+    # Download both native and APK build artifacts
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-build-artifacts-${{ matrix.arch }}|android-apk-artifacts-${{ matrix.arch }}
+        path: android/
+        merge-multiple: true
 
     # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
     
@@ -341,6 +421,7 @@ jobs:
 
   unit-tests:
     name: Run Unit Tests
+    needs: build-native
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -358,7 +439,16 @@ jobs:
       with:
         gradle_max_workers: "4"
         node_version: "22.x"
+        arch: ${{ matrix.arch }}
+        skip_native_build: "true"
     
+    # Download native build artifacts from the build-native job
+    - name: Download Native Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: native-build-artifacts-${{ matrix.arch }}
+        path: android/
+
     # Debug unit test task graph
     - name: Debug Unit Test Task Graph
       run: |
@@ -428,7 +518,7 @@ jobs:
         
   integration-test:
     name: Test Android App
-    needs: build
+    needs: [build, build-native]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -458,13 +548,15 @@ jobs:
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
 
-    # Download the build artifacts - only for the architecture being tested
-    - name: Download APK artifacts
+    # Download both native and APK build artifacts
+    - name: Download Build Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: android-apk-artifacts-${{ matrix.arch }}
-        path: android/${{ env.main_project_module }}/build/outputs/apk/
-  
+        pattern: native-build-artifacts-${{ matrix.arch }}|android-apk-artifacts-${{ matrix.arch }}
+        path: android/
+        merge-multiple: true
+
+    # Check if CMake build artifacts exist for integration tests
     - name: Make check native build artifacts script executable
       run: chmod +x scripts/check_native_build_artifacts.sh
 
