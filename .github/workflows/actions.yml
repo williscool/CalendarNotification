@@ -164,21 +164,7 @@ jobs:
                   --dry-run \
                   --info \
                   --console=verbose \
-                  --parallel --max-workers=4 --build-cache --configure-on-demand \
-                  -Pandroid.prefabPublishing=true \
-                  -Pandroid.prefabPackageType=STATIC \
-                  -Pandroid.externalNativeBuild.skip=true \
-                  -x externalNativeBuildDebug \
-                  -x externalNativeBuildRelease \
-                  -x preBuild \ 
-                  -x preDebugBuild \
-                  -x preReleaseBuild \ 
-                  -x configureCMakeDebug \
-                  -x configureCMakeRelease \
-                  -x buildCMakeDebug \
-                  -x buildCMakeRelease \
-                  -x externalNativeBuildDebug \
-                  -x externalNativeBuildRelease
+                  --parallel --max-workers=4 --build-cache --configure-on-demand
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
@@ -194,21 +180,7 @@ jobs:
                   ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
                   ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
                   ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
-        --parallel --max-workers=4 --build-cache --configure-on-demand \
-        -Pandroid.prefabPublishing=true \
-        -Pandroid.prefabPackageType=STATIC \
-        -Pandroid.externalNativeBuild.skip=true \
-        -x externalNativeBuildDebug \
-        -x externalNativeBuildRelease \
-        -x preBuild \ 
-        -x preDebugBuild \
-        -x preReleaseBuild \ 
-        -x configureCMakeDebug \
-        -x configureCMakeRelease \
-        -x buildCMakeDebug \
-        -x buildCMakeRelease \
-        -x externalNativeBuildDebug \
-        -x externalNativeBuildRelease
+        --parallel --max-workers=4 --build-cache --configure-on-demand
 
       env:
         # Explicitly set BUILD_ARCH for Gradle process
@@ -485,9 +457,8 @@ jobs:
       if: always() 
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace \
-        -Pandroid.externalNativeBuild.skip=true \
-        -x preBuild -x preDebugBuild -x preReleaseBuild
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
+        -Pandroid.externalNativeBuild.skip=true
 
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
@@ -574,8 +545,6 @@ jobs:
       run: |
         cd android && \
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace \
-        -Pandroid.externalNativeBuild.skip=true \
-        -x preBuild -x preDebugBuild -x preReleaseBuild
         
     # Publish integration test results
     - name: Publish Integration Test Results

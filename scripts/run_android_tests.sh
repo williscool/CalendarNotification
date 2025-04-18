@@ -31,7 +31,5 @@ export BUILD_ARCH=$ARCH
          -PreactNativeArchitectures="$ARCH" \
          :"$MAIN_PROJECT_MODULE":connected${ARCH_SUFFIX}DebugAndroidTest \
          --parallel --max-workers=4 --build-cache \
-         -Pandroid.externalNativeBuild.skip=true \
-         -x preBuild -x preDebugBuild -x preReleaseBuild
 
 echo "Android tests completed successfully!" 
