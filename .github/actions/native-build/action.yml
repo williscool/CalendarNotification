@@ -24,6 +24,32 @@ outputs:
 runs:
   using: "composite"
   steps:
+    # Check if ccache is installed and setup
+    - name: Check ccache setup
+      shell: bash
+      run: |
+        echo "Checking ccache setup"
+        which ccache || echo "ccache not found in PATH"
+        ccache -V
+        ccache -p
+        ccache -s
+        ccache -z # Zero stats before build
+        
+    # Make sure .ccache directory exists with proper permissions
+    - name: Setup ccache directory
+      shell: bash
+      run: |
+        mkdir -p ~/.ccache
+        mkdir -p android/.ccache
+        if [ -f "android/.ccache/ccache.conf" ]; then
+          cp android/.ccache/ccache.conf ~/.ccache/
+          echo "Using project-specific ccache config"
+        else
+          echo "No project-specific ccache config found, using defaults"
+        fi
+        chmod -R 755 ~/.ccache
+        ls -la ~/.ccache
+
     # Extract external native build tasks for cache key
     - name: Extract external native build tasks
       shell: bash
@@ -90,16 +116,36 @@ runs:
     - name: Build Native Components
       id: build-native
       if: inputs.skip_native_build != 'true' && steps.check-native-artifacts.outputs.exists != 'true'
+      env:
+        CCACHE_DEBUG: 1
+        CCACHE_VERBOSE: 1
+        CCACHE_LOGFILE: "/tmp/ccache.log"
       run: |
         echo "Building native components as artifacts were not available"
+        echo "Setting up environment variables for ccache:"
+        env | grep -i ccache
         cd android && \
         ./gradlew externalNativeBuildDebug \
                   externalNativeBuildRelease \
         --parallel --max-workers=4 --build-cache --configure-on-demand \
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC \
+        -PBUILD_ARCH="${{ inputs.arch }}" \
+        -PreactNativeArchitectures="${{ inputs.arch }}" \
         -x preBuild -x preDebugBuild -x preReleaseBuild
       shell: bash
+    
+    # Check ccache stats after build
+    - name: Check ccache stats after build
+      shell: bash
+      if: always()
+      run: |
+        echo "CCACHE STATISTICS AFTER BUILD:"
+        ccache -s
+        if [ -f "/tmp/ccache.log" ]; then
+          echo "Last 30 lines of ccache log:"
+          tail -n 30 /tmp/ccache.log
+        fi
     
     # Upload native build artifacts after building
     - name: Upload Native Build Artifacts

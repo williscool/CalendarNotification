@@ -23,6 +23,12 @@ env:
   
   # Define constant for each job to use
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+  
+  # Setup ccache environment variables
+  CCACHE_DEBUG: 1
+  CCACHE_VERBOSE: 1
+  CCACHE_MAXSIZE: 5G
+  CCACHE_BASEDIR: ${{ github.workspace }}
 
 on:
   push:
@@ -78,6 +84,13 @@ jobs:
         key: ccache-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
         create-symlink: true
     
+    # Check ccache stats before build
+    - name: Check ccache stats before build
+      run: |
+        ccache -p
+        ccache -s
+        ccache -z  # Zero stats for accurate measurements
+    
     # Check cache for native build artifacts
     - name: Cache Native Build Artifacts
       id: cache-native-build
@@ -94,6 +107,12 @@ jobs:
         arch: ${{ matrix.arch }}
         native_build_hash: ${{ steps.native_hash.outputs.hash }}
         skip_native_build: ${{ steps.cache-native-build.outputs.cache-hit == 'true' }}
+    
+    # Check ccache stats after build
+    - name: Check ccache stats after build
+      run: |
+        echo "CCACHE STATISTICS AFTER BUILD:"
+        ccache -s
     
     # Upload native build artifacts
     - name: Upload Native Build Artifacts
@@ -561,7 +580,7 @@ jobs:
       if: always() 
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace \
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
         
     # Publish integration test results
     - name: Publish Integration Test Results
