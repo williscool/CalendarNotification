@@ -171,7 +171,9 @@ jobs:
                   -Pandroid.prefabPublishing=true \
                   -Pandroid.prefabPackageType=STATIC \
                   -Pandroid.externalNativeBuild.skip=true \
-                  -x preBuild -x preDebugBuild -x preReleaseBuild
+                  -x preBuild -x preDebugBuild -x preReleaseBuild \ 
+                  -x configureCMakeDebug -x configureCMakeRelease -x buildCMakeDebug \
+                  -x buildCMakeRelease -x externalNativeBuildDebug -x externalNativeBuildRelease
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
@@ -191,7 +193,10 @@ jobs:
         -Pandroid.prefabPublishing=true \
         -Pandroid.prefabPackageType=STATIC \
         -Pandroid.externalNativeBuild.skip=true \
-        -x preBuild -x preDebugBuild -x preReleaseBuild
+        -x preBuild -x preDebugBuild -x preReleaseBuild \ 
+        -x configureCMakeDebug -x configureCMakeRelease -x buildCMakeDebug \
+        -x buildCMakeRelease -x externalNativeBuildDebug -x externalNativeBuildRelease
+
       env:
         # Explicitly set BUILD_ARCH for Gradle process
         BUILD_ARCH: ${{ matrix.arch }}
