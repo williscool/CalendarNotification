@@ -78,10 +78,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-          android/**/build/intermediates/cmake
+          android/app/build/
         key: native-build-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
 
     # Use the new native build action

@@ -54,6 +54,7 @@ runs:
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ inputs.native_build_hash }}
         path: |
+          android/app/.cxx
           android/app/build/intermediates/cmake
           android/app/build/intermediates/merged_native_libs
           android/app/build/intermediates/stripped_native_libs
@@ -107,6 +108,7 @@ runs:
       with:
         name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
         path: |
+          android/app/.cxx
           android/app/build/intermediates/cmake
           android/app/build/intermediates/merged_native_libs
           android/app/build/intermediates/stripped_native_libs
