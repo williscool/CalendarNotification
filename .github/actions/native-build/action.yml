@@ -111,7 +111,6 @@ runs:
         # Create tar archive preserving timestamps and permissions
         tar -czf op-sqlite-native-build-${{ inputs.arch }}.tar.gz \
           --preserve-permissions \
-          --preserve-order \
           node_modules/@op-engineering/op-sqlite/android/.cxx \
           node_modules/@op-engineering/op-sqlite/android/build/intermediates/
       shell: bash
@@ -160,4 +159,4 @@ runs:
         elif [ "${{ steps.check-op-sqlite-artifacts.outputs.cache-hit }}" == "true" ]; then
           echo "Skipping native build - using cached op-sqlite native build artifacts"
         fi
-      shell: bash 
+      shell: bash
