@@ -7,9 +7,15 @@ brew install mcfly
 
 # Configure McFly for bash
 echo "Configuring McFly for bash..."
-if ! grep -q "mcfly init bash" ~/.bashrc; then
-  echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
-fi
+# Add check for interactive shell before initializing McFly
+echo 'case $- in' >> ~/.bashrc
+echo '  *i*) ;;  # Interactive shell, do nothing' >> ~/.bashrc
+echo '  *)' >> ~/.bashrc
+echo '    echo "$(date): NON INTERACTIVE SHELL - MCFLY IS DISABLED! (PID $$, PPID $PPID, command: $0 $@)" >> "$HOME/.bashrc_noninteractive.log"' >> ~/.bashrc
+echo '    ;;' >> ~/.bashrc
+echo 'esac' >> ~/.bashrc
+echo '' >> ~/.bashrc
+echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
 
 # Setup Git configuration
 echo "Setting up Git configuration..."
