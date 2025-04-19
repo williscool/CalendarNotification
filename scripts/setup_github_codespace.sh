@@ -17,6 +17,16 @@ echo 'esac' >> ~/.bashrc
 echo '' >> ~/.bashrc
 echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
 
+
+wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+unzip commandlinetools-linux-13114758_latest.zip -d ~/Android/Sdk
+rm commandlinetools-linux-13114758_latest.zip
+mv ~/Android/Sdk/cmdline-tools/* ~/Android/Sdk/cmdline-tools/latest/
+
+echo 'export ANDROID_HOME=$HOME/Android/Sdk' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+
 # Setup Git configuration
 echo "Setting up Git configuration..."
 git config --global color.ui true
@@ -35,3 +45,5 @@ echo "Applying changes to current session..."
 source ~/.bashrc
 
 echo "McFly and Git configuration setup complete!"
+
+sudo apt-get install android-sdk-platform-tools
