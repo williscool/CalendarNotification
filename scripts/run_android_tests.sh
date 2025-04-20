@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-# Script to run Android tests in CI
+# Script to run Android tests in CI, focused on just running tests and 
+# ensuring coverage files are generated
 
 echo "Starting Android tests..."
 
@@ -27,7 +28,7 @@ cd android
 export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=$ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL
 export BUILD_ARCH=$ARCH
 
-# Make sure we have the code coverage directory and test results directory
+# Make sure we have the code coverage directory for storing coverage data
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/
 
@@ -128,6 +129,7 @@ timeout $TEST_TIMEOUT adb shell am instrument -w -r \
     
     # Try to pull any partial test results that might exist
     adb pull /data/local/tmp/test-results.xml ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${ARCH_SUFFIX}-partial.xml || true
+    exit $INSTRUMENTATION_FAILED
   }
 
 # Check if the coverage file was generated
@@ -178,52 +180,18 @@ adb pull "/data/local/tmp/test-results.xml" ./$MAIN_PROJECT_MODULE/build/outputs
   echo "Warning: Failed to pull test results file directly."
 }
 
-# Check if we have the coverage file now
+# Create placeholder file to indicate tests were run
+touch ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/TESTS_EXECUTED
+
+# Check if coverage file exists
 if [ -f "./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME}" ]; then
-  echo "Coverage file found locally. Proceeding with JaCoCo report generation..."
-  
+  echo "✅ Tests completed successfully and coverage data collected"
   # Copy coverage file to the expected location for JaCoCo
   mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/
   cp ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME} \
      ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/
-
-  # Create symbolic link to match expected test results path
-  mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/connected
-  ln -sf "../androidTest-results/connected" ./$MAIN_PROJECT_MODULE/build/outputs/connected/
-
-  # On successful test run, create a placeholder file that can be used to check if tests ran
-  touch ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/TESTS_EXECUTED
-  
-  # Run the Gradle JaCoCo report generation
-  echo "Running JaCoCo report generation..."
-  ./gradlew :$MAIN_PROJECT_MODULE:jacocoAndroidTestReport --info
-  
-  echo "Coverage report should be available at: ./$MAIN_PROJECT_MODULE/build/reports/jacoco/jacocoAndroidTestReport/"
-  
-  # Check if the report was generated
-  if [ -d "./$MAIN_PROJECT_MODULE/build/reports/jacoco/jacocoAndroidTestReport/" ]; then
-    echo "✅ JaCoCo report successfully generated"
-  else
-    echo "⚠️ JaCoCo report generation may have failed"
-  fi
 else
-  echo "❌ Failed to find or generate coverage data"
-  
-  # As a last resort, try to generate a report even without coverage data
-  # This might work if the build system can find coverage from other sources
-  echo "Attempting to generate JaCoCo report without direct coverage data..."
-  
-  # Create placeholder file to indicate tests were run
-  touch ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/TESTS_EXECUTED
-  
-  # Create symbolic link to test results path
-  mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/connected
-  ln -sf "../androidTest-results/connected" ./$MAIN_PROJECT_MODULE/build/outputs/connected/
-  
-  # Try to generate the report
-  ./gradlew :$MAIN_PROJECT_MODULE:jacocoAndroidTestReport --info || {
-    echo "❌ JaCoCo report generation failed"
-  }
+  echo "⚠️ Tests completed but failed to collect coverage data"
 fi
 
 # If instrumentation failed, exit with the same code
