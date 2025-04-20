@@ -472,7 +472,6 @@ jobs:
         name: android-apk-artifacts-${{ matrix.arch }}
         path: android/app/build/outputs/apk
 
-    # Step 1: Run Android Tests to generate coverage files on device
     - name: Run Android Tests
       id: run_tests
       uses: reactivecircus/android-emulator-runner@v2
@@ -486,18 +485,8 @@ jobs:
         disable-animations: true
         script: |
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
-
-    - name: Setup tmate session
-      if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
-
-    # Step 3: Generate JaCoCo coverage report
-    - name: Pull Coverage Data from Device
-      if: always()
-      run: |
-        ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }}
+          # JaCoCo coverage report
+          ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }}
 
     # Step 3: Generate JaCoCo coverage report
     - name: Generate Jacoco Coverage Report
@@ -505,6 +494,12 @@ jobs:
       run: |
         cd android && \
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
 
     # Publish integration test results
     - name: Publish Integration Test Results
