@@ -5,6 +5,8 @@
 echo "Installing McFly..."
 brew install mcfly
 
+cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
+
 # Configure McFly for bash
 echo "Configuring McFly for bash..."
 # Add check for interactive shell before initializing McFly
@@ -16,6 +18,7 @@ echo '    ;;' >> ~/.bashrc
 echo 'esac' >> ~/.bashrc
 echo '' >> ~/.bashrc
 echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
+
 
 
 wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
