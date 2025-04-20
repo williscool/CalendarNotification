@@ -468,6 +468,12 @@ jobs:
         chmod +x scripts/run_android_tests.sh
         chmod +x scripts/generate_android_coverage.sh
 
+    - name: Download APK artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: android-apk-artifacts-${{ matrix.arch }}
+        path: artifacts/apk/
+
     # Step 1: Run Android Tests to generate coverage files on device
     - name: Run Android Tests
       id: run_tests
