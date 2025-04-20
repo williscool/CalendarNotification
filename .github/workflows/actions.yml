@@ -342,7 +342,6 @@ jobs:
 
   unit-tests:
     name: Run Unit Tests
-    needs: build-native
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -432,7 +431,7 @@ jobs:
 
   integration-test:
     name: Test Android App
-    needs: [build, build-native]
+    needs: [build]
     runs-on: ubuntu-latest
     strategy:
       matrix:
