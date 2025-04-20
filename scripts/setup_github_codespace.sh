@@ -26,8 +26,24 @@ mv ~/Android/Sdk/cmdline-tools/* ~/Android/Sdk/cmdline-tools/latest/
 echo 'export ANDROID_HOME=$HOME/Android/Sdk' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+echo 'export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH' >> ~/.bashrc
+echo 'export ANDROID_AVD_HOME=/tmp/my_avd_home' >> ~/.bashrc
 
-sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+yes | sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+yes | sdkmanager --install "system-images;android-34;google_apis_playstore;x86_64"
+
+sudo apt install qemu-kvm
+sudo groupadd -r kvm
+sudo adduser $USER kvm
+
+avdmanager create avd --name my_avd_name --package "system-images;android-34;google_apis_playstore;x86_64" --device "7.6in Foldable"
+
+mkdir -p /tmp/my_avd_home
+
+export GRADLE_USER_HOME=/tmp/gradle-cache
+mkdir -p $GRADLE_USER_HOME
+
+
 
 # Setup Git configuration
 echo "Setting up Git configuration..."
