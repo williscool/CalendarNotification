@@ -38,6 +38,7 @@ yes | sdkmanager --install "system-images;android-34;google_apis_playstore;x86_6
 sudo apt install qemu-kvm
 sudo groupadd -r kvm
 sudo adduser $USER kvm
+sudo chown $USER /dev/kvm
 
 avdmanager create avd --name my_avd_name --package "system-images;android-34;google_apis_playstore;x86_64" --device "7.6in Foldable"
 
