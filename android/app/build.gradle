@@ -24,30 +24,10 @@ apply plugin: 'jacoco'
 def isCiBuild = System.getenv("CI") != null && System.getenv("CI").toBoolean()
 // Alternatively, you can also check for GitHub Actions specifically
 def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("GITHUB_ACTIONS").toBoolean()
-// Combined flag to determine if we should bundle JS
+
+// used to use this to determine if we should bundle JS. that code wasn't compatible with configuration cache
+// so now we just do it ci
 def isCIBuild = isCiBuild || isGitHubActions
-
-// Task to generate React Native bundle for CI builds
-if (isCIBuild) {
-    tasks.register("createJSBundle", Exec) {
-        workingDir "../../"
-        commandLine "yarn", "react-native", "bundle", "--platform", "android", 
-                    "--dev", "${project.gradle.startParameter.taskNames.any { it.contains('Debug') } ? 'true' : 'false'}", 
-                    "--entry-file", "index.tsx", 
-                    "--bundle-output", "android/app/src/main/assets/index.android.bundle", 
-                    "--assets-dest", "android/app/src/main/res/"
-        
-        // Create assets directory if it doesn't exist
-        doFirst {
-            new File("${projectDir}/src/main/assets").mkdirs()
-        }
-
-        // Only run if bundle doesn't exist
-        onlyIf {
-            !new File("${projectDir}/src/main/assets/index.android.bundle").exists()
-        }
-    }
-}
 
 android {
   compileSdkVersion 34
@@ -131,12 +111,15 @@ android {
   flavorDimensions "abi"
   
   // Get the architecture from environment variable or project property or default to supporting both
-  def buildArch = project.hasProperty('BUILD_ARCH') ? project.getProperty('BUILD_ARCH') : System.getenv("BUILD_ARCH")
-  println "Building for architecture: ${buildArch ?: 'defaulting to x86_64'}"
+  def buildArch = providers.gradleProperty('BUILD_ARCH')
+    .orElse(providers.environmentVariable('BUILD_ARCH'))
+    .forUseAtConfigurationTime()
+
+  println "Building for architecture: ${buildArch.orNull ?: 'defaulting to x86_64'}"
   
   productFlavors {
     // Only create arm64v8a flavor if specifically requested
-    if (buildArch == "arm64-v8a") {
+    if (buildArch.orNull == "arm64-v8a") {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
@@ -147,7 +130,7 @@ android {
     }
     
     // Create x8664 flavor if specifically requested or no arch specified (default)
-    if (buildArch == "x86_64" || buildArch == null) {
+    if (buildArch.orNull == "x86_64" || buildArch.orNull == null) {
       x8664 {
         dimension "abi"
         versionNameSuffix "-x86_64"
@@ -216,14 +199,6 @@ android {
   }
 }
 
-// Ensure the CI build generates the bundle before assembling
-if (isCIBuild) {
-    tasks.whenTaskAdded { task ->
-        if (task.name.contains('assemble') || task.name.contains('bundle')) {
-            task.dependsOn createJSBundle
-        }
-    }
-}
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -309,17 +284,7 @@ dependencies {
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
-  entryFile = file("../../index.tsx")
-}
-
-// Add task dependency check for bundle generation
-tasks.whenTaskAdded { task ->
-    if (task.name.contains('createBundle') && !isCIBuild) {
-        def bundleFile = new File("${projectDir}/src/main/assets/index.android.bundle")
-        if (bundleFile.exists()) {
-            task.enabled = false
-        }
-    }
+  entryFile = layout.projectDirectory.file("../../index.tsx").asFile
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
