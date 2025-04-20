@@ -27,6 +27,8 @@ echo 'export ANDROID_HOME=$HOME/Android/Sdk' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
 
+sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
 # Setup Git configuration
 echo "Setting up Git configuration..."
 git config --global color.ui true
