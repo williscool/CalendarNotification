@@ -23,7 +23,7 @@ runs:
       with:
         key: ccache-${{ matrix.arch }}-${{ steps.native_hash.outputs.hash }}
         create-symlink: true
-        
+
     # Check if ccache is installed and setup
     - name: Check ccache setup
       shell: bash
@@ -33,53 +33,12 @@ runs:
         ccache -V
         ccache -p
         ccache -s
-        ccache -z # Zero stats before build
-        
-    # Make sure .ccache directory exists with proper permissions
-    - name: Setup ccache directory
-      shell: bash
-      run: |
-        mkdir -p ~/.ccache
-        mkdir -p android/.ccache
-        if [ -f "android/.ccache/ccache.conf" ]; then
-          cp android/.ccache/ccache.conf ~/.ccache/
-          echo "Using project-specific ccache config"
-        else
-          echo "No project-specific ccache config found, using defaults"
-        fi
-        chmod -R 755 ~/.ccache
-        ls -la ~/.ccache
 
-    # Extract external native build tasks for cache key
-    - name: Extract external native build tasks
+    - name: Ccachify the Native Modules
       shell: bash
       run: |
-        cd android && \
-        cat gradle-tasks.txt | grep -i externalnative > external-native-tasks.txt
-        cat external-native-tasks.txt
-    
-    # Generate a hash of the external-native-tasks.txt file
-    - name: Generate native build hash
-      id: native-build-hash
-      shell: bash
-      run: |
-        if [ -f android/external-native-tasks.txt ]; then
-          HASH=$(sha256sum android/external-native-tasks.txt | cut -d ' ' -f 1)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Native build hash: $HASH"
-        else
-          echo "hash=nohash" >> $GITHUB_OUTPUT
-          echo "external-native-tasks.txt not found, using default hash"
-        fi
-      
-    # Check if op-sqlite native build artifacts exist
-    - name: Check if op-sqlite native build artifacts exist
-      id: check-op-sqlite-artifacts
-      uses: actions/download-artifact@v4
-      continue-on-error: true
-      with:
-        name: op-sqlite-native-build-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: op-sqlite-native-build-${{ inputs.arch }}.tar.gz
+        chmod +x scripts/ccachify_native_modules.sh
+        ./scripts/ccachify_native_modules.sh
 
     # Build native components if needed
     - name: Build Native Components
@@ -88,75 +47,10 @@ runs:
       env:
         CCACHE_DEBUG: 1
         CCACHE_VERBOSE: 1
-        CCACHE_LOGFILE: "/tmp/ccache.log"
       run: |
         echo "Building native components as op-sqlite artifacts were not available"
-        echo "Setting up environment variables for ccache:"
-        env | grep -i ccache
         cd android && \
         ./gradlew externalNativeBuildDebug \
                   externalNativeBuildRelease \
         --parallel --max-workers=4 --build-cache --configure-on-demand \
-        -Pandroid.prefabPublishing=true \
-        -Pandroid.prefabPackageType=STATIC \
-        -PBUILD_ARCH="${{ inputs.arch }}" \
-        -PreactNativeArchitectures="${{ inputs.arch }}" \
-        -x preBuild -x preDebugBuild -x preReleaseBuild
-      shell: bash
-
-    # Archive op-sqlite native build artifacts
-    - name: Archive op-sqlite native build artifacts
-      if: inputs.skip_native_build != 'true'
-      run: |
-        # Create tar archive preserving timestamps and permissions
-        tar -czf op-sqlite-native-build-${{ inputs.arch }}.tar.gz \
-          --preserve-permissions \
-          node_modules/@op-engineering/op-sqlite/android/.cxx \
-          node_modules/@op-engineering/op-sqlite/android/build/intermediates/
-      shell: bash
-
-    # Upload op-sqlite native build artifacts
-    - name: Upload op-sqlite native build artifacts
-      if: inputs.skip_native_build != 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: op-sqlite-native-build-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: op-sqlite-native-build-${{ inputs.arch }}.tar.gz
-        retention-days: 7
-        if-no-files-found: warn
-    
-    # Check ccache stats after build
-    - name: Check ccache stats after build
-      shell: bash
-      if: always()
-      run: |
-        echo "CCACHE STATISTICS AFTER BUILD:"
-        ccache -s
-        if [ -f "/tmp/ccache.log" ]; then
-          echo "Last 30 lines of ccache log:"
-          tail -n 30 /tmp/ccache.log
-        fi
-    
-    # Upload native build artifacts after building
-    - name: Upload Native Build Artifacts
-      if: inputs.skip_native_build != 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: native-build-cmake-${{ inputs.arch }}-${{ steps.native-build-hash.outputs.hash }}
-        path: |
-          android/app/.cxx
-          android/app/build/intermediates/cmake
-          android/app/build/intermediates/merged_native_libs
-          android/app/build/intermediates/stripped_native_libs
-        retention-days: 7
-        if-no-files-found: warn
-    
-    - name: Skip Native Build (Using Cache or Explicit Skip)
-      if: inputs.skip_native_build == 'true' || steps.check-op-sqlite-artifacts.outputs.cache-hit == 'true'
-      run: |
-        if [ "${{ inputs.skip_native_build }}" == "true" ]; then
-          echo "Skipping native build - explicitly skipped via input parameter"
-        elif [ "${{ steps.check-op-sqlite-artifacts.outputs.cache-hit }}" == "true" ]; then
-          echo "Skipping native build - using cached op-sqlite native build artifacts"
-        fi
       shell: bash

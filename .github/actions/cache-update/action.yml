@@ -10,14 +10,6 @@ inputs:
     description: 'Whether to run emulator setup steps'
     required: false
     default: "false"
-  native_build_hash:
-    description: 'Hash of the external native tasks file'
-    required: false
-    default: "nohash"
-  already_uploaded_artifacts:
-    description: 'Whether native build artifacts were already uploaded'
-    required: false
-    default: "false"
 
 runs:
   using: "composite"
@@ -32,21 +24,7 @@ runs:
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
         key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
-    
-    # Check if native build directory exists
-    - name: Check Native Build Directory
-      id: check-native-build
-      if: always() && inputs.arch != '' && inputs.already_uploaded_artifacts != 'true'
-      shell: bash
-      run: |
-        if [ -d "android/app/build/intermediates/cmake" ] && [ "$(find android/app/build/intermediates/cmake -type f | wc -l)" -gt 0 ]; then
-          echo "exists=true" >> $GITHUB_OUTPUT
-          echo "Native build directory exists and has files."
-        else
-          echo "exists=false" >> $GITHUB_OUTPUT
-          echo "Native build directory does not exist or is empty."
-        fi
-        
+
     # Update Build Outputs Cache
     - name: Update Build Outputs Cache
       if: always() && inputs.arch != ''
@@ -61,7 +39,7 @@ runs:
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
-        
+
     # Update Android SDK and AVD cache
     - name: Update Android SDK and AVD Cache
       if: always() && inputs.run_emulator_setup == 'true'
@@ -72,4 +50,4 @@ runs:
           ~/.android/adb*
           ~/.android/sdk/*
           ~/.android/repositories.cfg
-        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }} 
+        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}

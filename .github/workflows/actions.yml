@@ -20,10 +20,10 @@ env:
   ANDROID_ARCH: x86_64
   ANDROID_PROFILE: 7.6in Foldable
   ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
-  
+
   # Define constant for each job to use
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
-  
+
   # Setup ccache environment variables
   CCACHE_DEBUG: 1
   CCACHE_VERBOSE: 1
@@ -47,14 +47,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [arm64-v8a, x86_64]
+        arch: [x86_64]
       fail-fast: false
     env:
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 20
-    outputs:
-      native_build_hash: ${{ steps.native-build-task.outputs.native_build_hash }}
-    
+    timeout-minutes: 15
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -68,7 +66,7 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
-    
+
 
     # Use the new native build action
     - name: Build Native Components
@@ -76,7 +74,7 @@ jobs:
       uses: ./.github/actions/native-build
       with:
         arch: ${{ matrix.arch }}
-    
+
 
   build:
     name: Build Android App
@@ -94,18 +92,17 @@ jobs:
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
-    
+
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
-    
+
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        key: ccache-${{ matrix.arch }}-${{ needs.build-native.outputs.native_build_hash }}
         create-symlink: true
-    
+
     # Set current date and repository name
     - name: Set current date as env variable
       id: set_date
@@ -117,7 +114,7 @@ jobs:
       run: |
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
-    
+
     # Execute the common setup with emulator configuration and native artifact requirement
     - name: Common Setup
       id: common-setup
@@ -148,6 +145,12 @@ jobs:
                   --parallel --max-workers=4 --build-cache --configure-on-demand
       env:
         BUILD_ARCH: ${{ matrix.arch }}
+
+    - name: Ccachify the Native Modules
+      shell: bash
+      run: |
+        chmod +x scripts/ccachify_native_modules.sh
+        ./scripts/ccachify_native_modules.sh
 
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
@@ -194,9 +197,7 @@ jobs:
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
-        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
-        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
-        
+
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
     needs: build
@@ -212,13 +213,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      
+
       # Import build variables from build job
       - name: Set build variables
         run: |
           echo "build_datetime=${{ needs.build.outputs.build_datetime }}" >> $GITHUB_ENV
           echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
-          
+
       # Download build artifacts for current architecture
       - name: Download APK artifacts
         uses: actions/download-artifact@v4
@@ -231,19 +232,19 @@ jobs:
         with:
           name: android-bundle-artifacts-${{ matrix.arch }}
           path: artifacts/bundle/
-      
+
       # Prepare directory structure for signing
       - name: Prepare directories for signing
         run: |
           mkdir -p signing/apk/debug
           mkdir -p signing/apk/release
           mkdir -p signing/bundle/release
-          
+
           # Organize APKs by type
           find artifacts/apk/ -path "*/debug/*" -name "*.apk" -exec cp {} signing/apk/debug/ \;
           find artifacts/apk/ -path "*/release/*" -name "*.apk" -exec cp {} signing/apk/release/ \;
           find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
-          
+
           # Verify contents
           echo "Files to sign:"
           find signing -type f | sort
@@ -272,7 +273,7 @@ jobs:
           keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
         env:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-      
+
       - uses: r0adkll/sign-android-release@v1
         name: Sign RELEASE app AABs
         id: sign_release_aab
@@ -289,7 +290,7 @@ jobs:
       - name: Rename and organize signed artifacts
         run: |
           mkdir -p renamed_apks
-          
+
           sanitize_branch_name() {
             echo "$1" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-20
           }
@@ -310,22 +311,22 @@ jobs:
             SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
             SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
           fi
-          
+
           # Find and rename signed debug APKs
           find signing/apk/debug/ -name "*-signed.apk" | while read apk; do
             cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
           done
-          
+
           # Find and rename signed release APKs
           find signing/apk/release/ -name "*-signed.apk" | while read apk; do
             cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-release.apk
           done
-          
+
           # Find and rename signed AABs
           find signing/bundle/release/ -name "*-signed.aab" | while read aab; do
             cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}.aab
           done
-          
+
           # List all renamed files
           echo "Renamed files:"
           ls -la renamed_apks/
@@ -387,13 +388,12 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
-    
+
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        key: ccache-${{ matrix.arch }}-${{ needs.build-native.outputs.native_build_hash }}
         create-symlink: true
-    
+
     # Execute the common setup
     - name: Common Setup
       uses: ./.github/actions/common-setup
@@ -401,8 +401,7 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
-        require_native_artifacts: "true"
-    
+
     # Debug unit test task graph
     - name: Debug Unit Test Task Graph
       run: |
@@ -418,7 +417,7 @@ jobs:
                   --continue --configure-on-demand
       env:
         BUILD_ARCH: ${{ matrix.arch }}
-    
+
     # Run the unit tests
     - name: Run Unit Tests
       run: |
@@ -437,7 +436,7 @@ jobs:
     # Generate Jacoco coverage report
     # always() is used to ensure the coverage report is generated even if the tests fail
     - name: Generate Jacoco Coverage Report
-      if: always() 
+      if: always()
       run: |
         cd android && \
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
@@ -452,7 +451,7 @@ jobs:
         path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
         reporter: java-junit
         fail-on-error: true
-        
+
     # Upload test results
     - name: Upload Unit Test Results
       if: always() # Always upload results even if tests fail
@@ -465,7 +464,7 @@ jobs:
           android/app/build/outputs/logs/
         retention-days: 90
 
-        
+
   integration-test:
     name: Test Android App
     needs: [build, build-native]
@@ -479,7 +478,7 @@ jobs:
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 30
-    
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -518,15 +517,15 @@ jobs:
         disable-animations: true
         script: |
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
-          
+
     # Generate Jacoco coverage report
     # always() is used to ensure the coverage report is generated even if the tests fail
     - name: Generate Jacoco Coverage Report
-      if: always() 
+      if: always()
       run: |
         cd android && \
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
-        
+
     # Publish integration test results
     - name: Publish Integration Test Results
       uses: dorny/test-reporter@v2
@@ -549,7 +548,7 @@ jobs:
           android/app/build/outputs/logs/
           android/app/build/test-results/
         retention-days: 90
-    
+
     - name: Upload Emulator Log
       if: always()
       uses: actions/upload-artifact@v4
@@ -557,7 +556,7 @@ jobs:
         name: emulator-log
         path: emulator.log
         retention-days: 90
-        
+
     # Update all caches
     - name: Update Caches
       if: always()
@@ -565,9 +564,7 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
-        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
-        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
-        
+
   coverage-report:
     name: Process Code Coverage
     needs: [unit-tests, integration-test]
@@ -577,7 +574,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      
+
       # Download coverage results from both unit and integration tests
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
@@ -586,7 +583,7 @@ jobs:
           # path relative to build directory. because highest common directory is build
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
-      
+
       - name: Download integration test coverage
         uses: actions/download-artifact@v4
         with:
@@ -594,7 +591,7 @@ jobs:
           # path relative to build directory. because highest common directory is build
           path: coverage-data/integration-tests/android/app/build/
         continue-on-error: true
-        
+
       # Process and generate coverage report from Jacoco XML files
       - name: Generate JaCoCo Coverage Report
         id: jacoco
@@ -608,7 +605,7 @@ jobs:
           min-coverage-changed-files: 60
           title: 'Code Coverage Report'
           update-comment: true
-          
+
       # Upload detailed HTML coverage report
       - name: Upload HTML Coverage Report
         uses: actions/upload-artifact@v4
@@ -618,7 +615,7 @@ jobs:
             coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
             coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
           retention-days: 90
-          
+
       # Create a PR comment with coverage report link if this is a PR
       - name: PR Comment with Coverage Report
         if: github.event_name == 'pull_request'
@@ -632,10 +629,10 @@ jobs:
             | ---- | -------- |
             | Line | ${{ steps.jacoco.outputs.coverage-overall }} |
             | Branch | ${{ steps.jacoco.outputs.branches-overall }} |
-            
+
             [View detailed coverage report](${workflowUrl}#artifacts)
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -652,25 +649,25 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: signed-*
           path: artifacts
-      
+
       - name: Generate Changelog
         run: |
           echo "# Release ${GITHUB_REF#refs/tags/}" > ${{ github.workspace }}-CHANGELOG.txt
           echo "" >> ${{ github.workspace }}-CHANGELOG.txt
           echo "## What's Changed" >> ${{ github.workspace }}-CHANGELOG.txt
           git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> ${{ github.workspace }}-CHANGELOG.txt
-      
+
       - name: Organize release files
         run: |
           mkdir -p release_files
           find artifacts/ -name "*.apk" -o -name "*.aab" | xargs -I{} cp {} release_files/
-      
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
