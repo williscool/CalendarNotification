@@ -484,8 +484,8 @@ jobs:
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
         disable-animations: true
         script: |
-          ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
-          # JaCoCo coverage report
+          ./scripts/wait_for_emulator.sh && \
+          ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} && \
           ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }}
 
     # Step 3: Generate JaCoCo coverage report
