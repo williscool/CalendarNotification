@@ -91,7 +91,6 @@ jobs:
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
-        require_native_artifacts: "true"
 
     # Debug Main Build Task Graph
     - name: Debug Main Build Task Graph
@@ -460,7 +459,6 @@ jobs:
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
-        require_native_artifacts: "true"
 
     - name: Make scripts executable
       run: |
@@ -472,7 +470,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
-        path: artifacts/apk/
+        path: android/app/build/outputs/apk
 
     # Step 1: Run Android Tests to generate coverage files on device
     - name: Run Android Tests
@@ -488,6 +486,12 @@ jobs:
         disable-animations: true
         script: |
           ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
 
     # Step 3: Generate JaCoCo coverage report
     - name: Pull Coverage Data from Device
