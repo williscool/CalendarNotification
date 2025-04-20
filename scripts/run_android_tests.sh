@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Script to run Android tests in CI, focused on just running tests and 
-# ensuring coverage files are generated
+# Script to run Android tests in CI
+# ONLY responsible for running tests and generating coverage files on device
 
 echo "Starting Android tests..."
 
@@ -28,8 +28,7 @@ cd android
 export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=$ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL
 export BUILD_ARCH=$ARCH
 
-# Make sure we have the code coverage directory for storing coverage data
-mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/
+# Make sure we have the results directory
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/
 
 # Check if device is connected
@@ -103,11 +102,10 @@ adb install -r "$APP_APK"
 echo "Installing test APK..."
 adb install -r "$TEST_APK"
 
-# Define accessible paths for coverage data
+# Define path for coverage data on device
 DEVICE_COVERAGE_PATH="/data/data/${APP_PACKAGE}/coverage/${COVERAGE_FILE_NAME}"
-EXTERNAL_COVERAGE_PATH="/sdcard/${COVERAGE_FILE_NAME}"
 
-# Create the coverage directory
+# Create the coverage directory on device
 adb shell "run-as $APP_PACKAGE mkdir -p /data/data/${APP_PACKAGE}/coverage" || true
 
 # Run the tests using adb directly with timeout and specified coverage path
@@ -126,72 +124,26 @@ timeout $TEST_TIMEOUT adb shell am instrument -w -r \
     else
       echo "Error: Tests failed with exit code $INSTRUMENTATION_FAILED"
     fi
-    
-    # Try to pull any partial test results that might exist
-    adb pull /data/local/tmp/test-results.xml ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${ARCH_SUFFIX}-partial.xml || true
     exit $INSTRUMENTATION_FAILED
   }
 
-# Check if the coverage file was generated
-echo "Checking if coverage file was generated at: ${DEVICE_COVERAGE_PATH}"
+# Check if the coverage file was generated (just verification, don't pull)
+echo "Verifying coverage file was generated at: ${DEVICE_COVERAGE_PATH}"
 if adb shell "run-as $APP_PACKAGE ls -la ${DEVICE_COVERAGE_PATH}" 2>/dev/null; then
-  echo "Coverage file exists! Attempting to extract it..."
-  
-  # Copy from app private storage to external storage so we can pull it
-  adb shell "run-as $APP_PACKAGE cat ${DEVICE_COVERAGE_PATH} > ${EXTERNAL_COVERAGE_PATH}" || {
-    echo "Failed to copy coverage file to external storage."
-  }
-  
-  # Pull the coverage file
-  adb pull "${EXTERNAL_COVERAGE_PATH}" ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME} && {
-    echo "Successfully pulled coverage file!"
-    # Clean up
-    adb shell "rm ${EXTERNAL_COVERAGE_PATH}" || true
-  } || {
-    echo "Failed to pull coverage file from external storage."
-  }
+  echo "✅ Coverage file generated successfully!"
+  echo "To pull coverage data and prepare for JaCoCo, run:"
+  echo "  ./scripts/generate_android_coverage.sh ${ARCH} ${MAIN_PROJECT_MODULE}"
 else
-  echo "No coverage file found at the expected location. Let's try a broader search..."
-  # Find any .ec files in app data
+  echo "⚠️ Tests completed but no coverage file was generated at expected location"
+  echo "Checking for coverage files in other locations..."
   EC_FILES=$(adb shell "run-as $APP_PACKAGE find /data/data/${APP_PACKAGE} -name '*.ec' 2>/dev/null" | tr -d '\r')
   
   if [ -n "$EC_FILES" ]; then
     echo "Found coverage files in app data: $EC_FILES"
-    for EC_FILE in $EC_FILES; do
-      echo "Attempting to pull $EC_FILE..."
-      EC_FILENAME=$(basename "$EC_FILE")
-      adb shell "run-as $APP_PACKAGE cat $EC_FILE > /sdcard/$EC_FILENAME" && \
-      adb pull "/sdcard/$EC_FILENAME" ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME} && {
-        echo "Successfully pulled coverage file from $EC_FILE"
-        adb shell "rm /sdcard/$EC_FILENAME" || true
-        break
-      } || {
-        echo "Failed to pull $EC_FILE"
-      }
-    done
+    echo "Run generate_android_coverage.sh to pull these files and prepare for JaCoCo"
   else
     echo "No coverage files found in app data."
   fi
-fi
-
-# Pull test results XML
-echo "Pulling test result XML file..."
-adb pull "/data/local/tmp/test-results.xml" ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${ARCH_SUFFIX}.xml || {
-  echo "Warning: Failed to pull test results file directly."
-}
-
-# Create placeholder file to indicate tests were run
-touch ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/TESTS_EXECUTED
-
-# Check if coverage file exists
-if [ -f "./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME}" ]; then
-  echo "✅ Tests completed successfully and coverage data collected"
-  # Copy coverage file to the expected location for JaCoCo
-  mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/
-  cp ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME} \
-     ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/
-else
-  echo "⚠️ Tests completed but failed to collect coverage data"
 fi
 
 # If instrumentation failed, exit with the same code
