@@ -42,43 +42,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-native:
-    name: Build Native Components
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [x86_64]
-      fail-fast: false
-    env:
-      BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 15
-
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
-
-    # Set up Java, Node, and basic caches (but don't build native components in common setup)
-    - name: Basic Setup
-      id: basic-setup
-      uses: ./.github/actions/common-setup
-      with:
-        gradle_max_workers: "4"
-        node_version: "22.x"
-        arch: ${{ matrix.arch }}
-
-
-    # Use the new native build action
-    - name: Build Native Components
-      id: native-build-task
-      uses: ./.github/actions/native-build
-      with:
-        arch: ${{ matrix.arch }}
-
-
   build:
     name: Build Android App
-    needs: build-native
     runs-on: ubuntu-latest
     strategy:
       matrix:
