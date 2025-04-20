@@ -109,7 +109,7 @@ runs:
     # Generate JS bundle if needed
     - name: Generate JS Bundle
       if: steps.js-bundle-cache.outputs.cache-hit != 'true'
-      run: yarn bundle:android
+      run: yarn bundle:android --dev=true
       shell: bash
 
     # Update JS Bundle cache if newly generated
