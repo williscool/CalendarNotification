@@ -80,7 +80,6 @@ jobs:
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
 
-    # Execute the common setup with emulator configuration and native artifact requirement
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
@@ -88,9 +87,6 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
-        android_api_level: ${{ env.ANDROID_API_LEVEL }}
-        android_target: ${{ env.ANDROID_TARGET }}
-        android_profile: ${{ env.ANDROID_PROFILE }}
 
     # Debug Main Build Task Graph
     - name: Debug Main Build Task Graph

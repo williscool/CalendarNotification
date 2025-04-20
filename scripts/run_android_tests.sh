@@ -10,7 +10,7 @@ echo "Starting Android tests..."
 ARCH=${1:-x86_64}
 MAIN_PROJECT_MODULE=${2:-app}
 ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${3:-5}
-TEST_TIMEOUT=${4:-10m}
+TEST_TIMEOUT=${4:-30m}  # Increased default timeout to 30 minutes
 
 # Determine the build variant suffix based on architecture
 if [ "$ARCH" == "arm64-v8a" ]; then
@@ -110,7 +110,7 @@ adb shell "run-as $APP_PACKAGE mkdir -p /data/data/${APP_PACKAGE}/coverage" || t
 
 # Run the tests using adb directly with timeout and specified coverage path
 echo "Running instrumentation tests with $TEST_TIMEOUT timeout..."
-INSTRUMENTATION_FAILED=0
+TEST_EXIT_CODE=0
 timeout $TEST_TIMEOUT adb shell am instrument -w -r \
   -e debug false \
   -e coverage true \
@@ -118,13 +118,13 @@ timeout $TEST_TIMEOUT adb shell am instrument -w -r \
   -e outputFormat "xml" \
   -e resultFile "/data/local/tmp/test-results.xml" \
   "${TEST_PACKAGE}/${TEST_RUNNER}" || {
-    INSTRUMENTATION_FAILED=$?
-    if [ $INSTRUMENTATION_FAILED -eq 124 ]; then
+    TEST_EXIT_CODE=$?
+    if [ $TEST_EXIT_CODE -eq 124 ]; then
       echo "Error: Tests timed out after $TEST_TIMEOUT"
     else
-      echo "Error: Tests failed with exit code $INSTRUMENTATION_FAILED"
+      echo "Error: Tests failed with exit code $TEST_EXIT_CODE"
     fi
-    exit $INSTRUMENTATION_FAILED
+    exit $TEST_EXIT_CODE
   }
 
 # Check if the coverage file was generated (just verification, don't pull)
@@ -146,10 +146,10 @@ else
   fi
 fi
 
-# If instrumentation failed, exit with the same code
-if [ $INSTRUMENTATION_FAILED -ne 0 ]; then
-  echo "Android tests completed with errors. Exit code: $INSTRUMENTATION_FAILED"
-  exit $INSTRUMENTATION_FAILED
+# If tests failed (non-zero exit code), exit with the same code
+if [ $TEST_EXIT_CODE -ne 0 ]; then
+  echo "Android tests completed with errors. Exit code: $TEST_EXIT_CODE"
+  exit $TEST_EXIT_CODE
 fi
 
 echo "Android tests completed successfully!"

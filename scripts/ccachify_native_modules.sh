@@ -22,3 +22,15 @@ for file in "${TARGET_FILES[@]}"; do
     echo "Prepended: $file"
   fi
 done
+
+# 3. Find non-target files
+mapfile -t NON_TARGET_FILES < <(
+  find node_modules/ -name CMakeLists.txt |
+  grep -v -E "$MODULES" |
+  grep '/android/CMakeLists.txt$'
+)
+
+# Warn about files that are not being modified
+for file in "${NON_TARGET_FILES[@]}"; do
+  echo "Warning: Not adding ccache to potential target: $file"
+done
