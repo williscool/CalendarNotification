@@ -285,6 +285,7 @@ dependencies {
     androidTestImplementation 'androidx.test:core:1.5.0'
     androidTestImplementation 'androidx.test:core-ktx:1.5.0'
     androidTestImplementation 'androidx.test.ext:junit-ktx:1.1.5'
+    androidTestImplementation 'de.schroepf:android-xml-run-listener:0.7.1'
 
     // Mockito dependencies
     androidTestImplementation 'org.mockito:mockito-core:5.16.1'

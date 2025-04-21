@@ -38,16 +38,20 @@ if [ "$DEVICE_COUNT" -eq 0 ]; then
 fi
 echo "Found $DEVICE_COUNT connected device(s)"
 
-# Define paths for coverage data
+# Define paths for coverage data and test results
 DEVICE_COVERAGE_PATH="/data/data/${APP_PACKAGE}/coverage/${COVERAGE_FILE_NAME}"
 DEVICE_JACOCO_PATH="/data/data/${APP_PACKAGE}/files/coverage.ec"
+DEVICE_TEST_RESULT_PATH="/data/local/tmp/test-results.xml"
 LOCAL_COVERAGE_PATH="./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME}"
 JACOCO_COVERAGE_PATH="./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/${COVERAGE_FILE_NAME}"
+LOCAL_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${APP_PACKAGE}.xml"
 
 # Make sure necessary directories exist
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/
+# Additional directory for dorny/test-reporter expected paths
+mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/connected/
 
 # Function to check if a file is empty (zero bytes)
 is_file_empty() {
@@ -206,3 +210,49 @@ else
 fi
 
 echo "Coverage data preparation completed"
+
+# Now handle the XML test results for dorny/test-reporter
+echo "Processing XML test results for test reporting..."
+
+# Try to pull the XML test results from the device
+adb pull "$DEVICE_TEST_RESULT_PATH" "$LOCAL_TEST_RESULT_PATH" 2>/dev/null || {
+  echo "⚠️ Could not pull XML test results from default location."
+  # Try alternative locations
+  adb shell "run-as $APP_PACKAGE find /data -name '*.xml' 2>/dev/null" | tr -d '\r' | grep -v "layout\|manifest" | while read XML_FILE; do
+    if adb shell "cat $XML_FILE 2>/dev/null" | grep -q "testcase\|testsuite"; then
+      echo "📋 Found test results at $XML_FILE"
+      adb pull "$XML_FILE" "$LOCAL_TEST_RESULT_PATH" && {
+        echo "✅ Successfully pulled test results from alternative location!"
+        break
+      }
+    fi
+  done
+}
+
+# If we successfully pulled the test results, copy to all expected locations for dorny/test-reporter
+if [ -f "$LOCAL_TEST_RESULT_PATH" ] && [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
+  echo "Found test results XML, copying to both expected locations for dorny/test-reporter"
+  
+  # Path for the second location expected by dorny/test-reporter
+  DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${APP_PACKAGE}.xml"
+  
+  # Copy to the second expected path
+  cp "$LOCAL_TEST_RESULT_PATH" "$DORNY_TEST_RESULT_PATH"
+  
+  # Make the XML files more compatible with dorny/test-reporter if needed
+  # Some tools expect specific formatting, especially proper timestamps
+  for XML_PATH in "$LOCAL_TEST_RESULT_PATH" "$DORNY_TEST_RESULT_PATH"; do
+    # Update timestamps if they're missing or malformed
+    sed -i 's/timestamp="[^"]*"/timestamp="'"$(date -u +"%Y-%m-%dT%H:%M:%S")"'"/g' "$XML_PATH" 2>/dev/null || true
+    
+    # Ensure the XML has the correct format for the XmlRunListener
+    # Add hostname attribute if missing
+    sed -i 's/<testsuite /<testsuite hostname="localhost" /g' "$XML_PATH" 2>/dev/null || true
+    
+    echo "✅ Test results prepared at: $XML_PATH"
+  done
+  
+  echo "✅ XML test results ready for dorny/test-reporter at both expected locations!"
+else
+  echo "⚠️ No test results XML found or file is empty. Test reporting may be incomplete."
+fi

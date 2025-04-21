@@ -536,7 +536,7 @@ jobs:
         limit-access-to-actor: true
 
   # TODO: before instrument-test can take over from integration-test (and drop rebuilding the app for no reason)
-  # 1. we have to figure out how mark tests failing as a failure but still get the coverage files exported
+  # 1. we have to figure out how mark tests failing as a failure but still get the coverage files exported ( just occured to me we can use same xml file as below!)
   # 2. we need to get the xml file that does the test results for the dorny thing
   instrument-test:
     name: Instrument Test Android App
