@@ -86,12 +86,6 @@ runs:
         YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz
         HUSKY: '0'
 
-    - name: Save yarn cache
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
-        key: ${{ steps.yarn-download-cache-restore.outputs.cache-primary-key }}
-
     - name: Restore yarn install state
       id: yarn-install-state-cache-restore
       uses: actions/cache/restore@v4
@@ -100,12 +94,6 @@ runs:
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
         restore-keys: |
           ${{ runner.os }}-yarn-install-state-cache-
-
-    - name: Save yarn install state
-      uses: actions/cache/save@v4
-      with:
-        path: .yarn/ci-cache/
-        key: ${{ steps.yarn-install-state-cache-restore.outputs.cache-primary-key }}
 
     # Cache JS Bundle and Assets
     - name: Restore JS Bundle and Assets Cache
@@ -127,16 +115,8 @@ runs:
       run: yarn bundle:android --dev=true
       shell: bash
 
-    # Update JS Bundle cache if newly generated
-    - name: Save JS Bundle and Assets Cache
-      if: steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          android/app/src/main/assets/index.android.bundle
-          android/app/src/main/res/drawable-*
-          android/app/src/main/res/raw-*
-        key: ${{ steps.js-bundle-cache-restore.outputs.cache-primary-key }}
+    # Note: JS Bundle is an exception - we need to save it immediately if generated
+    # This is because it's used by subsequent steps and we can't wait until the end of the job
 
     - name: Setup react-native-safe-area-context mock
       if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
@@ -175,16 +155,6 @@ runs:
           notifications
           jdks
           wrapper
-
-    - name: Save Cache Gradle files
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-          android/.gradle
-          android/build-cache
-        key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
 
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
@@ -235,15 +205,6 @@ runs:
         key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-react-native-
-          
-    - name: Save Cache React Native files
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          node_modules/.cache/react-native
-          node_modules/.cache/metro
-          node_modules/.cache/@react-native-community/cli
-        key: ${{ steps.react-native-cache-restore.outputs.cache-primary-key }}
 
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD

@@ -14,21 +14,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # JS Bundle and Assets Cache - Using restore/save pattern
-    - name: Restore JS Bundle and Assets Cache
-      if: always()
-      uses: actions/cache/restore@v4
-      id: js-bundle-cache-restore
-      with:
-        path: |
-          android/app/src/main/assets/index.android.bundle
-          android/app/src/main/res/drawable-*
-          android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
-        restore-keys: |
-          ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
-          ${{ runner.os }}-js-bundle-
-
+    # JS Bundle and Assets Cache - Save only
     - name: Save JS Bundle and Assets Cache
       if: always()
       uses: actions/cache/save@v4
@@ -37,27 +23,9 @@ runs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ steps.js-bundle-cache-restore.outputs.cache-primary-key }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
 
-    # Build Outputs Cache - Using restore/save pattern
-    - name: Restore Build Outputs Cache
-      id: build-outputs-cache-restore
-      if: always() && inputs.arch != ''
-      uses: actions/cache/restore@v4
-      with:
-        path: |
-          android/app/build/intermediates
-          android/app/build/tmp
-          android/app/build/generated
-          android/app/build/outputs
-          android/app/build/intermediates/instrumented_classes
-          android/app/build/intermediates/test_apk
-          android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
-          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-
-
+    # Build Outputs Cache - Save only
     - name: Save Build Outputs Cache
       if: always() && inputs.arch != ''
       uses: actions/cache/save@v4
@@ -70,24 +38,9 @@ runs:
           android/app/build/intermediates/instrumented_classes
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
-        key: ${{ steps.build-outputs-cache-restore.outputs.cache-primary-key }}
+        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
 
-    # Gradle cache - Using restore/save pattern with architecture in key
-    - name: Restore Gradle Cache
-      if: always()
-      uses: actions/cache/restore@v4
-      id: gradle-cache-restore
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-          android/.gradle
-          android/build-cache
-        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
-          ${{ runner.os }}-gradle-
-
+    # Gradle cache - Save only with architecture in key
     - name: Save Gradle Cache
       if: always()
       uses: actions/cache/save@v4
@@ -97,23 +50,36 @@ runs:
           ~/.gradle/wrapper
           android/.gradle
           android/build-cache
-        key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
+        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        
+    # Yarn cache - Save only
+    - name: Save yarn cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: $(yarn config get cacheFolder)
+        key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
 
-    # Android SDK and AVD cache - Using restore/save pattern
-    - name: Restore Android SDK and AVD Cache
-      if: always() && inputs.run_emulator_setup == 'true'
-      uses: actions/cache/restore@v4
-      id: android-cache-restore
+    # Yarn install state - Save only
+    - name: Save yarn install state
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: .yarn/ci-cache/
+        key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+
+    # React Native cache - Save only
+    - name: Save React Native cache
+      if: always()
+      uses: actions/cache/save@v4
       with:
         path: |
-          ~/.android/avd/*
-          ~/.android/adb*
-          ~/.android/sdk/*
-          ~/.android/repositories.cfg
-        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-android-
+          node_modules/.cache/react-native
+          node_modules/.cache/metro
+          node_modules/.cache/@react-native-community/cli
+        key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
 
+    # Android SDK and AVD cache - Save only
     - name: Save Android SDK and AVD Cache
       if: always() && inputs.run_emulator_setup == 'true'
       uses: actions/cache/save@v4
@@ -123,4 +89,4 @@ runs:
           ~/.android/adb*
           ~/.android/sdk/*
           ~/.android/repositories.cfg
-        key: ${{ steps.android-cache-restore.outputs.cache-primary-key }}
+        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
