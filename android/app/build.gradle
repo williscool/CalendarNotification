@@ -321,16 +321,11 @@ task jacocoAndroidTestReport(type: JacocoReport) {
     group = "Reporting"
     description = "Generate JaCoCo coverage reports after running Android tests"
     
-    // Get the format parameter, defaulting to html
-    def reportFormat = providers.gradleProperty('jacocoReportFormat')
-        .orElse('html')
-        .forUseAtConfigurationTime()
-        .get()
     
     reports {
-        xml.required = reportFormat == 'xml'
-        html.required = reportFormat == 'html'
-        csv.required = reportFormat == 'csv'
+        xml.required = true
+        html.required = true
+        csv.required = true
         
         // Add output directory configuration for better organization
         html.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/html")
@@ -397,7 +392,6 @@ task jacocoAndroidTestReport(type: JacocoReport) {
     
     doFirst {
         println "=== JaCoCo Report Configuration ==="
-        println "Format: ${reportFormat}"
         println "Architecture: ${buildArch} (${archSuffix})"
         
         println "\nClass Directories:"
