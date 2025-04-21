@@ -365,7 +365,7 @@ is_valid_junit_xml() {
 # If we successfully pulled the test results, validate and copy to all expected locations
 if [ -f "$LOCAL_TEST_RESULT_PATH" ] && [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
   if is_valid_junit_xml "$LOCAL_TEST_RESULT_PATH"; then
-    echo "✅ Valid JUnit XML test results found!"
+    echo "✅ Valid JUnit XML test results found! at $LOCAL_TEST_RESULT_PATH "
     
     # Path for the second location expected by dorny/test-reporter
     DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${APP_PACKAGE}.xml"
@@ -394,64 +394,4 @@ if [ -f "$LOCAL_TEST_RESULT_PATH" ] && [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
 else
   echo "⚠️ No test results XML found or file is empty."
   XML_RETRIEVED=false
-fi
-
-# Create a minimal but valid test report if none was found
-if [ "$XML_RETRIEVED" = false ]; then
-  echo "Generating minimal JUnit XML test report for dorny/test-reporter..."
-  
-  # Create a basic XML report with the test results extracted from logcat
-  {
-    echo '<?xml version="1.0" encoding="UTF-8"?>'
-    echo '<testsuites>'
-    echo '  <testsuite name="AndroidTests" tests="1" failures="0" errors="0" skipped="0" timestamp="'"$(date -u +"%Y-%m-%dT%H:%M:%S")"'" hostname="localhost" time="1">'
-    
-    # Try to extract test names from logcat
-    TEST_COUNT=0
-    FAILURE_COUNT=0
-    
-    # Parse the test output from logcat
-    while IFS= read -r LINE; do
-      if [[ "$LINE" == *"INSTRUMENTATION_STATUS: class="* && "$LINE" == *"INSTRUMENTATION_STATUS: test="* ]]; then
-        CLASS_NAME=$(echo "$LINE" | sed -n 's/.*INSTRUMENTATION_STATUS: class=\([^ ]*\).*/\1/p')
-        TEST_NAME=$(echo "$LINE" | sed -n 's/.*INSTRUMENTATION_STATUS: test=\([^ ]*\).*/\1/p')
-        
-        if [ -n "$CLASS_NAME" ] && [ -n "$TEST_NAME" ]; then
-          echo "    <testcase classname=\"$CLASS_NAME\" name=\"$TEST_NAME\" time=\"1\">"
-          
-          # Check if this test failed
-          if adb logcat -d | grep -q "INSTRUMENTATION_STATUS.*$TEST_NAME.*INSTRUMENTATION_STATUS_CODE: -"; then
-            echo "      <failure message=\"Test failed\" type=\"AssertionError\">Test failure</failure>"
-            FAILURE_COUNT=$((FAILURE_COUNT + 1))
-          fi
-          
-          echo "    </testcase>"
-          TEST_COUNT=$((TEST_COUNT + 1))
-        fi
-      fi
-    done < <(adb logcat -d | grep "INSTRUMENTATION_STATUS")
-    
-    # If no tests were found in logcat, add a placeholder test
-    if [ "$TEST_COUNT" -eq 0 ]; then
-      echo "    <testcase classname=\"$APP_PACKAGE\" name=\"androidTest\" time=\"1\">"
-      echo "    </testcase>"
-      TEST_COUNT=1
-    fi
-    
-    # Close the testsuite tag with updated counts
-    echo "  </testsuite>"
-    echo "</testsuites>"
-  } > "$LOCAL_TEST_RESULT_PATH"
-  
-  # Update the testsuite attributes with correct counts
-  sed -i "s/tests=\"1\"/tests=\"$TEST_COUNT\"/g" "$LOCAL_TEST_RESULT_PATH"
-  sed -i "s/failures=\"0\"/failures=\"$FAILURE_COUNT\"/g" "$LOCAL_TEST_RESULT_PATH"
-  
-  # Copy to the dorny/test-reporter expected path
-  DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${APP_PACKAGE}.xml"
-  cp "$LOCAL_TEST_RESULT_PATH" "$DORNY_TEST_RESULT_PATH"
-  
-  echo "✅ Generated minimal test report at:"
-  echo "  - $LOCAL_TEST_RESULT_PATH"
-  echo "  - $DORNY_TEST_RESULT_PATH"
 fi

@@ -187,64 +187,6 @@ else
   fi
 fi
 
-# After the tests have run successfully, create a minimal XML test result file manually
-echo "Generating XML test results from instrumentation output..."
-
-# Define paths for test results
-LOCAL_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${APP_PACKAGE}.xml"
-DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${APP_PACKAGE}.xml"
-
-# Ensure the directories exist
-mkdir -p "$(dirname "$LOCAL_TEST_RESULT_PATH")"
-mkdir -p "$(dirname "$DORNY_TEST_RESULT_PATH")"
-
-# Generate a valid XML test result file using the instrumentation output
-{
-  echo '<?xml version="1.0" encoding="UTF-8"?>'
-  echo '<testsuites>'
-  echo '  <testsuite name="AndroidTests" tests="1" failures="0" errors="0" skipped="0" timestamp="'"$(date -u +"%Y-%m-%dT%H:%M:%S")"'" hostname="localhost" time="1">'
-
-  # Parse the instrumentation output to get test results
-  TESTS_COUNT=0
-  FAILURES_COUNT=0
-  
-  while IFS= read -r LINE; do
-    if [[ "$LINE" == *"INSTRUMENTATION_STATUS: test="* ]]; then
-      TEST_NAME=${LINE#*INSTRUMENTATION_STATUS: test=}
-      echo "    <testcase classname=\"$APP_PACKAGE\" name=\"$TEST_NAME\" time=\"1\">"
-      echo "    </testcase>"
-      TESTS_COUNT=$((TESTS_COUNT + 1))
-    fi
-    
-    if [[ "$LINE" == *"INSTRUMENTATION_STATUS_CODE: 0"* ]]; then
-      # Test passed
-      : # No action needed for passed tests
-    fi
-    
-    if [[ "$LINE" == *"INSTRUMENTATION_STATUS_CODE: -2"* || "$LINE" == *"INSTRUMENTATION_STATUS_CODE: -3"* || "$LINE" == *"INSTRUMENTATION_STATUS_CODE: -4"* ]]; then
-      # Test failed or error
-      FAILURES_COUNT=$((FAILURES_COUNT + 1))
-      echo "      <failure message=\"Test failed\" type=\"AssertionError\">Test failure</failure>"
-    fi
-  done < <(adb logcat -d | grep "INSTRUMENTATION_")
-  
-  # Update testsuite attributes
-  XML_CONTENT=$(cat "$LOCAL_TEST_RESULT_PATH")
-  XML_CONTENT=${XML_CONTENT/tests="1"/tests="$TESTS_COUNT"}
-  XML_CONTENT=${XML_CONTENT/failures="0"/failures="$FAILURES_COUNT"}
-  echo "$XML_CONTENT" > "$LOCAL_TEST_RESULT_PATH"
-  
-  echo '  </testsuite>'
-  echo '</testsuites>'
-} > "$LOCAL_TEST_RESULT_PATH"
-
-# Copy to the second expected path
-cp "$LOCAL_TEST_RESULT_PATH" "$DORNY_TEST_RESULT_PATH"
-
-echo "✅ Generated XML test results at:"
-echo "  - $LOCAL_TEST_RESULT_PATH"
-echo "  - $DORNY_TEST_RESULT_PATH"
-
 # If tests failed (non-zero exit code), exit with the same code
 if [ $TEST_EXIT_CODE -ne 0 ]; then
   echo "Android tests completed with errors. Exit code: $TEST_EXIT_CODE"
