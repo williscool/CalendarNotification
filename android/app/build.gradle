@@ -359,36 +359,28 @@ task jacocoAndroidTestReport(type: JacocoReport) {
         'src/main/kotlin'
     ]))
     
-    // Search ALL possible class directories to make sure we find the right ones
-    // This is important because the debug variant with JaCoCo instrumentation might 
-    // put classes in a different location than the standard debug build
-    classDirectories.setFrom(fileTree(
-        dir: "${buildDir}",
-        include: [
-            // Try all possible locations for compiled classes
-            "**/classes/${debugVariant}/**/*.class",
-            "**/intermediates/javac/${debugVariant}/classes/**/*.class", 
-            "**/intermediates/javac/${debugVariant}/compile*Classes/**/*.class",
-            "**/intermediates/classes/${debugVariant}/**/*.class",
-            "**/intermediates/kotlin/compile${archSuffix}/debug/**/*.class",
-            "**/tmp/kotlin-classes/${debugVariant}/**/*.class",
-            "**/tmp/kotlin-classes/**/${debugVariant}/**/*.class",
-            "**/intermediates/classes/**/${debugVariant}/**/*.class"
-        ],
-        exclude: [
-            // Standard excludes
-            '**/R.class',
-            '**/R$*.class',
-            '**/BuildConfig.*',
-            '**/Manifest*.*',
-            '**/*Test*.*',
-            // Additional excludes for cleaner reports
-            '**/*$Lambda$*.*',
-            '**/*$inlined$*.*',
-            '**/*$ViewInjector*.*',
-            '**/*$ViewBinder*.*'
-        ]
-    ))
+    // Use a more targeted approach for class directories
+    classDirectories.setFrom(files([
+        fileTree(
+            dir: "${buildDir}",
+            includes: [
+                "**/tmp/kotlin-classes/${debugVariant}/**/*.class",
+                "**/intermediates/javac/${debugVariant}/classes/**/*.class"
+            ],
+            excludes: [
+                '**/R.class',
+                '**/R$*.class',
+                '**/BuildConfig.*',
+                '**/Manifest*.*',
+                '**/*Test*.*',
+                '**/com/facebook/react/**',
+                '**/com/facebook/hermes/**',
+                '**/com/facebook/jni/**',
+                '**/org/jacoco/**',
+                '**/com/android/tools/jacoco/**'
+            ]
+        )
+    ]))
     
     // Look for the coverage file in ALL possible locations
     executionData.setFrom(fileTree(
