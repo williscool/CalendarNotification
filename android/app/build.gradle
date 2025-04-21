@@ -83,8 +83,13 @@ android {
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
-    // Add test runner configuration
+    // Enhanced test instrumentation with JaCoCo
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    testInstrumentationRunnerArguments = [
+        'coverage': 'true',
+        'jacoco-agent.destfile': '/data/data/com.github.quarck.calnotify/files/coverage.ec',
+        'jacoco-agent.includes': 'com.github.quarck.calnotify.*'
+    ]
 
     externalNativeBuild {
       cmake{
@@ -197,6 +202,17 @@ android {
     preDexLibraries true
     threadCount = 4
   }
+
+  // Add proper JaCoCo instrumentation for tests
+  testOptions {
+    unitTests.all {
+      jacoco {
+        includeNoLocationClasses = true
+        excludes = ['jdk.internal.*']
+      }
+    }
+    execution 'ANDROIDX_TEST_ORCHESTRATOR'
+  }
 }
 
 
@@ -289,46 +305,168 @@ react {
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
 
-// Add JaCoCo task configuration
+// Configure JaCoCo properly
 jacoco {
     toolVersion = "0.8.12"
 }
 
+// Configure all tests to use JaCoCo instrumentation
 tasks.withType(Test) {
     jacoco.includeNoLocationClasses = true
     jacoco.excludes = ['jdk.internal.*']
 }
 
-// Add task to generate coverage report
-// TODO: make some unit tests then update the below after that :D
-//task jacocoTestReport(type: JacocoReport, dependsOn: ['testDebugUnitTest']) {
-//    reports {
-//        xml.required = true
-//        html.required = true
-//        csv.required = false
-//    }
-//    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
-//    classDirectories.setFrom(files([
-//        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-//        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
-//    ]))
-//    executionData.setFrom(fileTree(dir: 'build/reports', include: '**/*.html'))
-//}
-
 // Add task to generate coverage report for Android tests
-// MUST run connectedAndroidTest before running this for it to work
-// but no need to force that to be run over again every time just to see the report
-// thus no dependsOn
 task jacocoAndroidTestReport(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate JaCoCo coverage reports after running Android tests"
+    
+    // Get the format parameter, defaulting to html
+    def reportFormat = providers.gradleProperty('jacocoReportFormat')
+        .orElse('html')
+        .forUseAtConfigurationTime()
+        .get()
+    
     reports {
-        xml.required = true
-        html.required = true
-        csv.required = true
+        xml.required = reportFormat == 'xml'
+        html.required = reportFormat == 'html'
+        csv.required = reportFormat == 'csv'
+        
+        // Add output directory configuration for better organization
+        html.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/html")
+        xml.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/xml/report.xml")
+        csv.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/csv/report.csv")
     }
-    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
-    classDirectories.setFrom(files([
-        fileTree(dir: 'build/intermediates/javac/x8664Debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-        fileTree(dir: 'build/tmp/kotlin-classes/x8664Debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+    
+    // Get architecture from property or environment, defaulting to x86_64
+    def buildArch = providers.gradleProperty('BUILD_ARCH')
+        .orElse(providers.environmentVariable('BUILD_ARCH'))
+        .orElse('x86_64')
+        .forUseAtConfigurationTime()
+        .get()
+    
+    // Convert architecture to variant name format
+    def archSuffix = buildArch == 'arm64-v8a' ? 'Arm64V8a' : 'X8664'
+    
+    // Dynamic paths based on architecture
+    def debugVariant = "${archSuffix.toLowerCase()}Debug"
+    
+    println "Generating JaCoCo report for ${debugVariant} variant"
+    
+    // Correct source directories to include Kotlin files
+    sourceDirectories.setFrom(files([
+        'src/main/java',
+        'src/main/kotlin'
     ]))
-    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/', include: '**/*.ec'))
+    
+    // Search ALL possible class directories to make sure we find the right ones
+    // This is important because the debug variant with JaCoCo instrumentation might 
+    // put classes in a different location than the standard debug build
+    classDirectories.setFrom(fileTree(
+        dir: "${buildDir}",
+        include: [
+            // Try all possible locations for compiled classes
+            "**/classes/${debugVariant}/**/*.class",
+            "**/intermediates/javac/${debugVariant}/classes/**/*.class", 
+            "**/intermediates/javac/${debugVariant}/compile*Classes/**/*.class",
+            "**/intermediates/classes/${debugVariant}/**/*.class",
+            "**/intermediates/kotlin/compile${archSuffix}/debug/**/*.class",
+            "**/tmp/kotlin-classes/${debugVariant}/**/*.class",
+            "**/tmp/kotlin-classes/**/${debugVariant}/**/*.class",
+            "**/intermediates/classes/**/${debugVariant}/**/*.class"
+        ],
+        exclude: [
+            // Standard excludes
+            '**/R.class',
+            '**/R$*.class',
+            '**/BuildConfig.*',
+            '**/Manifest*.*',
+            '**/*Test*.*',
+            // Additional excludes for cleaner reports
+            '**/*$Lambda$*.*',
+            '**/*$inlined$*.*',
+            '**/*$ViewInjector*.*',
+            '**/*$ViewBinder*.*'
+        ]
+    ))
+    
+    // Look for the coverage file in ALL possible locations
+    executionData.setFrom(fileTree(
+        dir: "${buildDir}", 
+        includes: [
+            "**/outputs/code_coverage/*.ec",
+            "**/outputs/code_coverage/**/*.ec",
+            "**/outputs/code-coverage/**/*.ec",
+            "**/outputs/connected/**/*.ec",
+            "**/coverage/**/*.ec",
+            "**/outputs/**/*.ec"
+        ]
+    ))
+    
+    doFirst {
+        println "=== JaCoCo Report Configuration ==="
+        println "Format: ${reportFormat}"
+        println "Architecture: ${buildArch} (${archSuffix})"
+        
+        println "\nClass Directories:"
+        classDirectories.files.each { file ->
+            if (file.exists()) {
+                def fileCount = 0
+                if (file.isDirectory()) {
+                    fileCount = file.listFiles()?.size ?: 0
+                }
+                println " - ${file.absolutePath} (exists with ${fileCount} files)"
+            } else {
+                println " - ${file.absolutePath} (directory not found)"
+            }
+        }
+        
+        println "\nInstrumented Class Search:"
+        def classesFound = false
+        fileTree(dir: "${buildDir}").matching { 
+            include "**/classes/**/*.class"
+            include "**/kotlin/compile*/**/*.class"
+            include "**/intermediates/javac/**/*.class"
+            include "**/tmp/kotlin-classes/**/*.class"
+        }.visit { fileDetails ->
+            if (fileDetails.name.endsWith(".class") && classesFound == false) {
+                println " - Found instrumented classes at: ${fileDetails.file.parentFile.absolutePath}"
+                classesFound = true
+            }
+        }
+        
+        println "\nCoverage Files:"
+        executionData.files.each { file ->
+            if (file.exists()) {
+                println " - ${file.absolutePath} (exists with size ${file.length()} bytes)"
+            } else {
+                println " - ${file.absolutePath} (file not found)"
+            }
+        }
+        
+        // Only proceed if we have non-empty execution data
+        def hasNonEmptyData = false
+        executionData.files.each { file ->
+            if (file.exists() && file.length() > 0) {
+                println "\n✅ Found non-empty coverage file: ${file.absolutePath} (${file.length()} bytes)"
+                hasNonEmptyData = true
+            }
+        }
+        
+        if (!hasNonEmptyData) {
+            println "\n❌ No non-empty coverage files found. Report will be empty."
+            println "Try running the tests again with: ./scripts/run_android_tests.sh"
+        }
+    }
+    
+    // Skip the task if there are no execution data files or they're all empty
+    onlyIf { 
+        def hasData = false
+        executionData.files.each { file ->
+            if (file.exists() && file.length() > 0) {
+                hasData = true
+            }
+        }
+        return hasData
+    }
 }

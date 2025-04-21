@@ -11,6 +11,7 @@ ARCH=${1:-x86_64}
 MAIN_PROJECT_MODULE=${2:-app}
 ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${3:-5}
 TEST_TIMEOUT=${4:-30m}  # Increased default timeout to 30 minutes
+SINGLE_TEST=${5}  # Optional parameter for running a single test
 
 # Determine the build variant suffix based on architecture
 if [ "$ARCH" == "arm64-v8a" ]; then
@@ -27,6 +28,10 @@ cd android
 # Set environment variables
 export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=$ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL
 export BUILD_ARCH=$ARCH
+
+# Add more environment variables to better handle coverage with JaCoCo
+export COLLECT_COVERAGE=true
+export COVERAGE_ENABLED=true
 
 # Make sure we have the results directory
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/
@@ -111,25 +116,60 @@ adb shell "run-as $APP_PACKAGE mkdir -p /data/data/${APP_PACKAGE}/coverage" || t
 # Run the tests using adb directly with timeout and specified coverage path
 echo "Running instrumentation tests with $TEST_TIMEOUT timeout..."
 TEST_EXIT_CODE=0
-timeout $TEST_TIMEOUT adb shell am instrument -w -r \
+
+# Create a more unique coverage file path that JaCoCo can recognize
+COVERAGE_FILE_PATH="/data/data/${APP_PACKAGE}/files/coverage.ec"
+
+# Prepare test command - with more explicit coverage flags
+INSTRUMENT_COMMAND="am instrument -w -r \
   -e debug false \
+  -e collect.coverage true \
   -e coverage true \
-  -e coverageFile "${DEVICE_COVERAGE_PATH}" \
-  -e outputFormat "xml" \
-  -e resultFile "/data/local/tmp/test-results.xml" \
-  "${TEST_PACKAGE}/${TEST_RUNNER}" || {
-    TEST_EXIT_CODE=$?
-    if [ $TEST_EXIT_CODE -eq 124 ]; then
-      echo "Error: Tests timed out after $TEST_TIMEOUT"
-    else
-      echo "Error: Tests failed with exit code $TEST_EXIT_CODE"
-    fi
-    exit $TEST_EXIT_CODE
-  }
+  -e coverageFile \"${COVERAGE_FILE_PATH}\" \
+  -e coverageDataFileLocation \"${COVERAGE_FILE_PATH}\" \
+  -e jacoco true \
+  -e outputFormat \"xml\" \
+  -e jaco-agent.destfile \"${COVERAGE_FILE_PATH}\" \
+  -e jaco-agent.includes \"com.github.quarck.calnotify.*\" \
+  -e resultFile \"/data/local/tmp/test-results.xml\""
+
+# If a specific test is specified, add it to the command
+if [ -n "$SINGLE_TEST" ]; then
+  echo "Running single test: $SINGLE_TEST"
+  
+  # Parse the test class and method (if provided)
+  if [[ "$SINGLE_TEST" == *"#"* ]]; then
+    # Format is className#methodName
+    TEST_CLASS=${SINGLE_TEST%#*}
+    TEST_METHOD=${SINGLE_TEST#*#}
+    INSTRUMENT_COMMAND="$INSTRUMENT_COMMAND \
+      -e class ${TEST_CLASS}#${TEST_METHOD}"
+  else
+    # Just class name, run all methods in that class
+    INSTRUMENT_COMMAND="$INSTRUMENT_COMMAND \
+      -e class ${SINGLE_TEST}"
+  fi
+  
+  echo "Test filter: $SINGLE_TEST"
+fi
+
+# Complete the command with the package name and test runner
+INSTRUMENT_COMMAND="$INSTRUMENT_COMMAND \"${TEST_PACKAGE}/${TEST_RUNNER}\""
+
+# Execute the test command
+timeout $TEST_TIMEOUT adb shell "$INSTRUMENT_COMMAND" || {
+  TEST_EXIT_CODE=$?
+  if [ $TEST_EXIT_CODE -eq 124 ]; then
+    echo "Error: Tests timed out after $TEST_TIMEOUT"
+  else
+    echo "Error: Tests failed with exit code $TEST_EXIT_CODE"
+  fi
+  exit $TEST_EXIT_CODE
+}
 
 # Check if the coverage file was generated (just verification, don't pull)
-echo "Verifying coverage file was generated at: ${DEVICE_COVERAGE_PATH}"
-if adb shell "run-as $APP_PACKAGE ls -la ${DEVICE_COVERAGE_PATH}" 2>/dev/null; then
+echo "Verifying coverage file was generated at: ${COVERAGE_FILE_PATH}"
+if adb shell "run-as $APP_PACKAGE ls -la ${COVERAGE_FILE_PATH}" 2>/dev/null; then
   echo "✅ Coverage file generated successfully!"
   echo "To pull coverage data and prepare for JaCoCo, run:"
   echo "  ./scripts/generate_android_coverage.sh ${ARCH} ${MAIN_PROJECT_MODULE}"
