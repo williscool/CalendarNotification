@@ -10,7 +10,6 @@ echo "Preparing Android coverage data for JaCoCo..."
 # Get the architecture from command line or default to x86_64
 ARCH=${1:-x86_64}
 MAIN_PROJECT_MODULE=${2:-app}
-FORCE_PULL=${3:-false}  # New parameter to force pull even if local file exists
 
 # Determine the build variant suffix based on architecture
 if [ "$ARCH" == "arm64-v8a" ]; then
@@ -182,6 +181,8 @@ if [ "$HAS_COVERAGE" = true ]; then
   
   # Copy to JaCoCo expected location
   cp "$LOCAL_COVERAGE_PATH" "$JACOCO_COVERAGE_PATH"
+
+  echo "File exported to: $JACOCO_COVERAGE_PATH"
   
   # Verify file was copied correctly
   JACOCO_FILE_SIZE=$(stat -c%s "$JACOCO_COVERAGE_PATH" 2>/dev/null || echo "unknown")
