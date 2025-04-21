@@ -85,8 +85,5 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: |
-          ~/.android/avd/*
-          ~/.android/adb*
-          ~/.android/sdk/*
-          ~/.android/repositories.cfg
+          ~/.android/*
         key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
