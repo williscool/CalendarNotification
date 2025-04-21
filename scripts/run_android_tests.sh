@@ -131,8 +131,7 @@ INSTRUMENT_COMMAND="am instrument -w -r \
   -e outputFormat \"xml\" \
   -e jaco-agent.destfile \"${COVERAGE_FILE_PATH}\" \
   -e jaco-agent.includes \"com.github.quarck.calnotify.*\" \
-  -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\" \
-  -e resultFile \"/data/local/tmp/test-results.xml\""
+  -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
 
 # If a specific test is specified, add it to the command
 if [ -n "$SINGLE_TEST" ]; then

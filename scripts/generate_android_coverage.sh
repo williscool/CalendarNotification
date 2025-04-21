@@ -215,7 +215,7 @@ echo "Coverage data preparation completed"
 echo "Processing XML test results for test reporting..."
 
 # Define paths for test results
-DEVICE_TEST_RESULT_PATH="/data/local/tmp/test-results.xml"
+DEVICE_TEST_RESULT_PATH="/storage/emulated/0/Android/data/com.github.quarck.calnotify/files/report-0.xml"
 APP_CACHE_XML_PATH="/data/data/${APP_PACKAGE}/cache/test-results.xml"
 LOCAL_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${APP_PACKAGE}.xml"
 DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${APP_PACKAGE}.xml"

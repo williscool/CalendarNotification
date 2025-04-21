@@ -77,11 +77,13 @@ public class XmlRunListener extends InstrumentationRunListener {
         super.setInstrumentation(instr);
 
         try {
+
             File outputFile = getOutputFile(instr);
 
             Log.d(TAG, "setInstrumentation: outputFile: " + outputFile);
             outputStream = new FileOutputStream(outputFile);
         } catch (FileNotFoundException e) {
+
             Log.e(TAG, "Unable to open report file", e);
             throw new RuntimeException("Unable to open report file: " + e.getMessage(), e);
         }
@@ -105,86 +107,8 @@ public class XmlRunListener extends InstrumentationRunListener {
      * @return the file which should be used to store the XML report of the test run
      */
     protected File getOutputFile(Instrumentation instrumentation) {
-        // First try to get the location from instrumentation arguments
-        String resultFile = instrumentation.getArguments().getString("resultFile");
-        if (resultFile != null && !resultFile.isEmpty()) {
-            // Check if the directory exists and is writable
-            File file = new File(resultFile);
-            File directory = file.getParentFile();
-            
-            Log.d(TAG, "resultFile specified in arguments: " + resultFile);
-            
-            if (directory != null && (directory.exists() || directory.mkdirs())) {
-                try {
-                    // Try to create the file to verify it's writable
-                    boolean fileCreated = file.createNewFile();
-                    if (fileCreated || file.exists()) {
-                        Log.d(TAG, "Successfully verified write access to resultFile: " + resultFile);
-                        return file;
-                    } else {
-                        Log.w(TAG, "Could not create file at resultFile: " + resultFile);
-                    }
-                } catch (IOException e) {
-                    Log.w(TAG, "IOException when trying to create resultFile: " + e.getMessage());
-                } catch (SecurityException e) {
-                    Log.w(TAG, "SecurityException when trying to create resultFile: " + e.getMessage());
-                }
-            } else {
-                Log.w(TAG, "Cannot access directory for resultFile: " + resultFile);
-            }
-        }
-        
-        // Try several alternative locations that are writable
-        String[] potentialPaths = new String[] {
-            "/data/local/tmp/test-results.xml",
-            "/sdcard/test-results.xml",
-            "/storage/emulated/0/test-results.xml"
-        };
-        
-        for (String path : potentialPaths) {
-            try {
-                File file = new File(path);
-                boolean created = file.createNewFile(); // Will fail if file exists or no permission
-                if (created || file.exists()) {
-                    Log.d(TAG, "Using writable location: " + path);
-                    return file;
-                }
-            } catch (Exception e) {
-                Log.d(TAG, "Cannot use location " + path + ": " + e.getMessage());
-            }
-        }
-        
-        // Final fallback - use the app's cache directory which should always be writable
-        try {
-            File cacheDir = instrumentation.getTargetContext().getCacheDir();
-            File outputFile = new File(cacheDir, "test-results.xml");
-            Log.d(TAG, "Using app cache directory: " + outputFile.getAbsolutePath());
-            
-            // Create the file to verify permissions
-            outputFile.createNewFile();
-            
-            // Also copy to the /data/local/tmp location if possible (permissions may not allow)
-            File dataLocalTmpFile = new File("/data/local/tmp/test-results.xml");
-            // This line gets the Context.MODE_WORLD_READABLE constant value (1) since it's deprecated
-            final int MODE_WORLD_READABLE = 1;
-            
-            try {
-                // Create a symbolic link or use ProcessBuilder if possible
-                Process process = Runtime.getRuntime().exec(
-                    "ln -sf " + outputFile.getAbsolutePath() + " " + dataLocalTmpFile.getAbsolutePath());
-                process.waitFor();
-                Log.d(TAG, "Created symlink to test results at: " + dataLocalTmpFile.getAbsolutePath());
-            } catch (Exception e) {
-                Log.d(TAG, "Could not create symlink: " + e.getMessage());
-            }
-            
-            return outputFile;
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to use app cache directory: " + e.getMessage());
-        }
-        
-        // Last resort - use external files dir
-        Log.d(TAG, "Using external files directory as last resort");
+        // Seems like we need to put this into the target application's context as for the instrumentation app's
+        // context we can never be sure if we have the correct permissions - and getFilesDir() seems to return null
         return new File(instrumentation.getTargetContext().getExternalFilesDir(null), getFileName(instrumentation));
     }
 
