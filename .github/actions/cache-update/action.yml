@@ -72,6 +72,33 @@ runs:
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ steps.build-outputs-cache-restore.outputs.cache-primary-key }}
 
+    # Gradle cache - Using restore/save pattern with architecture in key
+    - name: Restore Gradle Cache
+      if: always()
+      uses: actions/cache/restore@v4
+      id: gradle-cache-restore
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          android/.gradle
+          android/build-cache
+        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
+          ${{ runner.os }}-gradle-
+
+    - name: Save Gradle Cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          android/.gradle
+          android/build-cache
+        key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
+
     # Android SDK and AVD cache - Using restore/save pattern
     - name: Restore Android SDK and AVD Cache
       if: always() && inputs.run_emulator_setup == 'true'
