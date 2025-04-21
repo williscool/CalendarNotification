@@ -613,10 +613,8 @@ jobs:
       with:
         name: 'Integration Tests'
         path: |
-          android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/*.xml
-          android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/**/*.xml
-          android/${{ env.main_project_module }}/build/outputs/connected/*.xml
-          android/${{ env.main_project_module }}/build/outputs/connected/**/*.xml
+          android/${{ env.main_project_module }}/build/outputs/*.xml
+          android/${{ env.main_project_module }}/build/outputs/**/*.xml
         reporter: java-junit
         fail-on-error: true
 
@@ -624,7 +622,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: android-test-coverage-report
+        name: android-test-coverage-report-${{ needs.build.outputs.build_datetime }}
         path: |
           android/app/build/reports/
           android/app/build/reports/jacoco/jacocoAndroidTestReport/
@@ -657,7 +655,7 @@ jobs:
 
   coverage-report:
     name: Process Code Coverage
-    needs: [unit-tests, integration-test]
+    needs: [unit-tests, build, integration-test]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -669,7 +667,7 @@ jobs:
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
         with:
-          name: unit-test-results
+          name: unit-test-results-${{ needs.build.outputs.build_datetime }}
           # path relative to build directory. because highest common directory is build
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
@@ -677,7 +675,7 @@ jobs:
       - name: Download integration test coverage
         uses: actions/download-artifact@v4
         with:
-          name: android-test-coverage-report
+          name: android-test-coverage-report-${{ needs.build.outputs.build_datetime }}
           # path relative to build directory. because highest common directory is build
           path: coverage-data/integration-tests/android/app/build/
         continue-on-error: true
@@ -700,7 +698,7 @@ jobs:
       - name: Upload HTML Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-html
+          name: code-coverage-report-html-${{ needs.build.outputs.build_datetime }}
           path: |
             coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
             coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
