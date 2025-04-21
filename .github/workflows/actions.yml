@@ -476,6 +476,7 @@ jobs:
         target: ${{ env.ANDROID_TARGET }}
         arch: ${{ matrix.arch }}
         profile: ${{ env.ANDROID_PROFILE }}
+        avd-name: 'integration-test'
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
         disable-animations: true
