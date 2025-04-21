@@ -42,7 +42,7 @@ inputs:
 outputs:
   build-outputs-cache-hit:
     description: 'Whether the build outputs cache was hit'
-    value: ${{ steps.build-outputs-cache.outputs.cache-hit }}
+    value: ${{ steps.build-outputs-cache-restore.outputs.cache-hit }}
   android-cache-hit:
     description: 'Whether the Android SDK and AVD cache was hit'
     value: ${{ steps.android-cache.outputs.cache-hit }}
@@ -184,6 +184,25 @@ runs:
           android/.gradle
           android/build-cache
         key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
+
+    # Restore Build Outputs Cache if arch is provided
+    - name: Restore Build Outputs Cache
+      if: inputs.arch != ''
+      uses: actions/cache/restore@v4
+      id: build-outputs-cache-restore
+      with:
+        path: |
+          android/app/build/intermediates
+          android/app/build/tmp
+          android/app/build/generated
+          android/app/build/outputs
+          android/app/build/intermediates/instrumented_classes
+          android/app/build/intermediates/test_apk
+          android/app/build/intermediates/test_apk_androidTest
+        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-
 
     - name: Ccachify the Native Modules
       shell: bash
