@@ -425,122 +425,122 @@ jobs:
         retention-days: 90
 
 
-  integration-test:
-    name: Test Android App
-    needs: [build]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [x86_64] # Only test on x86_64 to save time and resources
-      fail-fast: false
-    env:
-      ENTRY_FILE: "index.tsx"
-      GRADLE_ABI: ${{ matrix.arch }}
-      BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 30
+  # integration-test:
+  #   name: Test Android App
+  #   needs: [build]
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       arch: [x86_64] # Only test on x86_64 to save time and resources
+  #     fail-fast: false
+  #   env:
+  #     ENTRY_FILE: "index.tsx"
+  #     GRADLE_ABI: ${{ matrix.arch }}
+  #     BUILD_ARCH: ${{ matrix.arch }}
+  #   timeout-minutes: 30
 
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #     with:
+  #       fetch-depth: 1
 
-    # Execute the common setup with emulator configuration
-    - name: Common Setup
-      id: common-setup
-      uses: ./.github/actions/common-setup
-      with:
-        gradle_max_workers: "4"
-        node_version: "22.x"
-        arch: ${{ matrix.arch }}
-        android_api_level: ${{ env.ANDROID_API_LEVEL }}
-        android_target: ${{ env.ANDROID_TARGET }}
-        android_profile: ${{ env.ANDROID_PROFILE }}
-        run_emulator_setup: "true"
+  #   # Execute the common setup with emulator configuration
+  #   - name: Common Setup
+  #     id: common-setup
+  #     uses: ./.github/actions/common-setup
+  #     with:
+  #       gradle_max_workers: "4"
+  #       node_version: "22.x"
+  #       arch: ${{ matrix.arch }}
+  #       android_api_level: ${{ env.ANDROID_API_LEVEL }}
+  #       android_target: ${{ env.ANDROID_TARGET }}
+  #       android_profile: ${{ env.ANDROID_PROFILE }}
+  #       run_emulator_setup: "true"
 
-    - name: Make scripts executable
-      run: |
-        chmod +x scripts/wait_for_emulator.sh
-        chmod +x scripts/run_android_tests.sh
+  #   - name: Make scripts executable
+  #     run: |
+  #       chmod +x scripts/wait_for_emulator.sh
+  #       chmod +x scripts/run_android_tests.sh
 
-    - name: Download APK artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-apk-artifacts-${{ matrix.arch }}
-        path: android/app/build/outputs/apk
+  #   - name: Download APK artifacts
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: android-apk-artifacts-${{ matrix.arch }}
+  #       path: android/app/build/outputs/apk
 
-    - name: Run Android Tests
-      id: run_tests
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: ${{ env.ANDROID_API_LEVEL }}
-        target: ${{ env.ANDROID_TARGET }}
-        arch: ${{ matrix.arch }}
-        profile: ${{ env.ANDROID_PROFILE }}
-        avd-name: 'integration-test'
-        force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
-        disable-animations: true
-        script: ./scripts/wait_for_emulator.sh && ./scripts/deprecated_run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} 
+  #   - name: Run Android Tests
+  #     id: run_tests
+  #     uses: reactivecircus/android-emulator-runner@v2
+  #     with:
+  #       api-level: ${{ env.ANDROID_API_LEVEL }}
+  #       target: ${{ env.ANDROID_TARGET }}
+  #       arch: ${{ matrix.arch }}
+  #       profile: ${{ env.ANDROID_PROFILE }}
+  #       avd-name: 'integration-test'
+  #       force-avd-creation: false
+  #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+  #       disable-animations: true
+  #       script: ./scripts/wait_for_emulator.sh && ./scripts/deprecated_run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} 
 
-    # Step 3: Generate JaCoCo coverage report
-    - name: Generate Jacoco Coverage Report
-      if: always()
-      run: |
-        cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+  #   # Step 3: Generate JaCoCo coverage report
+  #   - name: Generate Jacoco Coverage Report
+  #     if: always()
+  #     run: |
+  #       cd android && \
+  #       ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
 
-    # Publish integration test results
-    - name: Publish Integration Test Results
-      uses: dorny/test-reporter@v2
-      if: always()
-      with:
-        name: 'Integration Tests'
-        path: |
-          android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/**/*.xml
-          android/${{ env.main_project_module }}/build/outputs/connected/**/*.xml
-        reporter: java-junit
-        fail-on-error: true
+  #   # Publish integration test results
+  #   - name: Publish Integration Test Results
+  #     uses: dorny/test-reporter@v2
+  #     if: always()
+  #     with:
+  #       name: 'Integration Tests'
+  #       path: |
+  #         android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/**/*.xml
+  #         android/${{ env.main_project_module }}/build/outputs/connected/**/*.xml
+  #       reporter: java-junit
+  #       fail-on-error: true
 
-    - name: Upload Coverage Report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-test-coverage-report
-        path: |
-          android/app/build/reports/
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/
-          android/app/build/outputs/logs/
-          android/app/build/test-results/
-        retention-days: 90
+  #   - name: Upload Coverage Report
+  #     if: always()
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: android-test-coverage-report
+  #       path: |
+  #         android/app/build/reports/
+  #         android/app/build/reports/jacoco/jacocoAndroidTestReport/
+  #         android/app/build/outputs/code_coverage/
+  #         android/app/build/outputs/logs/
+  #         android/app/build/test-results/
+  #       retention-days: 90
 
-    - name: Upload Emulator Log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: emulator-log
-        path: emulator.log
-        retention-days: 90
+  #   - name: Upload Emulator Log
+  #     if: always()
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: emulator-log
+  #       path: emulator.log
+  #       retention-days: 90
 
-    # Update all caches
-    - name: Update Caches
-      if: always()
-      uses: ./.github/actions/cache-update
-      with:
-        arch: ${{ matrix.arch }}
-        run_emulator_setup: "true"
+  #   # Update all caches
+  #   - name: Update Caches
+  #     if: always()
+  #     uses: ./.github/actions/cache-update
+  #     with:
+  #       arch: ${{ matrix.arch }}
+  #       run_emulator_setup: "true"
 
-    - name: Setup tmate session
-      if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
+  #   - name: Setup tmate session
+  #     if: ${{ failure() }}
+  #     uses: mxschmitt/action-tmate@v3
+  #     with:
+  #       limit-access-to-actor: true
 
   # TODO: before instrument-test can take over from integration-test (and drop rebuilding the app for no reason)
   # 1. we have to figure out how mark tests failing as a failure but still get the coverage files exported ( just occured to me we can use same xml file as below!)
   # 2. we need to get the xml file that does the test results for the dorny thing
-  instrument-test:
-    name: Instrument Test Android App
+  integration-test:
+    name: Test Android App
     needs: [build]
     runs-on: ubuntu-latest
     strategy:
@@ -613,7 +613,9 @@ jobs:
       with:
         name: 'Integration Tests'
         path: |
+          android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/*.xml
           android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/**/*.xml
+          android/${{ env.main_project_module }}/build/outputs/connected/*.xml
           android/${{ env.main_project_module }}/build/outputs/connected/**/*.xml
         reporter: java-junit
         fail-on-error: true
