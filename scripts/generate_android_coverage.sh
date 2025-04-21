@@ -101,9 +101,27 @@ fi
 echo "Checking for test results XML on device..."
 if adb shell "ls /data/local/tmp/test-results.xml" 2>/dev/null; then
   echo "Test results XML found. Pulling from device..."
-  adb pull "/data/local/tmp/test-results.xml" ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${ARCH_SUFFIX}.xml || {
+  
+  # Create both directories
+  mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/
+  mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/connected/
+  
+  # Pull to first location
+  adb pull "/data/local/tmp/test-results.xml" ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${ARCH_SUFFIX}.xml && {
+    echo "Successfully pulled test results XML to androidTest-results location"
+    
+    # Also copy to the second location for the test reporter
+    cp ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${ARCH_SUFFIX}.xml \
+       ./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${ARCH_SUFFIX}.xml && {
+      echo "Also copied test results XML to outputs/connected for test reporter compatibility"
+    } || {
+      echo "Warning: Failed to copy test results to outputs/connected location"
+    }
+  } || {
     echo "Warning: Failed to pull test results file."
   }
+else
+  echo "No test results XML found on device."
 fi
 
 # If we have the coverage file, set up for JaCoCo

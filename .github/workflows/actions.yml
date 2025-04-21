@@ -498,7 +498,9 @@ jobs:
       if: always()
       with:
         name: 'Integration Tests'
-        path: 'android/${{ env.main_project_module }}/build/outputs/**/connected/**/*.xml'
+        path: |
+          android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/**/*.xml
+          android/${{ env.main_project_module }}/build/outputs/connected/**/*.xml
         reporter: java-junit
         fail-on-error: true
 
