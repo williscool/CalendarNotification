@@ -491,12 +491,6 @@ jobs:
         cd android && \
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
 
-    - name: Setup tmate session
-      if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
-
     # Publish integration test results
     - name: Publish Integration Test Results
       uses: dorny/test-reporter@v2
@@ -535,6 +529,12 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
 
   coverage-report:
     name: Process Code Coverage

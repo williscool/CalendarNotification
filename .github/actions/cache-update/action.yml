@@ -14,21 +14,36 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # Update JS Bundle and Assets Cache
-    - name: Update JS Bundle and Assets Cache
+    # JS Bundle and Assets Cache - Using restore/save pattern
+    - name: Restore JS Bundle and Assets Cache
       if: always()
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
+      id: js-bundle-cache-restore
       with:
         path: |
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
         key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+        restore-keys: |
+          ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
+          ${{ runner.os }}-js-bundle-
 
-    # Update Build Outputs Cache
-    - name: Update Build Outputs Cache
+    - name: Save JS Bundle and Assets Cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          android/app/src/main/assets/index.android.bundle
+          android/app/src/main/res/drawable-*
+          android/app/src/main/res/raw-*
+        key: ${{ steps.js-bundle-cache-restore.outputs.cache-primary-key }}
+
+    # Build Outputs Cache - Using restore/save pattern
+    - name: Restore Build Outputs Cache
+      id: build-outputs-cache-restore
       if: always() && inputs.arch != ''
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: |
           android/app/build/intermediates
@@ -39,11 +54,29 @@ runs:
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-
 
-    # Update Android SDK and AVD cache
-    - name: Update Android SDK and AVD Cache
+    - name: Save Build Outputs Cache
+      if: always() && inputs.arch != ''
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          android/app/build/intermediates
+          android/app/build/tmp
+          android/app/build/generated
+          android/app/build/outputs
+          android/app/build/intermediates/instrumented_classes
+          android/app/build/intermediates/test_apk
+          android/app/build/intermediates/test_apk_androidTest
+        key: ${{ steps.build-outputs-cache-restore.outputs.cache-primary-key }}
+
+    # Android SDK and AVD cache - Using restore/save pattern
+    - name: Restore Android SDK and AVD Cache
       if: always() && inputs.run_emulator_setup == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
+      id: android-cache-restore
       with:
         path: |
           ~/.android/avd/*
@@ -51,3 +84,16 @@ runs:
           ~/.android/sdk/*
           ~/.android/repositories.cfg
         key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-android-
+
+    - name: Save Android SDK and AVD Cache
+      if: always() && inputs.run_emulator_setup == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.android/avd/*
+          ~/.android/adb*
+          ~/.android/sdk/*
+          ~/.android/repositories.cfg
+        key: ${{ steps.android-cache-restore.outputs.cache-primary-key }}

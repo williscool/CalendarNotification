@@ -67,21 +67,15 @@ runs:
       run: |
         echo "CACHE_FOLDER=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
 
+    # Yarn caches
     - name: Restore yarn cache
-      uses: actions/cache@v3
-      id: yarn-download-cache
+      uses: actions/cache/restore@v4
+      id: yarn-download-cache-restore
       with:
         path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
         key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
         restore-keys: |
           yarn-download-cache-
-
-    - name: Restore yarn install state
-      id: yarn-install-state-cache
-      uses: actions/cache@v3
-      with:
-        path: .yarn/ci-cache/
-        key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
 
     - name: Install dependencies
       run: yarn install --immutable --inline-builds
@@ -92,10 +86,31 @@ runs:
         YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz
         HUSKY: '0'
 
+    - name: Save yarn cache
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
+        key: ${{ steps.yarn-download-cache-restore.outputs.cache-primary-key }}
+
+    - name: Restore yarn install state
+      id: yarn-install-state-cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: .yarn/ci-cache/
+        key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-install-state-cache-
+
+    - name: Save yarn install state
+      uses: actions/cache/save@v4
+      with:
+        path: .yarn/ci-cache/
+        key: ${{ steps.yarn-install-state-cache-restore.outputs.cache-primary-key }}
+
     # Cache JS Bundle and Assets
     - name: Restore JS Bundle and Assets Cache
-      uses: actions/cache@v4
-      id: js-bundle-cache
+      uses: actions/cache/restore@v4
+      id: js-bundle-cache-restore
       with:
         path: |
           android/app/src/main/assets/index.android.bundle
@@ -108,20 +123,20 @@ runs:
 
     # Generate JS bundle if needed
     - name: Generate JS Bundle
-      if: steps.js-bundle-cache.outputs.cache-hit != 'true'
+      if: steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
       run: yarn bundle:android --dev=true
       shell: bash
 
     # Update JS Bundle cache if newly generated
-    - name: Update JS Bundle and Assets Cache
-      if: steps.js-bundle-cache.outputs.cache-hit != 'true'
-      uses: actions/cache@v4
+    - name: Save JS Bundle and Assets Cache
+      if: steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
       with:
         path: |
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+        key: ${{ steps.js-bundle-cache-restore.outputs.cache-primary-key }}
 
     - name: Setup react-native-safe-area-context mock
       if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
@@ -135,9 +150,10 @@ runs:
         distribution: 'temurin'
         cache: gradle
 
+    # Cache Gradle files
     - name: Restore Cache Gradle files
-      uses: actions/cache@v4
-      id: gradle-cache
+      uses: actions/cache/restore@v4
+      id: gradle-cache-restore
       with:
         path: |
           ~/.gradle/caches
@@ -159,6 +175,16 @@ runs:
           jdks
           wrapper
 
+    - name: Save Cache Gradle files
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          android/.gradle
+          android/build-cache
+        key: ${{ steps.gradle-cache-restore.outputs.cache-primary-key }}
+
     - name: Ccachify the Native Modules
       shell: bash
       run: |
@@ -179,8 +205,8 @@ runs:
 
     # Cache React Native specific files
     - name: Restore Cache React Native files
-      uses: actions/cache@v4
-      id: react-native-cache
+      uses: actions/cache/restore@v4
+      id: react-native-cache-restore
       with:
         path: |
           node_modules/.cache/react-native
@@ -189,6 +215,15 @@ runs:
         key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-react-native-
+          
+    - name: Save Cache React Native files
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          node_modules/.cache/react-native
+          node_modules/.cache/metro
+          node_modules/.cache/@react-native-community/cli
+        key: ${{ steps.react-native-cache-restore.outputs.cache-primary-key }}
 
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
