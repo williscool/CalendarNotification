@@ -600,6 +600,12 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: android-coverage-artifacts-${{ matrix.arch }}
+        path: android/${{ env.main_project_module }}/build/
+
+    - name: Debug directory structure
+      run: |
+        echo "Directory structure after download:"
+        find android/${{ env.main_project_module }}/build/ -type d
 
     - name: Run Android Tests
       id: run_tests
