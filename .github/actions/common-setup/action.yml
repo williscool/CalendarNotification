@@ -144,9 +144,9 @@ runs:
           ~/.gradle/wrapper
           android/.gradle
           android/build-cache
-        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: |
-          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
+          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-
           ${{ runner.os }}-gradle-
 
     - name: Setup Gradle
@@ -163,7 +163,7 @@ runs:
 
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
-      if: inputs.arch != '' && inputs.optional_cache_key != 'integration-test'
+      if: inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
       uses: actions/cache/restore@v4
       id: build-outputs-cache-restore
       with:

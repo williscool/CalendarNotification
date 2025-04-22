@@ -370,6 +370,7 @@ jobs:
     - name: Common Setup
       uses: ./.github/actions/common-setup
       with:
+        optional_cache_key: "unit-tests"
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
