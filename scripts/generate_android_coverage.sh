@@ -50,7 +50,6 @@ LOCAL_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/
-# Additional directory for dorny/test-reporter expected paths
 mkdir -p ./$MAIN_PROJECT_MODULE/build/outputs/connected/
 
 # Function to check if a file is empty (zero bytes)
@@ -366,17 +365,8 @@ is_valid_junit_xml() {
 if [ -f "$LOCAL_TEST_RESULT_PATH" ] && [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
   if is_valid_junit_xml "$LOCAL_TEST_RESULT_PATH"; then
     echo "✅ Valid JUnit XML test results found! at $LOCAL_TEST_RESULT_PATH "
-    
-    # Path for the second location expected by dorny/test-reporter
-    DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${APP_PACKAGE}.xml"
-    
-    # Copy to the second expected path
-    cp "$LOCAL_TEST_RESULT_PATH" "$DORNY_TEST_RESULT_PATH"
-    
-    echo "Copied XML results to $DORNY_TEST_RESULT_PATH"
-    
-    # Make the XML files more compatible with dorny/test-reporter if needed
-    for XML_PATH in "$LOCAL_TEST_RESULT_PATH" "$DORNY_TEST_RESULT_PATH"; do
+
+    for XML_PATH in "$LOCAL_TEST_RESULT_PATH"; do
       # Update timestamps if they're missing or malformed
       sed -i 's/timestamp="[^"]*"/timestamp="'"$(date -u +"%Y-%m-%dT%H:%M:%S")"'"/g' "$XML_PATH" 2>/dev/null || true
       
@@ -385,7 +375,6 @@ if [ -f "$LOCAL_TEST_RESULT_PATH" ] && [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
       sed -i 's/<testsuite /<testsuite name=\"'"$APP_PACKAGE"'\" hostname="localhost" /g' "$XML_PATH" 2>/dev/null || true
     done
     
-    echo "✅ XML test results ready for dorny/test-reporter at both expected locations!"
   else
     echo "⚠️ Retrieved XML is not a valid JUnit test result file."
     rm -f "$LOCAL_TEST_RESULT_PATH"  # Remove invalid file
