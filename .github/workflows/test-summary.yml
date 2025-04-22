@@ -23,12 +23,27 @@ jobs:
           run_id: ${{ github.event.workflow_run.id }}
           path: artifacts
           
+      - name: Find latest test artifacts
+        id: find_artifacts
+        run: |
+          # Find the most recent unit test results directory
+          UNIT_TEST_DIR=$(find artifacts -type d -name "unit-test-results-*" | sort -r | head -n1)
+          echo "unit_test_dir=$UNIT_TEST_DIR" >> $GITHUB_OUTPUT
+          
+          # Find the most recent integration test results directory
+          INTEGRATION_TEST_DIR=$(find artifacts -type d -name "android-test-coverage-report-*" | sort -r | head -n1)
+          echo "integration_test_dir=$INTEGRATION_TEST_DIR" >> $GITHUB_OUTPUT
+          
+          # Find the most recent coverage report directory
+          COVERAGE_DIR=$(find artifacts -type d -name "code-coverage-report-html-*" | sort -r | head -n1)
+          echo "coverage_dir=$COVERAGE_DIR" >> $GITHUB_OUTPUT
+          
       - name: Publish Unit Test Summary
         uses: dorny/test-reporter@v2
         if: always()
         with:
           name: 'Unit Tests Summary'
-          path: 'artifacts/unit-test-results/android/app/build/test-results/test*DebugUnitTest/**/*.xml'
+          path: '${{ steps.find_artifacts.outputs.unit_test_dir }}/android/app/build/test-results/test*DebugUnitTest/**/*.xml'
           reporter: java-junit
           fail-on-error: false
           use-actions-summary: true
@@ -39,7 +54,7 @@ jobs:
         if: always()
         with:
           name: 'Integration Tests Summary'
-          path: 'artifacts/android-test-coverage-report/android/app/build/outputs/**/connected/**/TEST-*.xml'
+          path: '${{ steps.find_artifacts.outputs.integration_test_dir }}/android/app/build/outputs/**/connected/**/TEST-*.xml'
           reporter: java-junit
           fail-on-error: false
           use-actions-summary: true
@@ -51,8 +66,8 @@ jobs:
         with:
           name: 'Combined Test Report'
           path: |
-            artifacts/unit-test-results/android/app/build/test-results/test*DebugUnitTest/**/*.xml
-            artifacts/android-test-coverage-report/android/app/build/outputs/**/connected/**/TEST-*.xml
+            ${{ steps.find_artifacts.outputs.unit_test_dir }}/android/app/build/test-results/test*DebugUnitTest/**/*.xml
+            ${{ steps.find_artifacts.outputs.integration_test_dir }}/android/app/build/outputs/**/connected/**/TEST-*.xml
           reporter: java-junit
           fail-on-error: false
           only-summary: true
@@ -66,17 +81,17 @@ jobs:
           echo "## 📊 Code Coverage" >> $GITHUB_STEP_SUMMARY
           
           # First, check if there's a coverage-report-html artifact with the placeholder file
-          if [ -d "artifacts/coverage-report-html" ] && [ -f "artifacts/coverage-report-html/index.html" ]; then
+          if [ -d "${{ steps.find_artifacts.outputs.coverage_dir }}" ] && [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/index.html" ]; then
             echo "JaCoCo HTML report is available in the artifacts." >> $GITHUB_STEP_SUMMARY
           fi
           
           # Check if coverage badge files exist
-          if [ -d "artifacts/coverage-badges" ]; then
-            if [ -f "artifacts/coverage-badges/jacoco.svg" ] && [ -f "artifacts/coverage-badges/jacoco.json" ]; then
-              LINE_COVERAGE=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.coverage')
-              COVERED_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.covered')
-              MISSED_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.missed')
-              TOTAL_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.branches.total')
+          if [ -d "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges" ]; then
+            if [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.svg" ] && [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" ]; then
+              LINE_COVERAGE=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" | jq -r '.coverage')
+              COVERED_LINES=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" | jq -r '.covered')
+              MISSED_LINES=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" | jq -r '.missed')
+              TOTAL_LINES=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" | jq -r '.branches.total')
               
               echo "### Line Coverage: ${LINE_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
               echo "- Covered Lines: ${COVERED_LINES}" >> $GITHUB_STEP_SUMMARY
@@ -87,11 +102,11 @@ jobs:
               echo "No line coverage data available." >> $GITHUB_STEP_SUMMARY
             fi
             
-            if [ -f "artifacts/coverage-badges/branches.json" ]; then
-              BRANCH_COVERAGE=$(cat artifacts/coverage-badges/branches.json | jq -r '.coverage')
-              COVERED_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.covered')
-              MISSED_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.missed')
-              TOTAL_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.total')
+            if [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" ]; then
+              BRANCH_COVERAGE=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" | jq -r '.coverage')
+              COVERED_BRANCHES=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" | jq -r '.covered')
+              MISSED_BRANCHES=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" | jq -r '.missed')
+              TOTAL_BRANCHES=$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" | jq -r '.total')
               
               echo "### Branch Coverage: ${BRANCH_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
               echo "- Covered Branches: ${COVERED_BRANCHES}" >> $GITHUB_STEP_SUMMARY
@@ -105,9 +120,9 @@ jobs:
             XML_COUNT=0
             HTML_COUNT=0
             
-            if [ -d "artifacts/android-test-coverage-report" ]; then
-              XML_COUNT=$(find artifacts/android-test-coverage-report -name "*.xml" | grep -i jacoco | wc -l)
-              HTML_COUNT=$(find artifacts/android-test-coverage-report -name "*.html" | grep -i jacoco | wc -l)
+            if [ -d "${{ steps.find_artifacts.outputs.integration_test_dir }}" ]; then
+              XML_COUNT=$(find "${{ steps.find_artifacts.outputs.integration_test_dir }}" -name "*.xml" | grep -i jacoco | wc -l)
+              HTML_COUNT=$(find "${{ steps.find_artifacts.outputs.integration_test_dir }}" -name "*.html" | grep -i jacoco | wc -l)
             fi
             
             echo "### Coverage Data" >> $GITHUB_STEP_SUMMARY
@@ -126,11 +141,11 @@ jobs:
         run: |
           echo "### Coverage Visualization" >> $GITHUB_STEP_SUMMARY
           
-          if [ -d "artifacts/coverage-badges" ] && [ -f "artifacts/coverage-badges/jacoco.svg" ] && [ -f "artifacts/coverage-badges/jacoco.json" ]; then
-            echo "![Coverage](https://img.shields.io/badge/Coverage-$(cat artifacts/coverage-badges/jacoco.json | jq -r '.coverage')%25-$(cat artifacts/coverage-badges/jacoco.json | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
+          if [ -d "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges" ] && [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.svg" ] && [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" ]; then
+            echo "![Coverage](https://img.shields.io/badge/Coverage-$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" | jq -r '.coverage')%25-$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/jacoco.json" | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
             
-            if [ -f "artifacts/coverage-badges/branches.svg" ] && [ -f "artifacts/coverage-badges/branches.json" ]; then
-              echo "![Branch Coverage](https://img.shields.io/badge/Branch_Coverage-$(cat artifacts/coverage-badges/branches.json | jq -r '.coverage')%25-$(cat artifacts/coverage-badges/branches.json | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
+            if [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.svg" ] && [ -f "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" ]; then
+              echo "![Branch Coverage](https://img.shields.io/badge/Branch_Coverage-$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" | jq -r '.coverage')%25-$(cat "${{ steps.find_artifacts.outputs.coverage_dir }}/coverage-badges/branches.json" | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "No coverage badges available. Using placeholder badges instead." >> $GITHUB_STEP_SUMMARY
