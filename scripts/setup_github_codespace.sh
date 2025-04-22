@@ -26,7 +26,7 @@ unzip commandlinetools-linux-13114758_latest.zip -d ~/Android/Sdk
 rm commandlinetools-linux-13114758_latest.zip
 mv ~/Android/Sdk/cmdline-tools/* ~/Android/Sdk/cmdline-tools/latest/
 
-echo 'export ANDROID_HOME=$HOME/Android/Sdk' >> ~/.bashrc
+echo 'export ANDROID_HOME=/tmp/Android/Sdk' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
 echo 'export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH' >> ~/.bashrc
