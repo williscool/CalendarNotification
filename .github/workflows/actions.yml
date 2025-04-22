@@ -67,6 +67,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: true
+        restore-keys: |
+          ccache-
 
     # Set current date and repository name
     - name: Set current date as env variable
@@ -365,6 +367,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: true
+        restore-keys: |
+          ccache-
 
     # Execute the common setup
     - name: Common Setup
