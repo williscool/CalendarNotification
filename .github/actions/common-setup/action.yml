@@ -153,8 +153,8 @@ runs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4.0.0
       with:
-        cache-read-only: ${{ inputs.arch != 'x86_64' || github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.number != 77) }}
-        cache-overwrite-existing: ${{ inputs.arch != 'x86_64' || github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.number != 77) }}
+        cache-read-only: ${{ !(github.ref == 'refs/heads/master' || (github.event_name == 'pull_request' && github.event.pull_request.number == 79)) }}
+        cache-overwrite-existing: ${{ !(github.ref == 'refs/heads/master' || (github.event_name == 'pull_request' && github.event.pull_request.number == 79)) }}
         gradle-home-cache-cleanup: true
         gradle-home-cache-includes: |
           caches
