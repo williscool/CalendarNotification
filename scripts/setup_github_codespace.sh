@@ -21,16 +21,19 @@ echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
 
 
 
-wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
-unzip commandlinetools-linux-13114758_latest.zip -d ~/Android/Sdk
-rm commandlinetools-linux-13114758_latest.zip
-mv ~/Android/Sdk/cmdline-tools/* ~/Android/Sdk/cmdline-tools/latest/
-
 echo 'export ANDROID_HOME=/tmp/Android/Sdk' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
 echo 'export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH' >> ~/.bashrc
 echo 'export ANDROID_AVD_HOME=/tmp/my_avd_home' >> ~/.bashrc
+
+wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip 
+mv commandlinetools-linux-13114758_latest.zip /tmp/
+mkdir -p $ANDROID_HOME
+unzip /tmp/commandlinetools-linux-13114758_latest.zip -d $ANDROID_HOME
+rm /tmp/commandlinetools-linux-13114758_latest.zip
+mkdir $ANDROID_HOME/cmdline-tools/
+mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
 
 yes | sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 yes | sdkmanager --install "system-images;android-34;google_apis_playstore;x86_64"
@@ -46,7 +49,6 @@ mkdir -p /tmp/my_avd_home
 
 export GRADLE_USER_HOME=/tmp/gradle-cache
 mkdir -p $GRADLE_USER_HOME
-
 
 
 # Setup Git configuration
