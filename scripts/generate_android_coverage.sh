@@ -382,7 +382,7 @@ if [ -f "$LOCAL_TEST_RESULT_PATH" ] && [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
       
       # Ensure the XML has the correct format for the XmlRunListener
       # Add hostname attribute if missing
-      sed -i 's/<testsuite /<testsuite hostname="localhost" /g' "$XML_PATH" 2>/dev/null || true
+      sed -i 's/<testsuite /<testsuite name=\"'"$APP_PACKAGE"'\" hostname="localhost" /g' "$XML_PATH" 2>/dev/null || true
     done
     
     echo "✅ XML test results ready for dorny/test-reporter at both expected locations!"
