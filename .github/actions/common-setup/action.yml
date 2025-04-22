@@ -144,9 +144,10 @@ runs:
           ~/.gradle/wrapper
           android/.gradle
           android/build-cache
-        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: |
-          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-
+          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
+          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-
           ${{ runner.os }}-gradle-
 
     - name: Setup Gradle

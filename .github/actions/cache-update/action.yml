@@ -54,7 +54,7 @@ runs:
           ~/.gradle/wrapper
           android/.gradle
           android/build-cache
-        key: ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         
     # Yarn cache - Save only
     - name: Save yarn cache
