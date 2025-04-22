@@ -20,9 +20,15 @@ env:
   ANDROID_ARCH: x86_64
   ANDROID_PROFILE: 7.6in Foldable
   ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
-  
+
   # Define constant for each job to use
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+
+  # Setup ccache environment variables
+  CCACHE_DEBUG: 1
+  CCACHE_VERBOSE: 1
+  CCACHE_MAXSIZE: 5G
+  CCACHE_BASEDIR: ${{ github.workspace }}
 
 on:
   push:
@@ -42,7 +48,6 @@ jobs:
     strategy:
       matrix:
         arch: [arm64-v8a, x86_64]
-      # Add fail-fast:false to allow both architectures to complete independently
       fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
@@ -52,12 +57,17 @@ jobs:
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
-    
+
     steps:
     - uses: actions/checkout@v3
       with:
-        fetch-depth: 1 # Shallow clone for faster checkout
-    
+        fetch-depth: 1
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        create-symlink: true
+
     # Set current date and repository name
     - name: Set current date as env variable
       id: set_date
@@ -69,8 +79,7 @@ jobs:
       run: |
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
-    
-    # Execute the common setup
+
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
@@ -79,21 +88,30 @@ jobs:
         node_version: "22.x"
         arch: ${{ matrix.arch }}
 
-    # Note: All caches are now handled in common-setup
-
-    # Cache NDK and CMake builds - This step has been moved to common-setup action's post section
-    
-    - name: Make check native build artifacts script executable
-      run: chmod +x scripts/check_native_build_artifacts.sh
-
-    # Check if CMake build artifacts exist for integration tests
-    - name: Check CMake build artifacts for integration tests
+    # Debug Main Build Task Graph
+    - name: Debug Main Build Task Graph
       run: |
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
+        cd android && \
+        echo "=== Main Build Task Graph ===" && \
+        ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
+                  -PreactNativeArchitectures="${BUILD_ARCH}" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
+                  --dry-run \
+                  --info \
+                  --console=verbose \
+                  --parallel --max-workers=4 --build-cache --configure-on-demand
+      env:
+        BUILD_ARCH: ${{ matrix.arch }}
+
+    - name: Ccachify the Native Modules
       shell: bash
-    
+      run: |
+        chmod +x scripts/ccachify_native_modules.sh
+        ./scripts/ccachify_native_modules.sh
+
     - name: Build Android APKs (Debug and Release) with Gradle
       run: |
         echo "Building for architecture: $BUILD_ARCH"
@@ -101,16 +119,21 @@ jobs:
         # Pass BUILD_ARCH directly to Gradle process to ensure it's available during configuration
         ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
                   -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
-                  :${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
-        --parallel --max-workers=4 --build-cache --configure-on-demand \
-        -Pandroid.prefabPublishing=true \
-        -Pandroid.prefabPackageType=STATIC
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
+                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
+        --parallel --max-workers=4 --build-cache --configure-on-demand
+
       env:
         # Explicitly set BUILD_ARCH for Gradle process
         BUILD_ARCH: ${{ matrix.arch }}
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
 
     # Save the build artifacts to be used in other jobs
     - name: Upload APK artifacts
@@ -131,12 +154,11 @@ jobs:
 
     # Update all caches
     - name: Update Caches
+      if: always()
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
-        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
-        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
-        
+
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
     needs: build
@@ -152,13 +174,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      
+
       # Import build variables from build job
       - name: Set build variables
         run: |
           echo "build_datetime=${{ needs.build.outputs.build_datetime }}" >> $GITHUB_ENV
           echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
-          
+
       # Download build artifacts for current architecture
       - name: Download APK artifacts
         uses: actions/download-artifact@v4
@@ -171,19 +193,19 @@ jobs:
         with:
           name: android-bundle-artifacts-${{ matrix.arch }}
           path: artifacts/bundle/
-      
+
       # Prepare directory structure for signing
       - name: Prepare directories for signing
         run: |
           mkdir -p signing/apk/debug
           mkdir -p signing/apk/release
           mkdir -p signing/bundle/release
-          
+
           # Organize APKs by type
           find artifacts/apk/ -path "*/debug/*" -name "*.apk" -exec cp {} signing/apk/debug/ \;
           find artifacts/apk/ -path "*/release/*" -name "*.apk" -exec cp {} signing/apk/release/ \;
           find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
-          
+
           # Verify contents
           echo "Files to sign:"
           find signing -type f | sort
@@ -212,7 +234,7 @@ jobs:
           keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
         env:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
-      
+
       - uses: r0adkll/sign-android-release@v1
         name: Sign RELEASE app AABs
         id: sign_release_aab
@@ -229,7 +251,7 @@ jobs:
       - name: Rename and organize signed artifacts
         run: |
           mkdir -p renamed_apks
-          
+
           sanitize_branch_name() {
             echo "$1" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-20
           }
@@ -250,22 +272,22 @@ jobs:
             SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
             SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
           fi
-          
+
           # Find and rename signed debug APKs
           find signing/apk/debug/ -name "*-signed.apk" | while read apk; do
             cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-debug.apk
           done
-          
+
           # Find and rename signed release APKs
           find signing/apk/release/ -name "*-signed.apk" | while read apk; do
             cp "$apk" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}-release.apk
           done
-          
+
           # Find and rename signed AABs
           find signing/bundle/release/ -name "*-signed.aab" | while read aab; do
             cp "$aab" renamed_apks/${{env.app_file_name_prefix}}${SUFFIX}-${{ matrix.arch }}.aab
           done
-          
+
           # List all renamed files
           echo "Renamed files:"
           ls -la renamed_apks/
@@ -326,33 +348,59 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
-    
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        create-symlink: true
+
     # Execute the common setup
     - name: Common Setup
       uses: ./.github/actions/common-setup
       with:
         gradle_max_workers: "4"
         node_version: "22.x"
-    
+        arch: ${{ matrix.arch }}
+
+    # Debug unit test task graph
+    - name: Debug Unit Test Task Graph
+      run: |
+        cd android && \
+        echo "=== Unit Test Task Graph ===" && \
+        ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
+                  -PreactNativeArchitectures="${{ matrix.arch }}" \
+                  :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
+                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
+                  --dry-run \
+                  --info \
+                  --console=verbose \
+                  --continue --configure-on-demand
+      env:
+        BUILD_ARCH: ${{ matrix.arch }}
+
     # Run the unit tests
     - name: Run Unit Tests
       run: |
         cd android && \
         ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
                   -PreactNativeArchitectures="${{ matrix.arch }}" \
+                  :${{ env.main_project_module }}:generatePackageList \
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-        --continue --configure-on-demand
+        --continue --configure-on-demand \
+        -Pandroid.externalNativeBuild.skip=true \
+        -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
     # Generate Jacoco coverage report
     # always() is used to ensure the coverage report is generated even if the tests fail
     - name: Generate Jacoco Coverage Report
-      if: always() 
+      if: always()
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
+        -Pandroid.externalNativeBuild.skip=true
 
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
@@ -363,7 +411,7 @@ jobs:
         path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
         reporter: java-junit
         fail-on-error: true
-        
+
     # Upload test results
     - name: Upload Unit Test Results
       if: always() # Always upload results even if tests fail
@@ -376,10 +424,124 @@ jobs:
           android/app/build/outputs/logs/
         retention-days: 90
 
-        
+
+  # integration-test:
+  #   name: Test Android App
+  #   needs: [build]
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       arch: [x86_64] # Only test on x86_64 to save time and resources
+  #     fail-fast: false
+  #   env:
+  #     ENTRY_FILE: "index.tsx"
+  #     GRADLE_ABI: ${{ matrix.arch }}
+  #     BUILD_ARCH: ${{ matrix.arch }}
+  #   timeout-minutes: 30
+
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #     with:
+  #       fetch-depth: 1
+
+  #   # Execute the common setup with emulator configuration
+  #   - name: Common Setup
+  #     id: common-setup
+  #     uses: ./.github/actions/common-setup
+  #     with:
+  #       gradle_max_workers: "4"
+  #       node_version: "22.x"
+  #       arch: ${{ matrix.arch }}
+  #       android_api_level: ${{ env.ANDROID_API_LEVEL }}
+  #       android_target: ${{ env.ANDROID_TARGET }}
+  #       android_profile: ${{ env.ANDROID_PROFILE }}
+  #       run_emulator_setup: "true"
+
+  #   - name: Make scripts executable
+  #     run: |
+  #       chmod +x scripts/wait_for_emulator.sh
+  #       chmod +x scripts/run_android_tests.sh
+
+  #   - name: Download APK artifacts
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: android-apk-artifacts-${{ matrix.arch }}
+  #       path: android/app/build/outputs/apk
+
+  #   - name: Run Android Tests
+  #     id: run_tests
+  #     uses: reactivecircus/android-emulator-runner@v2
+  #     with:
+  #       api-level: ${{ env.ANDROID_API_LEVEL }}
+  #       target: ${{ env.ANDROID_TARGET }}
+  #       arch: ${{ matrix.arch }}
+  #       profile: ${{ env.ANDROID_PROFILE }}
+  #       avd-name: 'integration-test'
+  #       force-avd-creation: false
+  #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+  #       disable-animations: true
+  #       script: ./scripts/wait_for_emulator.sh && ./scripts/deprecated_run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} 
+
+  #   # Step 3: Generate JaCoCo coverage report
+  #   - name: Generate Jacoco Coverage Report
+  #     if: always()
+  #     run: |
+  #       cd android && \
+  #       ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+
+  #   # Publish integration test results
+  #   - name: Publish Integration Test Results
+  #     uses: dorny/test-reporter@v2
+  #     if: always()
+  #     with:
+  #       name: 'Integration Tests'
+  #       path: |
+  #         android/${{ env.main_project_module }}/build/outputs/androidTest-results/connected/**/*.xml
+  #         android/${{ env.main_project_module }}/build/outputs/connected/**/*.xml
+  #       reporter: java-junit
+  #       fail-on-error: true
+
+  #   - name: Upload Coverage Report
+  #     if: always()
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: android-test-coverage-report
+  #       path: |
+  #         android/app/build/reports/
+  #         android/app/build/reports/jacoco/jacocoAndroidTestReport/
+  #         android/app/build/outputs/code_coverage/
+  #         android/app/build/outputs/logs/
+  #         android/app/build/test-results/
+  #       retention-days: 90
+
+  #   - name: Upload Emulator Log
+  #     if: always()
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: emulator-log
+  #       path: emulator.log
+  #       retention-days: 90
+
+  #   # Update all caches
+  #   - name: Update Caches
+  #     if: always()
+  #     uses: ./.github/actions/cache-update
+  #     with:
+  #       arch: ${{ matrix.arch }}
+  #       run_emulator_setup: "true"
+
+  #   - name: Setup tmate session
+  #     if: ${{ failure() }}
+  #     uses: mxschmitt/action-tmate@v3
+  #     with:
+  #       limit-access-to-actor: true
+
+  # TODO: before instrument-test can take over from integration-test (and drop rebuilding the app for no reason)
+  # 1. we have to figure out how mark tests failing as a failure but still get the coverage files exported ( just occured to me we can use same xml file as below!)
+  # 2. we need to get the xml file that does the test results for the dorny thing
   integration-test:
     name: Test Android App
-    needs: build
+    needs: [build]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -390,17 +552,18 @@ jobs:
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 30
-    
+
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 1
-    
+
     # Execute the common setup with emulator configuration
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
       with:
+        optional_cache_key: "integration-test"
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
@@ -409,31 +572,19 @@ jobs:
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
 
-    # Download the build artifacts - only for the architecture being tested
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/wait_for_emulator.sh
+        chmod +x scripts/run_android_tests.sh
+        chmod +x scripts/generate_android_coverage.sh
+
     - name: Download APK artifacts
       uses: actions/download-artifact@v4
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
-        path: android/${{ env.main_project_module }}/build/outputs/apk/
-  
-    - name: Make check native build artifacts script executable
-      run: chmod +x scripts/check_native_build_artifacts.sh
+        path: android/app/build/outputs/apk
 
-    # Check if CMake build artifacts exist for integration tests
-    - name: Check CMake build artifacts for integration tests
-      run: |
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/cmake"
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/merged_native_libs/"
-        ./scripts/check_native_build_artifacts.sh "android/app/build/intermediates/stripped_native_libs/"
-      shell: bash
-
-    - name: Make wait script executable
-      run: chmod +x scripts/wait_for_emulator.sh
-
-    - name: Make test script executable
-      run: chmod +x scripts/run_android_tests.sh
-
-    - name: Run Android Tests with Coverage
+    - name: Run Android Tests
       id: run_tests
       uses: reactivecircus/android-emulator-runner@v2
       with:
@@ -444,24 +595,25 @@ jobs:
         force-avd-creation: false
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
         disable-animations: true
-        script: |
-          ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
-          
-    # Generate Jacoco coverage report
-    # always() is used to ensure the coverage report is generated even if the tests fail
+        # TODO: make a PR so this thing can properly take a multiline script call
+        # too easy to make mistakes with line this long
+        # super annoying to have to make yet another script to forget to chmod +x on accident
+        script: ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }}
+
+    # Step 3: Generate JaCoCo coverage report
     - name: Generate Jacoco Coverage Report
-      if: always() 
+      if: always()
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --debug --stacktrace
-        
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+
     # Publish integration test results
     - name: Publish Integration Test Results
       uses: dorny/test-reporter@v2
       if: always()
       with:
         name: 'Integration Tests'
-        path: 'android/${{ env.main_project_module }}/build/outputs/**/connected/**/*.xml'
+        path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
         reporter: java-junit
         fail-on-error: true
 
@@ -469,7 +621,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: android-test-coverage-report
+        name: android-test-coverage-report-${{ needs.build.outputs.build_datetime }}
         path: |
           android/app/build/reports/
           android/app/build/reports/jacoco/jacocoAndroidTestReport/
@@ -477,7 +629,7 @@ jobs:
           android/app/build/outputs/logs/
           android/app/build/test-results/
         retention-days: 90
-    
+
     - name: Upload Emulator Log
       if: always()
       uses: actions/upload-artifact@v4
@@ -485,7 +637,7 @@ jobs:
         name: emulator-log
         path: emulator.log
         retention-days: 90
-        
+
     # Update all caches
     - name: Update Caches
       if: always()
@@ -493,36 +645,40 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
-        native_build_hash: ${{ steps.common-setup.outputs.native-build-hash }}
-        already_uploaded_artifacts: ${{ steps.common-setup.outputs.native-build-artifacts-uploaded == 'true' }}
-        
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+
   coverage-report:
     name: Process Code Coverage
-    needs: [unit-tests, integration-test]
+    needs: [unit-tests, build, integration-test]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
-      
+
       # Download coverage results from both unit and integration tests
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
         with:
-          name: unit-test-results
+          name: unit-test-results-${{ needs.build.outputs.build_datetime }}
           # path relative to build directory. because highest common directory is build
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
-      
+
       - name: Download integration test coverage
         uses: actions/download-artifact@v4
         with:
-          name: android-test-coverage-report
+          name: android-test-coverage-report-${{ needs.build.outputs.build_datetime }}
           # path relative to build directory. because highest common directory is build
           path: coverage-data/integration-tests/android/app/build/
         continue-on-error: true
-        
+
       # Process and generate coverage report from Jacoco XML files
       - name: Generate JaCoCo Coverage Report
         id: jacoco
@@ -536,17 +692,17 @@ jobs:
           min-coverage-changed-files: 60
           title: 'Code Coverage Report'
           update-comment: true
-          
+
       # Upload detailed HTML coverage report
       - name: Upload HTML Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-html
+          name: code-coverage-report-html-${{ needs.build.outputs.build_datetime }}
           path: |
             coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
             coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
           retention-days: 90
-          
+
       # Create a PR comment with coverage report link if this is a PR
       - name: PR Comment with Coverage Report
         if: github.event_name == 'pull_request'
@@ -560,10 +716,10 @@ jobs:
             | ---- | -------- |
             | Line | ${{ steps.jacoco.outputs.coverage-overall }} |
             | Branch | ${{ steps.jacoco.outputs.branches-overall }} |
-            
+
             [View detailed coverage report](${workflowUrl}#artifacts)
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -580,25 +736,25 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: signed-*
           path: artifacts
-      
+
       - name: Generate Changelog
         run: |
           echo "# Release ${GITHUB_REF#refs/tags/}" > ${{ github.workspace }}-CHANGELOG.txt
           echo "" >> ${{ github.workspace }}-CHANGELOG.txt
           echo "## What's Changed" >> ${{ github.workspace }}-CHANGELOG.txt
           git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"* %s" >> ${{ github.workspace }}-CHANGELOG.txt
-      
+
       - name: Organize release files
         run: |
           mkdir -p release_files
           find artifacts/ -name "*.apk" -o -name "*.aab" | xargs -I{} cp {} release_files/
-      
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

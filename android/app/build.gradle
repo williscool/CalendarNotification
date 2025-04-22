@@ -24,30 +24,10 @@ apply plugin: 'jacoco'
 def isCiBuild = System.getenv("CI") != null && System.getenv("CI").toBoolean()
 // Alternatively, you can also check for GitHub Actions specifically
 def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("GITHUB_ACTIONS").toBoolean()
-// Combined flag to determine if we should bundle JS
+
+// used to use this to determine if we should bundle JS. that code wasn't compatible with configuration cache
+// so now we just do it ci
 def isCIBuild = isCiBuild || isGitHubActions
-
-// Task to generate React Native bundle for CI builds
-if (isCIBuild) {
-    tasks.register("createJSBundle", Exec) {
-        workingDir "../../"
-        commandLine "yarn", "react-native", "bundle", "--platform", "android", 
-                    "--dev", "${project.gradle.startParameter.taskNames.any { it.contains('Debug') } ? 'true' : 'false'}", 
-                    "--entry-file", "index.tsx", 
-                    "--bundle-output", "android/app/src/main/assets/index.android.bundle", 
-                    "--assets-dest", "android/app/src/main/res/"
-        
-        // Create assets directory if it doesn't exist
-        doFirst {
-            new File("${projectDir}/src/main/assets").mkdirs()
-        }
-
-        // Only run if bundle doesn't exist
-        onlyIf {
-            !new File("${projectDir}/src/main/assets/index.android.bundle").exists()
-        }
-    }
-}
 
 android {
   compileSdkVersion 34
@@ -103,9 +83,20 @@ android {
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
-    // Add test runner configuration
+    // Enhanced test instrumentation with JaCoCo
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    testInstrumentationRunnerArguments = [
+        'coverage': 'true',
+        'jacoco-agent.destfile': '/data/data/com.github.quarck.calnotify/files/coverage.ec',
+        'jacoco-agent.includes': 'com.github.quarck.calnotify.*'
+    ]
 
+    externalNativeBuild {
+      cmake{
+        abiFilters 'x86_64', 'arm64-v8a'
+      }
+    }
+    
     ndk { 
       abiFilters 'x86_64', 'arm64-v8a'
     }
@@ -125,12 +116,15 @@ android {
   flavorDimensions "abi"
   
   // Get the architecture from environment variable or project property or default to supporting both
-  def buildArch = project.hasProperty('BUILD_ARCH') ? project.getProperty('BUILD_ARCH') : System.getenv("BUILD_ARCH")
-  println "Building for architecture: ${buildArch ?: 'defaulting to x86_64'}"
+  def buildArch = providers.gradleProperty('BUILD_ARCH')
+    .orElse(providers.environmentVariable('BUILD_ARCH'))
+    .forUseAtConfigurationTime()
+
+  println "Building for architecture: ${buildArch.orNull ?: 'defaulting to x86_64'}"
   
   productFlavors {
     // Only create arm64v8a flavor if specifically requested
-    if (buildArch == "arm64-v8a") {
+    if (buildArch.orNull == "arm64-v8a") {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
@@ -141,7 +135,7 @@ android {
     }
     
     // Create x8664 flavor if specifically requested or no arch specified (default)
-    if (buildArch == "x86_64" || buildArch == null) {
+    if (buildArch.orNull == "x86_64" || buildArch.orNull == null) {
       x8664 {
         dimension "abi"
         versionNameSuffix "-x86_64"
@@ -161,6 +155,9 @@ android {
         preDexLibraries true
         threadCount = 4
       }
+      ndk {
+        abiFilters 'x86_64', 'arm64-v8a'
+      }
     }
     release {
       testCoverageEnabled true
@@ -177,6 +174,9 @@ android {
       lintOptions {
         disable 'MissingTranslation'
         abortOnError false
+      }
+      ndk {
+        abiFilters 'x86_64', 'arm64-v8a'
       }
     }
 
@@ -202,16 +202,19 @@ android {
     preDexLibraries true
     threadCount = 4
   }
+
+  // Add proper JaCoCo instrumentation for tests
+  testOptions {
+    unitTests.all {
+      jacoco {
+        includeNoLocationClasses = true
+        excludes = ['jdk.internal.*']
+      }
+    }
+    execution 'ANDROIDX_TEST_ORCHESTRATOR'
+  }
 }
 
-// Ensure the CI build generates the bundle before assembling
-if (isCIBuild) {
-    tasks.whenTaskAdded { task ->
-        if (task.name.contains('assemble') || task.name.contains('bundle')) {
-            task.dependsOn createJSBundle
-        }
-    }
-}
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -297,61 +300,159 @@ dependencies {
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
-  entryFile = file("../../index.tsx")
-}
-
-// Add task dependency check for bundle generation
-tasks.whenTaskAdded { task ->
-    if (task.name.contains('createBundle') && !isCIBuild) {
-        def bundleFile = new File("${projectDir}/src/main/assets/index.android.bundle")
-        if (bundleFile.exists()) {
-            task.enabled = false
-        }
-    }
+  entryFile = layout.projectDirectory.file("../../index.tsx").asFile
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
 
-// Add JaCoCo task configuration
+// Configure JaCoCo properly
 jacoco {
     toolVersion = "0.8.12"
 }
 
+// Configure all tests to use JaCoCo instrumentation
 tasks.withType(Test) {
     jacoco.includeNoLocationClasses = true
     jacoco.excludes = ['jdk.internal.*']
 }
 
-// Add task to generate coverage report
-// TODO: make some unit tests then update the below after that :D
-//task jacocoTestReport(type: JacocoReport, dependsOn: ['testDebugUnitTest']) {
-//    reports {
-//        xml.required = true
-//        html.required = true
-//        csv.required = false
-//    }
-//    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
-//    classDirectories.setFrom(files([
-//        fileTree(dir: 'build/intermediates/javac/debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-//        fileTree(dir: 'build/tmp/kotlin-classes/debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
-//    ]))
-//    executionData.setFrom(fileTree(dir: 'build/reports', include: '**/*.html'))
-//}
-
 // Add task to generate coverage report for Android tests
-// MUST run connectedAndroidTest before running this for it to work
-// but no need to force that to be run over again every time just to see the report
-// thus no dependsOn
 task jacocoAndroidTestReport(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate JaCoCo coverage reports after running Android tests"
+    
+    
     reports {
         xml.required = true
         html.required = true
         csv.required = true
+        
+        // Add output directory configuration for better organization
+        html.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/html")
+        xml.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/xml/report.xml")
+        csv.outputLocation = file("${buildDir}/reports/jacoco/jacocoAndroidTestReport/csv/report.csv")
     }
-    sourceDirectories.setFrom(files(['src/main/java', 'src/main/kotlin']))
-    classDirectories.setFrom(files([
-        fileTree(dir: 'build/intermediates/javac/x8664Debug/classes', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*']),
-        fileTree(dir: 'build/tmp/kotlin-classes/x8664Debug', excludes: ['**/R.class', '**/R$*.class', '**/*$ViewInjector*.class', '**/*$ViewBinder*.class', '**/BuildConfig.*', '**/Manifest*.*'])
+    
+    // Get architecture from property or environment, defaulting to x86_64
+    def buildArch = providers.gradleProperty('BUILD_ARCH')
+        .orElse(providers.environmentVariable('BUILD_ARCH'))
+        .orElse('x86_64')
+        .forUseAtConfigurationTime()
+        .get()
+    
+    // Convert architecture to variant name format
+    def archSuffix = buildArch == 'arm64-v8a' ? 'Arm64V8a' : 'X8664'
+    
+    // Dynamic paths based on architecture
+    def debugVariant = "${archSuffix.toLowerCase()}Debug"
+    
+    println "Generating JaCoCo report for ${debugVariant} variant"
+    
+    // Correct source directories to include Kotlin files
+    sourceDirectories.setFrom(files([
+        'src/main/java',
+        'src/main/kotlin'
     ]))
-    executionData.setFrom(fileTree(dir: 'build/outputs/code_coverage/', include: '**/*.ec'))
+    
+    // Use a more targeted approach for class directories
+    classDirectories.setFrom(files([
+        fileTree(
+            dir: "${buildDir}",
+            includes: [
+                "**/tmp/kotlin-classes/${debugVariant}/**/*.class",
+                "**/intermediates/javac/${debugVariant}/classes/**/*.class"
+            ],
+            excludes: [
+                '**/R.class',
+                '**/R$*.class',
+                '**/BuildConfig.*',
+                '**/Manifest*.*',
+                '**/*Test*.*',
+                '**/com/facebook/react/**',
+                '**/com/facebook/hermes/**',
+                '**/com/facebook/jni/**',
+                '**/org/jacoco/**',
+                '**/com/android/tools/jacoco/**'
+            ]
+        )
+    ]))
+    
+    // Look for the coverage file in ALL possible locations
+    executionData.setFrom(fileTree(
+        dir: "${buildDir}", 
+        includes: [
+            "**/outputs/code_coverage/*.ec",
+            "**/outputs/code_coverage/**/*.ec",
+            "**/outputs/code-coverage/**/*.ec",
+            "**/outputs/connected/**/*.ec",
+            "**/coverage/**/*.ec",
+            "**/outputs/**/*.ec"
+        ]
+    ))
+    
+    doFirst {
+        println "=== JaCoCo Report Configuration ==="
+        println "Architecture: ${buildArch} (${archSuffix})"
+        
+        println "\nClass Directories:"
+        classDirectories.files.each { file ->
+            if (file.exists()) {
+                def fileCount = 0
+                if (file.isDirectory()) {
+                    fileCount = file.listFiles()?.size ?: 0
+                }
+                println " - ${file.absolutePath} (exists with ${fileCount} files)"
+            } else {
+                println " - ${file.absolutePath} (directory not found)"
+            }
+        }
+        
+        println "\nInstrumented Class Search:"
+        def classesFound = false
+        fileTree(dir: "${buildDir}").matching { 
+            include "**/classes/**/*.class"
+            include "**/kotlin/compile*/**/*.class"
+            include "**/intermediates/javac/**/*.class"
+            include "**/tmp/kotlin-classes/**/*.class"
+        }.visit { fileDetails ->
+            if (fileDetails.name.endsWith(".class") && classesFound == false) {
+                println " - Found instrumented classes at: ${fileDetails.file.parentFile.absolutePath}"
+                classesFound = true
+            }
+        }
+        
+        println "\nCoverage Files:"
+        executionData.files.each { file ->
+            if (file.exists()) {
+                println " - ${file.absolutePath} (exists with size ${file.length()} bytes)"
+            } else {
+                println " - ${file.absolutePath} (file not found)"
+            }
+        }
+        
+        // Only proceed if we have non-empty execution data
+        def hasNonEmptyData = false
+        executionData.files.each { file ->
+            if (file.exists() && file.length() > 0) {
+                println "\n✅ Found non-empty coverage file: ${file.absolutePath} (${file.length()} bytes)"
+                hasNonEmptyData = true
+            }
+        }
+        
+        if (!hasNonEmptyData) {
+            println "\n❌ No non-empty coverage files found. Report will be empty."
+            println "Try running the tests again with: ./scripts/run_android_tests.sh"
+        }
+    }
+    
+    // Skip the task if there are no execution data files or they're all empty
+    onlyIf { 
+        def hasData = false
+        executionData.files.each { file ->
+            if (file.exists() && file.length() > 0) {
+                hasData = true
+            }
+        }
+        return hasData
+    }
 }
