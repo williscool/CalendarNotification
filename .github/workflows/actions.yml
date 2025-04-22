@@ -423,6 +423,7 @@ jobs:
         name: 'Unit Tests'
         path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
         reporter: java-junit
+        use-actions-summary: 'true'
         fail-on-error: true
 
     # Upload test results
