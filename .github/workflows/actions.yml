@@ -13,6 +13,9 @@ env:
   # Explicitly set CI flag to true for our Gradle task
   CI: true
 
+  # Build datetime for all jobs to use
+  build_datetime: ${{ format('{0:yyyy-MM-dd HH_mm_ss}', github.event.head_commit.timestamp) }}
+
   # Android Emulator Configuration
   ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
   ANDROID_API_LEVEL: 34
@@ -55,7 +58,6 @@ jobs:
       BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 30
     outputs:
-      build_datetime: ${{ steps.set_date.outputs.build_datetime }}
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
 
     steps:
@@ -68,12 +70,7 @@ jobs:
       with:
         create-symlink: true
 
-    # Set current date and repository name
-    - name: Set current date as env variable
-      id: set_date
-      run: |
-        echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_OUTPUT
-
+    # Set repository name as env variable
     - name: Set repository name as env variable
       id: set_repo
       run: |
@@ -190,7 +187,6 @@ jobs:
       # Import build variables from build job
       - name: Set build variables
         run: |
-          echo "build_datetime=${{ needs.build.outputs.build_datetime }}" >> $GITHUB_ENV
           echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
 
       # Download build artifacts for current architecture
@@ -308,19 +304,19 @@ jobs:
       - name: Upload SIGNED APK Debug
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
+          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
       - name: Upload SIGNED APK RELEASE
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
+          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
       - name: Upload SIGNED AAB (App Bundle) Release
         uses: actions/upload-artifact@v4
         with:
-          name: "signed-${{ needs.build.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
+          name: "signed-${{ env.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
 
   comment-pr:
@@ -439,7 +435,7 @@ jobs:
         retention-days: 90
 
 
-  # integration-test:
+  # connected-android-integration-test:
   #   name: Test Android App
   #   needs: [build]
   #   runs-on: ubuntu-latest
@@ -470,6 +466,7 @@ jobs:
   #       android_target: ${{ env.ANDROID_TARGET }}
   #       android_profile: ${{ env.ANDROID_PROFILE }}
   #       run_emulator_setup: "true"
+  #       optional_cache_key: "connected-android-integration-test"
 
   #   - name: Make scripts executable
   #     run: |
@@ -490,7 +487,7 @@ jobs:
   #       target: ${{ env.ANDROID_TARGET }}
   #       arch: ${{ matrix.arch }}
   #       profile: ${{ env.ANDROID_PROFILE }}
-  #       avd-name: 'integration-test'
+  #       avd-name: 'connected-android-integration-test'
   #       force-avd-creation: false
   #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
   #       disable-animations: true
@@ -646,7 +643,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: android-test-coverage-report-${{ needs.build.outputs.build_datetime }}
+        name: android-test-coverage-report-${{ env.build_datetime }}
         path: |
           android/app/build/reports/
           android/app/build/reports/jacoco/jacocoAndroidTestReport/
@@ -691,7 +688,7 @@ jobs:
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
         with:
-          name: unit-test-results-${{ needs.build.outputs.build_datetime }}
+          name: unit-test-results-${{ env.build_datetime }}
           # path relative to build directory. because highest common directory is build
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
@@ -699,7 +696,7 @@ jobs:
       - name: Download integration test coverage
         uses: actions/download-artifact@v4
         with:
-          name: android-test-coverage-report-${{ needs.build.outputs.build_datetime }}
+          name: android-test-coverage-report-${{ env.build_datetime }}
           # path relative to build directory. because highest common directory is build
           path: coverage-data/integration-tests/android/app/build/
         continue-on-error: true
@@ -722,7 +719,7 @@ jobs:
       - name: Upload HTML Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage-report-html-${{ needs.build.outputs.build_datetime }}
+          name: code-coverage-report-html-${{ env.build_datetime }}
           path: |
             coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
             coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
