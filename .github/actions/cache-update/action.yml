@@ -2,6 +2,10 @@ name: 'Cache Update'
 description: 'Updates caches for Android builds'
 
 inputs:
+  optional_cache_key:
+    description: 'Optional cache key'
+    required: false
+    default: ""
   arch:
     description: 'Architecture (arm64-v8a, x86_64)'
     required: false
@@ -27,7 +31,7 @@ runs:
 
     # Build Outputs Cache - Save only
     - name: Save Build Outputs Cache
-      if: always() && inputs.arch != ''
+      if: always() && inputs.arch != '' && inputs.optional_cache_key != 'integration-test'
       uses: actions/cache/save@v4
       with:
         path: |
