@@ -427,7 +427,7 @@ jobs:
       if: always() # Always upload results even if tests fail
       uses: actions/upload-artifact@v4
       with:
-        name: unit-test-results
+        name: unit-test-results-${{ env.build_datetime }}
         path: |
           android/app/build/reports/
           android/app/build/test-results/
