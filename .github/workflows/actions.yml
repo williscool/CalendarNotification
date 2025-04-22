@@ -68,6 +68,13 @@ jobs:
       with:
         create-symlink: true
         restore-keys: |
+          ccache-2025-04-22T04:58:44.091Z
+          ccache-2025-04-22T04:58:44
+          ccache-2025-04-22T04:58
+          ccache-2025-04-22T04
+          ccache-2025-04-22
+          ccache-2025-04
+          ccache-2025
           ccache-
 
     # Set current date and repository name
