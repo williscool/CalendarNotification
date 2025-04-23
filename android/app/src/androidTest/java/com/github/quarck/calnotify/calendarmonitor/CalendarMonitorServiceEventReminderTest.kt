@@ -564,6 +564,18 @@ class CalendarMonitorServiceEventReminderTest {
       DevLog.info(LOG_TAG, "Mock cancelExactAndAlarm called: receivers=${receiverClass1.simpleName}, ${receiverClass2.simpleName}")
     }
 
+    // Create a proper mock of Resources with non-null Configuration
+    val mockConfiguration = android.content.res.Configuration().apply {
+      setToDefaults()
+    }
+    
+    // Create a robust Resources mock that always returns a valid Configuration
+    val mockResources = mockk<android.content.res.Resources>(relaxed = true) {
+      every { getConfiguration() } returns mockConfiguration
+      every { configuration } returns mockConfiguration
+      every { displayMetrics } returns realContext.resources.displayMetrics
+    }
+
     fakeContext = mockk<Context>(relaxed = true) {
       every { packageName } returns realContext.packageName
       every { packageManager } returns realContext.packageManager
@@ -596,7 +608,9 @@ class CalendarMonitorServiceEventReminderTest {
         ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
       }
       every { startActivity(any()) } just Runs
-      every { getResources() } returns realContext.resources
+      // Replace delegation to real resources with our own mock
+      every { getResources() } returns mockResources
+      every { resources } returns mockResources
       every { getTheme() } returns realContext.theme
     }
   }
