@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.VersionedPackage
+import android.content.res.Configuration
+import android.content.res.Resources
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorService
 import com.github.quarck.calnotify.globalState
@@ -111,63 +113,75 @@ class MockContextProvider(
     private fun setupContext(realContext: Context) {
         DevLog.info(LOG_TAG, "Setting up mock context")
 
-      // Create mock package manager with enhanced functionality
-      val mockPackageManager = mockk<android.content.pm.PackageManager> {
-        every { resolveActivity(any(), any<Int>()) } answers {
-          val intent = firstArg<Intent>()
-          val flags = secondArg<Int>()
-          realContext.packageManager.resolveActivity(intent, flags)
+        // Create mock package manager with enhanced functionality
+        val mockPackageManager = mockk<android.content.pm.PackageManager> {
+            every { resolveActivity(any(), any<Int>()) } answers {
+                val intent = firstArg<Intent>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.resolveActivity(intent, flags)
+            }
+            every { queryIntentActivities(any(), any<Int>()) } answers {
+                val intent = firstArg<Intent>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.queryIntentActivities(intent, flags)
+            }
+            every { getApplicationInfo(any<String>(), any<Int>()) } answers {
+                val packageName = firstArg<String>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.getApplicationInfo(packageName, flags)
+            }
+            @Suppress("DEPRECATION")
+            every { getApplicationInfo(any<String>(), any<android.content.pm.PackageManager.ApplicationInfoFlags>()) } answers {
+                val packageName = firstArg<String>()
+                val flags = secondArg<android.content.pm.PackageManager.ApplicationInfoFlags>()
+                realContext.packageManager.getApplicationInfo(packageName, flags)
+            }
+            every { getActivityInfo(any<ComponentName>(), any<Int>()) } answers {
+                val component = firstArg<ComponentName>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.getActivityInfo(component, flags)
+            }
+            @Suppress("DEPRECATION")
+            every { getActivityInfo(any<ComponentName>(), any<android.content.pm.PackageManager.ComponentInfoFlags>()) } answers {
+                val component = firstArg<ComponentName>()
+                val flags = secondArg<android.content.pm.PackageManager.ComponentInfoFlags>()
+                realContext.packageManager.getActivityInfo(component, flags)
+            }
+            every { getPackageInfo(any<String>(), any<Int>()) } answers {
+                val packageName = firstArg<String>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.getPackageInfo(packageName, flags)
+            }
+            @Suppress("DEPRECATION")
+            every { getPackageInfo(any<String>(), any<android.content.pm.PackageManager.PackageInfoFlags>()) } answers {
+                val packageName = firstArg<String>()
+                val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
+                realContext.packageManager.getPackageInfo(packageName, flags)
+            }
+            every { getPackageInfo(any<VersionedPackage>(), any<Int>()) } answers {
+                val versionedPackage = firstArg<VersionedPackage>()
+                val flags = secondArg<Int>()
+                realContext.packageManager.getPackageInfo(versionedPackage, flags)
+            }
+            @Suppress("DEPRECATION")
+            every { getPackageInfo(any<VersionedPackage>(), any<android.content.pm.PackageManager.PackageInfoFlags>()) } answers {
+                val versionedPackage = firstArg<VersionedPackage>()
+                val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
+                realContext.packageManager.getPackageInfo(versionedPackage, flags)
+            }
         }
-        every { queryIntentActivities(any(), any<Int>()) } answers {
-          val intent = firstArg<Intent>()
-          val flags = secondArg<Int>()
-          realContext.packageManager.queryIntentActivities(intent, flags)
+        
+        // Create a proper mock of Resources with non-null Configuration
+        val mockConfiguration = Configuration().apply {
+            setToDefaults()
         }
-        every { getApplicationInfo(any<String>(), any<Int>()) } answers {
-          val packageName = firstArg<String>()
-          val flags = secondArg<Int>()
-          realContext.packageManager.getApplicationInfo(packageName, flags)
+        
+        // Create a robust Resources mock that always returns a valid Configuration
+        val mockResources = mockk<Resources>(relaxed = true) {
+            every { getConfiguration() } returns mockConfiguration
+            every { configuration } returns mockConfiguration
+            every { displayMetrics } returns realContext.resources.displayMetrics
         }
-        @Suppress("DEPRECATION")
-        every { getApplicationInfo(any<String>(), any<android.content.pm.PackageManager.ApplicationInfoFlags>()) } answers {
-          val packageName = firstArg<String>()
-          val flags = secondArg<android.content.pm.PackageManager.ApplicationInfoFlags>()
-          realContext.packageManager.getApplicationInfo(packageName, flags)
-        }
-        every { getActivityInfo(any<ComponentName>(), any<Int>()) } answers {
-          val component = firstArg<ComponentName>()
-          val flags = secondArg<Int>()
-          realContext.packageManager.getActivityInfo(component, flags)
-        }
-        @Suppress("DEPRECATION")
-        every { getActivityInfo(any<ComponentName>(), any<android.content.pm.PackageManager.ComponentInfoFlags>()) } answers {
-          val component = firstArg<ComponentName>()
-          val flags = secondArg<android.content.pm.PackageManager.ComponentInfoFlags>()
-          realContext.packageManager.getActivityInfo(component, flags)
-        }
-        every { getPackageInfo(any<String>(), any<Int>()) } answers {
-          val packageName = firstArg<String>()
-          val flags = secondArg<Int>()
-          realContext.packageManager.getPackageInfo(packageName, flags)
-        }
-        @Suppress("DEPRECATION")
-        every { getPackageInfo(any<String>(), any<android.content.pm.PackageManager.PackageInfoFlags>()) } answers {
-          val packageName = firstArg<String>()
-          val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
-          realContext.packageManager.getPackageInfo(packageName, flags)
-        }
-        every { getPackageInfo(any<VersionedPackage>(), any<Int>()) } answers {
-          val versionedPackage = firstArg<VersionedPackage>()
-          val flags = secondArg<Int>()
-          realContext.packageManager.getPackageInfo(versionedPackage, flags)
-        }
-        @Suppress("DEPRECATION")
-        every { getPackageInfo(any<VersionedPackage>(), any<android.content.pm.PackageManager.PackageInfoFlags>()) } answers {
-          val versionedPackage = firstArg<VersionedPackage>()
-          val flags = secondArg<android.content.pm.PackageManager.PackageInfoFlags>()
-          realContext.packageManager.getPackageInfo(versionedPackage, flags)
-        }
-      }
         
         // Create a mock context with minimal implementation that delegates when possible
         fakeContext = mockk<Context>(relaxed = true) {
@@ -210,25 +224,29 @@ class MockContextProvider(
                 ComponentName(realContext.packageName, CalendarMonitorService::class.java.name)
             }
             every { startActivity(any()) } just Runs
-            every { getResources() } returns realContext.resources
+            
+            // Replace delegation to real resources with our own mock
+            every { getResources() } returns mockResources
+            every { resources } returns mockResources
+            
             every { getTheme() } returns realContext.theme
         }
 
-      // Mock the globalState extension property with safer implementation
-      mockkStatic("com.github.quarck.calnotify.GlobalStateKt")
-      every { any<Context>().globalState } answers {
-        mockk {
-          // Never return null from lastTimerBroadcastReceived to prevent NPEs
-          every { lastTimerBroadcastReceived } returns (this@MockContextProvider.lastTimerBroadcastReceived ?: System.currentTimeMillis())
-          
-          // Mock all other potential globalState properties to prevent missing property errors
-          every { lastNotificationRePost } returns System.currentTimeMillis() 
-          
-          every { lastTimerBroadcastReceived = any() } answers {
-            this@MockContextProvider.lastTimerBroadcastReceived = firstArg()
-          }
+        // Mock the globalState extension property with safer implementation
+        mockkStatic("com.github.quarck.calnotify.GlobalStateKt")
+        every { any<Context>().globalState } answers {
+            mockk {
+                // Never return null from lastTimerBroadcastReceived to prevent NPEs
+                every { lastTimerBroadcastReceived } returns (this@MockContextProvider.lastTimerBroadcastReceived ?: System.currentTimeMillis())
+                
+                // Mock all other potential globalState properties to prevent missing property errors
+                every { lastNotificationRePost } returns System.currentTimeMillis() 
+                
+                every { lastTimerBroadcastReceived = any() } answers {
+                    this@MockContextProvider.lastTimerBroadcastReceived = firstArg()
+                }
+            }
         }
-      }
     }
     
     /**
@@ -499,4 +517,4 @@ class MockContextProvider(
             handledIds
         }
     }
-} 
+}
