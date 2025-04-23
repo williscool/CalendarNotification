@@ -211,7 +211,6 @@ android {
         excludes = ['jdk.internal.*']
       }
     }
-    execution 'ANDROIDX_TEST_ORCHESTRATOR'
   }
 }
 
