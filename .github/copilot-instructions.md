@@ -1,0 +1,13 @@
+# Dont change any non test code without getting confirmation first
+
+Dont change any non test code without getting confirmation first. this is a very old application I'm working on making a thorough test suite for before making any changes
+
+
+# Work to make tests as faithful to the real code as possible
+
+its ok to mock out core android apis that the instrumentation testsuite doesn't work well with i.e. making push notifications but try to use the real original code for anything that exists in this codebase
+
+
+# Don't try to boil the ocean. Dont try to make big sweeping changes when more focused ones will do
+
+Always think of the minimum viable solution to a problem or change to make. make sure that works and then build on top of it. break things down into small testable pieces firs
