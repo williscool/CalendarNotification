@@ -447,6 +447,9 @@ class CalendarMonitorServiceEventReminderTest {
     // Reset this mock to ensure it only returns events when we want it to
     every { CalendarProvider.getAlertByTime(any(), any(), any(), any()) } returns emptyList()
     
+    // Mock dismissNativeEventAlert to ensure we can verify its calls
+    every { CalendarProvider.dismissNativeEventAlert(any(), any()) } just Runs
+    
     // Now set up the specific mock for our direct reminder test case
     every { CalendarProvider.getAlertByTime(any(), eq(reminderTime), any(), any()) } answers {
       DevLog.info(LOG_TAG, "Mock getAlertByTime called specifically for our test case with alertTime=$reminderTime")
