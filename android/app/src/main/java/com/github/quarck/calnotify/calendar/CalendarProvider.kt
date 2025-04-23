@@ -1062,7 +1062,8 @@ object CalendarProvider : CalendarProviderInterface {
         }
 
         try {
-            // First - remove all the reminders
+//             First - remove all the reminders
+
             val remindersToRemove = mutableListOf<Long>()
 
             val cursor = CalendarContract.Reminders.query(
@@ -1080,12 +1081,12 @@ object CalendarProvider : CalendarProviderInterface {
             for (reminderId in remindersToRemove) {
                 val reminderUri = ContentUris.withAppendedId(CalendarContract.Reminders.CONTENT_URI, reminderId)
                 context.contentResolver.delete(reminderUri, null, null)
+                DevLog.info(LOG_TAG, "Removed reminder id $reminderId (of event $eventId)")
             }
 
-            // Now - remove actual event using the safe pattern with ContentUris
-            val eventUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+            // Now - remove actual event
             val removedEvents = context.contentResolver.delete(
-                    eventUri,
+                    ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
                     null,
                     null
             )
