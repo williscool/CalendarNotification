@@ -354,19 +354,40 @@ class CalendarProviderTestFixture {
     private fun clearAllEvents() {
         val context = contextProvider.fakeContext
         val eventsUri = CalendarContract.Events.CONTENT_URI
-        context.contentResolver.delete(eventsUri, null, null)
+        val cursor = context.contentResolver.query(eventsUri, arrayOf(CalendarContract.Events._ID), null, null, null)
+        cursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getLong(0)
+                val deleteUri = android.content.ContentUris.withAppendedId(eventsUri, id)
+                context.contentResolver.delete(deleteUri, null, null)
+            }
+        }
     }
 
     private fun clearAllReminders() {
         val context = contextProvider.fakeContext
         val remindersUri = CalendarContract.Reminders.CONTENT_URI
-        context.contentResolver.delete(remindersUri, null, null)
+        val cursor = context.contentResolver.query(remindersUri, arrayOf(CalendarContract.Reminders._ID), null, null, null)
+        cursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getLong(0)
+                val deleteUri = android.content.ContentUris.withAppendedId(remindersUri, id)
+                context.contentResolver.delete(deleteUri, null, null)
+            }
+        }
     }
 
     private fun clearAllAlerts() {
         val context = contextProvider.fakeContext
         val alertsUri = CalendarContract.CalendarAlerts.CONTENT_URI
-        context.contentResolver.delete(alertsUri, null, null)
+        val cursor = context.contentResolver.query(alertsUri, arrayOf(CalendarContract.CalendarAlerts._ID), null, null, null)
+        cursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getLong(0)
+                val deleteUri = android.content.ContentUris.withAppendedId(alertsUri, id)
+                context.contentResolver.delete(deleteUri, null, null)
+            }
+        }
     }
 
     /**
@@ -391,4 +412,4 @@ class CalendarProviderTestFixture {
         // Re-setup the calendar provider from the base fixture
         baseFixture.calendarProvider.setup()
     }
-} 
+}
