@@ -40,6 +40,9 @@ class CalendarTestFixtureExampleTest {
         // Create the base fixture
         baseFixture = BaseCalendarTestFixture.Builder().build()
         
+        // Clear any existing test state
+        baseFixture.clearTestState()
+        
         // Set up a test calendar
         baseFixture.setupTestCalendar("Example Test Calendar")
     }

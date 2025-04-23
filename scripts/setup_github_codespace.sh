@@ -19,20 +19,21 @@ echo 'esac' >> ~/.bashrc
 echo '' >> ~/.bashrc
 echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
 
-
-
 echo 'export ANDROID_HOME=/tmp/Android/Sdk' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
 echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
 echo 'export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH' >> ~/.bashrc
 echo 'export ANDROID_AVD_HOME=/tmp/my_avd_home' >> ~/.bashrc
 
+## begin ephemeral android sdk setup. will have to do this every time.
+# why becuase they give you hella temp space but a small of permanent 
 wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip 
 mv commandlinetools-linux-13114758_latest.zip /tmp/
 mkdir -p $ANDROID_HOME
 unzip /tmp/commandlinetools-linux-13114758_latest.zip -d $ANDROID_HOME
-rm /tmp/commandlinetools-linux-13114758_latest.zip
-mkdir $ANDROID_HOME/cmdline-tools/
+mkdir -p $ANDROID_HOME/cmdline-tools/
+mkdir -p $ANDROID_HOME/cmdline-tools/latest/
+mkdir -p $ANDROID_AVD_HOME
 mv $ANDROID_HOME/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
 
 yes | sdkmanager --sdk_root=${ANDROID_HOME} "platform-tools" "platforms;android-34" "build-tools;34.0.0"
@@ -43,12 +44,18 @@ sudo groupadd -r kvm
 sudo adduser $USER kvm
 sudo chown $USER /dev/kvm
 
-avdmanager create avd --name my_avd_name --package "system-images;android-34;google_apis_playstore;x86_64" --device "7.6in Foldable"
 
-mkdir -p /tmp/my_avd_home
+avdmanager create avd --name 7.6_Fold-in_with_outer_display_API_34 --package "system-images;android-34;google_apis_playstore;x86_64" --device "7.6in Foldable"
+# you can run with  emulator -avd 7.6_Fold-in_with_outer_display_API_34 -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
 
+
+
+# end ephemeral android sdk setup
+
+# begin ephemeral gradle setup
 export GRADLE_USER_HOME=/tmp/gradle-cache
 mkdir -p $GRADLE_USER_HOME
+# end ephemeral gradle setup
 
 
 # Setup Git configuration
@@ -68,6 +75,4 @@ git config --global alias.log "log --color=always"
 echo "Applying changes to current session..."
 source ~/.bashrc
 
-echo "McFly and Git configuration setup complete!"
-
-sudo apt-get install android-sdk-platform-tools
+echo "setup complete!"
