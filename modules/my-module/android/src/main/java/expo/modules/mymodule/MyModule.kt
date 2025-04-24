@@ -47,7 +47,7 @@ class MyModule : Module() {
       Log.i(TAG, rescheduleConfirmations.take(3).toString())
       
       // Send intent with reschedule confirmations data
-      val intent = Intent("com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS")
+      val intent = Intent("com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS_RECEIVED")
       intent.putExtra("reschedule_confirmations", value)
       appContext.reactContext?.sendBroadcast(intent)
 
