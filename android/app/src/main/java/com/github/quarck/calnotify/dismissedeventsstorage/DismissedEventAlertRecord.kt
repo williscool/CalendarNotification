@@ -36,6 +36,16 @@ enum class EventDismissType(val code: Int) {
     val shouldKeep: Boolean
         get() = true; // this != EventMovedUsingApp
 
+    /**
+     * Indicates whether an event dismissed with this type can be restored by the user.
+     * for now I like the current behavior. where you can restore to the main events list and notification
+     * but have no expectation of being able to restore the event to the calendar db
+     * 
+     * we could do more with it in the future if we wanted though
+     * 
+     * For discussion on the behavior and implications of this flag, see:
+     * docs/dev_todo/event_restore_behavior.md
+     */
     val canBeRestored: Boolean
         get() = this != AutoDismissedDueToCalendarMove && this != EventMovedUsingApp && this != AutoDismissedDueToRescheduleConfirmation
 }
