@@ -45,12 +45,16 @@ function convertToRescheduleConfirmation(raw: RawRescheduleConfirmation): Resche
   };
 }
 
-export async function setValueAsync(value: RawRescheduleConfirmation[]) {
+export async function setValueAsync(value: string) {
+  return await MyModule.setValueAsync(value);
+}
+
+export async function sendRescheduleConfirmations(value: RawRescheduleConfirmation[]) {
   try {
     const converted = value.map(convertToRescheduleConfirmation);
-    return await MyModule.setValueAsync(JSON.stringify(converted));
+    return await MyModule.sendRescheduleConfirmations(JSON.stringify(converted));
   } catch (error) {
-    console.error('Error in setValueAsync:', error);
+    console.error('Error in sendRescheduleConfirmations:', error);
     throw error;
   }
 }

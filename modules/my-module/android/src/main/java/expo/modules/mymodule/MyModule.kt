@@ -38,10 +38,14 @@ class MyModule : Module() {
 
     // Defines a JavaScript function that always returns a Promise and whose native code
     // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    // TODO: this is the other side of the bridge!
     AsyncFunction("setValueAsync") { value: String ->
       // Send an event to JavaScript.
+      sendEvent("onChange", mapOf(
+        "value" to value
+      ))
+    }
 
+    AsyncFunction("sendRescheduleConfirmations") { value: String ->
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
 
       Log.i(TAG, rescheduleConfirmations.take(3).toString())

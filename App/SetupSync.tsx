@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView, Linking } from 'react-native';
-import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
+import { hello, MyModuleView, setValueAsync, sendRescheduleConfirmations, addChangeListener } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -218,7 +218,7 @@ export const SetupSync = () => {
             style={[styles.syncButton, styles.yellowButton]}
             onPress={async () => {
               if (rawConfirmations) {
-                await setValueAsync(rawConfirmations);
+                await sendRescheduleConfirmations(rawConfirmations);
               }
             }}
           >
