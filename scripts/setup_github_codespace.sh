@@ -1,11 +1,25 @@
 #!/bin/bash
 # Setup script for GitHub Codespace environment
 
+# Setup Git configuration
+# username and email are setup by github
+echo "Setting up Git configuration..."
+git config --global color.ui true
+git config --global color.branch true
+git config --global color.diff true
+git config --global color.status true
+git config --global color.log true
+git config --global alias.co checkout
+git config --global alias.ci commit
+git config --global alias.st status
+git config --global alias.br branch
+git config --global alias.log "log --color=always"
+
 # Install McFly using Homebrew
+cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
+touch $HOME/.bash_history
 echo "Installing McFly..."
 brew install mcfly
-
-cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
 
 # Configure McFly for bash
 echo "Configuring McFly for bash..."
@@ -27,20 +41,6 @@ echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
 export GRADLE_USER_HOME=/tmp/gradle-cache
 mkdir -p $GRADLE_USER_HOME
 # end ephemeral gradle setup
-
-# Setup Git configuration
-# username and email are setup by github
-echo "Setting up Git configuration..."
-git config --global color.ui true
-git config --global color.branch true
-git config --global color.diff true
-git config --global color.status true
-git config --global color.log true
-git config --global alias.co checkout
-git config --global alias.ci commit
-git config --global alias.st status
-git config --global alias.br branch
-git config --global alias.log "log --color=always"
 
 # Source bashrc to apply changes in current session
 echo "Applying changes to current session..."
