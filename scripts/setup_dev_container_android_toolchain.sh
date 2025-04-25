@@ -23,7 +23,7 @@ yes | sdkmanager --install "system-images;android-34;google_apis_playstore;x86_6
 
 mkdir -p $ANDROID_AVD_HOME
 
-sudo apt install qemu-kvm
+sudo apt -y install qemu-kvm
 sudo groupadd -r kvm
 sudo adduser $USER kvm
 sudo chown $USER /dev/kvm
