@@ -241,60 +241,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
       val rescheduleConfirmations = Json.decodeFromString<List<JsRescheduleConfirmationObject>>(value)
       Log.i(LOG_TAG, "onReceivedRescheduleConfirmations example info: ${rescheduleConfirmations.take(3)}" )
 
-      // Filter for future events
-      val futureEvents = rescheduleConfirmations.filter { it.is_in_future }
-      if (futureEvents.isEmpty()) {
-          DevLog.info(LOG_TAG, "No future events to dismiss")
-          android.widget.Toast.makeText(context, "No future events to dismiss", android.widget.Toast.LENGTH_SHORT).show()
-          return
-      }
-
-      // Get event IDs to dismiss
-      val eventIds = futureEvents.map { it.event_id }
-      
-      android.widget.Toast.makeText(context, "Attempting to dismiss ${eventIds.size} events", android.widget.Toast.LENGTH_SHORT).show()
-
-      // Use safeDismissEventsById to handle the dismissals
-      EventsStorage(context).classCustomUse { db ->
-          val results = safeDismissEventsById(
-              context,
-              db,
-              eventIds,
-              EventDismissType.AutoDismissedDueToRescheduleConfirmation,
-              false
-          )
-
-          // Log results
-          val successCount = results.count { it.second == EventDismissResult.Success }
-          val warningCount = results.count { it.second == EventDismissResult.DeletionWarning }
-          val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
-          val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
-          
-          // Main success/failure message
-          val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed"
-          DevLog.info(LOG_TAG, mainMessage)
-          android.widget.Toast.makeText(context, mainMessage, android.widget.Toast.LENGTH_LONG).show()
-          
-          // Separate warning message for deletion issues
-          if (warningCount > 0) {
-              val warningMessage = "Warning: Failed to delete $warningCount events from events storage (they were safely stored in dismissed storage)"
-              DevLog.warn(LOG_TAG, warningMessage)
-              android.widget.Toast.makeText(context, warningMessage, android.widget.Toast.LENGTH_LONG).show()
-          }
-          
-          // Group and log failures by reason
-          if (errorCount > 0) {
-              val failuresByReason = results
-                  .filter { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
-                  .groupBy { it.second }
-                  .mapValues { it.value.size }
-
-              failuresByReason.forEach { (reason, count) ->
-                  DevLog.warn(LOG_TAG, "Failed to dismiss $count events: $reason")
-                  android.widget.Toast.makeText(context, "Failed to dismiss $count events: $reason", android.widget.Toast.LENGTH_LONG).show()
-              }
-          }
-      }
+      safeDismissEventsFromRescheduleConfirmations(context, rescheduleConfirmations)
     }
 
     override fun onCalendarRescanForRescheduledFromService(context: Context, userActionUntil: Long) {
@@ -1493,6 +1440,86 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 val index = results.indexOfFirst { it.first == eventId }
                 if (index != -1) {
                     results[index] = Pair(eventId, EventDismissResult.DatabaseError)
+                }
+            }
+        }
+
+        return results
+    }
+
+    /**
+     * Safely dismisses events based on reschedule confirmations with detailed error handling and result reporting.
+     * This method:
+     * 1. Filters for future events
+     * 2. Uses safeDismissEventsById for the actual dismissal
+     * 3. Updates the dismissal reason with the new time
+     * 4. Provides detailed feedback about the operation
+     * 
+     * @param context The application context
+     * @param confirmations The list of reschedule confirmations
+     * @param notifyActivity Whether to notify the UI about the dismissal
+     * @return A list of pairs containing each event ID and its dismissal result
+     */
+    fun safeDismissEventsFromRescheduleConfirmations(
+        context: Context,
+        confirmations: List<JsRescheduleConfirmationObject>,
+        notifyActivity: Boolean = false
+    ): List<Pair<Long, EventDismissResult>> {
+        DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
+
+        // Filter for future events
+        val futureEvents = confirmations.filter { it.is_in_future }
+        if (futureEvents.isEmpty()) {
+            DevLog.info(LOG_TAG, "No future events to dismiss")
+            android.widget.Toast.makeText(context, "No future events to dismiss", android.widget.Toast.LENGTH_SHORT).show()
+            return emptyList()
+        }
+
+        // Get event IDs to dismiss
+        val eventIds = futureEvents.map { it.event_id }
+        
+        android.widget.Toast.makeText(context, "Attempting to dismiss ${eventIds.size} events", android.widget.Toast.LENGTH_SHORT).show()
+
+        var results: List<Pair<Long, EventDismissResult>> = emptyList()
+
+        // Use safeDismissEventsById to handle the dismissals
+        EventsStorage(context).classCustomUse { db ->
+            results = safeDismissEventsById(
+                context,
+                db,
+                eventIds,
+                EventDismissType.AutoDismissedDueToRescheduleConfirmation,
+                notifyActivity
+            )
+
+            // Log results
+            val successCount = results.count { it.second == EventDismissResult.Success }
+            val warningCount = results.count { it.second == EventDismissResult.DeletionWarning }
+            val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
+            val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
+            
+            // Main success/failure message
+            val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed"
+            DevLog.info(LOG_TAG, mainMessage)
+            android.widget.Toast.makeText(context, mainMessage, android.widget.Toast.LENGTH_LONG).show()
+            
+            // Separate warning message for deletion issues
+            if (warningCount > 0) {
+                val warningMessage = "Warning: Failed to delete $warningCount events from events storage (they were safely stored in dismissed storage)"
+                DevLog.warn(LOG_TAG, warningMessage)
+                android.widget.Toast.makeText(context, warningMessage, android.widget.Toast.LENGTH_LONG).show()
+            }
+            
+            // Group and log failures by reason
+            if (errorCount > 0) {
+                val failuresByReason = results
+                    .filter { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
+                    .groupBy { it.second }
+                    .mapValues { it.value.size }
+
+                failuresByReason.forEach { (reason, count) ->
+                    DevLog.warn(LOG_TAG, "Failed to dismiss $count events: $reason")
+                    android.widget.Toast.makeText(context, "Failed to dismiss $count events: $reason", android.widget.Toast.LENGTH_LONG).show()
                 }
             }
         }
