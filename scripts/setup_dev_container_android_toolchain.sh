@@ -1,5 +1,6 @@
 #!/bin/bash
 # Setup script for devcontainer aka GitHub Codespace android development environment
+brew install ccache
 
 ## begin ephemeral android sdk setup. will have to do this every time.
 # so I can run this everytime if I want
@@ -31,3 +32,12 @@ sudo chown $USER /dev/kvm
 
 avdmanager create avd --name 7.6_Fold-in_with_outer_display_API_34 --package "system-images;android-34;google_apis_playstore;x86_64" --device "7.6in Foldable"
 # you can run with  emulator -avd 7.6_Fold-in_with_outer_display_API_34 -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+
+echo ""
+echo "======================================================================"
+echo "Setup complete!"
+echo "Don't forget to run:"
+echo ""
+echo "    scripts/ccachify_native_modules.sh && yarn"
+echo ""
+echo "======================================================================"

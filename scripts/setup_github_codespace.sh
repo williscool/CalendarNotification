@@ -16,11 +16,10 @@ git config --global alias.br branch
 git config --global alias.log "log --color=always"
 
 # Install McFly using Homebrew
-cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
 touch $HOME/.bash_history
 echo "Installing McFly..."
 brew install mcfly
-brew install ccache
+cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
 
 # Configure McFly for bash
 echo "Configuring McFly for bash..."
@@ -33,6 +32,7 @@ echo '    ;;' >> ~/.bashrc
 echo 'esac' >> ~/.bashrc
 echo '' >> ~/.bashrc
 echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
+
 
 # begin ephemeral gradle setup
 export GRADLE_USER_HOME=/tmp/gradle-cache
