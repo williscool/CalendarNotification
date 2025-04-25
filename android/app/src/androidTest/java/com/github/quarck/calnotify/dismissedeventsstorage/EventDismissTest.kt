@@ -15,6 +15,7 @@ import com.github.quarck.calnotify.testutils.MockApplicationComponents
 import com.github.quarck.calnotify.testutils.MockCalendarProvider
 import com.github.quarck.calnotify.testutils.MockContextProvider
 import com.github.quarck.calnotify.testutils.MockTimeProvider
+import expo.modules.mymodule.JsRescheduleConfirmationObject
 import io.mockk.*
 import org.junit.Before
 import org.junit.Test
@@ -29,16 +30,20 @@ class EventDismissTest {
     private lateinit var mockContext: Context
     private lateinit var mockDb: EventsStorageInterface
     private lateinit var mockComponents: MockApplicationComponents
+    private lateinit var mockTimeProvider: MockTimeProvider
     
     @Before
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up EventDismissTest")
 
+        // Setup mock time provider
+        mockTimeProvider = MockTimeProvider(1635724800000) // 2021-11-01 00:00:00 UTC
+        mockTimeProvider.setup()
+        
         // Setup mock database
         mockDb = mockk<EventsStorageInterface>(relaxed = true)
         
         // Setup mock providers
-        val mockTimeProvider = MockTimeProvider()
         val mockContextProvider = MockContextProvider(mockTimeProvider)
         mockContextProvider.setup()
         val mockCalendarProvider = MockCalendarProvider(mockContextProvider, mockTimeProvider)
@@ -244,6 +249,244 @@ class EventDismissTest {
         // Then
         assertEquals(1, results.size)
         assertEquals(EventDismissResult.StorageError, results[0].second)
+    }
+    
+    @Test
+    fun testSafeDismissEventsFromRescheduleConfirmationsWithFutureEvents() {
+        // Given
+        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
+        val futureEvents = listOf(
+            JsRescheduleConfirmationObject(
+                event_id = 1L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 1",
+                new_instance_start_time = currentTime + 3600000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 2L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 2",
+                new_instance_start_time = currentTime + 7200000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            )
+        )
+        val events = futureEvents.map { createTestEvent(it.event_id) }
+        
+        every { mockDb.getEventInstances(any()) } returns events
+        every { mockDb.getEvent(any(), any()) } returns events[0]
+        every { mockDb.deleteEvents(any()) } returns events.size
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            futureEvents,
+            false
+        )
+        
+        // Then
+        assertEquals(futureEvents.size, results.size)
+        results.forEach { (_, result) ->
+            assertEquals(EventDismissResult.Success, result)
+        }
+        verify { mockDb.deleteEvents(events) }
+    }
+    
+    @Test
+    fun testSafeDismissEventsFromRescheduleConfirmationsWithMixedEvents() {
+        // Given
+        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
+        val confirmations = listOf(
+            JsRescheduleConfirmationObject(
+                event_id = 1L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 1",
+                new_instance_start_time = currentTime + 3600000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 2L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 2",
+                new_instance_start_time = currentTime - 3600000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = false
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 3L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 3",
+                new_instance_start_time = currentTime + 7200000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            )
+        )
+        val futureEvents = confirmations.filter { it.is_in_future }
+        val events = futureEvents.map { createTestEvent(it.event_id) }
+        
+        every { mockDb.getEventInstances(any()) } returns events
+        every { mockDb.getEvent(any(), any()) } returns events[0]
+        every { mockDb.deleteEvents(any()) } returns events.size
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            confirmations,
+            false
+        )
+        
+        // Then
+        assertEquals(futureEvents.size, results.size)
+        results.forEach { (_, result) ->
+            assertEquals(EventDismissResult.Success, result)
+        }
+        verify { mockDb.deleteEvents(events) }
+    }
+    
+    @Test
+    fun testSafeDismissEventsFromRescheduleConfirmationsWithNonExistentEvents() {
+        // Given
+        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
+        val confirmations = listOf(
+            JsRescheduleConfirmationObject(
+                event_id = 1L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 1",
+                new_instance_start_time = currentTime + 3600000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 2L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 2",
+                new_instance_start_time = currentTime + 7200000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            )
+        )
+        
+        every { mockDb.getEventInstances(any()) } returns emptyList()
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            confirmations,
+            false
+        )
+        
+        // Then
+        assertEquals(confirmations.size, results.size)
+        results.forEach { (_, result) ->
+            assertEquals(EventDismissResult.EventNotFound, result)
+        }
+    }
+    
+    @Test
+    fun testSafeDismissEventsFromRescheduleConfirmationsWithStorageError() {
+        // Given
+        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
+        val confirmations = listOf(
+            JsRescheduleConfirmationObject(
+                event_id = 1L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 1",
+                new_instance_start_time = currentTime + 3600000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
+            )
+        )
+        val events = confirmations.map { createTestEvent(it.event_id) }
+        
+        every { mockDb.getEventInstances(any()) } returns events
+        every { mockDb.getEvent(any(), any()) } returns events[0]
+        every { mockDb.deleteEvents(any()) } throws RuntimeException("Storage error")
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            confirmations,
+            false
+        )
+        
+        // Then
+        assertEquals(confirmations.size, results.size)
+        results.forEach { (_, result) ->
+            assertEquals(EventDismissResult.StorageError, result)
+        }
+    }
+    
+    @Test
+    fun testSafeDismissEventsFromRescheduleConfirmationsWithAllPastEvents() {
+        // Given
+        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
+        val confirmations = listOf(
+            JsRescheduleConfirmationObject(
+                event_id = 1L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 1",
+                new_instance_start_time = currentTime - 3600000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = false
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 2L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 2",
+                new_instance_start_time = currentTime - 7200000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = false
+            )
+        )
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            confirmations,
+            false
+        )
+        
+        // Then
+        assertTrue(results.isEmpty())
+    }
+    
+    @Test
+    fun testSafeDismissEventsFromRescheduleConfirmationsWithEmptyList() {
+        // Given
+        val confirmations = emptyList<JsRescheduleConfirmationObject>()
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            confirmations,
+            false
+        )
+        
+        // Then
+        assertTrue(results.isEmpty())
     }
     
     private fun createTestEvent(id: Long = 1L): EventAlertRecord {
