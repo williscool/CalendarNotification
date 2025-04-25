@@ -248,7 +248,7 @@ class EventDismissTest {
         
         // Then
         assertEquals(1, results.size)
-        assertEquals(EventDismissResult.StorageError, results[0].second)
+        assertEquals(EventDismissResult.DeletionWarning, results[0].second)
     }
     
     @Test
@@ -279,8 +279,10 @@ class EventDismissTest {
         )
         val events = futureEvents.map { createTestEvent(it.event_id) }
         
-        every { mockDb.getEventInstances(any()) } returns events
-        every { mockDb.getEvent(any(), any()) } returns events[0]
+        // Mock getEvent to return the corresponding event for each ID
+        futureEvents.forEach { confirmation ->
+            every { mockDb.getEvent(confirmation.event_id, any()) } returns events.find { it.eventId == confirmation.event_id }
+        }
         every { mockDb.deleteEvents(any()) } returns events.size
         
         // Clear any previous toast messages
@@ -345,8 +347,10 @@ class EventDismissTest {
         val futureEvents = confirmations.filter { it.is_in_future }
         val events = futureEvents.map { createTestEvent(it.event_id) }
         
-        every { mockDb.getEventInstances(any()) } returns events
-        every { mockDb.getEvent(any(), any()) } returns events[0]
+        // Mock getEvent to return the corresponding event for each future event ID
+        futureEvents.forEach { confirmation ->
+            every { mockDb.getEvent(confirmation.event_id, any()) } returns events.find { it.eventId == confirmation.event_id }
+        }
         every { mockDb.deleteEvents(any()) } returns events.size
         
         // Clear any previous toast messages
@@ -419,8 +423,9 @@ class EventDismissTest {
         
         // Verify toast messages
         val toastMessages = mockComponents.getToastMessages()
-        assertEquals(1, toastMessages.size)
+        assertEquals(2, toastMessages.size)
         assertEquals("Attempting to dismiss ${confirmations.size} events", toastMessages[0])
+        assertEquals("Dismissed 0 events successfully, ${confirmations.size} events not found, 0 events failed", toastMessages[1])
     }
     
     @Test
@@ -441,8 +446,8 @@ class EventDismissTest {
         )
         val events = confirmations.map { createTestEvent(it.event_id) }
         
-        every { mockDb.getEventInstances(any()) } returns events
-        every { mockDb.getEvent(any(), any()) } returns events[0]
+        // Mock getEvent to return the event first, then throw storage error on delete
+        every { mockDb.getEvent(confirmations[0].event_id, any()) } returns events[0]
         every { mockDb.deleteEvents(any()) } throws RuntimeException("Storage error")
         
         // Clear any previous toast messages
