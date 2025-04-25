@@ -61,12 +61,12 @@ class EventDismissTest {
     }
     
     @Test
-    @Ignore("figure out how to pass the mock context to Events corectly to call the mock that skips the file id. can proabably have a mock db like in this class but not needed for now")
     fun testOriginalDismissEventWithValidEvent() {
         // Given
         val event = createTestEvent()
-        every { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) } returns event
-        every { EventsStorage(mockContext).deleteEvent(event.eventId, event.instanceStartTime) } returns true
+        mockkConstructor(EventsStorage::class)
+        every { anyConstructed<EventsStorage>().getEvent(event.eventId, event.instanceStartTime) } returns event
+        every { anyConstructed<EventsStorage>().deleteEvent(event.eventId, event.instanceStartTime) } returns true
         
         // When
         ApplicationController.dismissEvent(
@@ -79,16 +79,16 @@ class EventDismissTest {
         )
         
         // Then
-        verify { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) }
-        verify { EventsStorage(mockContext).deleteEvent(event.eventId, event.instanceStartTime) }
+        verify { anyConstructed<EventsStorage>().getEvent(event.eventId, event.instanceStartTime) }
+        verify { anyConstructed<EventsStorage>().deleteEvent(event.eventId, event.instanceStartTime) }
     }
     
     @Test
-    @Ignore("figure out how to pass the mock context to Events corectly to call the mock that skips the file id. can proabably have a mock db like in this class but not needed for now")
     fun testOriginalDismissEventWithNonExistentEvent() {
         // Given
         val event = createTestEvent()
-        every { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) } returns null
+        mockkConstructor(EventsStorage::class)
+        every { anyConstructed<EventsStorage>().getEvent(event.eventId, event.instanceStartTime) } returns null
         
         // When
         ApplicationController.dismissEvent(
@@ -101,8 +101,8 @@ class EventDismissTest {
         )
         
         // Then
-        verify { EventsStorage(mockContext).getEvent(event.eventId, event.instanceStartTime) }
-        verify(exactly = 0) { EventsStorage(mockContext).deleteEvent(any(), any()) }
+        verify { anyConstructed<EventsStorage>().getEvent(event.eventId, event.instanceStartTime) }
+        verify(exactly = 0) { anyConstructed<EventsStorage>().deleteEvent(any(), any()) }
     }
     
     @Test
@@ -447,7 +447,7 @@ class EventDismissTest {
     }
     
     @Test
-    @Ignore("figure out how to pass the mock context to Events corectly to call the mock that skips the file id. can proabably have a mock db like in this class but not needed for now")
+    @Ignore("this is not correctly mocking the storage error. not sure why yet though")
     fun testSafeDismissEventsFromRescheduleConfirmationsWithStorageError() {
         // Given
         val currentTime = mockTimeProvider.testClock.currentTimeMillis()
