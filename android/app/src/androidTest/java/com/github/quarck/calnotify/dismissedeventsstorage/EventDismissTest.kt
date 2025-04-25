@@ -63,122 +63,7 @@ class EventDismissTest {
 
         mockContext = mockContextProvider.fakeContext   
     }
-    
-    @Test
-    fun testOriginalDismissEventWithValidEvent() {
-        // Given
-        val event = createTestEvent()
         
-        // Create a mocked version of ApplicationController - we need to spy on the object
-        mockkObject(ApplicationController)
-        
-        // Mock the dismissEvent method to avoid using classCustomUse
-        every { 
-            ApplicationController.dismissEvent(
-                mockContext,
-                any(),
-                event.eventId,
-                event.instanceStartTime,
-                0,
-                false
-            )
-        } answers {
-            // This simulates what happens in the actual method
-            val dismissType = secondArg<EventDismissType>()
-            val eventId = thirdArg<Long>()
-            val instanceStartTime = arg<Long>(3)
-            
-            // First, get the event
-            val foundEvent = mockDb.getEvent(eventId, instanceStartTime)
-            
-            // If event exists, dismiss it
-            if (foundEvent != null) {
-                // If dismiss type requires saving, add to dismissed events
-                if (dismissType.shouldKeep) {
-                    // This would normally save to DismissedEventsStorage
-                }
-                
-                // Delete from active events
-                mockDb.deleteEvent(eventId, instanceStartTime)
-            }
-        }
-        
-        // Mock the db responses
-        every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns event
-        every { mockDb.deleteEvent(event.eventId, event.instanceStartTime) } returns true
-        
-        // When
-        ApplicationController.dismissEvent(
-            mockContext,
-            EventDismissType.ManuallyDismissedFromActivity,
-            event.eventId,
-            event.instanceStartTime,
-            0,
-            false
-        )
-        
-        // Then
-        verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
-        verify { mockDb.deleteEvent(event.eventId, event.instanceStartTime) }
-    }
-    
-    @Test
-    fun testOriginalDismissEventWithNonExistentEvent() {
-        // Given
-        val event = createTestEvent()
-        
-        // Create a mocked version of ApplicationController - we need to spy on the object
-        mockkObject(ApplicationController)
-        
-        // Mock the dismissEvent method to avoid using classCustomUse
-        every { 
-            ApplicationController.dismissEvent(
-                mockContext,
-                any(),
-                event.eventId,
-                event.instanceStartTime,
-                0,
-                false
-            )
-        } answers {
-            // This simulates what happens in the actual method
-            val dismissType = secondArg<EventDismissType>()
-            val eventId = thirdArg<Long>()
-            val instanceStartTime = arg<Long>(3)
-            
-            // First, get the event
-            val foundEvent = mockDb.getEvent(eventId, instanceStartTime)
-            
-            // If event exists, dismiss it
-            if (foundEvent != null) {
-                // If dismiss type requires saving, add to dismissed events
-                if (dismissType.shouldKeep) {
-                    // This would normally save to DismissedEventsStorage
-                }
-                
-                // Delete from active events
-                mockDb.deleteEvent(eventId, instanceStartTime)
-            }
-        }
-        
-        // Mock the db responses
-        every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns null
-        
-        // When
-        ApplicationController.dismissEvent(
-            mockContext,
-            EventDismissType.ManuallyDismissedFromActivity,
-            event.eventId,
-            event.instanceStartTime,
-            0,
-            false
-        )
-        
-        // Then
-        verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
-        verify(exactly = 0) { mockDb.deleteEvent(any(), any()) }
-    }
-    
     @Test
     fun testSafeDismissEventsWithValidEvents() {
         // Given
@@ -561,7 +446,7 @@ class EventDismissTest {
         
         // Also ensure DismissedEventsStorage operations fail
         mockkConstructor(DismissedEventsStorage::class)
-        every { anyConstructed<DismissedEventsStorage>().addEvent(any(), any()) } throws RuntimeException("Storage error")
+        every { anyConstructed<DismissedEventsStorage>().addEvent(any(), any(), any()) } throws RuntimeException("Storage error")
         every { anyConstructed<DismissedEventsStorage>().addEvents(any(), any()) } throws RuntimeException("Storage error")
         
         // Clear any previous toast messages
