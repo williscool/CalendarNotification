@@ -344,7 +344,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `Build artifacts for this PR are available:
+              body: `Build artifacts for PR #${context.issue.number} (commit ${context.sha}) are available:
 
               - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
               - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)

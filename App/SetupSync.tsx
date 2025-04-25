@@ -1,23 +1,26 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity, ScrollView, Linking } from 'react-native';
-import { hello, MyModuleView, setValueAsync, addChangeListener } from '../modules/my-module';
+import { hello, MyModuleView, setValueAsync, sendRescheduleConfirmations, addChangeListener } from '../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
 import { psInsertDbTable, psClearTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from './index';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { GITHUB_README_URL } from '@lib/constants';
+
+// Split out type imports for better readability
+import type { RawRescheduleConfirmation } from '../modules/my-module';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from './index';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
   const { settings } = useSettings();
-  const debugDisplayKeys = ['id', 'ttl', 'loc'];
+  const debugDisplayKeys = ['id', 'ttl', 'istart' ,'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
@@ -34,6 +37,8 @@ export const SetupSync = () => {
   const debugDisplayQuery = `select ${debugDisplayKeys.join(', ')} from eventsV9 limit ${numEventsToDisplay}`;
 
   const { data: psEvents } = useQuery<string>(debugDisplayQuery);
+  const { data: rawConfirmations } = useQuery<RawRescheduleConfirmation>(`select event_id, calendar_id, original_instance_start_time, title, new_instance_start_time, is_in_future, created_at, updated_at from reschedule_confirmations`);
+
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
@@ -163,12 +168,12 @@ export const SetupSync = () => {
 
       {showDebugOutput && (
         <View style={styles.debugSection}>
-          <Text style={styles.hello}> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
-          
-          <Text style={styles.hello}> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
+          <Text style={styles.hello} selectable> Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}</Text>
+          <Text style={styles.hello} selectable> Sample PowerSync Remote Events: {JSON.stringify(psEvents)}</Text>
 
+          <Text style={styles.hello} selectable> Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations?.slice(0, numEventsToDisplay))}</Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
-            <Text style={styles.hello}>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
+            <Text style={styles.hello} selectable>Events V9 Temp Table: {JSON.stringify(tempTableEvents)}</Text>
           )}
         </View>
       )}
@@ -204,6 +209,24 @@ export const SetupSync = () => {
         <>
           <View style={styles.warningContainer}>
             <Text style={styles.warningText}>
+              ⚠️ WARNING: This will dismiss potentially many events from your local device!{'\n'}
+              You can restore them from the bin. 
+            </Text>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.syncButton, styles.yellowButton]}
+            onPress={async () => {
+              if (rawConfirmations) {
+                await sendRescheduleConfirmations(rawConfirmations);
+              }
+            }}
+          >
+            <Text style={styles.yellowButtonText}>Send Reschedule Confirmations</Text>
+          </TouchableOpacity>
+
+          <View style={styles.warningContainer}>
+            <Text style={styles.warningText}>
               ⚠️ WARNING: This will only delete events from the remote PowerSync database.{'\n'}
               Your local device events will remain unchanged.
             </Text>
@@ -224,17 +247,13 @@ export const SetupSync = () => {
         </>
       )}
 
-      {/* TODO: this native module can be used to communicate with the kolin code */}
+
+      {/* this native module can be used to communicate with the kolin code */}
       {/* I want to use it to get things like the mute status of a notification  */}
       {/* or whatever other useful things. so dont delete it so I remember to use it later  */}
 
-      {/* <MyModuleView name="MyModuleView" />
-      <Button
-        title="Click me!"
-        onPress={async () => {
-          await setValueAsync('blarf');
-        }}
-      ></Button> */}
+      
+      {/* <MyModuleView name="MyModuleView" /> */}
 
     </ScrollView>
   );
@@ -310,6 +329,15 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     backgroundColor: '#FF3B30',
+  },
+  yellowButton: {
+    backgroundColor: '#FFD700',
+  },
+  yellowButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   warningContainer: {
     backgroundColor: '#fff',

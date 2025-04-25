@@ -565,4 +565,16 @@ class MockApplicationComponents(
         
         DevLog.info(LOG_TAG, "App resume simulated")
     }
+    
+    /**
+     * Gets the list of Toast messages that would have been shown
+     */
+    fun getToastMessages(): List<String> = contextProvider.getToastMessages()
+    
+    /**
+     * Clears the list of Toast messages
+     */
+    fun clearToastMessages() {
+        contextProvider.clearToastMessages()
+    }
 } 
