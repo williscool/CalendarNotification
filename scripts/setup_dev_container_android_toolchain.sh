@@ -2,11 +2,12 @@
 # Setup script for devcontainer aka GitHub Codespace android development environment
 
 ## begin ephemeral android sdk setup. will have to do this every time.
-echo 'export ANDROID_HOME=/tmp/Android/Sdk' >> ~/.bashrc
-echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
-echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
-echo 'export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH' >> ~/.bashrc
-echo 'export ANDROID_AVD_HOME=/tmp/my_avd_home' >> ~/.bashrc
+# so I can run this everytime if I want
+export ANDROID_HOME=/tmp/Android/Sdk
+export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
+export ANDROID_AVD_HOME=/tmp/my_avd_home
 
 # why becuase they give you hella temp space but a small of permanent 
 wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip 

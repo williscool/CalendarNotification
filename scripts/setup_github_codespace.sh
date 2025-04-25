@@ -20,6 +20,7 @@ cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
 touch $HOME/.bash_history
 echo "Installing McFly..."
 brew install mcfly
+brew install ccache
 
 # Configure McFly for bash
 echo "Configuring McFly for bash..."
@@ -33,14 +34,19 @@ echo 'esac' >> ~/.bashrc
 echo '' >> ~/.bashrc
 echo 'eval "$(mcfly init bash)"' >> ~/.bashrc
 
-## begin ephemeral android sdk setup. will have to do this every time.
-./scripts/setup_dev_container_android_toolchain.sh
-# end ephemeral android sdk setup
-
 # begin ephemeral gradle setup
 export GRADLE_USER_HOME=/tmp/gradle-cache
 mkdir -p $GRADLE_USER_HOME
 # end ephemeral gradle setup
+
+## begin ephemeral android sdk setup. will have to do this every time.
+echo 'export ANDROID_HOME=/tmp/Android/Sdk' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+echo 'export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH' >> ~/.bashrc
+echo 'export ANDROID_AVD_HOME=/tmp/my_avd_home' >> ~/.bashrc
+./scripts/setup_dev_container_android_toolchain.sh
+# end ephemeral android sdk setup
 
 # Source bashrc to apply changes in current session
 echo "Applying changes to current session..."
