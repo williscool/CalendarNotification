@@ -37,6 +37,9 @@ class MockContextProvider(
     private val sharedPreferencesMap = mutableMapOf<String, SharedPreferences>()
     private val sharedPreferencesDataMap = mutableMapOf<String, MutableMap<String, Any>>()
     
+    // Track Toast messages that would have been shown
+    private val toastMessages = mutableListOf<String>()
+    
     // Service is created once and reused
     lateinit var mockService: CalendarMonitorService
         private set
@@ -46,6 +49,18 @@ class MockContextProvider(
     
     // Track initialization state
     private var isInitialized = false
+    
+    /**
+     * Gets the list of Toast messages that would have been shown
+     */
+    fun getToastMessages(): List<String> = toastMessages.toList()
+    
+    /**
+     * Clears the list of Toast messages
+     */
+    fun clearToastMessages() {
+        toastMessages.clear()
+    }
     
     /**
      * Sets up the mock context and related components
@@ -113,6 +128,19 @@ class MockContextProvider(
     private fun setupContext(realContext: Context) {
         DevLog.info(LOG_TAG, "Setting up mock context")
 
+        // Mock Toast static methods
+        mockkStatic(android.widget.Toast::class)
+        every { 
+            android.widget.Toast.makeText(any(), any<String>(), any()) 
+        } answers {
+            val message = secondArg<String>()
+            toastMessages.add(message)
+            DevLog.info(LOG_TAG, "Mock Toast would have shown: $message")
+            mockk<android.widget.Toast>(relaxed = true) {
+                every { show() } just Runs
+            }
+        }
+        
         // Create mock package manager with enhanced functionality
         val mockPackageManager = mockk<android.content.pm.PackageManager> {
             every { resolveActivity(any(), any<Int>()) } answers {

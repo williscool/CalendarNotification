@@ -283,6 +283,9 @@ class EventDismissTest {
         every { mockDb.getEvent(any(), any()) } returns events[0]
         every { mockDb.deleteEvents(any()) } returns events.size
         
+        // Clear any previous toast messages
+        mockComponents.clearToastMessages()
+        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
@@ -296,6 +299,11 @@ class EventDismissTest {
             assertEquals(EventDismissResult.Success, result)
         }
         verify { mockDb.deleteEvents(events) }
+        
+        // Verify toast messages
+        val toastMessages = mockComponents.getToastMessages()
+        assertEquals(1, toastMessages.size)
+        assertEquals("Attempting to dismiss ${futureEvents.size} events", toastMessages[0])
     }
     
     @Test
@@ -341,6 +349,9 @@ class EventDismissTest {
         every { mockDb.getEvent(any(), any()) } returns events[0]
         every { mockDb.deleteEvents(any()) } returns events.size
         
+        // Clear any previous toast messages
+        mockComponents.clearToastMessages()
+        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
@@ -354,6 +365,11 @@ class EventDismissTest {
             assertEquals(EventDismissResult.Success, result)
         }
         verify { mockDb.deleteEvents(events) }
+        
+        // Verify toast messages
+        val toastMessages = mockComponents.getToastMessages()
+        assertEquals(1, toastMessages.size)
+        assertEquals("Attempting to dismiss ${futureEvents.size} events", toastMessages[0])
     }
     
     @Test
@@ -385,6 +401,9 @@ class EventDismissTest {
         
         every { mockDb.getEventInstances(any()) } returns emptyList()
         
+        // Clear any previous toast messages
+        mockComponents.clearToastMessages()
+        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
@@ -397,6 +416,11 @@ class EventDismissTest {
         results.forEach { (_, result) ->
             assertEquals(EventDismissResult.EventNotFound, result)
         }
+        
+        // Verify toast messages
+        val toastMessages = mockComponents.getToastMessages()
+        assertEquals(1, toastMessages.size)
+        assertEquals("Attempting to dismiss ${confirmations.size} events", toastMessages[0])
     }
     
     @Test
@@ -421,6 +445,9 @@ class EventDismissTest {
         every { mockDb.getEvent(any(), any()) } returns events[0]
         every { mockDb.deleteEvents(any()) } throws RuntimeException("Storage error")
         
+        // Clear any previous toast messages
+        mockComponents.clearToastMessages()
+        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
@@ -433,6 +460,12 @@ class EventDismissTest {
         results.forEach { (_, result) ->
             assertEquals(EventDismissResult.StorageError, result)
         }
+        
+        // Verify toast messages
+        val toastMessages = mockComponents.getToastMessages()
+        assertEquals(2, toastMessages.size)
+        assertEquals("Attempting to dismiss ${confirmations.size} events", toastMessages[0])
+        assertEquals("Failed to dismiss ${confirmations.size} events: Storage error", toastMessages[1])
     }
     
     @Test
@@ -462,6 +495,9 @@ class EventDismissTest {
             )
         )
         
+        // Clear any previous toast messages
+        mockComponents.clearToastMessages()
+        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
@@ -471,6 +507,11 @@ class EventDismissTest {
         
         // Then
         assertTrue(results.isEmpty())
+        
+        // Verify toast messages
+        val toastMessages = mockComponents.getToastMessages()
+        assertEquals(1, toastMessages.size)
+        assertEquals("No future events to dismiss", toastMessages[0])
     }
     
     @Test
@@ -478,6 +519,9 @@ class EventDismissTest {
         // Given
         val confirmations = emptyList<JsRescheduleConfirmationObject>()
         
+        // Clear any previous toast messages
+        mockComponents.clearToastMessages()
+        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
@@ -487,6 +531,11 @@ class EventDismissTest {
         
         // Then
         assertTrue(results.isEmpty())
+        
+        // Verify toast messages
+        val toastMessages = mockComponents.getToastMessages()
+        assertEquals(1, toastMessages.size)
+        assertEquals("No future events to dismiss", toastMessages[0])
     }
     
     private fun createTestEvent(id: Long = 1L): EventAlertRecord {
