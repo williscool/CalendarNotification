@@ -5,7 +5,7 @@ import { NativeModulesProxy, EventEmitter, Subscription } from 'expo-modules-cor
 // and on native platforms to MyModule.ts
 import MyModule from './src/MyModule';
 import MyModuleView from './src/MyModuleView';
-import { ChangeEventPayload, MyModuleViewProps } from './src/MyModule.types';
+import type { ChangeEventPayload, MyModuleViewProps } from './src/MyModule.types';
 
 // Get the native constant value.
 export const PI = MyModule.PI;
@@ -65,6 +65,6 @@ export function addChangeListener(listener: (event: ChangeEventPayload) => void)
   return emitter.addListener<ChangeEventPayload>('onChange', listener);
 }
 
-export { MyModuleView, type MyModuleViewProps, type ChangeEventPayload };
+export { MyModuleView, MyModuleViewProps, ChangeEventPayload };
 
 export default MyModule;
