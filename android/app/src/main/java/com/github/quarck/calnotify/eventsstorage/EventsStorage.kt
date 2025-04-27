@@ -31,6 +31,17 @@ import com.github.quarck.calnotify.logs.DevLog
 import java.io.Closeable
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
+private const val LOG_TAG = "EventsStorage"
+
+private const val DATABASE_VERSION_V6 = 6
+private const val DATABASE_VERSION_V7 = 7
+private const val DATABASE_VERSION_V8 = 8
+private const val DATABASE_VERSION_V9 = 9
+
+private const val DATABASE_CURRENT_VERSION = DATABASE_VERSION_V9
+
+private const val DATABASE_NAME = "Events"
+
 class EventsStorage(val context: Context)
     : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, EventsStorageInterface {
 
@@ -205,18 +216,5 @@ class EventsStorage(val context: Context)
 
     override fun close() {
         super.close();
-    }
-
-    companion object {
-        private const val LOG_TAG = "EventsStorage"
-
-        private const val DATABASE_VERSION_V6 = 6
-        private const val DATABASE_VERSION_V7 = 7
-        private const val DATABASE_VERSION_V8 = 8
-        private const val DATABASE_VERSION_V9 = 9
-
-        private const val DATABASE_CURRENT_VERSION = DATABASE_VERSION_V9
-
-        private const val DATABASE_NAME = "Events"
     }
 }
