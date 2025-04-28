@@ -27,13 +27,11 @@ object  SQLiteDatabaseExtensions {
     }
   }
 
+  // TODO: I just recognized we don't even use the db val we setup in 
+  // val db = this.writableDatabase
+  // I forgot why we even need this. I think its becasue the regular use doesn't call crsql_finalize
+  // like it should but we should investigate getting rid of this if possible
   fun <T, R> T.classCustomUse(block: (T) -> R): R {
-    // Check if the object is a MockK mock
-    // If it is, just execute the block directly without trying to access database properties
-    if (this!!::class.java.name.contains("mockk")) {
-        return block(this)
-    }
-
     // If this is a SQLiteOpenHelper, use writableDatabase
     if (this is SQLiteOpenHelper) {
       val db = this.writableDatabase // Ensure db is obtained, though not directly used here based on original logic
@@ -41,6 +39,7 @@ object  SQLiteDatabaseExtensions {
         // Pass the helper itself to the block, maintaining original behavior
         return block(this)
       } finally {
+        // db.customUse { }
         // Original code didn't close/finalize here, maintaining that.
         // Consider lifecycle management if issues arise.
       }

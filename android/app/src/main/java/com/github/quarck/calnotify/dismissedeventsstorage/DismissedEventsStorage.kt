@@ -31,15 +31,6 @@ import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import java.io.Closeable
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
-// Move constants to file level
-private const val LOG_TAG = "DismissedEventsStorage"
-
-private const val DATABASE_VERSION_V1 = 1
-private const val DATABASE_VERSION_V2 = 2
-private const val DATABASE_CURRENT_VERSION = DATABASE_VERSION_V2
-
-private const val DATABASE_NAME = "DismissedEvents"
-
 class DismissedEventsStorage(
     val context: Context,
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
@@ -124,4 +115,14 @@ class DismissedEventsStorage(
             = events.filter { (currentTime - it.dismissTime) > maxLiveTime }.forEach { deleteEvent(it) }
 
     override fun close() = super.close()
+
+    companion object {
+        private val LOG_TAG = "DismissedEventsStorage"
+
+        private const val DATABASE_VERSION_V1 = 1
+        private const val DATABASE_VERSION_V2 = 2
+        private const val DATABASE_CURRENT_VERSION = DATABASE_VERSION_V2
+
+        private const val DATABASE_NAME = "DismissedEvents"
+    }
 }
