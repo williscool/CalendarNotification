@@ -22,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse // Keep import if needed by code under test
+import java.util.Locale // Add import
 
 /**
  * Test for ApplicationController.dismissEvent functionality using constructor mocking.
@@ -40,8 +41,14 @@ class OriginalEventDismissTest {
   private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
   private lateinit var mockReminderState: ReminderState
 
+  private var originalLocale: Locale? = null // Store original locale
+
   @Before
   fun setup() {
+    // Store original locale and set a fixed one for the test
+    originalLocale = Locale.getDefault()
+    Locale.setDefault(Locale.US)
+
     DevLog.info(LOG_TAG, "Setting up EventDismissTest with injectable db")
 
     // Setup mock time provider
@@ -70,6 +77,9 @@ class OriginalEventDismissTest {
 
   @After
   fun tearDown() {
+    // Restore original locale
+    originalLocale?.let { Locale.setDefault(it) }
+
     unmockkObject(UINotifier)
     unmockkAll() // Clears mocks and other MockK state
   }
