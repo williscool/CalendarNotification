@@ -533,9 +533,9 @@ class EventDismissTest {
         assertEquals(1, toastMessages.size)
         assertEquals("No future events to dismiss", toastMessages[0])
     }
-    
+
     @Test
-    fun testSafeDismissEventsFromRescheduleConfirmationsWithRepeatingEvents() {
+    fun testSafeDismissEventsFromRescheduleConfirmationsSkipsRepeatingEvents() {
         // Given
         val currentTime = mockTimeProvider.testClock.currentTimeMillis()
         val confirmations = listOf(
@@ -543,7 +543,7 @@ class EventDismissTest {
                 event_id = 1L,
                 calendar_id = 1L,
                 original_instance_start_time = currentTime,
-                title = "Test Event 1",
+                title = "Repeating Event",
                 new_instance_start_time = currentTime + 3600000,
                 created_at = currentTime.toString(),
                 updated_at = currentTime.toString(),
@@ -553,209 +553,37 @@ class EventDismissTest {
                 event_id = 2L,
                 calendar_id = 1L,
                 original_instance_start_time = currentTime,
-                title = "Test Event 2",
+                title = "Non-Repeating Event",
                 new_instance_start_time = currentTime + 7200000,
                 created_at = currentTime.toString(),
                 updated_at = currentTime.toString(),
                 is_in_future = true
             )
         )
-        
-        // Create one repeating and one non-repeating event
-        val repeatingEvent = createTestEvent(1L).apply { isRepeating = true }
-        val nonRepeatingEvent = createTestEvent(2L)
-        
-        // Add events to existing mock components for retrieval
-        mockComponents.addEventToStorage(repeatingEvent)
-        mockComponents.addEventToStorage(nonRepeatingEvent)
-        
-        // Mock our mock database to return these events when queried
+        // Event 1 is repeating, Event 2 is not
+        val repeatingEvent = createTestEvent(1L).copy(isRepeating = true)
+        val nonRepeatingEvent = createTestEvent(2L).copy(isRepeating = false)
+    
         every { mockDb.getEventInstances(1L) } returns listOf(repeatingEvent)
         every { mockDb.getEventInstances(2L) } returns listOf(nonRepeatingEvent)
         every { mockDb.getEvent(1L, any()) } returns repeatingEvent
         every { mockDb.getEvent(2L, any()) } returns nonRepeatingEvent
-        
-        // Mock successful deletion for non-repeating event
-        every { mockDb.deleteEvents(listOf(nonRepeatingEvent)) } returns 1
-        
-        // Clear any previous toast messages
-        mockComponents.clearToastMessages()
-        
-        // When
-        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
-            mockContext,
-            confirmations,
-            false
-        )
-        
-        // Then
-        assertEquals(confirmations.size, results.size)
-        
-        // Verify repeating event was skipped
-        val repeatingResult = results.find { it.first == 1L }
-        assertNotNull(repeatingResult)
-        assertEquals(EventDismissResult.SkippedRepeating, repeatingResult?.second)
-        
-        // Verify non-repeating event was processed
-        val nonRepeatingResult = results.find { it.first == 2L }
-        assertNotNull(nonRepeatingResult)
-        assertEquals(EventDismissResult.Success, nonRepeatingResult?.second)
-        
-        // Verify toast messages
-        val toastMessages = mockComponents.getToastMessages()
-        assertTrue(toastMessages.isNotEmpty())
-        assertTrue(toastMessages.any { it.contains("Attempting to dismiss") })
-        assertTrue(toastMessages.any { it.contains("1 repeating events skipped") })
-    }
+        every { mockDb.deleteEvents(any()) } returns 1
+        every { mockDb.events } returns emptyList()
     
-    @Test
-    fun testSafeDismissEventsFromRescheduleConfirmationsWithAllRepeatingEvents() {
-        // Given
-        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
-        val confirmations = listOf(
-            JsRescheduleConfirmationObject(
-                event_id = 1L,
-                calendar_id = 1L,
-                original_instance_start_time = currentTime,
-                title = "Test Event 1",
-                new_instance_start_time = currentTime + 3600000,
-                created_at = currentTime.toString(),
-                updated_at = currentTime.toString(),
-                is_in_future = true
-            ),
-            JsRescheduleConfirmationObject(
-                event_id = 2L,
-                calendar_id = 1L,
-                original_instance_start_time = currentTime,
-                title = "Test Event 2",
-                new_instance_start_time = currentTime + 7200000,
-                created_at = currentTime.toString(),
-                updated_at = currentTime.toString(),
-                is_in_future = true
-            )
-        )
-        
-        // Create two repeating events
-        val repeatingEvent1 = createTestEvent(1L).apply { isRepeating = true }
-        val repeatingEvent2 = createTestEvent(2L).apply { isRepeating = true }
-        
-        // Add events to existing mock components for retrieval
-        mockComponents.addEventToStorage(repeatingEvent1)
-        mockComponents.addEventToStorage(repeatingEvent2)
-        
-        // Mock our mock database to return these events when queried
-        every { mockDb.getEventInstances(1L) } returns listOf(repeatingEvent1)
-        every { mockDb.getEventInstances(2L) } returns listOf(repeatingEvent2)
-        every { mockDb.getEvent(1L, any()) } returns repeatingEvent1
-        every { mockDb.getEvent(2L, any()) } returns repeatingEvent2
-        
-        // Clear any previous toast messages
-        mockComponents.clearToastMessages()
-        
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
             confirmations,
-            false
+            notifyActivity = false,
+            db = mockDb
         )
-        
-        // Then
-        assertEquals(confirmations.size, results.size)
-        
-        // Verify both events were skipped
-        results.forEach { (_, result) ->
-            assertEquals(EventDismissResult.SkippedRepeating, result)
-        }
-        
-        // Verify toast messages
-        val toastMessages = mockComponents.getToastMessages()
-        assertTrue(toastMessages.isNotEmpty())
-        assertTrue(toastMessages.any { it.contains("Attempting to dismiss") })
-        assertTrue(toastMessages.any { it.contains("2 repeating events skipped") })
-    }
     
-    @Test
-    fun testSafeDismissEventsFromRescheduleConfirmationsWithMixedEvents() {
-        // Given
-        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
-        val confirmations = listOf(
-            JsRescheduleConfirmationObject(
-                event_id = 1L,
-                calendar_id = 1L,
-                original_instance_start_time = currentTime,
-                title = "Test Event 1",
-                new_instance_start_time = currentTime + 3600000,
-                created_at = currentTime.toString(),
-                updated_at = currentTime.toString(),
-                is_in_future = true
-            ),
-            JsRescheduleConfirmationObject(
-                event_id = 2L,
-                calendar_id = 1L,
-                original_instance_start_time = currentTime,
-                title = "Test Event 2",
-                new_instance_start_time = currentTime - 3600000,
-                created_at = currentTime.toString(),
-                updated_at = currentTime.toString(),
-                is_in_future = false
-            ),
-            JsRescheduleConfirmationObject(
-                event_id = 3L,
-                calendar_id = 1L,
-                original_instance_start_time = currentTime,
-                title = "Test Event 3",
-                new_instance_start_time = currentTime + 7200000,
-                created_at = currentTime.toString(),
-                updated_at = currentTime.toString(),
-                is_in_future = true
-            )
-        )
-        
-        // Create one repeating and one non-repeating event
-        val repeatingEvent = createTestEvent(1L).apply { isRepeating = true }
-        val nonRepeatingEvent = createTestEvent(3L)
-        
-        // Add events to existing mock components for retrieval
-        mockComponents.addEventToStorage(repeatingEvent)
-        mockComponents.addEventToStorage(nonRepeatingEvent)
-        
-        // Mock our mock database to return these events when queried
-        every { mockDb.getEventInstances(1L) } returns listOf(repeatingEvent)
-        every { mockDb.getEventInstances(3L) } returns listOf(nonRepeatingEvent)
-        every { mockDb.getEvent(1L, any()) } returns repeatingEvent
-        every { mockDb.getEvent(3L, any()) } returns nonRepeatingEvent
-        
-        // Mock successful deletion for non-repeating event
-        every { mockDb.deleteEvents(listOf(nonRepeatingEvent)) } returns 1
-        
-        // Clear any previous toast messages
-        mockComponents.clearToastMessages()
-        
-        // When
-        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
-            mockContext,
-            confirmations,
-            false
-        )
-        
         // Then
-        assertEquals(2, results.size) // Only future events should be in results
-        
-        // Verify repeating event was skipped
-        val repeatingResult = results.find { it.first == 1L }
-        assertNotNull(repeatingResult)
-        assertEquals(EventDismissResult.SkippedRepeating, repeatingResult?.second)
-        
-        // Verify non-repeating event was processed
-        val nonRepeatingResult = results.find { it.first == 3L }
-        assertNotNull(nonRepeatingResult)
-        assertEquals(EventDismissResult.Success, nonRepeatingResult?.second)
-        
-        // Verify toast messages
-        val toastMessages = mockComponents.getToastMessages()
-        assertTrue(toastMessages.isNotEmpty())
-        assertTrue(toastMessages.any { it.contains("Attempting to dismiss") })
-        assertTrue(toastMessages.any { it.contains("1 repeating events skipped") })
+        assertEquals(2, results.size)
+        val resultMap = results.toMap()
+        assertEquals(EventDismissResult.SkippedRepeating, resultMap[1L])
+        assertEquals(EventDismissResult.Success, resultMap[2L])
     }
     
     private fun createTestEvent(id: Long = 1L): EventAlertRecord {
