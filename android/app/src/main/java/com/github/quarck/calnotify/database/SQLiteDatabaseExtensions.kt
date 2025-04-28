@@ -27,12 +27,24 @@ object  SQLiteDatabaseExtensions {
     }
   }
 
-  fun <T : SQLiteOpenHelper, R> T.classCustomUse(block: (T) -> R): R {
-    val db = this.writableDatabase
-    try {
-      return block(this)
-    } finally {
-//      db.customUse {  }
+  // TODO: I just recognized we don't even use the db val we setup in 
+  // val db = this.writableDatabase
+  // I forgot why we even need this. I think its becasue the regular use doesn't call crsql_finalize
+  // like it should but we should investigate getting rid of this if possible
+  fun <T, R> T.classCustomUse(block: (T) -> R): R {
+    // If this is a SQLiteOpenHelper, use writableDatabase
+    if (this is SQLiteOpenHelper) {
+      val db = this.writableDatabase // Ensure db is obtained, though not directly used here based on original logic
+      try {
+        // Pass the helper itself to the block, maintaining original behavior
+        return block(this)
+      } finally {
+        // db.customUse { }
+        // Original code didn't close/finalize here, maintaining that.
+        // Consider lifecycle management if issues arise.
+      }
     }
+    // Otherwise (including mocks or other types), just call the block
+    return block(this)
   }
 }

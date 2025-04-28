@@ -79,10 +79,19 @@ interface ApplicationControllerInterface {
     fun onMainActivityStarted(context: Context?)
     fun onMainActivityResumed(context: Context?, shouldRepost: Boolean, monitorSettingsChanged: Boolean)
     fun onTimeChanged(context: Context)
-    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean)
+    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean, dismissedEventsStorage: DismissedEventsStorage? = null)
     fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord)
     fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean
-    fun dismissEvent(context: Context, dismissType: EventDismissType, eventId: Long, instanceStartTime: Long, notificationId: Int, notifyActivity: Boolean)
+    fun dismissEvent(
+        context: Context,
+        dismissType: EventDismissType,
+        eventId: Long,
+        instanceStartTime: Long,
+        notificationId: Int,
+        notifyActivity: Boolean,
+        db: EventsStorageInterface? = null,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter here too
+    )
     fun restoreEvent(context: Context, event: EventAlertRecord)
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
@@ -100,7 +109,8 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface,
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ): List<Pair<EventAlertRecord, EventDismissResult>>
 
     fun safeDismissEventsById(
@@ -108,7 +118,8 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface,
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ): List<Pair<Long, EventDismissResult>>
 }
 
@@ -938,13 +949,16 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             db: EventsStorageInterface,
             events: Collection<EventAlertRecord>,
             dismissType: EventDismissType,
-            notifyActivity: Boolean
+            notifyActivity: Boolean,
+            dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing ${events.size}  requests")
 
         if (dismissType.shouldKeep) {
-            DismissedEventsStorage(context).classCustomUse {
+            // Use injected storage if available, otherwise create new
+            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            storage.classCustomUse {
                 it.addEvents(dismissType, events)
             }
         }
@@ -1024,13 +1038,16 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             db: EventsStorageInterface,
             event: EventAlertRecord,
             dismissType: EventDismissType,
-            notifyActivity: Boolean
+            notifyActivity: Boolean,
+            dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing event id ${event.eventId} / instance ${event.instanceStartTime}")
 
         if (dismissType.shouldKeep && event.isNotSpecial) {
-            DismissedEventsStorage(context).classCustomUse {
+            // Use injected storage if available, otherwise create new
+            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            storage.classCustomUse {
                 it.addEvent(dismissType, event)
             }
         }
@@ -1060,7 +1077,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     override fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord) {
         EventsStorage(context).classCustomUse {
             db ->
-            dismissEvent(context, db, event, dismissType, false)
+            // Pass null for dismissedEventsStorage to maintain original behavior
+            dismissEvent(context, db, event, dismissType, false, null)
         }
     }
 
@@ -1077,26 +1095,27 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     @Suppress("UNUSED_PARAMETER")
     override fun dismissEvent(
-            context: Context,
-            dismissType: EventDismissType,
-            eventId: Long,
-            instanceStartTime: Long,
-            notificationId: Int,
-            notifyActivity: Boolean
+        context: Context,
+        dismissType: EventDismissType,
+        eventId: Long,
+        instanceStartTime: Long,
+        notificationId: Int,
+        notifyActivity: Boolean,
+        db: EventsStorageInterface?, // <-- existing optional parameter
+        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter here too
     ) {
-
-        EventsStorage(context).classCustomUse {
-            db ->
-            val event = db.getEvent(eventId, instanceStartTime)
+        val storage = db ?: EventsStorage(context)
+        storage.classCustomUse {
+            dbInst ->
+            val event = dbInst.getEvent(eventId, instanceStartTime)
             if (event != null) {
                 DevLog.info(LOG_TAG, "Dismissing event ${event.eventId} / ${event.instanceStartTime}")
-                dismissEvent(context, db, event, dismissType, notifyActivity)
-            }
-            else {
+                // Pass the potentially injected dismissedEventsStorage down
+                dismissEvent(context, dbInst, event, dismissType, notifyActivity, dismissedEventsStorage)
+            } else {
                 DevLog.error(LOG_TAG, "dismissEvent: can't find event $eventId, $instanceStartTime")
-
                 DevLog.error(LOG_TAG, " -- known events / instances: ")
-                for (ev in db.events) {
+                for (ev in dbInst.events) {
                     DevLog.error(LOG_TAG, " -- : ${ev.eventId}, ${ev.instanceStartTime}, ${ev.alertTime}, ${ev.snoozedUntil}")
                 }
             }
@@ -1271,7 +1290,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         db: EventsStorageInterface,
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
     ): List<Pair<EventAlertRecord, EventDismissResult>> {
         val results = mutableListOf<Pair<EventAlertRecord, EventDismissResult>>()
         
@@ -1293,7 +1313,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             // Store dismissed events if needed
             val successfullyStoredEvents = if (dismissType.shouldKeep) {
                 try {
-                    DismissedEventsStorage(context).classCustomUse {
+                    // Use injected storage if available, otherwise create new
+                    val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+                    storage.classCustomUse {
                         it.addEvents(dismissType, validEvents)
                     }
                     validEvents
@@ -1404,7 +1426,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         db: EventsStorageInterface,
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? // <-- Remove default value
     ): List<Pair<Long, EventDismissResult>> {
         val results = mutableListOf<Pair<Long, EventDismissResult>>()
         
@@ -1424,7 +1447,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             DevLog.info(LOG_TAG, "Found ${events.size} events to dismiss out of ${eventIds.size} IDs")
 
             // Call the other version with the found events
-            val dismissResults = safeDismissEvents(context, db, events, dismissType, notifyActivity)
+            val dismissResults = safeDismissEvents(context, db, events, dismissType, notifyActivity, dismissedEventsStorage) // <-- Pass through
 
             // Update our results based on the dismiss results
             dismissResults.forEach { (event, result) ->
@@ -1463,7 +1486,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     fun safeDismissEventsFromRescheduleConfirmations(
         context: Context,
         confirmations: List<JsRescheduleConfirmationObject>,
-        notifyActivity: Boolean = false
+        notifyActivity: Boolean = false,
+        db: EventsStorageInterface? = null, // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorage? = null,
     ): List<Pair<Long, EventDismissResult>> {
         DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
 
@@ -1483,36 +1508,66 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         var results: List<Pair<Long, EventDismissResult>> = emptyList()
 
         // Use safeDismissEventsById to handle the dismissals
-        EventsStorage(context).classCustomUse { db ->
-            results = safeDismissEventsById(
+        val eventsDb = db ?: EventsStorage(context)
+        eventsDb.classCustomUse { dbInst ->
+            // First get all events to check for repeating ones
+            val allEvents = eventIds.mapNotNull { eventId ->
+                dbInst.getEventInstances(eventId).firstOrNull()
+            }
+            
+            // Separate repeating and non-repeating events
+            val repeatingEvents = allEvents.filter { it.isRepeating }
+            val nonRepeatingEvents = allEvents.filter { !it.isRepeating }
+            
+            // Add skipped repeating events to results
+            val skippedResults = repeatingEvents.map { 
+                Pair(it.eventId, EventDismissResult.SkippedRepeating) 
+            }
+            
+            // Process non-repeating events
+            val processedResults = safeDismissEventsById(
                 context,
-                db,
-                eventIds,
+                dbInst,
+                nonRepeatingEvents.map { it.eventId },
                 EventDismissType.AutoDismissedDueToRescheduleConfirmation,
-                notifyActivity
+                notifyActivity,
+                dismissedEventsStorage // <-- Pass through
             )
 
-            // Log results
-            val successCount = results.count { it.second == EventDismissResult.Success }
-            val warningCount = results.count { it.second == EventDismissResult.DeletionWarning }
-            val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
-            val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
-            
+            // --- Determine missing IDs --- START
+            val processedResultIds = processedResults.map { it.first }.toSet() // Use processedResults
+            val skippedResultIds = skippedResults.map { it.first }.toSet()
+            val allHandledIds = processedResultIds + skippedResultIds
+
+            val missingIds = eventIds.filter { it !in allHandledIds }
+            val notFoundResults = missingIds.map { it to EventDismissResult.EventNotFound } // Compute NotFound results
+            // --- Determine missing IDs --- END
+
+            // Combine results (Skipped + Processed + NotFound) into the final list
+            val finalResults = skippedResults + processedResults + notFoundResults
+
+            // Log results using finalResults
+            val successCount = finalResults.count { it.second == EventDismissResult.Success }
+            val warningCount = finalResults.count { it.second == EventDismissResult.DeletionWarning }
+            val notFoundCount = finalResults.count { it.second == EventDismissResult.EventNotFound } // Use finalResults
+            val errorCount = finalResults.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
+            val skippedCount = finalResults.count { it.second == EventDismissResult.SkippedRepeating }
+
             // Main success/failure message
-            val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed"
+            val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed, $skippedCount repeating events skipped"
             DevLog.info(LOG_TAG, mainMessage)
             android.widget.Toast.makeText(context, mainMessage, android.widget.Toast.LENGTH_LONG).show()
-            
+
             // Separate warning message for deletion issues
             if (warningCount > 0) {
                 val warningMessage = "Warning: Failed to delete $warningCount events from events storage (they were safely stored in dismissed storage)"
                 DevLog.warn(LOG_TAG, warningMessage)
                 android.widget.Toast.makeText(context, warningMessage, android.widget.Toast.LENGTH_LONG).show()
             }
-            
+
             // Group and log failures by reason
             if (errorCount > 0) {
-                val failuresByReason = results
+                val failuresByReason = finalResults // Use finalResults
                     .filter { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
                     .groupBy { it.second }
                     .mapValues { it.value.size }
@@ -1522,6 +1577,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                     android.widget.Toast.makeText(context, "Failed to dismiss $count events: $reason", android.widget.Toast.LENGTH_LONG).show()
                 }
             }
+
+            results = finalResults // Assign the final computed list to the outer variable
         }
 
         return results

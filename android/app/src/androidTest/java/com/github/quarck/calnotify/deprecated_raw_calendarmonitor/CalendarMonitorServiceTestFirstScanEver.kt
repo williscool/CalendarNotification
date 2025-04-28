@@ -1,4 +1,4 @@
-package com.github.quarck.calnotify.calendarmonitor
+package com.github.quarck.calnotify.deprecated_raw_calendarmonitor
 
 import android.content.ContentValues
 import android.content.Context
@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.calendarmonitor.*
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
