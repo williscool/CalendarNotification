@@ -79,7 +79,7 @@ interface ApplicationControllerInterface {
     fun onMainActivityStarted(context: Context?)
     fun onMainActivityResumed(context: Context?, shouldRepost: Boolean, monitorSettingsChanged: Boolean)
     fun onTimeChanged(context: Context)
-    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean)
+    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean, dismissedEventsStorage: DismissedEventsStorage? = null)
     fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord)
     fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean
     fun dismissEvent(
@@ -947,13 +947,16 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             db: EventsStorageInterface,
             events: Collection<EventAlertRecord>,
             dismissType: EventDismissType,
-            notifyActivity: Boolean
+            notifyActivity: Boolean,
+            dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing ${events.size}  requests")
 
         if (dismissType.shouldKeep) {
-            DismissedEventsStorage(context).classCustomUse {
+            // Use injected storage if available, otherwise create new
+            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            storage.classCustomUse {
                 it.addEvents(dismissType, events)
             }
         }

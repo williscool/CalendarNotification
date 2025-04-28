@@ -131,6 +131,34 @@ class OriginalEventDismissTest {
     verify(exactly = 0) { UINotifier.notify(any(), any()) }
   }
 
+  @Test
+  fun testDismissEventsWithValidEvents() {
+    // Given
+    val event1 = createTestEvent(1)
+    val event2 = createTestEvent(2)
+    val events = listOf(event1, event2)
+
+    // Setup: db.deleteEvents returns the number of events (success)
+    every { mockDb.deleteEvents(events) } returns events.size
+    // Setup: db.events returns an empty list for hasActiveEvents check
+    every { mockDb.events } returns emptyList()
+
+    // When
+    ApplicationController.dismissEvents(
+      mockContext,
+      mockDb,
+      events,
+      EventDismissType.ManuallyDismissedFromActivity,
+      notifyActivity = false,
+      dismissedEventsStorage = mockDismissedEventsStorage // Inject mock dismissed storage
+    )
+
+    // Then
+    verify { mockDismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, events) }
+    verify { mockDb.deleteEvents(events) }
+    verify(exactly = 0) { UINotifier.notify(any(), any()) }
+  }
+
   private fun createTestEvent(id: Long = 1L): EventAlertRecord {
     val currentTime = mockTimeProvider.testClock.currentTimeMillis()
     DevLog.info(LOG_TAG, "Creating test event with fixed time: $currentTime")
