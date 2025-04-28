@@ -109,7 +109,8 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface,
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ): List<Pair<EventAlertRecord, EventDismissResult>>
 
     fun safeDismissEventsById(
@@ -117,7 +118,8 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface,
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ): List<Pair<Long, EventDismissResult>>
 }
 
@@ -1288,7 +1290,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         db: EventsStorageInterface,
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
     ): List<Pair<EventAlertRecord, EventDismissResult>> {
         val results = mutableListOf<Pair<EventAlertRecord, EventDismissResult>>()
         
@@ -1310,7 +1313,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             // Store dismissed events if needed
             val successfullyStoredEvents = if (dismissType.shouldKeep) {
                 try {
-                    DismissedEventsStorage(context).classCustomUse {
+                    // Use injected storage if available, otherwise create new
+                    val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+                    storage.classCustomUse {
                         it.addEvents(dismissType, validEvents)
                     }
                     validEvents
@@ -1421,7 +1426,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         db: EventsStorageInterface,
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
-        notifyActivity: Boolean
+        notifyActivity: Boolean,
+        dismissedEventsStorage: DismissedEventsStorage? // <-- Remove default value
     ): List<Pair<Long, EventDismissResult>> {
         val results = mutableListOf<Pair<Long, EventDismissResult>>()
         
@@ -1441,7 +1447,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             DevLog.info(LOG_TAG, "Found ${events.size} events to dismiss out of ${eventIds.size} IDs")
 
             // Call the other version with the found events
-            val dismissResults = safeDismissEvents(context, db, events, dismissType, notifyActivity)
+            val dismissResults = safeDismissEvents(context, db, events, dismissType, notifyActivity, dismissedEventsStorage) // <-- Pass through
 
             // Update our results based on the dismiss results
             dismissResults.forEach { (event, result) ->
@@ -1480,7 +1486,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     fun safeDismissEventsFromRescheduleConfirmations(
         context: Context,
         confirmations: List<JsRescheduleConfirmationObject>,
-        notifyActivity: Boolean = false
+        notifyActivity: Boolean = false,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ): List<Pair<Long, EventDismissResult>> {
         DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
 
@@ -1506,7 +1513,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 db,
                 eventIds,
                 EventDismissType.AutoDismissedDueToRescheduleConfirmation,
-                notifyActivity
+                notifyActivity,
+                dismissedEventsStorage // <-- Pass through
             )
 
             // Log results

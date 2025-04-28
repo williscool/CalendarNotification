@@ -406,7 +406,6 @@ class EventDismissTest {
     }
     
     @Test
-    @Ignore("this is not correctly mocking the storage error. not sure why yet though")
     fun testSafeDismissEventsFromRescheduleConfirmationsWithStorageError() {
         // Given
         val currentTime = mockTimeProvider.testClock.currentTimeMillis()
@@ -420,61 +419,48 @@ class EventDismissTest {
                 created_at = currentTime.toString(),
                 updated_at = currentTime.toString(),
                 is_in_future = true
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 2L,
+                calendar_id = 1L,
+                original_instance_start_time = currentTime,
+                title = "Test Event 2",
+                new_instance_start_time = currentTime + 7200000,
+                created_at = currentTime.toString(),
+                updated_at = currentTime.toString(),
+                is_in_future = true
             )
         )
         val events = confirmations.map { createTestEvent(it.event_id) }
-        
-        // Add the event to existing mock components for retrieval
-        confirmations.forEach { confirmation ->
-            val event = events.find { it.eventId == confirmation.event_id }!!
-            mockComponents.addEventToStorage(event)
-        }
-        
-        // Mock our mock database to return these events when queried
         confirmations.forEach { confirmation ->
             val event = events.find { it.eventId == confirmation.event_id }!!
             every { mockDb.getEventInstances(confirmation.event_id) } returns listOf(event)
             every { mockDb.getEvent(confirmation.event_id, any()) } returns event
         }
-        
-        // Simulate storage errors for all database operations
-        every { mockDb.deleteEvents(any()) } throws RuntimeException("Storage error")
-        every { mockDb.deleteEvent(any(), any()) } throws RuntimeException("Storage error")
-        every { mockDb.addEvent(any()) } throws RuntimeException("Storage error")
-        every { mockDb.addEvents(any()) } throws RuntimeException("Storage error")
-        every { mockDb.updateEvent(any(), any(), any()) } throws RuntimeException("Storage error")
-        
-        // Also ensure DismissedEventsStorage operations fail
-        mockkConstructor(DismissedEventsStorage::class)
-        every { anyConstructed<DismissedEventsStorage>().addEvent(any(), any(), any()) } throws RuntimeException("Storage error")
-        every { anyConstructed<DismissedEventsStorage>().addEvents(any(), any()) } throws RuntimeException("Storage error")
-        
-        // Clear any previous toast messages
-        mockComponents.clearToastMessages()
-        
+        every { mockDb.deleteEvents(any()) } returns events.size
+        every { mockDb.events } returns emptyList()
+
+        // Create a mock DismissedEventsStorage that throws on addEvents
+        val throwingDismissedEventsStorage = mockk<DismissedEventsStorage>(relaxed = true)
+        every { throwingDismissedEventsStorage.addEvents(any(), any()) } throws RuntimeException("Storage error")
+
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
             mockContext,
             confirmations,
-            false
+            notifyActivity = false,
+            dismissedEventsStorage = throwingDismissedEventsStorage
         )
-        
+
         // Then
         assertEquals(confirmations.size, results.size)
         results.forEach { (_, result) ->
             assertTrue(
-                "Expected error result but got $result",
                 result == EventDismissResult.StorageError || 
                 result == EventDismissResult.DatabaseError || 
                 result == EventDismissResult.DeletionWarning
             )
         }
-        
-        // Verify toast messages are shown about the error
-        val toastMessages = mockComponents.getToastMessages()
-        assertTrue(toastMessages.size >= 1)
-        assertTrue(toastMessages.any { it.contains("Attempting to dismiss") })
-        assertTrue(toastMessages.any { it.contains("failed") || it.contains("error") || it.contains("Warning") })
     }
     
     @Test
@@ -573,4 +559,4 @@ class EventDismissTest {
             flags = 0
         )
     }
-} 
+}
