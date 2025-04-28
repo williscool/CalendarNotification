@@ -1525,7 +1525,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             }
             
             // Process non-repeating events
-            val dismissResults = safeDismissEventsById(
+            results = safeDismissEventsById(
                 context,
                 dbInst,
                 nonRepeatingEvents.map { it.eventId },
@@ -1534,8 +1534,21 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 dismissedEventsStorage // <-- Pass through
             )
 
-            // Combine results
-            results = skippedResults + dismissResults
+            // --- Ensure every input eventId has a result --- START
+            val processedResultIds = results.map { it.first }.toSet() // IDs processed by safeDismissEventsById
+            val skippedResultIds = skippedResults.map { it.first }.toSet() // IDs already marked as skipped
+            val allHandledIds = processedResultIds + skippedResultIds // Combine all handled IDs
+
+            // Find IDs from the original input that were neither processed nor skipped
+            val missingIds = eventIds.filter { it !in allHandledIds }
+            if (missingIds.isNotEmpty()) {
+                // Add EventNotFound only for genuinely missing/unhandled events
+                results = results + missingIds.map { it to EventDismissResult.EventNotFound }
+            }
+            // --- Ensure every input eventId has a result --- END
+
+            // Combine results (Skipped + Processed/NotFound)
+            results = skippedResults + results
 
             // Log results
             val successCount = results.count { it.second == EventDismissResult.Success }
