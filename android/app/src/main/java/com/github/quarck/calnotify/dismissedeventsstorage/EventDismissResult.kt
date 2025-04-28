@@ -12,7 +12,8 @@ enum class EventDismissResult(val code: Int) {
     InvalidEvent(3),              // Event is invalid
     NotificationError(4),         // Error occurred during notification handling
     StorageError(5),              // Failed to store in dismissed events storage
-    DeletionWarning(6);           // Event was stored but failed to delete from main storage
+    DeletionWarning(6),           // Event was stored but failed to delete from main storage
+    SkippedRepeating(7);          // Event was skipped because it is a repeating event
 
     companion object {
         @JvmStatic

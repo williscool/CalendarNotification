@@ -1510,23 +1510,42 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         // Use safeDismissEventsById to handle the dismissals
         val eventsDb = db ?: EventsStorage(context)
         eventsDb.classCustomUse { dbInst ->
-            results = safeDismissEventsById(
+            // First get all events to check for repeating ones
+            val allEvents = eventIds.mapNotNull { eventId ->
+                dbInst.getEventInstances(eventId).firstOrNull()
+            }
+            
+            // Separate repeating and non-repeating events
+            val repeatingEvents = allEvents.filter { it.isRepeating }
+            val nonRepeatingEvents = allEvents.filter { !it.isRepeating }
+            
+            // Add skipped repeating events to results
+            val skippedResults = repeatingEvents.map { 
+                Pair(it.eventId, EventDismissResult.SkippedRepeating) 
+            }
+            
+            // Process non-repeating events
+            val dismissResults = safeDismissEventsById(
                 context,
                 dbInst,
-                eventIds,
+                nonRepeatingEvents.map { it.eventId },
                 EventDismissType.AutoDismissedDueToRescheduleConfirmation,
                 notifyActivity,
                 dismissedEventsStorage // <-- Pass through
             )
+
+            // Combine results
+            results = skippedResults + dismissResults
 
             // Log results
             val successCount = results.count { it.second == EventDismissResult.Success }
             val warningCount = results.count { it.second == EventDismissResult.DeletionWarning }
             val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
             val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
+            val skippedCount = results.count { it.second == EventDismissResult.SkippedRepeating }
             
             // Main success/failure message
-            val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed"
+            val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed, $skippedCount repeating events skipped"
             DevLog.info(LOG_TAG, mainMessage)
             android.widget.Toast.makeText(context, mainMessage, android.widget.Toast.LENGTH_LONG).show()
             
