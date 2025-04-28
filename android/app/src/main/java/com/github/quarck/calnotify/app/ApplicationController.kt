@@ -1487,8 +1487,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context,
         confirmations: List<JsRescheduleConfirmationObject>,
         notifyActivity: Boolean = false,
+        db: EventsStorageInterface? = null, // <-- Add optional parameter
         dismissedEventsStorage: DismissedEventsStorage? = null,
-        db: EventsStorageInterface? = null // <-- Add optional parameter
     ): List<Pair<Long, EventDismissResult>> {
         DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
 
