@@ -20,6 +20,8 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustom
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
+import java.util.Locale
+import java.util.UUID // Import UUID for unique identifiers
 
 @RunWith(AndroidJUnit4::class)
 class CalendarBackupRestoreTest {
@@ -27,6 +29,8 @@ class CalendarBackupRestoreTest {
     private var testCalendarId1: Long = -1
     private var testCalendarId2: Long = -1
     private lateinit var testClock: CNPlusTestClock
+    private var originalLocale: Locale? = null
+    private lateinit var uniqueSuffix: String // Add variable for unique suffix
 
     @get:Rule
     val permissionRule: GrantPermissionRule = GrantPermissionRule.grant(
@@ -36,22 +40,25 @@ class CalendarBackupRestoreTest {
 
     @Before
     fun setup() {
+        originalLocale = Locale.getDefault()
+        Locale.setDefault(originalLocale)
         context = InstrumentationRegistry.getInstrumentation().targetContext
         // Initialize with a fixed timestamp for deterministic test behavior
         testClock = CNPlusTestClock(1635724800000) // 2021-11-01 00:00:00 UTC
-        
-        // Create calendar 1 as the source calendar
+        uniqueSuffix = UUID.randomUUID().toString().take(8) // Generate a unique suffix for this test run
+
+        // Create calendar 1 as the source calendar with unique names
         testCalendarId1 = createTestCalendar(
-            displayName = "Test Calendar Source",
-            accountName = "source@local",
-            ownerAccount = "source@local"
+            displayName = "Test Calendar Source $uniqueSuffix",
+            accountName = "source_$uniqueSuffix@local",
+            ownerAccount = "source_$uniqueSuffix@local"
         )
-        
-        // Create calendar 2 as the target calendar - better match for restore operations
+
+        // Create calendar 2 as the target calendar with unique names
         testCalendarId2 = createTestCalendar(
-            displayName = "Test Calendar Target",
-            accountName = "target@local",
-            ownerAccount = "target@local"
+            displayName = "Test Calendar Target $uniqueSuffix",
+            accountName = "target_$uniqueSuffix@local",
+            ownerAccount = "target_$uniqueSuffix@local"
         )
     }
 
@@ -80,6 +87,8 @@ class CalendarBackupRestoreTest {
                 arrayOf(testCalendarId2.toString())
             )
         }
+        
+        originalLocale?.let { Locale.setDefault(it) }
     }
 
     @Test
@@ -88,39 +97,45 @@ class CalendarBackupRestoreTest {
         
         assertNotNull("Backup info should not be null", backupInfo)
         assertEquals("Calendar ID should match", testCalendarId1, backupInfo?.calendarId)
-        assertEquals("Owner should match", "source@local", backupInfo?.ownerAccount)
-        assertEquals("Account name should match", "source@local", backupInfo?.accountName)
+        assertEquals("Owner should match", "source_$uniqueSuffix@local", backupInfo?.ownerAccount)
+        assertEquals("Account name should match", "source_$uniqueSuffix@local", backupInfo?.accountName)
         assertEquals("Account type should match", CalendarContract.ACCOUNT_TYPE_LOCAL, backupInfo?.accountType)
-        assertEquals("Display name should match", "Test Calendar Source", backupInfo?.displayName)
+        assertEquals("Display name should match", "Test Calendar Source $uniqueSuffix", backupInfo?.displayName)
     }
 
     @Test
     fun testFindMatchingCalendarId_ExactMatch() {
         val backupInfo = CalendarBackupInfo(
             calendarId = 999L, // Different ID
-            ownerAccount = "source@local",
-            accountName = "source@local",
+            ownerAccount = "source_$uniqueSuffix@local", // Use unique owner
+            accountName = "source_$uniqueSuffix@local", // Use unique account name
             accountType = CalendarContract.ACCOUNT_TYPE_LOCAL,
-            displayName = "Test Calendar Source",
-            name = "Test Calendar Source"
+            displayName = "Test Calendar Source $uniqueSuffix", // Use unique display name
+            name = "Test Calendar Source $uniqueSuffix" // Use unique name
         )
-        
+
         val matchedId = CalendarProvider.findMatchingCalendarId(context, backupInfo)
         assertEquals("Should find exact matching calendar", testCalendarId1, matchedId)
     }
 
     @Test
     fun testFindMatchingCalendarId_FallbackMatch() {
+        // This test might become less reliable with unique names,
+        // as fallback relies on non-unique properties.
+        // Consider if this test case is still valid or needs adjustment.
         val backupInfo = CalendarBackupInfo(
             calendarId = 999L,
-            ownerAccount = "different@local",
-            accountName = "source@local", // Match account name but different owner
+            ownerAccount = "different_$uniqueSuffix@local", // Different owner
+            accountName = "source_$uniqueSuffix@local", // Match unique account name
             accountType = CalendarContract.ACCOUNT_TYPE_LOCAL,
-            displayName = "Different Name",
-            name = "Different Name"
+            displayName = "Different Name $uniqueSuffix", // Different display name
+            name = "Different Name $uniqueSuffix" // Different name
         )
-        
+
         val matchedId = CalendarProvider.findMatchingCalendarId(context, backupInfo)
+        // Depending on the fallback logic, this might still match testCalendarId1
+        // or might fail if the logic strictly requires more matches.
+        // For now, keep the assertion but be aware it might need adjustment.
         assertEquals("Should find fallback matching calendar", testCalendarId1, matchedId)
     }
 
@@ -172,14 +187,14 @@ class CalendarBackupRestoreTest {
         }
         context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
         
-        // Create backup info that matches calendar 2's properties
+        // Create backup info that matches calendar 2's unique properties
         val backupInfo = CalendarBackupInfo(
-            calendarId = testCalendarId2, // Change this to target calendar ID
-            ownerAccount = "target@local",
-            accountName = "target@local",
+            calendarId = testCalendarId2, // Use target calendar ID
+            ownerAccount = "target_$uniqueSuffix@local", // Use unique owner
+            accountName = "target_$uniqueSuffix@local", // Use unique account name
             accountType = CalendarContract.ACCOUNT_TYPE_LOCAL,
-            displayName = "Test Calendar Target",
-            name = "Test Calendar Target"
+            displayName = "Test Calendar Target $uniqueSuffix", // Use unique display name
+            name = "Test Calendar Target $uniqueSuffix" // Use unique name
         )
         
         // Create our EventAlertRecord using the real event ID but with target calendar ID
@@ -301,4 +316,4 @@ class CalendarBackupRestoreTest {
         // Use test clock to advance time
         testClock.advanceBy(milliseconds)
     }
-} 
+}
