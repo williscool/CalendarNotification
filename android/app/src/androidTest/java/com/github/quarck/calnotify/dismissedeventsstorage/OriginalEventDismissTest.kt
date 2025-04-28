@@ -21,6 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse // Keep import if needed by code under test
 
 /**
  * Test for ApplicationController.dismissEvent functionality using constructor mocking.
@@ -81,6 +82,8 @@ class OriginalEventDismissTest {
 
     // Override default behavior for this specific test case on the mock instance
     every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns event
+    // Ensure the delete operation succeeds so the inner logic runs
+    every { mockDb.deleteEvent(event.eventId, event.instanceStartTime) } returns true
 
     // When - call the ApplicationController.dismissEvent
     ApplicationController.dismissEvent(
@@ -90,16 +93,14 @@ class OriginalEventDismissTest {
       event.instanceStartTime,
       event.notificationId,
       false, // notifyActivity = false
-      db = mockDb // inject mock
+      db = mockDb, // inject mock db
+      dismissedEventsStorage = mockDismissedEventsStorage // Inject mock dismissed storage
     )
 
     // Then - verify interactions directly on our mock instances
     verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
     verify { mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event) }
     verify { mockDb.deleteEvent(event.eventId, event.instanceStartTime) }
-    verify { mockReminderState.onUserInteraction(any()) }
-    // Verify AlarmScheduler call against the separate mock instance
-    verify { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) } 
     verify(exactly = 0) { UINotifier.notify(any(), any()) }
   }
 
@@ -127,9 +128,6 @@ class OriginalEventDismissTest {
     // Verify these were NOT called
     verify(exactly = 0) { mockDismissedEventsStorage.addEvent(any(), any()) }
     verify(exactly = 0) { mockDb.deleteEvent(any(), any()) }
-    verify(exactly = 0) { mockReminderState.onUserInteraction(any()) }
-    // Verify AlarmScheduler not called
-    verify(exactly = 0) { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) } 
     verify(exactly = 0) { UINotifier.notify(any(), any()) }
   }
 

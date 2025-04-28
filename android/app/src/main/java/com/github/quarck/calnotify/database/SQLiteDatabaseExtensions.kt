@@ -28,21 +28,24 @@ object  SQLiteDatabaseExtensions {
   }
 
   fun <T, R> T.classCustomUse(block: (T) -> R): R {
-    // If this is a mock (for testing), just call the block
-    if (this!!::class.qualifiedName?.contains("io.mockk") == true) {
-      return block(this)
+    // Check if the object is a MockK mock
+    // If it is, just execute the block directly without trying to access database properties
+    if (this!!::class.java.name.contains("mockk")) {
+        return block(this)
     }
+
     // If this is a SQLiteOpenHelper, use writableDatabase
     if (this is SQLiteOpenHelper) {
-      val db = this.writableDatabase
+      val db = this.writableDatabase // Ensure db is obtained, though not directly used here based on original logic
       try {
+        // Pass the helper itself to the block, maintaining original behavior
         return block(this)
       } finally {
-        // Optionally finalize/close if needed
-        // db.customUse {  }
+        // Original code didn't close/finalize here, maintaining that.
+        // Consider lifecycle management if issues arise.
       }
     }
-    // Otherwise, just call the block (for interface cases)
+    // Otherwise (including mocks or other types), just call the block
     return block(this)
   }
 }

@@ -89,7 +89,8 @@ interface ApplicationControllerInterface {
         instanceStartTime: Long,
         notificationId: Int,
         notifyActivity: Boolean,
-        db: EventsStorageInterface? = null
+        db: EventsStorageInterface? = null,
+        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter here too
     )
     fun restoreEvent(context: Context, event: EventAlertRecord)
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
@@ -1032,13 +1033,16 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             db: EventsStorageInterface,
             event: EventAlertRecord,
             dismissType: EventDismissType,
-            notifyActivity: Boolean
+            notifyActivity: Boolean,
+            dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing event id ${event.eventId} / instance ${event.instanceStartTime}")
 
         if (dismissType.shouldKeep && event.isNotSpecial) {
-            DismissedEventsStorage(context).classCustomUse {
+            // Use injected storage if available, otherwise create new
+            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            storage.classCustomUse {
                 it.addEvent(dismissType, event)
             }
         }
@@ -1068,7 +1072,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     override fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord) {
         EventsStorage(context).classCustomUse {
             db ->
-            dismissEvent(context, db, event, dismissType, false)
+            // Pass null for dismissedEventsStorage to maintain original behavior
+            dismissEvent(context, db, event, dismissType, false, null)
         }
     }
 
@@ -1091,7 +1096,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         instanceStartTime: Long,
         notificationId: Int,
         notifyActivity: Boolean,
-        db: EventsStorageInterface? // <-- new optional parameter
+        db: EventsStorageInterface?, // <-- existing optional parameter
+        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter here too
     ) {
         val storage = db ?: EventsStorage(context)
         storage.classCustomUse {
@@ -1099,7 +1105,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             val event = dbInst.getEvent(eventId, instanceStartTime)
             if (event != null) {
                 DevLog.info(LOG_TAG, "Dismissing event ${event.eventId} / ${event.instanceStartTime}")
-                dismissEvent(context, dbInst, event, dismissType, notifyActivity)
+                // Pass the potentially injected dismissedEventsStorage down
+                dismissEvent(context, dbInst, event, dismissType, notifyActivity, dismissedEventsStorage)
             } else {
                 DevLog.error(LOG_TAG, "dismissEvent: can't find event $eventId, $instanceStartTime")
                 DevLog.error(LOG_TAG, " -- known events / instances: ")
