@@ -1525,7 +1525,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             }
             
             // Process non-repeating events
-            results = safeDismissEventsById(
+            val processedResults = safeDismissEventsById(
                 context,
                 dbInst,
                 nonRepeatingEvents.map { it.eventId },
@@ -1534,44 +1534,40 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 dismissedEventsStorage // <-- Pass through
             )
 
-            // --- Ensure every input eventId has a result --- START
-            val processedResultIds = results.map { it.first }.toSet() // IDs processed by safeDismissEventsById
-            val skippedResultIds = skippedResults.map { it.first }.toSet() // IDs already marked as skipped
-            val allHandledIds = processedResultIds + skippedResultIds // Combine all handled IDs
+            // --- Determine missing IDs --- START
+            val processedResultIds = processedResults.map { it.first }.toSet() // Use processedResults
+            val skippedResultIds = skippedResults.map { it.first }.toSet()
+            val allHandledIds = processedResultIds + skippedResultIds
 
-            // Find IDs from the original input that were neither processed nor skipped
             val missingIds = eventIds.filter { it !in allHandledIds }
-            if (missingIds.isNotEmpty()) {
-                // Add EventNotFound only for genuinely missing/unhandled events
-                results = results + missingIds.map { it to EventDismissResult.EventNotFound }
-            }
-            // --- Ensure every input eventId has a result --- END
+            val notFoundResults = missingIds.map { it to EventDismissResult.EventNotFound } // Compute NotFound results
+            // --- Determine missing IDs --- END
 
-            // Combine results (Skipped + Processed/NotFound)
-            results = skippedResults + results
+            // Combine results (Skipped + Processed + NotFound) into the final list
+            val finalResults = skippedResults + processedResults + notFoundResults
 
-            // Log results
-            val successCount = results.count { it.second == EventDismissResult.Success }
-            val warningCount = results.count { it.second == EventDismissResult.DeletionWarning }
-            val notFoundCount = results.count { it.second == EventDismissResult.EventNotFound }
-            val errorCount = results.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
-            val skippedCount = results.count { it.second == EventDismissResult.SkippedRepeating }
-            
+            // Log results using finalResults
+            val successCount = finalResults.count { it.second == EventDismissResult.Success }
+            val warningCount = finalResults.count { it.second == EventDismissResult.DeletionWarning }
+            val notFoundCount = finalResults.count { it.second == EventDismissResult.EventNotFound } // Use finalResults
+            val errorCount = finalResults.count { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
+            val skippedCount = finalResults.count { it.second == EventDismissResult.SkippedRepeating }
+
             // Main success/failure message
             val mainMessage = "Dismissed $successCount events successfully, $notFoundCount events not found, $errorCount events failed, $skippedCount repeating events skipped"
             DevLog.info(LOG_TAG, mainMessage)
             android.widget.Toast.makeText(context, mainMessage, android.widget.Toast.LENGTH_LONG).show()
-            
+
             // Separate warning message for deletion issues
             if (warningCount > 0) {
                 val warningMessage = "Warning: Failed to delete $warningCount events from events storage (they were safely stored in dismissed storage)"
                 DevLog.warn(LOG_TAG, warningMessage)
                 android.widget.Toast.makeText(context, warningMessage, android.widget.Toast.LENGTH_LONG).show()
             }
-            
+
             // Group and log failures by reason
             if (errorCount > 0) {
-                val failuresByReason = results
+                val failuresByReason = finalResults // Use finalResults
                     .filter { it.second == EventDismissResult.StorageError || it.second == EventDismissResult.NotificationError }
                     .groupBy { it.second }
                     .mapValues { it.value.size }
@@ -1581,6 +1577,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                     android.widget.Toast.makeText(context, "Failed to dismiss $count events: $reason", android.widget.Toast.LENGTH_LONG).show()
                 }
             }
+
+            results = finalResults // Assign the final computed list to the outer variable
         }
 
         return results

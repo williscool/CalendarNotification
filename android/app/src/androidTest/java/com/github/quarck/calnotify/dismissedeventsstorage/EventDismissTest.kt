@@ -402,6 +402,7 @@ class EventDismissTest {
         val toastMessages = mockComponents.getToastMessages()
         assertEquals(2, toastMessages.size)
         assertEquals("Attempting to dismiss ${confirmations.size} events", toastMessages[0])
+        // TODO: just update this message and we sould be good!
         assertEquals("Dismissed 0 events successfully, ${confirmations.size} events not found, 0 events failed", toastMessages[1])
     }
     
