@@ -9,12 +9,15 @@ import android.content.SharedPreferences
 import android.content.pm.VersionedPackage
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.Build
+import android.os.LocaleList
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorService
 import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import io.mockk.*
+import java.util.Locale
 
 /**
  * Provides context-related mock functionality for tests
@@ -128,6 +131,9 @@ class MockContextProvider(
     private fun setupContext(realContext: Context) {
         DevLog.info(LOG_TAG, "Setting up mock context")
 
+        // Set the default locale globally for all tests to ensure consistency
+        java.util.Locale.setDefault(java.util.Locale.US)
+
         // Mock Toast static methods
         mockkStatic(android.widget.Toast::class)
         every { 
@@ -202,6 +208,12 @@ class MockContextProvider(
         // Create a proper mock of Resources with non-null Configuration
         val mockConfiguration = Configuration().apply {
             setToDefaults()
+            // Ensure configuration has a non-null locale to prevent DateFormat NPE
+            locale = Locale.US
+            setLocale(Locale.US)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                setLocales(LocaleList(Locale.US))
+            }
         }
         
         // Create a robust Resources mock that always returns a valid Configuration
