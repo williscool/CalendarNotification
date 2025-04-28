@@ -23,6 +23,20 @@ import com.github.quarck.calnotify.utils.CNPlusTestClock
 import java.util.Locale
 import java.util.UUID // Import UUID for unique identifiers
 
+/**
+ * Tests the backup and restore functionality related to calendar data.
+ *
+ * This test suite verifies:
+ * - Retrieving backup information for a calendar.
+ * - Finding a matching calendar on a "restored" device based on backup info.
+ * - Restoring an event alert record into the local storage, ensuring it's associated with the correctly matched calendar.
+ *
+ * **Note on Test Isolation:** This test interacts with the Android Calendar Provider, which maintains persistent state
+ * across test runs. To prevent intermittent failures due to calendar ID drift or conflicts with pre-existing data,
+ * unique identifiers (UUID suffix) are used for calendar names and accounts during setup.
+ * See [Fixing Intermittent Failures in CalendarBackupRestoreTest](../../../../../../docs/dev_completed/calendar_backup_restore_test_isolation.md)
+ * for more details.
+ */
 @RunWith(AndroidJUnit4::class)
 class CalendarBackupRestoreTest {
     private lateinit var context: Context
