@@ -449,7 +449,8 @@ class EventDismissTest {
             mockContext,
             confirmations,
             notifyActivity = false,
-            dismissedEventsStorage = throwingDismissedEventsStorage
+            dismissedEventsStorage = throwingDismissedEventsStorage,
+            db = mockDb // Inject mockDb so event lookup works
         )
 
         // Then

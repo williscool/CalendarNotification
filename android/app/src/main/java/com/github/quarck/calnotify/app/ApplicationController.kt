@@ -1487,7 +1487,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context,
         confirmations: List<JsRescheduleConfirmationObject>,
         notifyActivity: Boolean = false,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorage? = null,
+        db: EventsStorageInterface? = null // <-- Add optional parameter
     ): List<Pair<Long, EventDismissResult>> {
         DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
 
@@ -1507,10 +1508,11 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         var results: List<Pair<Long, EventDismissResult>> = emptyList()
 
         // Use safeDismissEventsById to handle the dismissals
-        EventsStorage(context).classCustomUse { db ->
+        val eventsDb = db ?: EventsStorage(context)
+        eventsDb.classCustomUse { dbInst ->
             results = safeDismissEventsById(
                 context,
-                db,
+                dbInst,
                 eventIds,
                 EventDismissType.AutoDismissedDueToRescheduleConfirmation,
                 notifyActivity,
