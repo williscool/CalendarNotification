@@ -2,7 +2,7 @@ package com.github.quarck.calnotify.dismissedeventsstorage
 
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.quarck.calnotify.app.AlarmScheduler
+import com.github.quarck.calnotify.app.AlarmScheduler // Keep import for mock type
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -20,9 +20,10 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 
 /**
- * Test for ApplicationController.dismissEvent functionality using static mocking.
+ * Test for ApplicationController.dismissEvent functionality using constructor mocking.
  */
 @RunWith(AndroidJUnit4::class)
 class OriginalEventDismissTest {
@@ -30,16 +31,17 @@ class OriginalEventDismissTest {
 
   private lateinit var mockContext: Context
   private lateinit var mockTimeProvider: MockTimeProvider
+  private lateinit var mockDb: EventsStorageInterface
 
-  // Declare mock storage objects as class members
-  private lateinit var mockEventsStorage: EventsStorage
-  private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
+  // Keep mock instance for AlarmScheduler verification, though injection isn't handled here
   private lateinit var mockAlarmScheduler: AlarmScheduler
+
+  private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
   private lateinit var mockReminderState: ReminderState
 
   @Before
   fun setup() {
-    DevLog.info(LOG_TAG, "Setting up EventDismissTest")
+    DevLog.info(LOG_TAG, "Setting up EventDismissTest with injectable db")
 
     // Setup mock time provider
     mockTimeProvider = MockTimeProvider(1635724800000) // 2021-11-01 00:00:00 UTC
@@ -50,58 +52,25 @@ class OriginalEventDismissTest {
     mockContextProvider.setup()
     mockContext = mockContextProvider.fakeContext
 
-    // Create relaxed mock instances FIRST
-    mockEventsStorage = mockk<EventsStorage>(relaxed = true)
+    // 1. Create relaxed mock instances
+    mockDb = mockk(relaxed = true)
     mockDismissedEventsStorage = mockk<DismissedEventsStorage>(relaxed = true)
-    mockAlarmScheduler = mockk<AlarmScheduler>(relaxed = true)
+    mockAlarmScheduler = mockk<AlarmScheduler>(relaxed = true) // Keep for verification
     mockReminderState = mockk<ReminderState>(relaxed = true)
-    
-    // Mock the ApplicationController directly
-    mockkObject(ApplicationController)
-    
-    // When ApplicationController.dismissEvent is called, execute our mock implementation
-    every { 
-      ApplicationController.dismissEvent(
-        any(),  // context
-        any(),  // dismissType
-        any(),  // eventId
-        any(),  // instanceStartTime
-        any(),  // notificationId
-        any()   // notifyActivity
-      )
-    } answers {
-      // Extract args for use in our mocked implementation
-      val ctx = firstArg<Context>()
-      val dismissType = secondArg<EventDismissType>()
-      val eventId = thirdArg<Long>()
-      val instanceStartTime = arg<Long>(3)
-      val notificationId = arg<Int>(4)
-      val notifyActivity = arg<Boolean>(5)
-      
-      // Simulate the ACTUAL method implementation but using our mocks
-      val event = mockEventsStorage.getEvent(eventId, instanceStartTime)
-      if (event != null) {
-        mockDismissedEventsStorage.addEvent(dismissType, event)
-        mockEventsStorage.deleteEvent(eventId, instanceStartTime)
-        if (notifyActivity) {
-          UINotifier.notify(ctx, true)
-        }
-      }
-    }
+
+    // 2. Define default behavior on mock instances
+    every { mockDb.getEvent(any(), any()) } returns null
+    // Relaxed mocks handle Unit returns for addEvent, deleteEvent, onUserInteraction
 
     // Mock UINotifier object
     mockkObject(UINotifier)
     every { UINotifier.notify(any(), any()) } returns Unit
-    
-    // Default behavior - mockEventsStorage.getEvent returns null by default
-    every { mockEventsStorage.getEvent(any(), any()) } returns null
   }
 
   @After
   fun tearDown() {
     unmockkObject(UINotifier)
-    unmockkObject(ApplicationController)
-    unmockkAll() // Keep this as it unmocks other things like the relaxed mocks
+    unmockkAll() // Clears mocks and other MockK state
   }
 
   @Test
@@ -110,50 +79,57 @@ class OriginalEventDismissTest {
     val event = createTestEvent()
     DevLog.info(LOG_TAG, "Created test event with id=${event.eventId}, instanceStartTime=${event.instanceStartTime}")
 
-    // Set up behavior on our specific mock instance for this test (overrides the default null from setup)
-    every { mockEventsStorage.getEvent(event.eventId, event.instanceStartTime) } returns event
+    // Override default behavior for this specific test case on the mock instance
+    every { mockDb.getEvent(event.eventId, event.instanceStartTime) } returns event
 
-    // When - call the mocked ApplicationController.dismissEvent
+    // When - call the ApplicationController.dismissEvent
     ApplicationController.dismissEvent(
       mockContext,
       EventDismissType.ManuallyDismissedFromActivity,
       event.eventId,
       event.instanceStartTime,
-      event.notificationId, // Use event's notificationId
-      false // notifyActivity = false
+      event.notificationId,
+      false, // notifyActivity = false
+      db = mockDb // inject mock
     )
 
-    // Then - verify interactions on our specific mock instances
-    verify { mockEventsStorage.getEvent(event.eventId, event.instanceStartTime) }
+    // Then - verify interactions directly on our mock instances
+    verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
     verify { mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event) }
-    verify { mockEventsStorage.deleteEvent(event.eventId, event.instanceStartTime) }
-    verify(exactly = 0) { UINotifier.notify(any(), any()) } // Since notifyActivity = false
+    verify { mockDb.deleteEvent(event.eventId, event.instanceStartTime) }
+    verify { mockReminderState.onUserInteraction(any()) }
+    // Verify AlarmScheduler call against the separate mock instance
+    verify { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) } 
+    verify(exactly = 0) { UINotifier.notify(any(), any()) }
   }
 
   @Test
   fun testOriginalDismissEventWithNonExistentEvent() {
     // Given
-    val event = createTestEvent() // We still need event details for the call
+    val event = createTestEvent()
     DevLog.info(LOG_TAG, "Created test event with id=${event.eventId}, instanceStartTime=${event.instanceStartTime}")
 
     // Behavior for non-existent event (getEvent returns null) is the default set in setup()
-    // No need for specific 'every' here as the default null return is already set in setup
 
-    // When - call the mocked ApplicationController.dismissEvent
+    // When - call the ApplicationController.dismissEvent
     ApplicationController.dismissEvent(
       mockContext,
       EventDismissType.ManuallyDismissedFromActivity,
       event.eventId,
       event.instanceStartTime,
-      event.notificationId, // Use event's notificationId
-      false // notifyActivity = false
+      event.notificationId,
+      false, // notifyActivity = false
+      db = mockDb // inject mock
     )
 
-    // Then - verify interactions on our specific mock instances
-    verify { mockEventsStorage.getEvent(event.eventId, event.instanceStartTime) }
+    // Then - verify interactions directly on our mock instances
+    verify { mockDb.getEvent(event.eventId, event.instanceStartTime) }
     // Verify these were NOT called
     verify(exactly = 0) { mockDismissedEventsStorage.addEvent(any(), any()) }
-    verify(exactly = 0) { mockEventsStorage.deleteEvent(any(), any()) }
+    verify(exactly = 0) { mockDb.deleteEvent(any(), any()) }
+    verify(exactly = 0) { mockReminderState.onUserInteraction(any()) }
+    // Verify AlarmScheduler not called
+    verify(exactly = 0) { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) } 
     verify(exactly = 0) { UINotifier.notify(any(), any()) }
   }
 
@@ -167,7 +143,7 @@ class OriginalEventDismissTest {
       isAllDay = false,
       isRepeating = false,
       alertTime = currentTime,
-      notificationId = 0,
+      notificationId = (id % Int.MAX_VALUE).toInt(), // Ensure notificationId is derived
       title = "Test Event $id",
       desc = "Test Description",
       startTime = currentTime,

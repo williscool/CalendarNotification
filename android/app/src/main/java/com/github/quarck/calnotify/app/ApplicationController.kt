@@ -82,7 +82,15 @@ interface ApplicationControllerInterface {
     fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean)
     fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord)
     fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean
-    fun dismissEvent(context: Context, dismissType: EventDismissType, eventId: Long, instanceStartTime: Long, notificationId: Int, notifyActivity: Boolean)
+    fun dismissEvent(
+        context: Context,
+        dismissType: EventDismissType,
+        eventId: Long,
+        instanceStartTime: Long,
+        notificationId: Int,
+        notifyActivity: Boolean,
+        db: EventsStorageInterface? = null
+    )
     fun restoreEvent(context: Context, event: EventAlertRecord)
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
@@ -1077,26 +1085,25 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     @Suppress("UNUSED_PARAMETER")
     override fun dismissEvent(
-            context: Context,
-            dismissType: EventDismissType,
-            eventId: Long,
-            instanceStartTime: Long,
-            notificationId: Int,
-            notifyActivity: Boolean
+        context: Context,
+        dismissType: EventDismissType,
+        eventId: Long,
+        instanceStartTime: Long,
+        notificationId: Int,
+        notifyActivity: Boolean,
+        db: EventsStorageInterface? // <-- new optional parameter
     ) {
-
-        EventsStorage(context).classCustomUse {
-            db ->
-            val event = db.getEvent(eventId, instanceStartTime)
+        val storage = db ?: EventsStorage(context)
+        storage.classCustomUse {
+            dbInst ->
+            val event = dbInst.getEvent(eventId, instanceStartTime)
             if (event != null) {
                 DevLog.info(LOG_TAG, "Dismissing event ${event.eventId} / ${event.instanceStartTime}")
-                dismissEvent(context, db, event, dismissType, notifyActivity)
-            }
-            else {
+                dismissEvent(context, dbInst, event, dismissType, notifyActivity)
+            } else {
                 DevLog.error(LOG_TAG, "dismissEvent: can't find event $eventId, $instanceStartTime")
-
                 DevLog.error(LOG_TAG, " -- known events / instances: ")
-                for (ev in db.events) {
+                for (ev in dbInst.events) {
                     DevLog.error(LOG_TAG, " -- : ${ev.eventId}, ${ev.instanceStartTime}, ${ev.alertTime}, ${ev.snoozedUntil}")
                 }
             }
