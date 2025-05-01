@@ -11,3 +11,19 @@ its ok to mock out core android apis that the instrumentation testsuite doesn't 
 # Don't try to boil the ocean. Dont try to make big sweeping changes when more focused ones will do
 
 Always think of the minimum viable solution to a problem or change to make. make sure that works and then build on top of it. break things down into small testable pieces first. That said NO CHEATING! I.e. don't comment out or skip a test to solve a problem unless just a temporary bandaid while working on something more important.
+
+# Please check the documentation if you are implementing something potentially complex or nonstandard.
+
+often there are things we've learned already i.e. 
+
+docs/dev_completed/constructor-mocking-android.md
+
+documents how through a lot work an reserch we learned 
+
+mockKStatic, mockConstructor and anyConstructed ALMOST ALWAYS FAIL. And aren't worth trying anymore where there are better alternatives.
+
+also 
+
+docs/calendar_monitoring.md
+
+goees into DEEP detail about how calendar monitoring works in the app
