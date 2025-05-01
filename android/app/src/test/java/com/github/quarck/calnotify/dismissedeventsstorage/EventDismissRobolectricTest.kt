@@ -84,19 +84,7 @@ class EventDismissRobolectricTest {
         mockComponents.setup()
 
         // Initialize DismissedEventsStorage with Robolectric context
-        dismissedEventsStorage = DismissedEventsStorage(mockContext)
-        
-        // Mock the SQLiteDatabaseExtensions.classCustomUse method
-        mockkStatic("com.github.quarck.calnotify.database.SQLiteDatabaseExtensions")
-        
-        // Set up behavior for classCustomUse - make it execute the lambda without using actual DB
-        every { 
-            any<Any>().classCustomUse<Any, Unit>(any()) 
-        } answers {
-            // Extract the function to run and execute it with a mock
-            val function = firstArg<Function1<Any, Unit>>()
-            function.invoke(mockk())
-        }
+        dismissedEventsStorage = DismissedEventsStorage(mockContext)   
     }
 
     @Test
