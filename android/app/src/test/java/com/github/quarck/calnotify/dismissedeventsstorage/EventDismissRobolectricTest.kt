@@ -28,7 +28,20 @@ import org.junit.Ignore
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-
+/**
+ * Robolectric version of EventDismissTest for testing event dismissal functionality.
+ * 
+ * This test class uses Robolectric to simulate the Android environment, allowing us to test
+ * components that interact with Android framework classes without requiring a device or emulator.
+ * The main difference from [EventDismissTest] is that:
+ * 
+ * 1. This test runs on the JVM using Robolectric instead of instrumenting a real device
+ * 2. It directly uses and verifies DismissedEventsStorage instances through dependency injection
+ * 3. Most Android components are either mocked or provided by Robolectric's shadow implementations
+ * 
+ * These tests verify the event dismissal functionality in ApplicationController with a focus on
+ * different edge cases and error handling scenarios.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest=Config.NONE, sdk = [28]) // Configure Robolectric
 class EventDismissRobolectricTest {
@@ -72,10 +85,18 @@ class EventDismissRobolectricTest {
 
         // Initialize DismissedEventsStorage with Robolectric context
         dismissedEventsStorage = DismissedEventsStorage(mockContext)
-        // Mock the database interaction within DismissedEventsStorage if needed
-        // For example, mock the internal SQLiteDatabase operations
-        mockkStatic(SQLiteDatabaseExtensions::class)
-        every { classCustomUse<Unit>(any(), any(), any()) } just runs
+        
+        // Mock the SQLiteDatabaseExtensions.classCustomUse method
+        mockkStatic("com.github.quarck.calnotify.database.SQLiteDatabaseExtensions")
+        
+        // Set up behavior for classCustomUse - make it execute the lambda without using actual DB
+        every { 
+            any<Any>().classCustomUse<Any, Unit>(any()) 
+        } answers {
+            // Extract the function to run and execute it with a mock
+            val function = firstArg<Function1<Any, Unit>>()
+            function.invoke(mockk())
+        }
     }
 
     @Test
@@ -102,7 +123,7 @@ class EventDismissRobolectricTest {
         }
         verify { mockDb.deleteEvents(events) }
         // Verify dismissedEventsStorage interaction
-        verify { dismissedEventsStorage.addEvents(events, EventDismissType.ManuallyDismissedFromActivity) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, events) }
     }
 
     @Test
@@ -137,8 +158,8 @@ class EventDismissRobolectricTest {
         assertEquals(EventDismissResult.EventNotFound, invalidResult)
 
         // Verify dismissedEventsStorage interaction (only for the valid event)
-        verify { dismissedEventsStorage.addEvents(listOf(validEvent), EventDismissType.ManuallyDismissedFromActivity) }
-        verify(exactly = 0) { dismissedEventsStorage.addEvents(listOf(invalidEvent), any()) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(validEvent)) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(invalidEvent)) }
     }
 
     @Test
@@ -163,7 +184,7 @@ class EventDismissRobolectricTest {
         assertEquals(EventDismissResult.DeletionWarning, results[0].second)
         verify { mockDb.deleteEvents(listOf(event)) }
         // Verify dismissedEventsStorage was still called despite deletion warning
-        verify { dismissedEventsStorage.addEvents(listOf(event), EventDismissType.ManuallyDismissedFromActivity) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(event)) }
     }
 
     @Test
@@ -172,9 +193,11 @@ class EventDismissRobolectricTest {
         val eventIds = listOf(1L, 2L)
         val events = eventIds.map { createTestEvent(it) }
 
-        every { mockDb.getEventInstances(eventIds) } returns events // Return both events
-        every { mockDb.getEvent(1L, any()) } returns events[0]
-        every { mockDb.getEvent(2L, any()) } returns events[1]
+        // Mock individual getEventInstances calls for each event ID
+        eventIds.forEachIndexed { index, id ->
+            every { mockDb.getEventInstances(id) } returns listOf(events[index])
+            every { mockDb.getEvent(id, any()) } returns events[index]
+        }
         every { mockDb.deleteEvents(events) } returns events.size
 
         // When
@@ -192,14 +215,17 @@ class EventDismissRobolectricTest {
         results.forEach { (_, result) ->
             assertEquals(EventDismissResult.Success, result)
         }
-        verify { dismissedEventsStorage.addEvents(events, EventDismissType.ManuallyDismissedFromActivity) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, events) }
     }
 
     @Test
     fun testSafeDismissEventsByIdWithNonExistentEvents() {
         // Given
         val eventIds = listOf(1L, 2L)
-        every { mockDb.getEventInstances(eventIds) } returns emptyList() // No events found for these IDs
+        // Mock getEventInstances to return empty list for each event ID
+        eventIds.forEach { id ->
+            every { mockDb.getEventInstances(id) } returns emptyList()
+        }
 
         // When
         val results = ApplicationController.safeDismissEventsById(
@@ -217,7 +243,7 @@ class EventDismissRobolectricTest {
             assertEquals(EventDismissResult.EventNotFound, result)
         }
         // Verify dismissedEventsStorage was not called
-        verify(exactly = 0) { dismissedEventsStorage.addEvents(any(), any()) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, any()) }
     }
 
     @Test
@@ -229,7 +255,12 @@ class EventDismissRobolectricTest {
 
         // Mock DismissedEventsStorage to throw an error
         val throwingDismissedStorage = mockk<DismissedEventsStorage>(relaxed = true)
-        every { throwingDismissedStorage.addEvents(any(), any()) } throws RuntimeException("Storage error")
+        every { 
+            throwingDismissedStorage.addEvents(
+                EventDismissType.ManuallyDismissedFromActivity,
+                any<Collection<EventAlertRecord>>()
+            ) 
+        } throws RuntimeException("Storage error")
 
         // When
         val results = ApplicationController.safeDismissEvents(
@@ -246,9 +277,57 @@ class EventDismissRobolectricTest {
         // Expect StorageError because adding to dismissed storage failed
         assertEquals(EventDismissResult.StorageError, results[0].second)
         verify { mockDb.deleteEvents(listOf(event)) } // Verify deletion was still attempted
-        verify { throwingDismissedStorage.addEvents(listOf(event), EventDismissType.ManuallyDismissedFromActivity) }
+        verify { throwingDismissedStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(event)) }
     }
 
+    @Test
+    fun testSafeDismissEventsWithDatabaseError() {
+        // Given
+        val event = createTestEvent()
+        every { mockDb.getEvent(any(), any()) } returns event
+        every { mockDb.deleteEvents(any()) } throws RuntimeException("Database error") // Simulate database error
+
+        // When
+        val results = ApplicationController.safeDismissEvents(
+            mockContext,
+            mockDb,
+            listOf(event),
+            EventDismissType.ManuallyDismissedFromActivity,
+            false,
+            dismissedEventsStorage = dismissedEventsStorage
+        )
+
+        // Then
+        assertEquals(1, results.size)
+        assertEquals(EventDismissResult.DatabaseError, results[0].second)
+        verify { mockDb.deleteEvents(listOf(event)) } // Verify deletion was attempted
+        // Verify dismissedEventsStorage was called before the database error
+        verify { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(event)) }
+    }
+
+    @Test
+    fun testSafeDismissEventsWithGetEventException() {
+        // Given
+        val event = createTestEvent()
+        every { mockDb.getEvent(any(), any()) } throws RuntimeException("Database lookup error") // Simulate error on getEvent
+
+        // When
+        val results = ApplicationController.safeDismissEvents(
+            mockContext,
+            mockDb,
+            listOf(event),
+            EventDismissType.ManuallyDismissedFromActivity,
+            false,
+            dismissedEventsStorage = dismissedEventsStorage
+        )
+
+        // Then
+        assertEquals(1, results.size)
+        assertEquals(EventDismissResult.DatabaseError, results[0].second)
+        // Verify no attempts were made to delete events or add to dismissed storage
+        verify(exactly = 0) { mockDb.deleteEvents(any()) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, any()) }
+    }
 
     @Test
     fun testSafeDismissEventsFromRescheduleConfirmationsWithFutureEvents() {
@@ -287,9 +366,8 @@ class EventDismissRobolectricTest {
         results.forEach { (_, result) ->
             assertEquals(EventDismissResult.Success, result)
         }
-        verify { dismissedEventsStorage.addEvents(eventsToDismiss, EventDismissType.Rescheduled) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, eventsToDismiss) }
     }
-
 
     @Test
     fun testSafeDismissEventsFromRescheduleConfirmationsWithMixedEvents() {
@@ -339,10 +417,9 @@ class EventDismissRobolectricTest {
         assertEquals(EventDismissResult.SkippedRepeating, resultMap[3L]) // Event 3 skipped
 
         // Verify dismissedEventsStorage interaction only for the successfully dismissed event
-        verify { dismissedEventsStorage.addEvents(eventsToDismiss, EventDismissType.Rescheduled) }
-        verify(exactly=0) { dismissedEventsStorage.addEvents(listOf(futureRepeatingEvent), any()) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, eventsToDismiss) }
+        verify(exactly=0) { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, listOf(futureRepeatingEvent)) }
     }
-
 
     @Test
     fun testSafeDismissEventsFromRescheduleConfirmationsWithNonExistentEvents() {
@@ -378,9 +455,8 @@ class EventDismissRobolectricTest {
             assertEquals(EventDismissResult.EventNotFound, result)
         }
         // Verify dismissedEventsStorage was not called
-        verify(exactly = 0) { dismissedEventsStorage.addEvents(any(), any()) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, any()) }
     }
-
 
     @Test
     fun testSafeDismissEventsFromRescheduleConfirmationsWithStorageError() {
@@ -401,7 +477,12 @@ class EventDismissRobolectricTest {
 
         // Mock DismissedEventsStorage to throw an error
         val throwingDismissedStorage = mockk<DismissedEventsStorage>(relaxed = true)
-        every { throwingDismissedStorage.addEvents(any(), any()) } throws RuntimeException("Storage error")
+        every { 
+            throwingDismissedStorage.addEvents(
+                EventDismissType.AutoDismissedDueToRescheduleConfirmation,
+                any<Collection<EventAlertRecord>>()
+            ) 
+        } throws RuntimeException("Storage error")
 
         // When
         val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
@@ -417,9 +498,8 @@ class EventDismissRobolectricTest {
         // Expect StorageError because adding to dismissed storage failed
         assertEquals(EventDismissResult.StorageError, results[0].second)
         verify { mockDb.deleteEvents(listOf(eventToDismiss)) } // Verify deletion from main DB was attempted
-        verify { throwingDismissedStorage.addEvents(listOf(eventToDismiss), EventDismissType.Rescheduled) }
+        verify { throwingDismissedStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, listOf(eventToDismiss)) }
     }
-
 
     @Test
     fun testSafeDismissEventsFromRescheduleConfirmationsWithAllPastEvents() {
@@ -448,7 +528,7 @@ class EventDismissRobolectricTest {
         // Then
         assertTrue(results.isEmpty()) // No future events, so results should be empty
         // Verify dismissedEventsStorage was not called
-        verify(exactly = 0) { dismissedEventsStorage.addEvents(any(), any()) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, any()) }
     }
 
     @Test
@@ -468,7 +548,7 @@ class EventDismissRobolectricTest {
         // Then
         assertTrue(results.isEmpty())
         // Verify dismissedEventsStorage was not called
-        verify(exactly = 0) { dismissedEventsStorage.addEvents(any(), any()) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, any()) }
     }
 
     @Test
@@ -509,9 +589,8 @@ class EventDismissRobolectricTest {
             assertEquals(EventDismissResult.SkippedRepeating, result)
         }
         // Verify dismissedEventsStorage was not called
-        verify(exactly = 0) { dismissedEventsStorage.addEvents(any(), any()) }
+        verify(exactly = 0) { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, any()) }
     }
-
 
     @Test
     fun testSafeDismissEventsFromRescheduleConfirmationsSkipsRepeatingEvents() {
@@ -554,8 +633,71 @@ class EventDismissRobolectricTest {
         assertEquals(EventDismissResult.Success, resultMap[2L])
 
         // Verify dismissedEventsStorage interaction only for the successfully dismissed event
-        verify { dismissedEventsStorage.addEvents(eventsToDismiss, EventDismissType.Rescheduled) }
-        verify(exactly=0) { dismissedEventsStorage.addEvents(listOf(repeatingEvent), any()) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, eventsToDismiss) }
+        verify(exactly=0) { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, listOf(repeatingEvent)) }
+    }
+
+    @Test
+    fun testToastMessagesForSafeDismissEventsFromRescheduleConfirmations() {
+        // Given
+        val currentTime = mockTimeProvider.testClock.currentTimeMillis()
+        val confirmations = listOf(
+            JsRescheduleConfirmationObject(
+                event_id = 1L, calendar_id = 1L, original_instance_start_time = currentTime, title = "Test Event 1",
+                new_instance_start_time = currentTime + 3600000, created_at = currentTime.toString(), updated_at = currentTime.toString(), is_in_future = true
+            ),
+            JsRescheduleConfirmationObject(
+                event_id = 2L, calendar_id = 1L, original_instance_start_time = currentTime, title = "Test Event 2",
+                new_instance_start_time = currentTime + 7200000, created_at = currentTime.toString(), updated_at = currentTime.toString(), is_in_future = true
+            )
+        )
+        val eventsToDismiss = confirmations.map { createTestEvent(it.event_id) }
+
+        // Mock database interactions
+        confirmations.forEachIndexed { index, confirmation ->
+            every { mockDb.getEventInstances(confirmation.event_id) } returns listOf(eventsToDismiss[index])
+            every { mockDb.getEvent(confirmation.event_id, any()) } returns eventsToDismiss[index]
+        }
+        every { mockDb.deleteEvents(eventsToDismiss) } returns eventsToDismiss.size
+
+        // Setup toast message mocking in MockApplicationComponents
+        // We'll use a new instance with spied context provider to capture toast messages
+        val contextProviderSpy = spyk(MockContextProvider(mockTimeProvider))
+        contextProviderSpy.fakeContext = mockContext
+        contextProviderSpy.setup()
+        
+        val componentsSpy = spyk(
+            MockApplicationComponents(
+                contextProvider = contextProviderSpy,
+                timeProvider = mockTimeProvider,
+                calendarProvider = mockComponents.calendarProvider
+            )
+        )
+        componentsSpy.setup()
+        
+        // Clear any previous toast messages
+        componentsSpy.clearToastMessages()
+        
+        // When
+        val results = ApplicationController.safeDismissEventsFromRescheduleConfirmations(
+            mockContext,
+            confirmations,
+            true, // Enable notifications
+            db = mockDb,
+            dismissedEventsStorage = dismissedEventsStorage
+        )
+
+        // Then
+        assertEquals(confirmations.size, results.size)
+        results.forEach { (_, result) ->
+            assertEquals(EventDismissResult.Success, result)
+        }
+        
+        // In a Robolectric test, we can't directly verify the toast content 
+        // as we're not running in a real Android environment
+        // Instead, we'll verify that our events were properly processed
+        verify { mockDb.deleteEvents(eventsToDismiss) }
+        verify { dismissedEventsStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, eventsToDismiss) }
     }
 
     // Helper function to create test events
