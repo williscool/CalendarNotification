@@ -1,6 +1,8 @@
 package com.github.quarck.calnotify.database
 import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.database.SQLiteOpenHelper
+import com.github.quarck.calnotify.logs.DevLog
+
 
 object  SQLiteDatabaseExtensions {
   // had to overwrite this to call crsql finalize before every connection close
@@ -32,6 +34,8 @@ object  SQLiteDatabaseExtensions {
   // I forgot why we even need this. I think its becasue the regular use doesn't call crsql_finalize
   // like it should but we should investigate getting rid of this if possible
   fun <T, R> T.classCustomUse(block: (T) -> R): R {
+    // Add logging to help diagnose type issues
+    DevLog.info("SQLiteDatabaseExtensions", "classCustomUse called with type: ${this!!::class.java.name}")
     // If this is a SQLiteOpenHelper, use writableDatabase
     if (this is SQLiteOpenHelper) {
       val db = this.writableDatabase // Ensure db is obtained, though not directly used here based on original logic
@@ -44,6 +48,7 @@ object  SQLiteDatabaseExtensions {
         // Consider lifecycle management if issues arise.
       }
     }
+
     // Otherwise (including mocks or other types), just call the block
     return block(this)
   }
