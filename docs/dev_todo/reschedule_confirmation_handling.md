@@ -16,23 +16,29 @@ Currently, when an event is rescheduled, the UI displays the time when the dismi
 
 The `DismissedEventAlertRecord` class can be updated with a `rescheduleConfirmation` field that contains the `JsRescheduleConfirmationObject` with the actual new time (`new_instance_start_time`). However, this data is not persistent beyond the current session.
 
-### Storage Considerations
+## Storage Considerations
 
 Several options were considered for making the reschedule time persistent:
 
-1. **Add a dedicated column to the database**:
-   - Requires creating a new implementation and database upgrade path
-   - Most robust but most complex solution
+1. **Create a new dedicated database for reschedule confirmations**:
+   - Simple schema focused only on reschedule data
+   - Clean separation of concerns from dismissed events
+   - Easy to maintain and modify
+   - No need to deal with complex database migrations
+   - Recommended approach
 
-2. **Repurpose an existing unused column**:
+2. **Add a dedicated column to the existing database**:
+   - Requires creating a new implementation and database upgrade path
+   - Complex due to existing versioning system
+   - Would need to modify multiple classes and handle migrations
+   - More difficult to maintain
+
+3. **Repurpose an existing unused column**:
    - Several reserved columns exist in the schema (`KEY_RESERVED_INT2`, `KEY_RESERVED_STR2`, etc.)
    - Would change the select queries and semantics of these fields
    - Lacks tests for database reading and writing
    - Not to mention worrying about serializing the confirmation properly though we could probably use the same `JsRescheduleConfirmationObject` we already have
-
-3. **Create a separate reschedule confirmations database**:
-   - Would require additional infrastructure
-   - Increases complexity for a relatively simple feature
+   - Makes the code less maintainable
 
 4. **Keep the current transient approach**:
    - Display the accurate new time only during the current session
@@ -47,9 +53,14 @@ For now, we've implemented a simpler approach:
 
 ## Future Work
 
-1. **Database Schema Update**:
-   - Plan a proper database schema update to store the rescheduled time
-   - Add tests for database reading and writing before making such changes
+1. **New Database Implementation**:
+   - Create a new SQLite database specifically for reschedule confirmations
+   - Simple schema with just the essential fields:
+     - Event ID
+     - Instance start time
+     - New scheduled time
+   - Add appropriate database access methods
+   - Add tests for the new database functionality
 
 2. **UI Enhancements**:
    - Update the UI to clearly distinguish between:
@@ -63,12 +74,12 @@ For now, we've implemented a simpler approach:
 
 ## Implementation Notes
 
-When eventually implementing persistent storage of reschedule confirmation data, we should:
+When implementing the new reschedule confirmations database, we should:
 
-1. Create a new database version (`DATABASE_VERSION_V3`)
-2. Add a migration path from V2 to V3
-3. Add a dedicated field for storing the rescheduled time
-4. Update the UI to display this time
+1. Create a new database class (`RescheduleConfirmationsStorage`)
+2. Define a simple schema with just the essential fields
+3. Add methods for storing and retrieving reschedule confirmations
+4. Update the UI to display the new scheduled time from this database
 5. Add comprehensive tests for the feature
 
 ## References
