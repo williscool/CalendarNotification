@@ -212,6 +212,10 @@ android {
         excludes = ['jdk.internal.*']
       }
     }
+    // Add Robolectric configuration
+    unitTests {
+      includeAndroidResources = true
+    }
   }
 }
 
@@ -258,6 +262,22 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
   // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'
+    // Add Robolectric dependency
+    testImplementation 'org.robolectric:robolectric:4.14'
+    // Mockito for unit tests
+    testImplementation 'org.mockito:mockito-core:5.16.1'
+    testImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
+    // MockK for unit tests
+    testImplementation 'io.mockk:mockk:1.13.9' // Use standard mockk for unit tests
+
+//    testImplementation 'io.mockk:mockk-android:1.13.9'
+//    testImplementation 'io.mockk:mockk-agent:1.13.9'
+    
+    // Add AndroidX Test dependencies for unit tests
+    testImplementation 'androidx.test:core:1.5.0'
+    testImplementation 'androidx.test:core-ktx:1.5.0'
+    testImplementation 'androidx.test.ext:junit:1.1.5'
+    testImplementation 'androidx.test.ext:junit-ktx:1.1.5'
 
   // Test dependencies - use test-compatible versions
     androidTestImplementation "androidx.core:core:$android_core_test_version"
