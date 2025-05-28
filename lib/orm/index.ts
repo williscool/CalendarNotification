@@ -56,6 +56,14 @@ export async function psClearTable(
   tableName: string,
   psDb: AbstractPowerSyncDatabase
 ) {
+  // TODO
+  // so sqlite doesn't support TRUNCATE
+  // and even if it did that isn't supported by powersync's protocol
+  // https://docs.powersync.com/architecture/powersync-protocol
+  // https://docs.powersync.com/architecture/client-architecture
+  // so I think we can just use the supabase client to TRUNCATE the table
+  // and still DELETE FROM to clear local
+  // honestly the sync server should just handle from the truncate
   try {
     const deleteResult = await psDb.execute(`DELETE FROM ${tableName}`);
     console.log(`Successfully cleared all records from PowerSync table ${tableName}`);
