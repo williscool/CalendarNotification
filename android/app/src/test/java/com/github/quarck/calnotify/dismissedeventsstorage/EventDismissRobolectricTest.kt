@@ -45,9 +45,11 @@ import org.robolectric.shadows.ShadowLog
  * 
  * These tests verify the event dismissal functionality in ApplicationController with a focus on
  * different edge cases and error handling scenarios.
+*
+* TODO: why is the mockNotificationManager not being called?
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(manifest=Config.NONE, sdk = [24])
+@Config(manifest="AndroidManifest.xml", sdk = [24])
 class EventDismissRobolectricTest {
     private val LOG_TAG = "EventDismissRobolectricTest"
 
