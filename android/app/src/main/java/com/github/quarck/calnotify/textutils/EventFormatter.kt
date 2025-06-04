@@ -63,6 +63,7 @@ class EventFormatter(
 ) : EventFormatterInterface {
 
     private val defaultLocale by lazy { Locale.getDefault() }
+    private val calendarProvider: CalendarProviderInterface = CalendarProvider
 
 
     private fun formatDateRangeUTC(startMillis: Long, endMillis: Long, flags: Int): String {
@@ -78,6 +79,21 @@ class EventFormatter(
         val sb = StringBuilder()
 
         sb.append(formatDateTimeOneLine(event, false))
+
+        if (Settings(ctx).displayNextAlertTime) {
+            val eventRecord = calendarProvider.getEvent(ctx, event.eventId)
+            val nextAlertTime = eventRecord.getNextAlertTimeAfter(event.displayedStartTime)
+            if (nextAlertTime != null) {
+                val duration = nextAlertTime - clock.currentTimeMillis()
+                if (duration > 0) {
+                    sb.append(" (")
+                    sb.append(ctx.getString(R.string.event_next_alert_in))
+                    sb.append(" ")
+                    sb.append(formatTimeDuration(duration, 60))
+                    sb.append(")")
+                }
+            }
+        }
 
         if (event.location != "") {
             sb.append("\n")
