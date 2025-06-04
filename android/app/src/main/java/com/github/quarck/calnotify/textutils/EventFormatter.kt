@@ -22,10 +22,13 @@ package com.github.quarck.calnotify.textutils
 import android.content.Context
 import android.text.format.DateUtils
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.displayedEndTime
 import com.github.quarck.calnotify.calendar.displayedStartTime
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
@@ -63,6 +66,7 @@ class EventFormatter(
 ) : EventFormatterInterface {
 
     private val defaultLocale by lazy { Locale.getDefault() }
+    private val calendarProvider: CalendarProviderInterface = CalendarProvider
 
 
     private fun formatDateRangeUTC(startMillis: Long, endMillis: Long, flags: Int): String {
@@ -78,6 +82,21 @@ class EventFormatter(
         val sb = StringBuilder()
 
         sb.append(formatDateTimeOneLine(event, false))
+
+        if (Settings(ctx).displayNextAlertTime) {
+            val eventRecord = calendarProvider.getEvent(ctx, event.eventId)
+            val nextAlertTime = eventRecord.getNextAlertTimeAfter(event.displayedStartTime)
+            if (nextAlertTime != null) {
+                val duration = nextAlertTime - clock.currentTimeMillis()
+                if (duration > 0) {
+                    sb.append(" (")
+                    sb.append(ctx.getString(R.string.event_next_alert_in))
+                    sb.append(" ")
+                    sb.append(formatTimeDuration(duration, 60))
+                    sb.append(")")
+                }
+            }
+        }
 
         if (event.location != "") {
             sb.append("\n")

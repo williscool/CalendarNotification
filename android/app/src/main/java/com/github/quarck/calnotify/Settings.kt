@@ -132,6 +132,9 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     val snoozePresetsRaw: String
         get() = getString(SNOOZE_PRESET_KEY, DEFAULT_SNOOZE_PRESET)
 
+    val displayNextAlertTime: Boolean
+      get() = getBoolean(DISPLAY_NEXT_ALERT_TIME, false)
+
     val snoozePresets: LongArray
         get() {
             var ret = PreferenceUtils.parseSnoozePresets(snoozePresetsRaw)
@@ -438,6 +441,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val CALENDAR_IS_HANDLED_KEY_PREFIX = "calendar_handled_"
 
         private const val SNOOZE_PRESET_KEY = "pref_snooze_presets" //"15m, 1h, 4h, 1d"
+        private const val DISPLAY_NEXT_ALERT_TIME = "pref_display_next_alert_time" //false
         private const val VIEW_AFTER_EDIT_KEY = "show_event_after_reschedule" // true
         private const val ENABLE_REMINDERS_KEY = "enable_reminding_key" // false
         private const val REMINDER_INTERVAL_PATTERN_KEY = "remind_interval_key_pattern" // "10m"
