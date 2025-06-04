@@ -3,7 +3,8 @@ import { StyleSheet, Text, View, Button, TouchableOpacity, BackHandler, Linking 
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { db as psDb, setupPowerSync } from '@lib/powersync';
+import { db as psDb } from '@lib/powersync';
+import { setupRemoteDatabaseConnections } from '@lib/init_remote_db_connections';
 import Logger from 'js-logger';
 import { PowerSyncContext } from "@powersync/react";
 import { SetupSync } from './SetupSync';
@@ -51,7 +52,7 @@ const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<Root
   useEffect(() => {
     const init = async () => {
       if (settings.syncEnabled) {
-        await setupPowerSync(settings);
+        await setupRemoteDatabaseConnections(settings, psDb);
       }
       setIsReady(true);
     };
