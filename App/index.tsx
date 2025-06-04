@@ -13,6 +13,8 @@ import { enableScreens } from 'react-native-screens';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SettingsProvider } from '@lib/hooks/SettingsContext';
+import { SupabaseProvider } from '@lib/hooks/SupabaseContext';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { GITHUB_README_URL } from '@lib/constants';
 
 // Enable screens
@@ -48,11 +50,13 @@ const InitialSetupScreen = ({ navigation }: { navigation: NativeStackNavigationP
 const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<RootStackParamList> }) => {
   const { settings } = useSettings();
   const [isReady, setIsReady] = useState(false);
+  const [initializedSupabaseClient, setInitializedSupabaseClient] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
     const init = async () => {
       if (settings.syncEnabled) {
-        await setupRemoteDatabaseConnections(settings, psDb);
+        const { supabaseClient } = await setupRemoteDatabaseConnections(settings, psDb);
+        setInitializedSupabaseClient(supabaseClient);
       }
       setIsReady(true);
     };
@@ -67,7 +71,11 @@ const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<Root
     );
   }
 
-  return settings.syncEnabled ? <SetupSync /> : <InitialSetupScreen navigation={navigation} />;
+  return (
+    <SupabaseProvider client={initializedSupabaseClient}>
+      {settings.syncEnabled ? <SetupSync /> : <InitialSetupScreen navigation={navigation} />}
+    </SupabaseProvider>
+  );
 };
 
 export const App = () => {

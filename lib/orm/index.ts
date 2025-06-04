@@ -1,5 +1,11 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * TODO: refactor the orm to be a hook that includes the supabase client and the powersync db
+ * without having to pass the supabase client and the powersync db to every function
+ */
 
 /**
  * Inserts data from a regular SQLite table into a PowerSync table
@@ -70,6 +76,24 @@ export async function psClearTable(
     return deleteResult;
   } catch (error) {
     console.error(`Failed to clear PowerSync table ${tableName}:`, error);
+    throw error;
+  }
+}
+
+
+export async function supabaseClearTable(
+  tableName: string,
+  supabaseClient: SupabaseClient | null
+) {
+  if (!supabaseClient) {
+    throw new Error('Supabase client is not initialized');
+  }
+
+  try {
+    await supabaseClient.from(tableName).delete();
+    console.log(`Successfully cleared all records from Supabase table ${tableName}`);
+  } catch (error) {
+    console.error(`Failed to clear Supabase table ${tableName}:`, error);
     throw error;
   }
 }
