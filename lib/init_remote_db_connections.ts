@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import 'react-native-url-polyfill/auto'
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { PowerSyncDatabase } from '@powersync/react-native';
 import { Connector } from './powersync/Connector';
 import { Settings } from './hooks/SettingsContext';
@@ -8,10 +9,16 @@ export async function setupRemoteDatabaseConnections(
   powerSyncDb: PowerSyncDatabase
 ) {
   // Initialize Supabase client
-  const supabaseClient = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+  let supabaseClient: SupabaseClient | undefined = undefined;
+  try {
+    supabaseClient = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+    console.log('Supabase client initialized successfully');
+  } catch (e) {
+    console.error('Error initializing Supabase client:', e);
+  }
   
   // Initialize PowerSync connector with Supabase client
-  const connector = new Connector(settings, supabaseClient);
+  const connector = new Connector(settings, supabaseClient!);
   powerSyncDb.connect(connector);
 
   try {

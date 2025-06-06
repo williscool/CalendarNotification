@@ -90,7 +90,7 @@ export async function supabaseClearTable(
   }
 
   try {
-    await supabaseClient.from(tableName).delete();
+    await supabaseClient.from(tableName).delete().neq('id', 0);
     console.log(`Successfully cleared all records from Supabase table ${tableName}`);
   } catch (error) {
     console.error(`Failed to clear Supabase table ${tableName}:`, error);
