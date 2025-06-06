@@ -1,5 +1,11 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * TODO: refactor the orm to be a hook that includes the supabase client and the powersync db
+ * without having to pass the supabase client and the powersync db to every function
+ */
 
 /**
  * Inserts data from a regular SQLite table into a PowerSync table
@@ -56,6 +62,14 @@ export async function psClearTable(
   tableName: string,
   psDb: AbstractPowerSyncDatabase
 ) {
+  // TODO
+  // so sqlite doesn't support TRUNCATE
+  // and even if it did that isn't supported by powersync's protocol
+  // https://docs.powersync.com/architecture/powersync-protocol
+  // https://docs.powersync.com/architecture/client-architecture
+  // so I think we can just use the supabase client to TRUNCATE the table
+  // and still DELETE FROM to clear local
+  // honestly the sync server should just handle from the truncate
   try {
     const deleteResult = await psDb.execute(`DELETE FROM ${tableName}`);
     console.log(`Successfully cleared all records from PowerSync table ${tableName}`);
@@ -66,3 +80,20 @@ export async function psClearTable(
   }
 }
 
+
+export async function supabaseClearTable(
+  tableName: string,
+  supabaseClient: SupabaseClient | null
+) {
+  if (!supabaseClient) {
+    throw new Error('Supabase client is not initialized');
+  }
+
+  try {
+    await supabaseClient.from(tableName).delete().neq('id', 0);
+    console.log(`Successfully cleared all records from Supabase table ${tableName}`);
+  } catch (error) {
+    console.error(`Failed to clear Supabase table ${tableName}:`, error);
+    throw error;
+  }
+}
