@@ -79,6 +79,20 @@ class EventFormatter(
 
         sb.append(formatDateTimeOneLine(event, false))
 
+        if (Settings(ctx).displayNextAlertTime) {
+            val nextAlertTime = todo("need EventRecord here").getNextAlertTimeAfter(event.displayedStartTime)
+            if (nextAlertTime != null) {
+                val duration = nextAlertTime - clock.currentTimeMillis()
+                if (duration > 0) {
+                    sb.append(" (")
+                    sb.append(ctx.getString(R.string.next_alert_in))
+                    sb.append(" ")
+                    sb.append(formatTimeDuration(duration, 60))
+                    sb.append(")")
+                }
+            }
+        }
+
         if (event.location != "") {
             sb.append("\n")
             sb.append(ctx.resources.getString(R.string.location));
