@@ -5,9 +5,10 @@ import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
-import { psInsertDbTable, psClearTable } from '@lib/orm';
+import { psInsertDbTable, supabaseClearTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { useSupabase } from '@lib/hooks/SupabaseContext';
 import { GITHUB_README_URL } from '@lib/constants';
 
 // Split out type imports for better readability
@@ -20,6 +21,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const SetupSync = () => {
   const navigation = useNavigation<NavigationProp>();
   const { settings } = useSettings();
+  const { supabaseClient } = useSupabase();
   const debugDisplayKeys = ['id', 'ttl', 'istart' ,'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
@@ -236,7 +238,7 @@ export const SetupSync = () => {
             style={[styles.syncButton, styles.deleteButton]}
             onPress={async () => {
               try {
-                await psClearTable('eventsV9', providerDb);
+                await supabaseClearTable('eventsV9', supabaseClient);
               } catch (error) {
                 console.error('Failed to clear PowerSync events:', error);
               }

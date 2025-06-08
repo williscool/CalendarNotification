@@ -25,12 +25,9 @@ export class Connector implements PowerSyncBackendConnector {
     client: SupabaseClient;
     private settings: Settings;
 
-    constructor(settings: Settings) {
+    constructor(settings: Settings, supabaseClient: SupabaseClient) {
         this.settings = settings;
-        // TODO setup session storage to support supabase auth
-        // right now its not needed because will have people input
-        // there own powersync token an supabase links in the app to start
-        this.client = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+        this.client = supabaseClient;
     }
 
     async fetchCredentials() {
