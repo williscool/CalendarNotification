@@ -234,7 +234,7 @@ class OriginalEventDismissRobolectricTest {
         val dismissTypes = listOf(
             EventDismissType.ManuallyDismissedFromActivity,
             EventDismissType.ManuallyDismissedFromNotification,
-            EventDismissType.EventMovedInTheCalendar,
+            EventDismissType.AutoDismissedDueToCalendarMove,
             EventDismissType.AutoDismissedDueToRescheduleConfirmation
         )
 

@@ -148,7 +148,7 @@ class DismissedEventsStorageRobolectricTest {
         // When - add events with different dismiss types
         storage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event1)
         storage.addEvent(EventDismissType.ManuallyDismissedFromNotification, event2)
-        storage.addEvent(EventDismissType.EventMovedInTheCalendar, event3)
+        storage.addEvent(EventDismissType.AutoDismissedDueToCalendarMove, event3)
         storage.addEvent(EventDismissType.AutoDismissedDueToRescheduleConfirmation, event4)
 
         val storedEvents = storage.events
@@ -159,7 +159,7 @@ class DismissedEventsStorageRobolectricTest {
         val eventByType = storedEvents.associateBy { it.event.eventId }
         assertEquals(EventDismissType.ManuallyDismissedFromActivity, eventByType[1L]?.dismissType)
         assertEquals(EventDismissType.ManuallyDismissedFromNotification, eventByType[2L]?.dismissType)
-        assertEquals(EventDismissType.EventMovedInTheCalendar, eventByType[3L]?.dismissType)
+        assertEquals(EventDismissType.AutoDismissedDueToCalendarMove, eventByType[3L]?.dismissType)
         assertEquals(EventDismissType.AutoDismissedDueToRescheduleConfirmation, eventByType[4L]?.dismissType)
     }
 
