@@ -124,7 +124,7 @@ The test suite was developed incrementally, starting with basic backup/restore t
 - Dismissal from reschedule confirmations
 
 **Documentation Added:** 
-- `docs/dev_completed/event_dissmimal_testing_notes.md`
+- `docs/dev_completed/event_dissmimal_testing_notes.md` (note: filename has typo "dissmimal" for "dismissal")
 - `docs/dev_completed/constructor-mocking-android.md`
 
 ---
