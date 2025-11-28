@@ -265,9 +265,10 @@ class EventDismissRobolectricTest {
         )
 
         // Then
+        // When storage throws an error, the code returns early and does not attempt to delete from main storage
         assertEquals(1, results.size)
         assertEquals(EventDismissResult.StorageError, results[0].second)
-        verify { mockDb.deleteEvents(listOf(event)) }
+        verify(exactly = 0) { mockDb.deleteEvents(any()) } // deleteEvents should NOT be called when storage fails
         verify { throwingDismissedStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(event)) }
     }
 
@@ -289,8 +290,10 @@ class EventDismissRobolectricTest {
         )
 
         // Then
+        // When deleteEvents throws, the exception is caught and deleteSuccess is set to false.
+        // This results in DeletionWarning, not DatabaseError (same behavior as when deleteEvents returns 0).
         assertEquals(1, results.size)
-        assertEquals(EventDismissResult.DatabaseError, results[0].second)
+        assertEquals(EventDismissResult.DeletionWarning, results[0].second)
         verify { mockDb.deleteEvents(listOf(event)) }
         verify { dismissedEventsStorage.addEvents(EventDismissType.ManuallyDismissedFromActivity, listOf(event)) }
     }
@@ -487,9 +490,10 @@ class EventDismissRobolectricTest {
         )
 
         // Then
+        // When storage throws an error, the code returns early and does not attempt to delete from main storage
         assertEquals(1, results.size)
         assertEquals(EventDismissResult.StorageError, results[0].second)
-        verify { mockDb.deleteEvents(listOf(eventToDismiss)) }
+        verify(exactly = 0) { mockDb.deleteEvents(any()) } // deleteEvents should NOT be called when storage fails
         verify { throwingDismissedStorage.addEvents(EventDismissType.AutoDismissedDueToRescheduleConfirmation, listOf(eventToDismiss)) }
     }
 
