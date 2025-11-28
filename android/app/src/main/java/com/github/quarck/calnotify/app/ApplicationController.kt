@@ -138,7 +138,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return settings!!
     }
 
-    val notificationManager: EventNotificationManagerInterface = EventNotificationManager()
+    val notificationManager: EventNotificationManagerInterface by lazy { EventNotificationManager() }
 
     val alarmScheduler: AlarmSchedulerInterface by lazy { AlarmScheduler(clock) }
 
