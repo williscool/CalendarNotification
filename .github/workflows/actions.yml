@@ -460,6 +460,121 @@ jobs:
           android/app/build/outputs/logs/
         retention-days: 90
 
+  # NOTE: this single cAT integration test is just to make sure cAT isn't broken
+  # if we revert back to cAT as the main integration test, we can remove this job
+  verify-connected-android-test-working-single-integration-test:
+    name: Test Android App
+    needs: [set_build_datetime]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64] # Only test on x86_64 to save time and resources
+      fail-fast: false
+    env:
+      ENTRY_FILE: "index.tsx"
+      GRADLE_ABI: ${{ matrix.arch }}
+      BUILD_ARCH: ${{ matrix.arch }}
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+
+    # Execute the common setup with emulator configuration
+    - name: Common Setup
+      id: common-setup
+      uses: ./.github/actions/common-setup
+      with:
+        optional_cache_key: "integration-test"
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
+        android_api_level: ${{ env.ANDROID_API_LEVEL }}
+        android_target: ${{ env.ANDROID_TARGET }}
+        android_profile: ${{ env.ANDROID_PROFILE }}
+        run_emulator_setup: "true"
+
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/wait_for_emulator.sh
+        chmod +x scripts/run_verify_connected_android_test.sh
+
+    - name: Download APK artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: android-apk-artifacts-${{ matrix.arch }}
+        path: android/app/build/outputs/apk
+
+    - name: Download Test APK artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: android-test-apk-artifacts-${{ matrix.arch }}
+        path: android/app/build/outputs/apk/androidTest
+
+    - name: Download Coverage artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: android-coverage-artifacts-${{ matrix.arch }}
+        path: android/${{ env.main_project_module }}/build/
+
+    - name: Debug directory structure
+      run: |
+        echo "Directory structure after download:"
+        find android/${{ env.main_project_module }}/build/ -type d
+
+    - name: Run Android Tests
+      id: run_tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        target: ${{ env.ANDROID_TARGET }}
+        arch: ${{ matrix.arch }}
+        profile: ${{ env.ANDROID_PROFILE }}
+        force-avd-creation: false
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+        disable-animations: true
+        # TODO: make a PR so this thing can properly take a multiline script call
+        # too easy to make mistakes with line this long
+        # super annoying to have to make yet another script to forget to chmod +x on accident
+        script: ./scripts/wait_for_emulator.sh && ./scripts/run_verify_connected_android_test.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
+
+    # Publish integration test results
+    - name: Publish Integration Test Results
+      uses: dorny/test-reporter@v2
+      if: always()
+      with:
+        name: 'Integration Tests'
+        path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
+        reporter: java-junit
+        fail-on-error: true
+
+    - name: Upload Coverage Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
+        path: |
+          android/app/build/reports/
+          android/app/build/reports/jacoco/jacocoAndroidTestReport/
+          android/app/build/outputs/code_coverage/
+          android/app/build/outputs/logs/
+          android/app/build/test-results/
+        retention-days: 90
+
+    - name: Upload Emulator Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: verify-connected-android-test-emulator-log
+        path: verify-connected-android-test-emulator.log
+        retention-days: 90
+
+    - name: Setup tmate session
+      if: ${{ failure() }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
 
   # connected-android-integration-test:
   #   name: Test Android App

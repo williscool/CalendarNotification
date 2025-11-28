@@ -30,6 +30,7 @@ export BUILD_ARCH=$ARCH
 ./gradlew -PBUILD_ARCH="$ARCH" \
          -PreactNativeArchitectures="$ARCH" \
          :"$MAIN_PROJECT_MODULE":connected${ARCH_SUFFIX}DebugAndroidTest \
+         -Pandroid.testInstrumentationRunnerArguments.class=com.github.quarck.calnotify.calendarmonitor.ComponentIsolationTest \
          --parallel --max-workers=$(nproc) --build-cache
 
 echo "Android tests completed successfully!" 
