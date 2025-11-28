@@ -463,7 +463,7 @@ jobs:
   # NOTE: this single cAT integration test is just to make sure cAT isn't broken
   # if we revert back to cAT as the main integration test, we can remove this job
   verify-connected-android-test-working-single-integration-test:
-    name: Test Android App
+    name: "Verify Connected Android Test Still Works (Working Single Integration Test)"
     needs: [set_build_datetime]
     runs-on: ubuntu-latest
     strategy:
@@ -500,24 +500,6 @@ jobs:
         chmod +x scripts/wait_for_emulator.sh
         chmod +x scripts/run_verify_connected_android_test.sh
 
-    - name: Download APK artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-apk-artifacts-${{ matrix.arch }}
-        path: android/app/build/outputs/apk
-
-    - name: Download Test APK artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-test-apk-artifacts-${{ matrix.arch }}
-        path: android/app/build/outputs/apk/androidTest
-
-    - name: Download Coverage artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-coverage-artifacts-${{ matrix.arch }}
-        path: android/${{ env.main_project_module }}/build/
-
     - name: Debug directory structure
       run: |
         echo "Directory structure after download:"
@@ -548,19 +530,6 @@ jobs:
         path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
         reporter: java-junit
         fail-on-error: true
-
-    - name: Upload Coverage Report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
-        path: |
-          android/app/build/reports/
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/
-          android/app/build/outputs/logs/
-          android/app/build/test-results/
-        retention-days: 90
 
     - name: Upload Emulator Log
       if: always()
