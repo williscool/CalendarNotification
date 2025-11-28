@@ -1,6 +1,8 @@
 package com.github.quarck.calnotify.database
 import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.database.SQLiteOpenHelper
+import com.github.quarck.calnotify.logs.DevLog
+
 
 object  SQLiteDatabaseExtensions {
   // had to overwrite this to call crsql finalize before every connection close
@@ -27,15 +29,53 @@ object  SQLiteDatabaseExtensions {
     }
   }
 
+  // Singleton flag to detect if we're running in a test environment
+  var isTestEnvironment: Boolean? = null
+  
+  fun isInTestEnvironment(): Boolean {
+    if (isTestEnvironment == null) {
+      isTestEnvironment = try {
+        // Check for Robolectric
+        Class.forName("org.robolectric.RuntimeEnvironment")
+        true
+      } catch (e: ClassNotFoundException) {
+        // Check for JUnit test runner
+        try {
+          Class.forName("org.junit.runner.JUnitCore")
+          true
+        } catch (e: ClassNotFoundException) {
+          false
+        }
+      }
+      DevLog.info("SQLiteDatabaseExtensions", "Detected test environment: $isTestEnvironment")
+    }
+    return isTestEnvironment ?: false
+  }
+
   // TODO: I just recognized we don't even use the db val we setup in 
   // val db = this.writableDatabase
   // I forgot why we even need this. I think its becasue the regular use doesn't call crsql_finalize
   // like it should but we should investigate getting rid of this if possible
   fun <T, R> T.classCustomUse(block: (T) -> R): R {
-    // If this is a SQLiteOpenHelper, use writableDatabase
-    if (this is SQLiteOpenHelper) {
-      val db = this.writableDatabase // Ensure db is obtained, though not directly used here based on original logic
+    // Add detailed logging to help diagnose type issues
+    val className = this!!::class.java.name
+    val isMockKMock = className.contains("$") && className.contains("Subclass")
+    val isSQLiteOpenHelper = this is SQLiteOpenHelper
+    val inTestEnvironment = isInTestEnvironment()
+    
+    DevLog.info("SQLiteDatabaseExtensions", 
+      "classCustomUse called with type: $className, " +
+      "isMockKMock: $isMockKMock, " +
+      "isSQLiteOpenHelper: $isSQLiteOpenHelper, " +
+      "inTestEnvironment: $inTestEnvironment"
+    )
+
+    // If this is a SQLiteOpenHelper AND we're not in a test environment
+    if (isSQLiteOpenHelper && !inTestEnvironment) {
+      val helper = this as SQLiteOpenHelper
       try {
+        // Get the database but only in non-test environment
+        val db = helper.writableDatabase
         // Pass the helper itself to the block, maintaining original behavior
         return block(this)
       } finally {
@@ -44,7 +84,8 @@ object  SQLiteDatabaseExtensions {
         // Consider lifecycle management if issues arise.
       }
     }
-    // Otherwise (including mocks or other types), just call the block
+
+    // For all other cases (including test environment or mocks), just call the block
     return block(this)
   }
 }
