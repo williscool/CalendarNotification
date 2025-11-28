@@ -11,6 +11,8 @@ import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.reminders.ReminderState
+import com.github.quarck.calnotify.testutils.MockApplicationComponents
+import com.github.quarck.calnotify.testutils.MockCalendarProvider
 import com.github.quarck.calnotify.testutils.MockContextProvider
 import com.github.quarck.calnotify.testutils.MockTimeProvider
 import com.github.quarck.calnotify.ui.UINotifier
@@ -41,6 +43,7 @@ class OriginalEventDismissRobolectricTest {
     private lateinit var mockContext: Context
     private lateinit var mockTimeProvider: MockTimeProvider
     private lateinit var mockDb: EventsStorageInterface
+    private lateinit var mockComponents: MockApplicationComponents
 
     // Keep mock instance for AlarmScheduler verification
     private lateinit var mockAlarmScheduler: AlarmScheduler
@@ -68,13 +71,27 @@ class OriginalEventDismissRobolectricTest {
         mockTimeProvider = MockTimeProvider(1635724800000) // 2021-11-01 00:00:00 UTC
         mockTimeProvider.setup()
 
-        // Create mock context provider and get the fake context
+        // Setup mock database
+        mockDb = mockk<EventsStorageInterface>(relaxed = true)
+
+        // Setup mock providers (will use Robolectric context internally)
         val mockContextProvider = MockContextProvider(mockTimeProvider)
-        mockContextProvider.setup()
+        mockContextProvider.setup() // This will get Robolectric context automatically
+
+        val mockCalendarProvider = MockCalendarProvider(mockContextProvider, mockTimeProvider)
+        mockCalendarProvider.setup()
+
+        // Setup mock components - this mocks ApplicationController.notificationManager to prevent database access
+        mockComponents = MockApplicationComponents(
+            contextProvider = mockContextProvider,
+            timeProvider = mockTimeProvider,
+            calendarProvider = mockCalendarProvider
+        )
+        mockComponents.setup()
+
         mockContext = mockContextProvider.fakeContext!!
 
         // 1. Create relaxed mock instances
-        mockDb = mockk(relaxed = true)
         mockDismissedEventsStorage = mockk<DismissedEventsStorage>(relaxed = true)
         mockAlarmScheduler = mockk<AlarmScheduler>(relaxed = true)
         mockReminderState = mockk<ReminderState>(relaxed = true)
