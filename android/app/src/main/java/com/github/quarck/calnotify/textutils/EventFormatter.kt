@@ -22,10 +22,13 @@ package com.github.quarck.calnotify.textutils
 import android.content.Context
 import android.text.format.DateUtils
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.displayedEndTime
 import com.github.quarck.calnotify.calendar.displayedStartTime
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock

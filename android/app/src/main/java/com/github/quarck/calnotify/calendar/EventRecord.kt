@@ -170,9 +170,9 @@ fun EventRecord.nextAlarmTime(currentTime: Long): Long {
 }
 
 fun EventRecord.getNextAlertTimeAfter(anchor: Long): Long? {
-    val futureReminders = eventRecord
+    val futureReminders = this
         .reminders
-        .map { eventRecord.startTime - it.millisecondsBefore }
+        .map { this.startTime - it.millisecondsBefore }
         .filter { it > anchor }
     return futureReminders.maxOrNull()
 }
