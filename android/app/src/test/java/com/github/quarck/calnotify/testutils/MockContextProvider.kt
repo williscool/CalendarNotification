@@ -3,6 +3,7 @@ package com.github.quarck.calnotify.testutils
 import android.app.AlarmManager
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.logs.DevLog
 import io.mockk.*
 
@@ -59,12 +60,51 @@ class MockContextProvider(
         // Set up minimal mock components for Robolectric
         setupAlarmManager()
         
-        // If a context was set from outside (for Robolectric), keep it
+        // Get Robolectric context for system services
+        val robolectricContext = try {
+            ApplicationProvider.getApplicationContext<Context>()
+        } catch (e: Exception) {
+            DevLog.warn(LOG_TAG, "Failed to get Robolectric context: ${e.message}")
+            null
+        }
+        
+        // If a context was set from outside, use it; otherwise use Robolectric context
         if (fakeContext == null) {
-            DevLog.warn(LOG_TAG, "No context was provided, creating an empty mock")
-            fakeContext = mockk<Context>(relaxed = true)
+            if (robolectricContext != null) {
+                DevLog.info(LOG_TAG, "Using Robolectric context as base")
+                // Use Robolectric context directly, but override AlarmManager
+                fakeContext = spyk(robolectricContext) {
+                    every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+                    every { getSystemService(AlarmManager::class.java) } returns mockAlarmManager
+                }
+            } else {
+                DevLog.warn(LOG_TAG, "No context was provided, creating an empty mock")
+                fakeContext = mockk<Context>(relaxed = true) {
+                    every { getSystemService(Context.ALARM_SERVICE) } returns mockAlarmManager
+                    every { getSystemService(AlarmManager::class.java) } returns mockAlarmManager
+                }
+            }
         } else {
             DevLog.info(LOG_TAG, "Using externally provided context for Robolectric")
+            // Enhance the provided context to delegate system services to Robolectric context
+            if (robolectricContext != null) {
+                fakeContext = spyk(fakeContext!!) {
+                    every { getSystemService(any<String>()) } answers {
+                        val serviceName = firstArg<String>()
+                        when (serviceName) {
+                            Context.ALARM_SERVICE -> mockAlarmManager
+                            else -> robolectricContext.getSystemService(serviceName)
+                        }
+                    }
+                    every { getSystemService(any<Class<*>>()) } answers {
+                        val serviceClass = firstArg<Class<*>>()
+                        when (serviceClass) {
+                            AlarmManager::class.java -> mockAlarmManager
+                            else -> robolectricContext.getSystemService(serviceClass)
+                        }
+                    }
+                }
+            }
         }
         
         isInitialized = true

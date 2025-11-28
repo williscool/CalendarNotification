@@ -75,12 +75,9 @@ class EventDismissRobolectricTest {
         // Setup mock database
         mockDb = mockk<EventsStorageInterface>(relaxed = true)
 
-        // Get context using Robolectric's ApplicationProvider
-        // mockContext = ApplicationProvider.getApplicationContext<Context>()
-
-        // Setup mock providers (pass Robolectric context)
+        // Setup mock providers (will use Robolectric context internally)
         val mockContextProvider = MockContextProvider(mockTimeProvider)
-        mockContextProvider.setup() // Call setup after setting the context
+        mockContextProvider.setup() // This will get Robolectric context automatically
 
         val mockCalendarProvider = MockCalendarProvider(mockContextProvider, mockTimeProvider)
         mockCalendarProvider.setup()
