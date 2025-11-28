@@ -66,7 +66,15 @@ class EventDismissRobolectricTest {
         DevLog.info(LOG_TAG, "Setting up EventDismissRobolectricTest")
         
         // Configure Robolectric SQLite to use in-memory database
-        ShadowSQLiteConnection.setUseInMemoryDatabase(true)
+        // Note: This may throw UnsupportedOperationException on some architectures (e.g., x86_64 in GitHub Actions)
+        // Since this test uses mocked databases, this configuration is not strictly necessary, but we try to set it
+        // for compatibility with any code that might use real SQLite databases
+        try {
+            ShadowSQLiteConnection.setUseInMemoryDatabase(true)
+        } catch (e: UnsupportedOperationException) {
+            // Ignore if not supported in this environment (e.g., x86_64 in GitHub Actions)
+            DevLog.warn(LOG_TAG, "ShadowSQLiteConnection.setUseInMemoryDatabase not supported in this environment: ${e.message}")
+        }
 
         // Setup mock time provider
         mockTimeProvider = MockTimeProvider(1635724800000) // 2021-11-01 00:00:00 UTC
