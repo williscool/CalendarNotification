@@ -4,6 +4,8 @@ import android.content.Context
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
@@ -172,5 +174,28 @@ class MockApplicationComponents(
      */
     fun showToast(message: String, longDuration: Boolean = false) {
         contextProvider.showToast(message, longDuration)
+    }
+    
+    /**
+     * Verifies that no events are present in storage
+     */
+    fun verifyNoEvents(): Boolean {
+        var hasNoEvents = true
+        
+        val context = contextProvider.fakeContext ?: return true // If no context, assume no events
+        
+        EventsStorage(context).classCustomUse { db ->
+            val events = db.events
+            hasNoEvents = events.isEmpty()
+            
+            if (!hasNoEvents) {
+                DevLog.error(LOG_TAG, "Expected no events but found ${events.size}")
+                events.forEach { event ->
+                    DevLog.error(LOG_TAG, "Unexpected event: id=${event.eventId}, title=${event.title}")
+                }
+            }
+        }
+        
+        return hasNoEvents
     }
 } 
