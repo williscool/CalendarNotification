@@ -503,7 +503,11 @@ jobs:
     - name: Debug directory structure
       run: |
         echo "Directory structure after download:"
-        find android/${{ env.main_project_module }}/build/ -type d
+        if [ -d "android/${{ env.main_project_module }}/build/" ]; then
+          find android/${{ env.main_project_module }}/build/ -type d
+        else
+          echo "Directory android/${{ env.main_project_module }}/build/ doesn't exist"
+        fi
 
     - name: Run Android Tests
       id: run_tests
@@ -720,7 +724,11 @@ jobs:
     - name: Debug directory structure
       run: |
         echo "Directory structure after download:"
-        find android/${{ env.main_project_module }}/build/ -type d
+        if [ -d "android/${{ env.main_project_module }}/build/" ]; then
+          find android/${{ env.main_project_module }}/build/ -type d
+        else
+          echo "Directory android/${{ env.main_project_module }}/build/ doesn't exist"
+        fi
 
     - name: Run Android Tests
       id: run_tests
