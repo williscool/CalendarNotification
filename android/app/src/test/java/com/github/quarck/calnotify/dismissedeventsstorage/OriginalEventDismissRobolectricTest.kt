@@ -59,7 +59,13 @@ class OriginalEventDismissRobolectricTest {
         ShadowLog.stream = System.out
 
         // Configure Robolectric SQLite to use in-memory database
-        ShadowSQLiteConnection.setUseInMemoryDatabase(true)
+        // Note: This may throw UnsupportedOperationException on some architectures (e.g., x86_64 in GitHub Actions)
+        // Since this test uses mocked databases, this configuration is not strictly necessary
+        try {
+            ShadowSQLiteConnection.setUseInMemoryDatabase(true)
+        } catch (e: UnsupportedOperationException) {
+            DevLog.warn(LOG_TAG, "ShadowSQLiteConnection.setUseInMemoryDatabase not supported: ${e.message}")
+        }
 
         // Store original locale and set a fixed one for the test
         originalLocale = Locale.getDefault()
