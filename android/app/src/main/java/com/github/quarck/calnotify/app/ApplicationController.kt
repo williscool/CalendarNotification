@@ -400,7 +400,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         DevLog.info(LOG_TAG, "registerNewEvent: Event fired: calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime ${event.alertTime}, muted: ${event.isMuted}, task: ${event.isTask}")
 
-        // 1st step - save event into DB (use injected or create new)
+        // 1st step - save event into DB (use injected or default to class instance)
         val eventsDb = db ?: EventsStorage(context)
         eventsDb.classCustomUse {
             dbInst ->
