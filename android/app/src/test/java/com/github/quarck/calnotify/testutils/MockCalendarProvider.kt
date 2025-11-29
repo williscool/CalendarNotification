@@ -219,17 +219,29 @@ class MockCalendarProvider(
             }
         }
         
-        // Stub findMatchingCalendarId
+        // Stub findMatchingCalendarId - matches real implementation with fallback logic
         every {
             CalendarProvider.findMatchingCalendarId(any(), any())
         } answers {
             val backupInfo = secondArg<CalendarBackupInfo>()
-            // Try exact match first
+            
+            // Try exact match first: accountName, accountType, ownerAccount
             calendars.values.firstOrNull {
                 it.accountName == backupInfo.accountName &&
-                it.owner == backupInfo.ownerAccount &&
-                it.displayName == backupInfo.displayName
-            }?.calendarId ?: -1L
+                it.accountType == backupInfo.accountType &&
+                it.owner == backupInfo.ownerAccount
+            }?.calendarId ?: run {
+                // Fallback 1: Try accountName and accountType only
+                calendars.values.firstOrNull {
+                    it.accountName == backupInfo.accountName &&
+                    it.accountType == backupInfo.accountType
+                }?.calendarId ?: run {
+                    // Fallback 2: Try matching by displayName only
+                    calendars.values.firstOrNull {
+                        it.displayName == backupInfo.displayName
+                    }?.calendarId ?: -1L
+                }
+            }
         }
         
         // Stub dismissNativeEventAlert - no-op for mocks
