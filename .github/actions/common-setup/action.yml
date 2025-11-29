@@ -218,13 +218,12 @@ runs:
       id: android-cache
       with:
         path: |
-          ~/.android/avd/*
-          ~/.android/adb*
-          ~/.android/sdk/*
-          ~/.android/repositories.cfg
-        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          ~/.android/avd
+          ~/.android/adb_usb.ini
+          /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
+        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
         restore-keys: |
-          ${{ runner.os }}-android-
+          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
 
     # Setup Android SDK for emulator if needed and not cached
     - name: Setup Android SDK
