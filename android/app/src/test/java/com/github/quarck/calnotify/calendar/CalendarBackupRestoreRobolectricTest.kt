@@ -8,13 +8,18 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.testutils.MockApplicationComponents
 import com.github.quarck.calnotify.testutils.MockCalendarProvider
 import com.github.quarck.calnotify.testutils.MockContextProvider
 import com.github.quarck.calnotify.testutils.MockTimeProvider
 import io.mockk.MockKAnnotations
+import io.mockk.every
+import io.mockk.mockk
 import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -31,14 +36,24 @@ import java.util.UUID
  * Tests the backup and restore functionality related to calendar data.
  *
  * This test suite verifies:
- * - Retrieving backup information for a calendar.
- * - Finding a matching calendar on a "restored" device based on backup info.
- * - Restoring an event alert record (limited verification due to EventsStorage limitations in Robolectric).
+ * - Retrieving backup information for a calendar (mocked CalendarProvider)
+ * - Finding a matching calendar on a "restored" device based on backup info (mocked CalendarProvider)
+ * - Restoring an event alert record using injected mock storage
  *
- * **Note on EventsStorage:** The instrumentation version verifies restored events using
- * `EventsStorage.classCustomUse()`, which requires native SQLite libraries not available
- * in Robolectric's JVM environment. The Robolectric version tests the calendar matching
- * logic and restoreEvent method call, but skips direct EventsStorage verification.
+ * **Implementation Approach:** Following the pattern from `safeDismissEvents`, `restoreEvent` was
+ * refactored to accept optional `EventsStorageInterface` and `DismissedEventsStorage` parameters.
+ * This allows testing the orchestration logic (calendar matching, event transformation, storage calls)
+ * without requiring native SQLite libraries.
+ *
+ * **What This Tests:**
+ * - Calendar backup info retrieval and matching logic (via mocked CalendarProvider)
+ * - Event transformation during restore (calendarId update, notificationId reset, etc.)
+ * - Correct orchestration of storage operations (addEvent, deleteEvent calls)
+ *
+ * **What The Instrumentation Test Tests:**
+ * - Real Android Calendar ContentProvider interactions
+ * - Real EventsStorage database operations with native SQLite
+ * - End-to-end backup/restore flow on real Android
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [24])
@@ -235,28 +250,40 @@ class CalendarBackupRestoreRobolectricTest {
         val matchedId = CalendarProvider.findMatchingCalendarId(context, backupInfo)
         assertEquals("Calendar matching should work", testCalendarId2, matchedId)
         
-        // NOTE: We skip calling ApplicationController.restoreEvent here because:
-        // 1. restoreEvent internally uses EventsStorage.classCustomUse() which requires native SQLite library (sqlite3x)
-        // 2. This library is not available in Robolectric's JVM environment, causing UnsatisfiedLinkError
-        // 3. The instrumentation test verifies the restored event using EventsStorage.getEvent(), which also fails in Robolectric
-        //
-        // Instead, we verify:
-        // - The calendar matching logic works correctly (tested above)
-        // - The event structure is correct for restoration
-        // - The system calendar event remains unchanged
-        //
-        // The actual restoreEvent() call and EventsStorage verification are tested in the instrumentation test suite.
-        DevLog.info(LOG_TAG, "Skipping ApplicationController.restoreEvent call due to EventsStorage native library limitations in Robolectric")
+        // Create mock storage instances for dependency injection
+        val mockEventsStorage = mockk<EventsStorageInterface>(relaxed = true)
+        val mockDismissedEventsStorage = mockk<DismissedEventsStorage>(relaxed = true)
+        
+        // Stub the addEvent to return success
+        every { mockEventsStorage.addEvent(any()) } returns true
+        
+        // Call restoreEvent with injected dependencies (following the pattern from safeDismissEvents)
+        // This tests the orchestration logic without needing native SQLite
+        ApplicationController.restoreEvent(
+            context, 
+            originalEvent,
+            db = mockEventsStorage,
+            dismissedEventsStorage = mockDismissedEventsStorage
+        )
+        
+        // Verify the orchestration happened correctly:
+        // 1. Should have added the restored event to EventsStorage
+        verify { mockEventsStorage.addEvent(match { restoredEvent ->
+            // Verify the event was transformed correctly
+            restoredEvent.calendarId == testCalendarId2 &&  // Calendar ID updated
+            restoredEvent.eventId == eventId &&             // Event ID preserved
+            restoredEvent.notificationId == 0 &&            // Notification ID reset
+            restoredEvent.displayStatus == EventDisplayStatus.Hidden && // Display status set
+            restoredEvent.title == "Test Event"            // Title preserved
+        }) }
+        
+        // 2. Should have deleted the event from DismissedEventsStorage
+        verify { mockDismissedEventsStorage.deleteEvent(originalEvent) }
         
         // Verify the original event in system calendar is unchanged
         val systemEvent = CalendarProvider.getEvent(context, eventId)
         assertNotNull("Original event should still exist in system calendar", systemEvent)
         assertEquals("System calendar event should maintain original calendar ID", testCalendarId1, systemEvent?.calendarId)
-        
-        // Verify the EventAlertRecord structure is correct for restoration
-        assertEquals("EventAlertRecord calendar ID should match backup info", testCalendarId2, originalEvent.calendarId)
-        assertEquals("EventAlertRecord event ID should match created event", eventId, originalEvent.eventId)
-        assertEquals("EventAlertRecord title should match", "Test Event", originalEvent.title)
     }
 }
 

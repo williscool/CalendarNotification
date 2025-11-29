@@ -92,7 +92,12 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface? = null,
         dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter here too
     )
-    fun restoreEvent(context: Context, event: EventAlertRecord)
+    fun restoreEvent(
+        context: Context, 
+        event: EventAlertRecord,
+        db: EventsStorageInterface? = null,
+        dismissedEventsStorage: DismissedEventsStorage? = null
+    )
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
     fun forceRepostNotifications(context: Context)
@@ -1122,7 +1127,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
-    override fun restoreEvent(context: Context, event: EventAlertRecord) {
+    override fun restoreEvent(
+        context: Context, 
+        event: EventAlertRecord,
+        db: EventsStorageInterface?,
+        dismissedEventsStorage: DismissedEventsStorage?
+    ) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
         
@@ -1140,17 +1150,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             calendarId = newCalendarId // Update to new calendar ID
         )
 
-        val successOnAdd = EventsStorage(context).classCustomUse { db ->
-            val ret = db.addEvent(toRestore)
-            calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
+        // Use injected storage or create new one (following pattern from safeDismissEvents)
+        val eventsDb = db ?: EventsStorage(context)
+        val successOnAdd = eventsDb.classCustomUse { dbInst ->
+            val ret = dbInst.addEvent(toRestore)
+            calendarReloadManager.reloadSingleEvent(context, dbInst, toRestore, calendarProvider, null)
             ret
         }
 
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            DismissedEventsStorage(context).classCustomUse { db ->
-                db.deleteEvent(event)
+            val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            dismissedStorage.classCustomUse { dbInst ->
+                dbInst.deleteEvent(event)
             }
             
             DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to calendar $newCalendarId")
