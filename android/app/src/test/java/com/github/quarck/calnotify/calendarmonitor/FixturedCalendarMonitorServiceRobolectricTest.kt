@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.calendarmonitor
 
 import android.content.Context
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -70,18 +71,36 @@ class FixturedCalendarMonitorServiceRobolectricTest {
         )
         mockContextProvider.setCalendarHandlingStatusDirectly(testCalendarId, true)
         
-        // Reset storage
+        // Reset storage and Settings cache to ensure test isolation
         TestStorageFactory.reset()
+        clearApplicationControllerSettingsCache()
     }
     
     @After
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up test environment")
         TestStorageFactory.reset()
+        clearApplicationControllerSettingsCache()
         mockCalendarProvider.cleanup()
         mockContextProvider.cleanup()
         mockTimeProvider.cleanup()
         unmockkAll()
+    }
+    
+    /**
+     * Clears the cached Settings instance in ApplicationController using reflection.
+     * This is necessary because ApplicationController caches Settings as a static field,
+     * causing test isolation issues when calendar handling status changes between tests.
+     */
+    private fun clearApplicationControllerSettingsCache() {
+        try {
+            val settingsField = ApplicationController::class.java.getDeclaredField("settings")
+            settingsField.isAccessible = true
+            settingsField.set(ApplicationController, null)
+            DevLog.info(LOG_TAG, "Cleared ApplicationController settings cache")
+        } catch (e: Exception) {
+            DevLog.warn(LOG_TAG, "Could not clear settings cache: ${e.message}")
+        }
     }
     
     /**
@@ -351,14 +370,19 @@ class FixturedCalendarMonitorServiceRobolectricTest {
     }
     
     /**
-     * Tests calendar monitoring edge cases: calendar change, time change, app resume.
+     * Tests calendar monitoring edge cases: settings, calendar change, time change, app resume.
      * 
-     * Note: Settings verification (parts 1 and 5 from instrumentation test) are skipped
-     * due to Settings caching issues between tests. The core behaviors are still tested.
+     * Now includes Settings verification thanks to clearing ApplicationController's cached
+     * Settings instance between tests via reflection (see clearApplicationControllerSettingsCache).
      */
     @Test
     fun testCalendarMonitoringEnabledEdgeCases() {
         DevLog.info(LOG_TAG, "Running testCalendarMonitoringEnabledEdgeCases")
+        
+        // Test 1: Verify initial settings
+        val settings = Settings(context)
+        assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
+        assertTrue("Calendar should be handled", settings.getCalendarIsHandled(testCalendarId))
         
         val currentTime = mockTimeProvider.testClock.currentTimeMillis()
         val startTime = currentTime + 60000  // 1 minute from now
@@ -445,6 +469,17 @@ class FixturedCalendarMonitorServiceRobolectricTest {
         assertTrue("Event should be registered after app resume", result)
         assertNotNull("Event should be in storage", eventsStorage.getEvent(eventId, startTime))
         assertTrue("Alert should be marked as handled", monitorStorage.alerts.first().wasHandled)
+        
+        // Test 5: Setting State Persistence
+        DevLog.info(LOG_TAG, "Testing setting persistence")
+        
+        // Toggle monitoring setting
+        settings.setBoolean("enable_manual_calendar_rescan", false)
+        assertFalse("Calendar monitoring should be disabled", settings.enableCalendarRescan)
+        
+        // Re-enable for cleanup
+        settings.setBoolean("enable_manual_calendar_rescan", true)
+        assertTrue("Calendar monitoring should be re-enabled", settings.enableCalendarRescan)
         
         DevLog.info(LOG_TAG, "testCalendarMonitoringEnabledEdgeCases completed")
     }
