@@ -46,6 +46,8 @@ class CalendarProviderBasicRobolectricTest {
         MockKAnnotations.init(this)
         unmockkAll()
         
+        // Note: Permissions are granted automatically by MockContextProvider.setup()
+        
         // Setup mock time provider
         mockTimeProvider = MockTimeProvider(1635724800000) // 2021-11-01 00:00:00 UTC
         mockTimeProvider.setup()
@@ -317,15 +319,11 @@ class CalendarProviderBasicRobolectricTest {
         // Log created calendar IDs
         DevLog.info(LOG_TAG, "Calendar IDs created - handled1: $handled1Id, handled2: $handled2Id, unhandled: $unhandledId")
         
-        // Create a map of calendar handling overrides - explicitly set which calendars should be handled
-        val calendarHandlingOverrides = mapOf(
-            handled1Id to true,
-            handled2Id to true,
-            unhandledId to false
-        )
-        
-        // Apply the overrides to ensure our test has consistent behavior
-        mockContextProvider.overrideGetHandledCalendarsIds(calendarHandlingOverrides)
+        // Note: In Robolectric, we don't need overrideGetHandledCalendarsIds because:
+        // 1. Calendar handling status is already set via setCalendarHandlingStatusDirectly in createTestCalendar
+        // 2. MockCalendarProvider stubs getHandledCalendarsIds to use Settings.getCalendarIsHandled()
+        // 3. Settings reads from SharedPreferences which we've already populated
+        // This is simpler than the instrumentation test which needs complex overrides due to real ContentProvider
         
         // Log current calendar handling states for debugging
         val isHandled1 = settings.getCalendarIsHandled(handled1Id)
