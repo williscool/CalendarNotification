@@ -315,7 +315,8 @@ class MockCalendarProvider(
         isAllDay: Boolean = false,
         repeatingRule: String = "",
         timeZone: String = "UTC",
-        reminderMinutes: Int = 15
+        reminderMinutes: Int = 15,
+        reminderMethod: Int = CalendarContract.Reminders.METHOD_ALERT
     ): Long {
         DevLog.info(LOG_TAG, "Creating test event: title=$title, startTime=$startTime")
         
@@ -324,7 +325,7 @@ class MockCalendarProvider(
         val reminders = if (reminderMinutes > 0) {
             listOf(EventReminderRecord(
                 millisecondsBefore = reminderMinutes * 60 * 1000L,
-                method = CalendarContract.Reminders.METHOD_ALERT
+                method = reminderMethod
             ))
         } else {
             emptyList()
@@ -354,6 +355,35 @@ class MockCalendarProvider(
         
         DevLog.info(LOG_TAG, "Created test event: id=$eventId")
         return eventId
+    }
+    
+    /**
+     * Adds a reminder to an existing event
+     */
+    fun addReminderToEvent(
+        eventId: Long,
+        reminderMinutes: Int,
+        reminderMethod: Int = CalendarContract.Reminders.METHOD_ALERT
+    ) {
+        DevLog.info(LOG_TAG, "Adding reminder to event $eventId: $reminderMinutes minutes, method=$reminderMethod")
+        
+        val reminder = EventReminderRecord(
+            millisecondsBefore = reminderMinutes * 60 * 1000L,
+            method = reminderMethod
+        )
+        
+        val reminders = eventReminders.getOrPut(eventId) { mutableListOf() }
+        reminders.add(reminder)
+        
+        // Also update the event's details if it exists
+        val event = events[eventId]
+        if (event != null) {
+            val updatedReminders = event.details.reminders + reminder
+            val updatedDetails = event.details.copy(reminders = updatedReminders)
+            events[eventId] = event.copy(details = updatedDetails)
+        }
+        
+        DevLog.info(LOG_TAG, "Added reminder. Event $eventId now has ${reminders.size} reminders")
     }
     
     /**
