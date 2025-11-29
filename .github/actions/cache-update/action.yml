@@ -14,6 +14,14 @@ inputs:
     description: 'Whether to run emulator setup steps'
     required: false
     default: "false"
+  android_api_level:
+    description: 'Android API level for emulator cache'
+    required: false
+    default: "34"
+  android_target:
+    description: 'Android target for emulator cache'
+    required: false
+    default: "google_apis"
 
 runs:
   using: "composite"
@@ -89,5 +97,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: |
-          ~/.android/*
-        key: ${{ runner.os }}-android-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          ~/.android/avd
+          ~/.android/adb_usb.ini
+          /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
+        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}

@@ -62,7 +62,7 @@ interface ApplicationControllerInterface {
     // Clock interface for time-related operations
     val clock: CNPlusClockInterface
     
-    fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean
+    fun registerNewEvent(context: Context, event: EventAlertRecord, db: EventsStorageInterface? = null): Boolean
     fun registerNewEvents(context: Context, pairs: List<Pair<MonitorEventAlertEntry, EventAlertRecord>>): ArrayList<Pair<MonitorEventAlertEntry, EventAlertRecord>>
     fun postEventNotifications(context: Context, events: Collection<EventAlertRecord>)
     fun hasActiveEventsToRemind(context: Context): Boolean
@@ -92,7 +92,12 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface? = null,
         dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter here too
     )
-    fun restoreEvent(context: Context, event: EventAlertRecord)
+    fun restoreEvent(
+        context: Context, 
+        event: EventAlertRecord,
+        db: EventsStorageInterface? = null,
+        dismissedEventsStorage: DismissedEventsStorage? = null
+    )
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
     fun forceRepostNotifications(context: Context)
@@ -380,7 +385,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
 
-    override fun registerNewEvent(context: Context, event: EventAlertRecord): Boolean {
+    override fun registerNewEvent(context: Context, event: EventAlertRecord, db: EventsStorageInterface?): Boolean {
 
         var ret = false
 
@@ -395,9 +400,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         DevLog.info(LOG_TAG, "registerNewEvent: Event fired: calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime ${event.alertTime}, muted: ${event.isMuted}, task: ${event.isTask}")
 
-        // 1st step - save event into DB
-        EventsStorage(context).classCustomUse {
-            db ->
+        // 1st step - save event into DB (use injected or default to class instance)
+        val eventsDb = db ?: EventsStorage(context)
+        eventsDb.classCustomUse {
+            dbInst ->
 
             if (event.isNotSpecial)
                 event.lastStatusChangeTime = clock.currentTimeMillis()
@@ -406,12 +412,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             if (event.isRepeating) {
                 // repeating event - always simply add
-                db.addEvent(event) // ignoring result as we are using other way of validating
+                dbInst.addEvent(event) // ignoring result as we are using other way of validating
                 //notificationManager.onEventAdded(context, EventFormatter(context), event)
             }
             else {
                 // non-repeating event - make sure we don't create two records with the same eventId
-                val oldEvents = db.getEventInstances(event.eventId)
+                val oldEvents = dbInst.getEventInstances(event.eventId)
 
                 DevLog.info(LOG_TAG, "Non-repeating event, already have ${oldEvents.size} old requests with same event id ${event.eventId}, removing old")
 
@@ -421,7 +427,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
                     val formatter = EventFormatter(context)
                     for (oldEvent in oldEvents) {
-                        db.deleteEvent(oldEvent)
+                        dbInst.deleteEvent(oldEvent)
                         notificationManager.onEventDismissed(context, formatter, oldEvent.eventId, oldEvent.notificationId)
                     }
                 }
@@ -430,7 +436,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 }
 
                 // add newly fired event
-                db.addEvent(event)
+                dbInst.addEvent(event)
                 //notificationManager.onEventAdded(context, EventFormatter(context), event)
             }
         }
@@ -439,14 +445,14 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         // * is there
         // * is not set as visible
         // * is not snoozed
-        EventsStorage(context).classCustomUse {
-            db ->
+        eventsDb.classCustomUse {
+            dbInst ->
 
             if (event.isRepeating) {
                 // return true only if we can confirm, by reading event again from DB
                 // that it is there
                 // Caller is using our return value as "safeToRemoveOriginalReminder" flag
-                val dbEvent = db.getEvent(event.eventId, event.instanceStartTime)
+                val dbEvent = dbInst.getEvent(event.eventId, event.instanceStartTime)
                 ret = dbEvent != null && dbEvent.snoozedUntil == 0L
 
             }
@@ -454,7 +460,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 // return true only if we can confirm, by reading event again from DB
                 // that it is there
                 // Caller is using our return value as "safeToRemoveOriginalReminder" flag
-                val dbEvents = db.getEventInstances(event.eventId)
+                val dbEvents = dbInst.getEventInstances(event.eventId)
                 ret = dbEvents.size == 1 && dbEvents[0].snoozedUntil == 0L
             }
         }
@@ -1122,7 +1128,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
-    override fun restoreEvent(context: Context, event: EventAlertRecord) {
+    override fun restoreEvent(
+        context: Context, 
+        event: EventAlertRecord,
+        db: EventsStorageInterface?,
+        dismissedEventsStorage: DismissedEventsStorage?
+    ) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
         
@@ -1140,17 +1151,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             calendarId = newCalendarId // Update to new calendar ID
         )
 
-        val successOnAdd = EventsStorage(context).classCustomUse { db ->
-            val ret = db.addEvent(toRestore)
-            calendarReloadManager.reloadSingleEvent(context, db, toRestore, calendarProvider, null)
+        // Use injected storage or create new one (following pattern from safeDismissEvents)
+        val eventsDb = db ?: EventsStorage(context)
+        val successOnAdd = eventsDb.classCustomUse { dbInst ->
+            val ret = dbInst.addEvent(toRestore)
+            calendarReloadManager.reloadSingleEvent(context, dbInst, toRestore, calendarProvider, null)
             ret
         }
 
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            DismissedEventsStorage(context).classCustomUse { db ->
-                db.deleteEvent(event)
+            val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            dismissedStorage.classCustomUse { dbInst ->
+                dbInst.deleteEvent(event)
             }
             
             DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to calendar $newCalendarId")

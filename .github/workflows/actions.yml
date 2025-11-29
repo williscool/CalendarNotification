@@ -683,6 +683,17 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Free Disk Space
+      uses: endersonmenezes/free-disk-space@v3
+      with:
+        remove_android: false        # Keep Android SDK for emulator
+        remove_dotnet: true          # Remove .NET (~3GB)
+        remove_haskell: true         # Remove Haskell (~5GB)
+        remove_tool_cache: false     # Keep tool cache
+        remove_swap: false           # Keep swap for emulator
+        remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox"
+        remove_folders: "/usr/share/swift /usr/share/miniconda /usr/local/share/powershell"
+
     # Execute the common setup with emulator configuration
     - name: Common Setup
       id: common-setup
@@ -791,6 +802,8 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
+        android_api_level: ${{ env.ANDROID_API_LEVEL }}
+        android_target: ${{ env.ANDROID_TARGET }}
 
     - name: Setup tmate session
       if: ${{ failure() }}
