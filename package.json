@@ -12,7 +12,8 @@
     "android:install:debug": "yarn bundle:android --dev=true && cd android && ./gradlew installDebug",
     "android:sign:debug-apks": "node scripts/sign_android.js",
     "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks",
-    "clean-logs": "npx ts-node scripts/clean_clipboard_logs.ts"
+    "clean-logs": "npx ts-node scripts/clean_clipboard_logs.ts",
+    "test": "jest"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
