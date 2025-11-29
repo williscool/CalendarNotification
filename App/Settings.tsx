@@ -2,8 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from './index';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const Settings = () => {
+  const navigation = useNavigation<NavigationProp>();
   const { settings, updateSettings } = useSettings();
   const [tempSettings, setTempSettings] = useState(settings);
   const [isDirty, setIsDirty] = useState(false);
@@ -225,6 +231,16 @@ export const Settings = () => {
           {isDirty ? 'Save Changes*' : 'Save Changes'}
         </Text>
       </TouchableOpacity>
+
+      {settings.syncEnabled && (
+        <TouchableOpacity 
+          style={styles.debugButton}
+          onPress={() => navigation.navigate('SyncDebug')}
+        >
+          <Ionicons name="bug-outline" size={20} color="#666" style={{ marginRight: 8 }} />
+          <Text style={styles.debugButtonText}>View Sync Debug</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 };
@@ -396,5 +412,22 @@ const styles = StyleSheet.create({
   debugText: {
     fontSize: 14,
     color: '#333',
+  },
+  debugButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f0f0',
+    padding: 14,
+    borderRadius: 8,
+    margin: 16,
+    marginTop: 0,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  debugButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 
