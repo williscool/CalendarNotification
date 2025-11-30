@@ -1,9 +1,12 @@
 import 'react-native-url-polyfill/auto'
 
-// lib/Connector.js
 import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
 import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
 import { Settings } from '../hooks/SettingsContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Logger from 'js-logger';
+
+const log = Logger.get('PowerSync');
 
 /// Postgres Response codes that we cannot recover from by retrying.
 const FATAL_RESPONSE_CODES = [
@@ -17,9 +20,235 @@ const FATAL_RESPONSE_CODES = [
   new RegExp('^42501$')
 ];
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+const MAX_FAILED_OPS = 50;
+const FAILED_OPS_STORAGE_KEY = '@powersync_failed_operations';
+
 interface SupabaseError {
   code: string;
+  message?: string;
 }
+
+export interface FailedOperation {
+  id: string;
+  table: string;
+  op: string;
+  opData: Record<string, unknown> | undefined;
+  recordId: string;
+  error: string;
+  errorCode: string;
+  timestamp: number;
+}
+
+export interface SyncLogEntry {
+  timestamp: number;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+// Global event emitter for sync logs - allows SyncDebugContext to subscribe
+type SyncLogListener = (entry: SyncLogEntry) => void;
+const syncLogListeners: Set<SyncLogListener> = new Set();
+
+export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
+  syncLogListeners.add(listener);
+  return () => syncLogListeners.delete(listener);
+};
+
+const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
+  const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data };
+  syncLogListeners.forEach(listener => listener(entry));
+  
+  // Also log to js-logger
+  switch (level) {
+    case 'error': log.error(message, data); break;
+    case 'warn': log.warn(message, data); break;
+    case 'info': log.info(message, data); break;
+    case 'debug': log.debug(message, data); break;
+  }
+};
+
+// Log filter levels
+export type LogFilterLevel = 'info' | 'debug' | 'firehose';
+
+// PowerSync SDK log prefixes (info level - sane defaults)
+const INFO_PREFIXES = [
+  'PowerSyncStream',
+  'SqliteBucketStorage', 
+  'PowerSync',
+  'AbstractPowerSyncDatabase',
+  'PowerSyncBackendConnector',
+];
+
+// Extended prefixes (debug level - more verbose)
+const DEBUG_PREFIXES = [
+  ...INFO_PREFIXES,
+  // Supabase
+  'Supabase',
+  'Postgrest',
+  'GoTrue',
+  'Realtime',
+  // General sync patterns
+  'sync',
+  'Sync',
+  'upload',
+  'Upload',
+  'download',
+  'Download',
+  'fetch',
+  'Fetch',
+];
+
+// Current filter level - can be changed at runtime
+let currentLogFilterLevel: LogFilterLevel = 'info';
+
+export const setLogFilterLevel = (level: LogFilterLevel) => {
+  currentLogFilterLevel = level;
+};
+
+export const getLogFilterLevel = (): LogFilterLevel => {
+  return currentLogFilterLevel;
+};
+
+// Check if a log should be captured based on current filter level
+const shouldCaptureLog = (loggerName: string): boolean => {
+  if (currentLogFilterLevel === 'firehose') {
+    return true; // Capture everything
+  }
+  
+  const prefixes = currentLogFilterLevel === 'debug' ? DEBUG_PREFIXES : INFO_PREFIXES;
+  
+  // Always capture logs with empty logger name (generic logs)
+  if (loggerName === '') return true;
+  
+  return prefixes.some(prefix => 
+    loggerName.toLowerCase().includes(prefix.toLowerCase())
+  );
+};
+
+// Setup js-logger handler to capture PowerSync SDK logs
+let loggerHandlerInstalled = false;
+
+export const setupPowerSyncLogCapture = () => {
+  if (loggerHandlerInstalled) return;
+  loggerHandlerInstalled = true;
+
+  // Get the default handler
+  const defaultHandler = Logger.createDefaultHandler();
+
+  // Install custom handler that intercepts logs based on filter level
+  Logger.setHandler((messages, context) => {
+    // Always call default handler for console output
+    defaultHandler(messages, context);
+
+    // Guard against undefined/null messages
+    if (!messages) return;
+
+    // Check if this log should be captured based on filter level
+    const loggerName = context?.name || '';
+    if (shouldCaptureLog(loggerName)) {
+      // Convert js-logger level to our level
+      let level: SyncLogEntry['level'] = 'debug';
+      const contextLevel = context?.level;
+      if (contextLevel === Logger.ERROR) level = 'error';
+      else if (contextLevel === Logger.WARN) level = 'warn';
+      else if (contextLevel === Logger.INFO) level = 'info';
+      else if (contextLevel === Logger.DEBUG) level = 'debug';
+
+      // Format the message - handle both array and non-array messages
+      const prefix = loggerName ? `[${loggerName}] ` : '';
+      let messageText: string;
+      try {
+        const msgArray = Array.isArray(messages) ? messages : [messages];
+        messageText = msgArray.map(m => {
+          if (m === undefined) return 'undefined';
+          if (m === null) return 'null';
+          if (typeof m === 'object') {
+            try {
+              return JSON.stringify(m);
+            } catch {
+              return String(m);
+            }
+          }
+          return String(m);
+        }).join(' ');
+      } catch {
+        messageText = String(messages);
+      }
+
+      // Emit to our subscribers (without re-logging to avoid loops)
+      const entry: SyncLogEntry = { 
+        timestamp: Date.now(), 
+        level, 
+        message: `${prefix}${messageText}` 
+      };
+      syncLogListeners.forEach(listener => listener(entry));
+    }
+  });
+};
+
+// Failed operations storage helpers
+export const getFailedOperations = async (): Promise<FailedOperation[]> => {
+  try {
+    const stored = await AsyncStorage.getItem(FAILED_OPS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveFailedOperation = async (op: FailedOperation): Promise<void> => {
+  try {
+    const existing = await getFailedOperations();
+    const updated = [op, ...existing].slice(0, MAX_FAILED_OPS);
+    await AsyncStorage.setItem(FAILED_OPS_STORAGE_KEY, JSON.stringify(updated));
+    emitSyncLog('warn', 'Failed operation saved for review', { table: op.table, op: op.op, id: op.recordId });
+  } catch (e) {
+    emitSyncLog('error', 'Failed to save failed operation', { error: String(e) });
+  }
+};
+
+export const removeFailedOperation = async (id: string): Promise<void> => {
+  try {
+    const existing = await getFailedOperations();
+    const updated = existing.filter(op => op.id !== id);
+    await AsyncStorage.setItem(FAILED_OPS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore errors
+  }
+};
+
+export const clearFailedOperations = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(FAILED_OPS_STORAGE_KEY);
+  } catch {
+    // Ignore errors
+  }
+};
+
+const isFatalError = (error: SupabaseError): boolean => {
+  return typeof error.code === 'string' && FATAL_RESPONSE_CODES.some((regex) => regex.test(error.code));
+};
+
+const isNetworkError = (error: unknown): boolean => {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes('network') || msg.includes('fetch') || msg.includes('timeout');
+  }
+  return false;
+};
+
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+const calculateBackoff = (attempt: number): number => {
+  // Exponential backoff with jitter: base * 2^attempt + random(0-1000ms)
+  const exponential = BASE_DELAY_MS * Math.pow(2, attempt);
+  const jitter = Math.random() * 1000;
+  return exponential + jitter;
+};
 
 export class Connector implements PowerSyncBackendConnector {
     client: SupabaseClient;
@@ -40,73 +269,173 @@ export class Connector implements PowerSyncBackendConnector {
         };
     }
 
+    private async executeOperation(op: CrudEntry): Promise<PostgrestSingleResponse<null> | null> {
+        const table = this.client.from(op.table);
+        
+        switch (op.op) {
+            case UpdateType.PUT:
+                const record = { ...op.opData, id: op.id };
+                return await table.upsert(record);
+            case UpdateType.PATCH:
+                return await table.update(op.opData).eq('id', op.id);
+            case UpdateType.DELETE:
+                return await table.delete().eq('id', op.id);
+            default:
+                return null;
+        }
+    }
+
+    private async executeWithRetry(op: CrudEntry): Promise<void> {
+        let lastError: unknown = null;
+        
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                if (attempt > 0) {
+                    const delay = calculateBackoff(attempt - 1);
+                    emitSyncLog('info', `Retry attempt ${attempt + 1}/${MAX_RETRIES} after ${Math.round(delay)}ms`, {
+                        table: op.table,
+                        op: op.op,
+                        id: op.id
+                    });
+                    await sleep(delay);
+                }
+
+                const result = await this.executeOperation(op);
+
+                if (result?.error) {
+                    const error = result.error as SupabaseError;
+                    
+                    // Fatal errors should not be retried
+                    if (isFatalError(error)) {
+                        emitSyncLog('error', 'Fatal error - not retryable', {
+                            table: op.table,
+                            op: op.op,
+                            id: op.id,
+                            errorCode: error.code,
+                            error: error.message
+                        });
+                        throw result.error;
+                    }
+                    
+                    // Non-fatal errors can be retried
+                    lastError = result.error;
+                    emitSyncLog('warn', `Operation failed (attempt ${attempt + 1}/${MAX_RETRIES})`, {
+                        table: op.table,
+                        op: op.op,
+                        id: op.id,
+                        errorCode: error.code,
+                        error: error.message
+                    });
+                    continue;
+                }
+
+                // Success
+                emitSyncLog('debug', 'Operation succeeded', {
+                    table: op.table,
+                    op: op.op,
+                    id: op.id,
+                    attempt: attempt + 1
+                });
+                return;
+
+            } catch (ex) {
+                lastError = ex;
+                const error = ex as SupabaseError;
+                
+                // Fatal errors should not be retried
+                if (typeof error.code === 'string' && isFatalError(error)) {
+                    throw ex;
+                }
+                
+                // Network errors are retryable
+                if (isNetworkError(ex)) {
+                    emitSyncLog('warn', `Network error (attempt ${attempt + 1}/${MAX_RETRIES})`, {
+                        table: op.table,
+                        op: op.op,
+                        id: op.id,
+                        error: ex instanceof Error ? ex.message : String(ex)
+                    });
+                    continue;
+                }
+                
+                // Unknown errors - retry with caution
+                emitSyncLog('warn', `Unknown error (attempt ${attempt + 1}/${MAX_RETRIES})`, {
+                    table: op.table,
+                    op: op.op,
+                    id: op.id,
+                    error: ex instanceof Error ? ex.message : String(ex)
+                });
+            }
+        }
+
+        // All retries exhausted
+        emitSyncLog('error', `All ${MAX_RETRIES} retries exhausted`, {
+            table: op.table,
+            op: op.op,
+            id: op.id
+        });
+        throw lastError;
+    }
+
     async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
-        // based on https://github.com/powersync-ja/powersync-js/blob/main/demos/react-native-supabase-todolist/library/supabase/SupabaseConnector.ts
-        // https://github.com/powersync-ja/powersync-js/blob/main/demos/react-native-supabase-todolist/library/powersync/system.ts
         const transaction = await database.getNextCrudTransaction();
     
         if (!transaction) {
-          return;
+            return;
         }
     
+        emitSyncLog('info', 'Starting transaction upload', {
+            operationCount: transaction.crud.length
+        });
+
         let lastOp: CrudEntry | null = null;
         try {
-          // Note: If transactional consistency is important, use database functions
-          // or edge functions to process the entire transaction in a single call.
-          for (const op of transaction.crud) {
-            lastOp = op;
-            const table = this.client.from(op.table);
-            let result: PostgrestSingleResponse<null> | null = null;
-            switch (op.op) {
-              case UpdateType.PUT:
-                // eslint-disable-next-line no-case-declarations
-                const record = { ...op.opData, id: op.id };
-                result = await table.upsert(record);
-                break;
-              case UpdateType.PATCH:
-                result = await table.update(op.opData).eq('id', op.id);
-                break;
-              case UpdateType.DELETE:
-                result = await table.delete().eq('id', op.id);
-                break;
+            for (const op of transaction.crud) {
+                lastOp = op;
+                await this.executeWithRetry(op);
             }
     
-            if (result?.error) {
-              console.error(result.error);
-              result.error.message = `Could not ${op.op} data to Supabase error: ${JSON.stringify(result)}`;
-              throw result.error;
-            }
-          }
-    
-          await transaction.complete();
-        } catch (ex: unknown) {
-          console.debug(ex);
-          const error = ex as SupabaseError;
-          if (typeof error.code === 'string' && FATAL_RESPONSE_CODES.some((regex) => regex.test(error.code))) {
-            /**
-             * Instead of blocking the queue with these errors,
-             * discard the (rest of the) transaction.
-             *
-             * Note that these errors typically indicate a bug in the application.
-             * If protecting against data loss is important, save the failing records
-             * elsewhere instead of discarding, and/or notify the user.
-             */
-            // TODO: we should handle this better. 
-            // we should retry the transaction a few times
-            // and then if it still fails, we should save the updates and notify the user
-            // and then we should discard the transaction
-            console.error('Data upload error - discarding:', lastOp, error);
             await transaction.complete();
-          } else {
-            // Error may be retryable - e.g. network error or temporary server error.
-            // Throwing an error here causes this call to be retried after a delay.
+            emitSyncLog('info', 'Transaction completed successfully', {
+                operationCount: transaction.crud.length
+            });
+        } catch (ex: unknown) {
+            const error = ex as SupabaseError;
             
-            // TODO: if we get mulitple Network request failed isses we should save the update 
-            // and notify the user it means they may have put the wrong url in the settings
-            // ie. id.supabase.com instead of id.supabase.co
-            // Also TODO: we should have a way of seeing the logs in the app UI to debug this too
-            throw ex;
-          }
+            if (typeof error.code === 'string' && isFatalError(error)) {
+                // Save the failed operation for user review
+                if (lastOp) {
+                    await saveFailedOperation({
+                        id: `${lastOp.table}-${lastOp.id}-${Date.now()}`,
+                        table: lastOp.table,
+                        op: lastOp.op,
+                        opData: lastOp.opData,
+                        recordId: lastOp.id,
+                        error: error.message || 'Unknown error',
+                        errorCode: error.code,
+                        timestamp: Date.now()
+                    });
+                }
+                
+                emitSyncLog('error', 'Fatal error - transaction discarded, operation saved', {
+                    table: lastOp?.table,
+                    op: lastOp?.op,
+                    id: lastOp?.id,
+                    errorCode: error.code
+                });
+                
+                // Complete the transaction to unblock the queue
+                await transaction.complete();
+            } else {
+                // Transient error - let PowerSync retry the whole transaction
+                emitSyncLog('warn', 'Transient error - transaction will be retried by PowerSync', {
+                    table: lastOp?.table,
+                    op: lastOp?.op,
+                    id: lastOp?.id,
+                    error: ex instanceof Error ? ex.message : String(ex)
+                });
+                throw ex;
+            }
         }
-      }
-} 
+    }
+}

@@ -397,6 +397,32 @@ jobs:
         node_version: "22.x"
         arch: ${{ matrix.arch }}
 
+    # Run Jest tests (TypeScript/JavaScript unit tests) with coverage
+    - name: Run Jest Tests
+      run: yarn test --ci --coverage --reporters=default --reporters=jest-junit
+      env:
+        JEST_JUNIT_OUTPUT_DIR: ./jest-results
+        JEST_JUNIT_OUTPUT_NAME: jest-results.xml
+
+    # Publish Jest test results
+    - name: Publish Jest Test Results
+      uses: dorny/test-reporter@v2
+      if: always()
+      with:
+        name: 'Jest Tests'
+        path: 'jest-results/jest-results.xml'
+        reporter: jest-junit
+        fail-on-error: true
+
+    # Upload Jest coverage report
+    - name: Upload Jest Coverage Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: jest-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
+        path: coverage/
+        retention-days: 90
+
     # Debug unit test task graph
     - name: Debug Unit Test Task Graph
       run: |

@@ -12,7 +12,8 @@
     "android:install:debug": "yarn bundle:android --dev=true && cd android && ./gradlew installDebug",
     "android:sign:debug-apks": "node scripts/sign_android.js",
     "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks",
-    "clean-logs": "npx ts-node scripts/clean_clipboard_logs.ts"
+    "clean-logs": "npx ts-node scripts/clean_clipboard_logs.ts",
+    "test": "jest"
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
@@ -70,6 +71,7 @@
     "husky": "^9.1.6",
     "jest": "^29.6.2",
     "jest-expo": "~51.0.4",
+    "jest-junit": "^16.0.0",
     "metro-config": "~0.80.4",
     "metro-runtime": "^0.79.1",
     "regenerator-runtime": "^0.14.0",

@@ -2,7 +2,7 @@ import { OPSqliteOpenFactory } from '@powersync/op-sqlite';
 import { PowerSyncDatabase } from '@powersync/react-native';
 import { Connector } from './Connector';
 import { AppSchema } from './Schema';
-import { Settings } from '../hooks/useStoredSettings';
+import { Settings } from '../hooks/SettingsContext';
 const factory = new OPSqliteOpenFactory(
   {
     // Filename for the SQLite database — it's important to only instantiate one instance per file.

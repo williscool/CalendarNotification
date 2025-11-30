@@ -4,14 +4,17 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { db as psDb, setupPowerSync } from '@lib/powersync';
+import { setupPowerSyncLogCapture } from '@lib/powersync/Connector';
 import Logger from 'js-logger';
 import { PowerSyncContext } from "@powersync/react";
 import { SetupSync } from './SetupSync';
 import { Settings } from './Settings';
+import { SyncDebug } from './SyncDebug';
 import { enableScreens } from 'react-native-screens';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SettingsProvider } from '@lib/hooks/SettingsContext';
+import { SyncDebugProvider } from '@lib/hooks/SyncDebugContext';
 import { GITHUB_README_URL } from '@lib/constants';
 
 // Enable screens
@@ -20,6 +23,7 @@ enableScreens();
 export type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
+  SyncDebug: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -72,48 +76,58 @@ const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<Root
 export const App = () => {
   Logger.useDefaults();
   Logger.setLevel(Logger.DEBUG);
+  
+  // Capture PowerSync SDK logs for the debug UI
+  setupPowerSyncLogCapture();
 
   return (
     <SettingsProvider>
-      <PowerSyncContext.Provider value={psDb}>
-        <NavigationContainer>
-          <Stack.Navigator 
-            initialRouteName="Home"
-            screenOptions={{
-              headerShown: true,
-              headerBackTitle: 'Back',
-            }}
-          >
-            <Stack.Screen 
-              name="Home" 
-              component={HomeScreen}
-              options={({ navigation }) => ({
-                title: 'Sync Info',
-                headerLeft: () => (
-                  <TouchableOpacity 
-                    onPress={() => BackHandler.exitApp()}
-                  >
-                    <Ionicons name="arrow-back" size={24} color="#007AFF" style={{ marginRight: 20 }} />
-                  </TouchableOpacity>
-                ),
-                headerRight: () => (
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate('Settings')}
-                    style={{ marginRight: 15 }}
-                  >
-                    <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
-                  </TouchableOpacity>
-                ),
-              })}
-            />
-            <Stack.Screen 
-              name="Settings" 
-              component={Settings}
-              options={{ title: 'Sync Settings' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </PowerSyncContext.Provider>
+      <SyncDebugProvider>
+        <PowerSyncContext.Provider value={psDb}>
+          <NavigationContainer>
+            <Stack.Navigator 
+              initialRouteName="Home"
+              screenOptions={{
+                headerShown: true,
+                headerBackTitle: 'Back',
+              }}
+            >
+              <Stack.Screen 
+                name="Home" 
+                component={HomeScreen}
+                options={({ navigation }) => ({
+                  title: 'Sync Info',
+                  headerLeft: () => (
+                    <TouchableOpacity 
+                      onPress={() => BackHandler.exitApp()}
+                    >
+                      <Ionicons name="arrow-back" size={24} color="#007AFF" style={{ marginRight: 20 }} />
+                    </TouchableOpacity>
+                  ),
+                  headerRight: () => (
+                    <TouchableOpacity 
+                      onPress={() => navigation.navigate('Settings')}
+                      style={{ marginRight: 15 }}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
+                    </TouchableOpacity>
+                  ),
+                })}
+              />
+              <Stack.Screen 
+                name="Settings" 
+                component={Settings}
+                options={{ title: 'Sync Settings' }}
+              />
+              <Stack.Screen 
+                name="SyncDebug" 
+                component={SyncDebug}
+                options={{ title: 'Sync Debug' }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </PowerSyncContext.Provider>
+      </SyncDebugProvider>
     </SettingsProvider>
   );
 };
