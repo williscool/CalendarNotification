@@ -24,5 +24,8 @@ module.exports = {
     '!lib/**/*.test.{ts,tsx}',
     '!lib/**/testSetup.ts',
   ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'text-summary', 'lcov', 'html'],
 };
+
 
