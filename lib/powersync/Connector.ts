@@ -71,8 +71,11 @@ const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Recor
   }
 };
 
-// PowerSync SDK log prefixes we want to capture
-const POWERSYNC_LOG_PREFIXES = [
+// Log filter levels
+export type LogFilterLevel = 'info' | 'debug' | 'firehose';
+
+// PowerSync SDK log prefixes (info level - sane defaults)
+const INFO_PREFIXES = [
   'PowerSyncStream',
   'SqliteBucketStorage', 
   'PowerSync',
@@ -80,9 +83,50 @@ const POWERSYNC_LOG_PREFIXES = [
   'PowerSyncBackendConnector',
 ];
 
-// Check if a log message is from PowerSync SDK
-const isPowerSyncLog = (loggerName: string): boolean => {
-  return POWERSYNC_LOG_PREFIXES.some(prefix => loggerName.includes(prefix));
+// Extended prefixes (debug level - more verbose)
+const DEBUG_PREFIXES = [
+  ...INFO_PREFIXES,
+  // Supabase
+  'Supabase',
+  'Postgrest',
+  'GoTrue',
+  'Realtime',
+  // General sync patterns
+  'sync',
+  'Sync',
+  'upload',
+  'Upload',
+  'download',
+  'Download',
+  'fetch',
+  'Fetch',
+];
+
+// Current filter level - can be changed at runtime
+let currentLogFilterLevel: LogFilterLevel = 'info';
+
+export const setLogFilterLevel = (level: LogFilterLevel) => {
+  currentLogFilterLevel = level;
+};
+
+export const getLogFilterLevel = (): LogFilterLevel => {
+  return currentLogFilterLevel;
+};
+
+// Check if a log should be captured based on current filter level
+const shouldCaptureLog = (loggerName: string): boolean => {
+  if (currentLogFilterLevel === 'firehose') {
+    return true; // Capture everything
+  }
+  
+  const prefixes = currentLogFilterLevel === 'debug' ? DEBUG_PREFIXES : INFO_PREFIXES;
+  
+  // Always capture logs with empty logger name (generic logs)
+  if (loggerName === '') return true;
+  
+  return prefixes.some(prefix => 
+    loggerName.toLowerCase().includes(prefix.toLowerCase())
+  );
 };
 
 // Setup js-logger handler to capture PowerSync SDK logs
@@ -95,7 +139,7 @@ export const setupPowerSyncLogCapture = () => {
   // Get the default handler
   const defaultHandler = Logger.createDefaultHandler();
 
-  // Install custom handler that intercepts PowerSync logs
+  // Install custom handler that intercepts logs based on filter level
   Logger.setHandler((messages, context) => {
     // Always call default handler for console output
     defaultHandler(messages, context);
@@ -103,9 +147,9 @@ export const setupPowerSyncLogCapture = () => {
     // Guard against undefined/null messages
     if (!messages) return;
 
-    // Check if this is a PowerSync-related log
+    // Check if this log should be captured based on filter level
     const loggerName = context?.name || '';
-    if (isPowerSyncLog(loggerName) || loggerName === '') {
+    if (shouldCaptureLog(loggerName)) {
       // Convert js-logger level to our level
       let level: SyncLogEntry['level'] = 'debug';
       const contextLevel = context?.level;

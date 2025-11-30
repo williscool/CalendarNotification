@@ -4,8 +4,11 @@ import {
   getFailedOperations, 
   removeFailedOperation as removeFailedOp,
   clearFailedOperations as clearFailedOps,
+  setLogFilterLevel as setFilterLevel,
+  getLogFilterLevel,
   SyncLogEntry,
-  FailedOperation 
+  FailedOperation,
+  LogFilterLevel,
 } from '../powersync/Connector';
 
 const MAX_LOG_ENTRIES = 200;
@@ -13,6 +16,8 @@ const MAX_LOG_ENTRIES = 200;
 interface SyncDebugContextType {
   logs: SyncLogEntry[];
   failedOperations: FailedOperation[];
+  logFilterLevel: LogFilterLevel;
+  setLogFilterLevel: (level: LogFilterLevel) => void;
   clearLogs: () => void;
   refreshFailedOperations: () => Promise<void>;
   removeFailedOperation: (id: string) => Promise<void>;
@@ -24,7 +29,13 @@ const SyncDebugContext = createContext<SyncDebugContextType | undefined>(undefin
 export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [logs, setLogs] = useState<SyncLogEntry[]>([]);
   const [failedOperations, setFailedOperations] = useState<FailedOperation[]>([]);
+  const [logFilterLevel, setLogFilterLevelState] = useState<LogFilterLevel>(getLogFilterLevel());
   const logsRef = useRef<SyncLogEntry[]>([]);
+
+  const setLogFilterLevel = useCallback((level: LogFilterLevel) => {
+    setFilterLevel(level);
+    setLogFilterLevelState(level);
+  }, []);
 
   // Subscribe to sync log events
   useEffect(() => {
@@ -67,6 +78,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     <SyncDebugContext.Provider value={{ 
       logs, 
       failedOperations,
+      logFilterLevel,
+      setLogFilterLevel,
       clearLogs,
       refreshFailedOperations,
       removeFailedOperation,

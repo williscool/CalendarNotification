@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { PowerSyncContext } from "@powersync/react";
 import { useSyncDebug } from '@lib/hooks/SyncDebugContext';
-import { SyncLogEntry, FailedOperation } from '@lib/powersync/Connector';
+import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Connector';
 
 const formatTimestamp = (ts: number): string => {
   const date = new Date(ts);
@@ -39,6 +39,45 @@ const LogEntryView: React.FC<{ entry: SyncLogEntry }> = ({ entry }) => (
   </View>
 );
 
+const LogFilterToggle: React.FC<{
+  value: LogFilterLevel;
+  onChange: (level: LogFilterLevel) => void;
+}> = ({ value, onChange }) => {
+  const levels: { key: LogFilterLevel; label: string; description: string }[] = [
+    { key: 'info', label: 'Info', description: 'PowerSync only' },
+    { key: 'debug', label: 'Debug', description: '+ Supabase & sync' },
+    { key: 'firehose', label: 'Firehose', description: 'Everything' },
+  ];
+
+  return (
+    <View style={styles.filterToggleContainer}>
+      <Text style={styles.filterLabel}>Log Filter:</Text>
+      <View style={styles.filterButtons}>
+        {levels.map(({ key, label }) => (
+          <TouchableOpacity
+            key={key}
+            style={[
+              styles.filterButton,
+              value === key && styles.filterButtonActive,
+            ]}
+            onPress={() => onChange(key)}
+          >
+            <Text style={[
+              styles.filterButtonText,
+              value === key && styles.filterButtonTextActive,
+            ]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={styles.filterDescription}>
+        {levels.find(l => l.key === value)?.description}
+      </Text>
+    </View>
+  );
+};
+
 const FailedOperationView: React.FC<{ 
   op: FailedOperation; 
   onRemove: () => void;
@@ -63,7 +102,7 @@ const FailedOperationView: React.FC<{
 
 export const SyncDebug = () => {
   const providerDb = useContext(PowerSyncContext);
-  const { logs, failedOperations, clearLogs, refreshFailedOperations, removeFailedOperation, clearFailedOperations } = useSyncDebug();
+  const { logs, failedOperations, logFilterLevel, setLogFilterLevel, clearLogs, refreshFailedOperations, removeFailedOperation, clearFailedOperations } = useSyncDebug();
   const [syncStatus, setSyncStatus] = useState<string>('{}');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -95,6 +134,11 @@ export const SyncDebug = () => {
         <View style={styles.statusContainer}>
           <Text style={styles.statusText} selectable>{syncStatus}</Text>
         </View>
+      </View>
+
+      {/* Log Filter Toggle */}
+      <View style={styles.section}>
+        <LogFilterToggle value={logFilterLevel} onChange={setLogFilterLevel} />
       </View>
 
       {/* Failed Operations Section */}
@@ -293,6 +337,44 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  filterToggleContainer: {
+    alignItems: 'center',
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 4,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginHorizontal: 2,
+  },
+  filterButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  filterButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  filterDescription: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });
 
