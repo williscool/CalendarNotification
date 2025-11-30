@@ -11,7 +11,7 @@ import {
   LogFilterLevel,
 } from '../powersync/Connector';
 
-const MAX_LOG_ENTRIES = 200;
+const MAX_LOG_ENTRIES = 2000;
 
 interface SyncDebugContextType {
   logs: SyncLogEntry[];
