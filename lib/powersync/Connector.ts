@@ -71,6 +71,81 @@ const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Recor
   }
 };
 
+// PowerSync SDK log prefixes we want to capture
+const POWERSYNC_LOG_PREFIXES = [
+  'PowerSyncStream',
+  'SqliteBucketStorage', 
+  'PowerSync',
+  'AbstractPowerSyncDatabase',
+  'PowerSyncBackendConnector',
+];
+
+// Check if a log message is from PowerSync SDK
+const isPowerSyncLog = (loggerName: string): boolean => {
+  return POWERSYNC_LOG_PREFIXES.some(prefix => loggerName.includes(prefix));
+};
+
+// Setup js-logger handler to capture PowerSync SDK logs
+let loggerHandlerInstalled = false;
+
+export const setupPowerSyncLogCapture = () => {
+  if (loggerHandlerInstalled) return;
+  loggerHandlerInstalled = true;
+
+  // Get the default handler
+  const defaultHandler = Logger.createDefaultHandler();
+
+  // Install custom handler that intercepts PowerSync logs
+  Logger.setHandler((messages, context) => {
+    // Always call default handler for console output
+    defaultHandler(messages, context);
+
+    // Guard against undefined/null messages
+    if (!messages) return;
+
+    // Check if this is a PowerSync-related log
+    const loggerName = context?.name || '';
+    if (isPowerSyncLog(loggerName) || loggerName === '') {
+      // Convert js-logger level to our level
+      let level: SyncLogEntry['level'] = 'debug';
+      const contextLevel = context?.level;
+      if (contextLevel === Logger.ERROR) level = 'error';
+      else if (contextLevel === Logger.WARN) level = 'warn';
+      else if (contextLevel === Logger.INFO) level = 'info';
+      else if (contextLevel === Logger.DEBUG) level = 'debug';
+
+      // Format the message - handle both array and non-array messages
+      const prefix = loggerName ? `[${loggerName}] ` : '';
+      let messageText: string;
+      try {
+        const msgArray = Array.isArray(messages) ? messages : [messages];
+        messageText = msgArray.map(m => {
+          if (m === undefined) return 'undefined';
+          if (m === null) return 'null';
+          if (typeof m === 'object') {
+            try {
+              return JSON.stringify(m);
+            } catch {
+              return String(m);
+            }
+          }
+          return String(m);
+        }).join(' ');
+      } catch {
+        messageText = String(messages);
+      }
+
+      // Emit to our subscribers (without re-logging to avoid loops)
+      const entry: SyncLogEntry = { 
+        timestamp: Date.now(), 
+        level, 
+        message: `${prefix}${messageText}` 
+      };
+      syncLogListeners.forEach(listener => listener(entry));
+    }
+  });
+};
+
 // Failed operations storage helpers
 export const getFailedOperations = async (): Promise<FailedOperation[]> => {
   try {

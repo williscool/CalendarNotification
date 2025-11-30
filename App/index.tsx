@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { db as psDb, setupPowerSync } from '@lib/powersync';
+import { setupPowerSyncLogCapture } from '@lib/powersync/Connector';
 import Logger from 'js-logger';
 import { PowerSyncContext } from "@powersync/react";
 import { SetupSync } from './SetupSync';
@@ -75,6 +76,9 @@ const HomeScreen = ({ navigation }: { navigation: NativeStackNavigationProp<Root
 export const App = () => {
   Logger.useDefaults();
   Logger.setLevel(Logger.DEBUG);
+  
+  // Capture PowerSync SDK logs for the debug UI
+  setupPowerSyncLogCapture();
 
   return (
     <SettingsProvider>
