@@ -51,7 +51,11 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Load failed operations on mount
   useEffect(() => {
-    refreshFailedOperations();
+    const loadFailedOps = async () => {
+      const ops = await getFailedOperations();
+      setFailedOperations(ops);
+    };
+    loadFailedOps();
   }, []);
 
   const clearLogs = useCallback(() => {

@@ -7,8 +7,11 @@ import {
   saveFailedOperation,
   removeFailedOperation,
   clearFailedOperations,
+  setLogFilterLevel,
+  getLogFilterLevel,
   SyncLogEntry,
   FailedOperation,
+  LogFilterLevel,
 } from './Connector';
 
 // Type the mocked modules
@@ -533,6 +536,49 @@ describe('Error Classification', () => {
     // Network error retried, then succeeded
     expect(mockUpsert).toHaveBeenCalledTimes(2);
     expect(mockTransaction.complete).toHaveBeenCalled();
+  });
+});
+
+describe('Log Filter Level', () => {
+  beforeEach(() => {
+    // Reset to default
+    setLogFilterLevel('info');
+  });
+
+  describe('getLogFilterLevel', () => {
+    it('should return default filter level as info', () => {
+      setLogFilterLevel('info'); // Reset
+      expect(getLogFilterLevel()).toBe('info');
+    });
+  });
+
+  describe('setLogFilterLevel', () => {
+    it('should update filter level to debug', () => {
+      setLogFilterLevel('debug');
+      expect(getLogFilterLevel()).toBe('debug');
+    });
+
+    it('should update filter level to firehose', () => {
+      setLogFilterLevel('firehose');
+      expect(getLogFilterLevel()).toBe('firehose');
+    });
+
+    it('should update filter level back to info', () => {
+      setLogFilterLevel('firehose');
+      setLogFilterLevel('info');
+      expect(getLogFilterLevel()).toBe('info');
+    });
+  });
+
+  describe('filter level type', () => {
+    it('should accept valid LogFilterLevel values', () => {
+      const validLevels: LogFilterLevel[] = ['info', 'debug', 'firehose'];
+      
+      validLevels.forEach(level => {
+        setLogFilterLevel(level);
+        expect(getLogFilterLevel()).toBe(level);
+      });
+    });
   });
 });
 
