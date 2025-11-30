@@ -121,6 +121,14 @@ export const Settings = () => {
           </View>
         )}
       </View>
+      
+      <TouchableOpacity 
+        style={styles.debugButton}
+        onPress={() => navigation.navigate('SyncDebug')}
+      >
+        <Ionicons name="bug-outline" size={20} color="#666" style={{ marginRight: 8 }} />
+        <Text style={styles.debugButtonText}>View Sync Debug Logs</Text>
+      </TouchableOpacity>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Current Settings Output</Text>
@@ -232,15 +240,6 @@ export const Settings = () => {
         </Text>
       </TouchableOpacity>
 
-      {settings.syncEnabled && (
-        <TouchableOpacity 
-          style={styles.debugButton}
-          onPress={() => navigation.navigate('SyncDebug')}
-        >
-          <Ionicons name="bug-outline" size={20} color="#666" style={{ marginRight: 8 }} />
-          <Text style={styles.debugButtonText}>View Sync Debug</Text>
-        </TouchableOpacity>
-      )}
     </ScrollView>
   );
 };
