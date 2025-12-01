@@ -1,5 +1,5 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useContext, useEffect, useState, useCallback, memo } from 'react';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { PowerSyncContext } from "@powersync/react";
 import { useSyncDebug } from '@lib/hooks/SyncDebugContext';
 import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Connector';
@@ -24,7 +24,7 @@ const LogLevelBadge: React.FC<{ level: SyncLogEntry['level'] }> = ({ level }) =>
   );
 };
 
-const LogEntryView: React.FC<{ entry: SyncLogEntry }> = ({ entry }) => (
+const LogEntryView = memo<{ entry: SyncLogEntry }>(({ entry }) => (
   <View style={styles.logEntry}>
     <View style={styles.logHeader}>
       <LogLevelBadge level={entry.level} />
@@ -37,7 +37,7 @@ const LogEntryView: React.FC<{ entry: SyncLogEntry }> = ({ entry }) => (
       </Text>
     )}
   </View>
-);
+));
 
 const LogFilterToggle: React.FC<{
   value: LogFilterLevel;
@@ -121,13 +121,15 @@ export const SyncDebug = () => {
     setRefreshing(false);
   };
 
-  return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+  const renderLogItem = useCallback(({ item, index }: { item: SyncLogEntry; index: number }) => (
+    <LogEntryView entry={item} />
+  ), []);
+
+  const keyExtractor = useCallback((item: SyncLogEntry, index: number) => 
+    `${item.timestamp}-${index}`, []);
+
+  const ListHeader = useCallback(() => (
+    <>
       {/* Sync Status Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>PowerSync Status</Text>
@@ -163,23 +165,43 @@ export const SyncDebug = () => {
         </View>
       )}
 
-      {/* Logs Section */}
-      <View style={styles.section}>
+      {/* Logs Section Header */}
+      <View style={styles.logsHeader}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Sync Logs ({logs.length})</Text>
           <TouchableOpacity style={styles.clearButton} onPress={clearLogs}>
             <Text style={styles.clearButtonText}>Clear</Text>
           </TouchableOpacity>
         </View>
-        {logs.length === 0 ? (
-          <Text style={styles.emptyText}>No logs yet. Sync activity will appear here.</Text>
-        ) : (
-          logs.map((entry, index) => (
-            <LogEntryView key={`${entry.timestamp}-${index}`} entry={entry} />
-          ))
-        )}
       </View>
-    </ScrollView>
+    </>
+  ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, clearLogs]);
+
+  const ListEmpty = useCallback(() => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>No logs yet. Sync activity will appear here.</Text>
+    </View>
+  ), []);
+
+  return (
+    <FlatList
+      style={styles.container}
+      data={logs}
+      renderItem={renderLogItem}
+      keyExtractor={keyExtractor}
+      ListHeaderComponent={ListHeader}
+      ListEmptyComponent={ListEmpty}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      // Performance optimizations
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={20}
+      windowSize={10}
+      initialNumToRender={15}
+      getItemLayout={undefined}  // Variable height items, can't use getItemLayout
+      contentContainerStyle={styles.listContent}
+    />
   );
 };
 
@@ -188,12 +210,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  listContent: {
+    paddingBottom: 20,
+  },
   section: {
     backgroundColor: '#fff',
     padding: 16,
     marginBottom: 16,
     borderRadius: 8,
     margin: 16,
+  },
+  logsHeader: {
+    backgroundColor: '#fff',
+    padding: 16,
+    paddingBottom: 8,
+    marginHorizontal: 16,
+    marginTop: 0,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  emptyContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -244,6 +285,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f8f8',
     padding: 10,
     borderRadius: 6,
+    marginHorizontal: 16,
     marginTop: 8,
     borderLeftWidth: 3,
     borderLeftColor: '#ddd',
