@@ -63,11 +63,11 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
         // Use injectable wake lock wrapper (allows bypassing in tests)
         val wakeLockFn = wakeLockWrapper ?: { ctx, timeout, tag, fn -> partialWakeLocked(ctx, timeout, tag, fn) }
-        wakeLockFn(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) {
+        wakeLockFn(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) wakeLock@ {
 
             if (!ApplicationController.hasActiveEventsToRemind(context)) {
                 DevLog.info(LOG_TAG, "Reminder broadcast alarm received: no active requests")
-                return@partialWakeLocked
+                return@wakeLock
             }
 
             val settings = getSettings(context)

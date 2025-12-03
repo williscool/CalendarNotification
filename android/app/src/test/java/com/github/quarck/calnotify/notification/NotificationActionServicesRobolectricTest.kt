@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.notification
 
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import android.content.Context
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
@@ -30,7 +31,17 @@ class NotificationActionServicesRobolectricTest {
         every { ApplicationController.snoozeEvent(any(), any(), any(), any()) } returns mockk(relaxed = true)
         every { ApplicationController.snoozeAllEvents(any(), any(), any(), any()) } returns mockk(relaxed = true)
         every { ApplicationController.snoozeAllCollapsedEvents(any(), any(), any(), any()) } returns mockk(relaxed = true)
-        every { ApplicationController.dismissEvent(any(), any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
+        // Use specific types to disambiguate the overload
+        every { 
+            ApplicationController.dismissEvent(
+                any<Context>(),
+                any<EventDismissType>(),
+                any<Long>(),
+                any<Long>(),
+                any<Int>(),
+                any<Boolean>()
+            ) 
+        } returns Unit
         every { ApplicationController.dismissAllButRecentAndSnoozed(any(), any()) } returns Unit
         every { ApplicationController.cleanupEventReminder(any()) } returns Unit
         every { ApplicationController.toggleMuteForEvent(any(), any(), any(), any()) } returns true
@@ -126,7 +137,7 @@ class NotificationActionServicesRobolectricTest {
 
         verify {
             ApplicationController.dismissEvent(
-                any(),
+                any<Context>(),
                 EventDismissType.ManuallyDismissedFromNotification,
                 456L,
                 789L,
@@ -164,7 +175,16 @@ class NotificationActionServicesRobolectricTest {
             .create()
             .startCommand(0, 0)
 
-        verify(exactly = 0) { ApplicationController.dismissEvent(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { 
+            ApplicationController.dismissEvent(
+                any<Context>(),
+                any<EventDismissType>(),
+                any<Long>(),
+                any<Long>(),
+                any<Int>(),
+                any<Boolean>()
+            ) 
+        }
     }
 
     @Test

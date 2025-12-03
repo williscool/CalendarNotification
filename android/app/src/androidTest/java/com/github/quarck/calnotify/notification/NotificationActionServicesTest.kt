@@ -1,5 +1,6 @@
 package com.github.quarck.calnotify.notification
 
+import android.content.Context
 import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -30,7 +31,17 @@ class NotificationActionServicesTest {
         every { ApplicationController.snoozeEvent(any(), any(), any(), any()) } returns mockk(relaxed = true)
         every { ApplicationController.snoozeAllEvents(any(), any(), any(), any()) } returns mockk(relaxed = true)
         every { ApplicationController.snoozeAllCollapsedEvents(any(), any(), any(), any()) } returns mockk(relaxed = true)
-        every { ApplicationController.dismissEvent(any(), any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
+        // Use specific types to disambiguate the overload
+        every { 
+            ApplicationController.dismissEvent(
+                any<Context>(),
+                any<EventDismissType>(),
+                any<Long>(),
+                any<Long>(),
+                any<Int>(),
+                any<Boolean>()
+            ) 
+        } returns Unit
         every { ApplicationController.dismissAllButRecentAndSnoozed(any(), any()) } returns Unit
         every { ApplicationController.cleanupEventReminder(any()) } returns Unit
         every { ApplicationController.toggleMuteForEvent(any(), any(), any(), any()) } returns true
@@ -140,7 +151,7 @@ class NotificationActionServicesTest {
         )
         verify {
             ApplicationController.dismissEvent(
-                any(),
+                any<Context>(),
                 EventDismissType.ManuallyDismissedFromNotification,
                 1L,
                 2L,
