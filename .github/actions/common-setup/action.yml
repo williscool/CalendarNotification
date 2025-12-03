@@ -59,6 +59,19 @@ runs:
       run: echo "GRADLE_MAX_WORKERS=${{ inputs.gradle_max_workers }}" >> $GITHUB_ENV
       shell: bash
 
+    # Free Disk Space for emulator setup
+    - name: Free Disk Space
+      if: inputs.run_emulator_setup == 'true'
+      uses: endersonmenezes/free-disk-space@v3
+      with:
+        remove_android: false        # Keep Android SDK for emulator
+        remove_dotnet: true          # Remove .NET (~3GB)
+        remove_haskell: true         # Remove Haskell (~5GB)
+        remove_tool_cache: false     # Keep tool cache
+        remove_swap: false           # Keep swap for emulator
+        remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox"
+        remove_folders: "/usr/share/swift /usr/share/miniconda /usr/local/share/powershell"
+
     - name: Use Node.js ${{ inputs.node_version }}
       uses: actions/setup-node@v3
       with:
