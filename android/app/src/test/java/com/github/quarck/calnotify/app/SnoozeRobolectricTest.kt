@@ -2,8 +2,6 @@ package com.github.quarck.calnotify.app
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.github.quarck.calnotify.Consts
-import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -11,8 +9,7 @@ import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
-import com.github.quarck.calnotify.quiethours.QuietHoursManagerInterface
-import com.github.quarck.calnotify.utils.CNPlusTestClock
+import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
 import org.junit.After
 import org.junit.Assert.*
@@ -30,33 +27,26 @@ import org.robolectric.annotation.Config
 class SnoozeRobolectricTest {
 
     private lateinit var context: Context
-    private lateinit var testClock: CNPlusTestClock
+    private lateinit var testClock: CNPlusUnitTestClock
     private lateinit var mockNotificationManager: EventNotificationManagerInterface
     private lateinit var mockAlarmScheduler: AlarmSchedulerInterface
-    private lateinit var mockQuietHoursManager: QuietHoursManagerInterface
 
     private val baseTime = 1635724800000L // 2021-11-01 00:00:00 UTC
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        testClock = CNPlusTestClock(baseTime)
+        testClock = CNPlusUnitTestClock(baseTime)
 
         // Create mocks
         mockNotificationManager = mockk(relaxed = true)
         mockAlarmScheduler = mockk(relaxed = true)
-        mockQuietHoursManager = mockk(relaxed = true)
 
-        // Mock QuietHoursManager to return 0 (no silent period)
-        every { mockQuietHoursManager.getSilentUntil(any(), any<Long>()) } returns 0L
-
-        // Mock ApplicationController
+        // Mock ApplicationController - only public properties
         mockkObject(ApplicationController)
         every { ApplicationController.clock } returns testClock
         every { ApplicationController.notificationManager } returns mockNotificationManager
         every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
-        every { ApplicationController.getQuietHoursManager(any()) } returns mockQuietHoursManager
-        every { ApplicationController.getSettings(any()) } answers { Settings(firstArg()) }
     }
 
     @After

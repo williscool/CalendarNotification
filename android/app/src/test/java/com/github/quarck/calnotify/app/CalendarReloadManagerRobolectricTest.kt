@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
-import com.github.quarck.calnotify.utils.CNPlusTestClock
+import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
 import org.junit.After
 import org.junit.Assert.*
@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
 class CalendarReloadManagerRobolectricTest {
 
     private lateinit var context: Context
-    private lateinit var testClock: CNPlusTestClock
+    private lateinit var testClock: CNPlusUnitTestClock
     private lateinit var mockCalendarProvider: CalendarProviderInterface
     private lateinit var mockEventsStorage: EventsStorageInterface
 
@@ -31,7 +31,7 @@ class CalendarReloadManagerRobolectricTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        testClock = CNPlusTestClock(baseTime)
+        testClock = CNPlusUnitTestClock(baseTime)
 
         mockCalendarProvider = mockk(relaxed = true)
         mockEventsStorage = mockk(relaxed = true)
