@@ -3,8 +3,6 @@ package com.github.quarck.calnotify.app
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.github.quarck.calnotify.Consts
-import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -56,8 +54,7 @@ class SnoozeTest {
         every { ApplicationController.clock } returns testClock
         every { ApplicationController.notificationManager } returns mockNotificationManager
         every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
-        every { ApplicationController.getQuietHoursManager(any()) } returns mockQuietHoursManager
-        every { ApplicationController.getSettings(any()) } answers { Settings(firstArg()) }
+
 
         // Clean up any existing events
         cleanupStorage()
