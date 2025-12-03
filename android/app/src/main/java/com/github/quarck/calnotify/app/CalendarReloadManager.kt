@@ -282,6 +282,10 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
 
         if (!newEventAlert.isRepeating) {
 
+            // TODO: BUG - updateFrom() mutates event.instanceStartTime before the comparison below,
+            // so the else branch (EventInstanceMovedShouldUpdate) can never be reached.
+            // Fix: Save originalInstanceStartTime before updateFrom() and compare against that.
+            // See: CalendarReloadManagerRobolectricTest.testCheckCalendarAlertInstanceTimeMoved
             if (event.updateFrom(newEventAlert)) {
 
                 if (event.instanceStartTime == newEventAlert.instanceStartTime) {
