@@ -85,6 +85,9 @@ class ReminderAlarmRobolectricTest {
         ReminderAlarmGenericBroadcastReceiver.reminderStateProvider = { mockReminderState }
         ReminderAlarmGenericBroadcastReceiver.eventsStorageProvider = { mockEventsStorage }
         ReminderAlarmGenericBroadcastReceiver.quietHoursManagerProvider = { mockQuietHoursManager }
+        
+        // Bypass wake lock for testing - just execute the lambda directly
+        ReminderAlarmGenericBroadcastReceiver.wakeLockWrapper = { _, _, _, fn -> fn() }
     }
 
     @After

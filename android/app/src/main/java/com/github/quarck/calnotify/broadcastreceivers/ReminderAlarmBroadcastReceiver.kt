@@ -61,7 +61,9 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
         context.globalState?.lastTimerBroadcastReceived = clock.currentTimeMillis()
 
-        partialWakeLocked(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) {
+        // Use injectable wake lock wrapper (allows bypassing in tests)
+        val wakeLockFn = wakeLockWrapper ?: { ctx, timeout, tag, fn -> partialWakeLocked(ctx, timeout, tag, fn) }
+        wakeLockFn(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) {
 
             if (!ApplicationController.hasActiveEventsToRemind(context)) {
                 DevLog.info(LOG_TAG, "Reminder broadcast alarm received: no active requests")
@@ -228,6 +230,10 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
         var reminderStateProvider: ((Context) -> ReminderStateInterface)? = null
         var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
         var quietHoursManagerProvider: ((Context) -> QuietHoursManagerInterface)? = null
+        
+        // Injectable wake lock wrapper - allows bypassing wake lock in tests
+        // Signature: (context, timeout, tag, fn) -> Unit
+        var wakeLockWrapper: ((Context, Long, String, () -> Unit) -> Unit)? = null
 
         // Helper to reset all providers (useful in test cleanup)
         fun resetProviders() {
@@ -236,6 +242,7 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
             reminderStateProvider = null
             eventsStorageProvider = null
             quietHoursManagerProvider = null
+            wakeLockWrapper = null
         }
     }
 }
