@@ -1,4 +1,4 @@
-<!-- 05673065-27e0-4a04-a257-8525be445a15 2c6d8451-d9a7-4305-a51d-3200c215c5f0 -->
+<!-- 05673065-27e0-4a04-a257-8525be445a15 3afab678-bedd-4dd7-864c-eb4b19e101df -->
 # Test Suite Completion and Feature Deprecation Plan
 
 ## Part 1: Deprecation Tracking
@@ -32,61 +32,109 @@ Create [`docs/dev_todo/deprecated_features.md`](docs/dev_todo/deprecated_feature
 
 ## Part 2: Core Feature Tests
 
-### 2.1 Snooze Tests
+### 2.1 Settings Logic Tests (Foundation)
 
-Core feature with zero current coverage. Uses existing `BaseCalendarTestFixture`.
+Pure logic in Settings.kt that snooze and reminders depend on.
+
+**Robolectric:** [`test/.../SettingsRobolectricTest.kt`](android/app/src/test/java/com/github/quarck/calnotify/SettingsRobolectricTest.kt)
+**Instrumented:** [`androidTest/.../SettingsTest.kt`](android/app/src/androidTest/java/com/github/quarck/calnotify/SettingsTest.kt)
+
+Test cases:
+
+- `snoozePresets` - parsing from raw string, default fallback
+- `currentAndNextReminderIntervalsMillis()` - interval pattern, index wrapping
+- `reminderIntervalMillisAt()` - single interval lookup
+
+### 2.2 TagsManager Tests
+
+Event tag parsing logic - affects muted/task behavior.
+
+**Robolectric:** [`test/.../app/TagsManagerRobolectricTest.kt`](android/app/src/test/java/com/github/quarck/calnotify/app/TagsManagerRobolectricTest.kt)
+**Instrumented:** [`androidTest/.../app/TagsManagerTest.kt`](android/app/src/androidTest/java/com/github/quarck/calnotify/app/TagsManagerTest.kt)
+
+Test cases:
+
+- `parseEventTags()` - detect #muted, #task tags in title/description
+- Tag at end of string, middle of string, case insensitivity
+
+### 2.3 Snooze Tests
+
+Core snooze feature - zero current coverage.
 
 **Robolectric:** [`test/.../app/SnoozeRobolectricTest.kt`](android/app/src/test/java/com/github/quarck/calnotify/app/SnoozeRobolectricTest.kt)
 **Instrumented:** [`androidTest/.../app/SnoozeTest.kt`](android/app/src/androidTest/java/com/github/quarck/calnotify/app/SnoozeTest.kt)
 
-Test cases (shared):
+Test cases:
 
-- `snoozeEvent()` - single event, verify snoozedUntil updated in storage
+- `snoozeEvent()` - single event, verify snoozedUntil updated
 - `snoozeEvents()` - bulk snooze with filter lambda
 - `snoozeAllEvents()` - with search query filtering
 - Edge case: past snooze time triggers FAILBACK_SHORT_SNOOZE
 
-### 2.2 Broadcast Receiver Tests
+### 2.4 CalendarReloadManager Tests
 
-System entry points with zero current coverage.
+Core calendar change handling - zero current coverage.
+
+**Robolectric:** [`test/.../app/CalendarReloadManagerRobolectricTest.kt`](android/app/src/test/java/com/github/quarck/calnotify/app/CalendarReloadManagerRobolectricTest.kt)
+**Instrumented:** [`androidTest/.../app/CalendarReloadManagerTest.kt`](android/app/src/androidTest/java/com/github/quarck/calnotify/app/CalendarReloadManagerTest.kt)
+
+Test cases:
+
+- `reloadCalendar()` - event moved, details updated, no change
+- `ReloadCalendarResultCode` handling
+
+### 2.5 Broadcast Receiver Tests
+
+System entry points - zero current coverage.
 
 **Robolectric:** [`test/.../broadcastreceivers/BroadcastReceiverRobolectricTest.kt`](android/app/src/test/java/com/github/quarck/calnotify/broadcastreceivers/BroadcastReceiverRobolectricTest.kt)
 **Instrumented:** [`androidTest/.../broadcastreceivers/BroadcastReceiverTest.kt`](android/app/src/androidTest/java/com/github/quarck/calnotify/broadcastreceivers/BroadcastReceiverTest.kt)
 
-Test cases (shared):
+Test cases:
 
-- `BootCompleteBroadcastReceiver.onReceive()` - verify calls `ApplicationController.onBootComplete()`
-- `SnoozeAlarmBroadcastReceiver.onReceive()` - verify calls `ApplicationController.onEventAlarm()`
-
-Note: `EventReminderBroadcastReceiver` already covered by calendar monitoring tests.
+- `BootCompleteBroadcastReceiver.onReceive()` - triggers onBootComplete
+- `SnoozeAlarmBroadcastReceiver.onReceive()` - triggers onEventAlarm
+- `ReminderAlarmBroadcastReceiver.onReceive()` - reminder firing, interval logic
 
 ---
 
-## Skipped (Already Exercised)
-
-No dedicated tests needed - covered through existing fixtures:
+## Skipped (Already Exercised or Low Value)
 
 - **EventsStorage** - used by 12 test files
 - **MonitorStorage** - used by 8 test files
-- **CalendarReloadManager** - used in fixture setup
+- **AlarmScheduler** - Android API dependent, effects tested via flows
+- **Thin wrapper receivers** (CalendarChanged, AppUpdated, TimeSet) - underlying methods tested
+- **Notification services** - thin wrappers calling tested methods
+- **UndoManager** - simple UI state holder
 
 ---
 
 ## Implementation Order
 
 1. Deprecation docs + annotations
-2. Snooze tests (core feature)
-3. Broadcast receiver tests (triggers snooze/boot flows)
+2. Settings logic tests (foundation)
+3. TagsManager tests (simple, affects event behavior)
+4. Snooze tests (core feature)
+5. CalendarReloadManager tests
+6. Broadcast receiver tests (integration layer)
 
 ---
 
 ## Files Summary
 
-**New files (3):**
+**New files (12):**
 
 - `docs/dev_todo/deprecated_features.md`
+- `test/.../SettingsRobolectricTest.kt`
+- `androidTest/.../SettingsTest.kt`
+- `test/.../app/TagsManagerRobolectricTest.kt`
+- `androidTest/.../app/TagsManagerTest.kt`
 - `test/.../app/SnoozeRobolectricTest.kt`
+- `androidTest/.../app/SnoozeTest.kt`
+- `test/.../app/CalendarReloadManagerRobolectricTest.kt`
+- `androidTest/.../app/CalendarReloadManagerTest.kt`
 - `test/.../broadcastreceivers/BroadcastReceiverRobolectricTest.kt`
+- `androidTest/.../broadcastreceivers/BroadcastReceiverTest.kt`
 
 **Files to modify (~10, add @Deprecated):**
 
@@ -96,10 +144,9 @@ No dedicated tests needed - covered through existing fixtures:
 
 ### To-dos
 
-- [ ] Create docs/dev_todo/deprecated_features.md tracking Quiet Hours and Calendar Editor removal
+- [ ] Create docs/dev_todo/deprecated_features.md for Quiet Hours and Calendar Editor
 - [ ] Add @Deprecated annotations to quiethours/ and calendareditor/ packages
-- [ ] Create SnoozeTest.kt (instrumented) and SnoozeRobolectricTest.kt for ApplicationController snooze methods
-- [ ] Create EventsStorageTest.kt and EventsStorageRobolectricTest.kt for storage layer
-- [ ] Create BroadcastReceiverTest.kt for Boot, Snooze, and EventReminder receivers
-- [ ] Create CalendarReloadManagerTest.kt for rescan flow coverage
-- [ ] Create SnoozeTestFixture.kt extending BaseCalendarTestFixture
+- [ ] Create SettingsTest for snoozePresets and reminder interval logic
+- [ ] Create SnoozeTest for snoozeEvent, snoozeEvents, snoozeAllEvents
+- [ ] Create CalendarReloadManagerTest for calendar change handling
+- [ ] Create BroadcastReceiverTest for Boot, Snooze, and Reminder receivers
