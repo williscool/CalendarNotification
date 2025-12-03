@@ -45,6 +45,10 @@ class ReminderAlarmTest {
         DevLog.info(LOG_TAG, "Setting up ReminderAlarmTest")
         context = InstrumentationRegistry.getInstrumentation().targetContext
         testClock = CNPlusTestClock(baseTime)
+        
+        // Clear persistent state to ensure notificationLastFireTime doesn't interfere
+        // (the real code takes Math.max of persistentState.notificationLastFireTime and reminderState.reminderLastFireTime)
+        context.getSharedPreferences("persistent_state", Context.MODE_PRIVATE).edit().clear().commit()
 
         // Create mocks
         mockSettings = mockk(relaxed = true)
