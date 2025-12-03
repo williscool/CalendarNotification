@@ -120,7 +120,7 @@ data class NotificationSettings
             )
 }
 
-class Settings(context: Context) : PersistentStorageBase(context) {
+class Settings(context: Context) : PersistentStorageBase(context), SettingsInterface {
 
     var devModeEnabled: Boolean
         get() = getBoolean(DEVELOPER_MODE_KEY, false)
