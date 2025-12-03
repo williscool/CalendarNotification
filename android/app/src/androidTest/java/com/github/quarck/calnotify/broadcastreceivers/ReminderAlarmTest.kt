@@ -8,6 +8,7 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.SettingsInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.calendar.isActiveAlarm
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.quiethours.QuietHoursManagerInterface
