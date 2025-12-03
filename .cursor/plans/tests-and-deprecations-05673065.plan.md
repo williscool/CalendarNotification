@@ -144,9 +144,9 @@ Test cases:
 
 ### To-dos
 
-- [ ] Create docs/dev_todo/deprecated_features.md for Quiet Hours and Calendar Editor
-- [ ] Add @Deprecated annotations to quiethours/ and calendareditor/ packages
-- [ ] Create SettingsTest for snoozePresets and reminder interval logic
-- [ ] Create SnoozeTest for snoozeEvent, snoozeEvents, snoozeAllEvents
-- [ ] Create CalendarReloadManagerTest for calendar change handling
-- [ ] Create BroadcastReceiverTest for Boot, Snooze, and Reminder receivers
+- [x] Create docs/dev_todo/deprecated_features.md for Quiet Hours and Calendar Editor
+- [x] Add @Deprecated annotations to quiethours/ and calendareditor/ packages
+- [x] Create SettingsTest for snoozePresets and reminder interval logic
+- [x] Create SnoozeTest for snoozeEvent, snoozeEvents, snoozeAllEvents
+- [x] Create CalendarReloadManagerTest for calendar change handling
+- [x] Create BroadcastReceiverTest for Boot, Snooze, and Reminder receivers
