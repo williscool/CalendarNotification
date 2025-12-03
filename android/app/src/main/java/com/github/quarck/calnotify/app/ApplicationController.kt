@@ -193,7 +193,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //            }
 
     override fun hasActiveEventsToRemind(context: Context) =
-            EventsStorage(context).classCustomUse {
+            getEventsStorage(context).classCustomUse {
                 //val settings = Settings(context)
                 it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
             }
@@ -716,7 +716,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         //val currentTime = clock.currentTimeMillis()
 
         val mutedEvent: EventAlertRecord? =
-                EventsStorage(context).classCustomUse {
+                getEventsStorage(context).classCustomUse {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -1010,7 +1010,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         val currentTime = clock.currentTimeMillis()
 
-        EventsStorage(context).classCustomUse {
+        getEventsStorage(context).classCustomUse {
             db ->
             val eventsToDismiss = db.events.filter {
                 event ->
@@ -1024,7 +1024,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     fun muteAllVisibleEvents(context: Context) {
 
-        EventsStorage(context).classCustomUse {
+        getEventsStorage(context).classCustomUse {
             db ->
             val eventsToMute = db.events.filter {
                 event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask

@@ -64,7 +64,7 @@ class ApplicationControllerCoreTest {
         isTask: Boolean = false,
         lastStatusChangeTime: Long = baseTime
     ): EventAlertRecord {
-        return EventAlertRecord(
+        val event = EventAlertRecord(
             calendarId = 1L,
             eventId = eventId,
             isAllDay = false,
@@ -82,13 +82,15 @@ class ApplicationControllerCoreTest {
             snoozedUntil = snoozedUntil,
             displayStatus = EventDisplayStatus.Hidden,
             color = 0,
-            isTask = isTask,
-            isMuted = isMuted,
             origin = EventOrigin.ProviderBroadcast,
             timeFirstSeen = baseTime,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None
         )
+        // isMuted and isTask are computed from flags, set via property setters
+        event.isMuted = isMuted
+        event.isTask = isTask
+        return event
     }
 
     // === hasActiveEventsToRemind tests ===

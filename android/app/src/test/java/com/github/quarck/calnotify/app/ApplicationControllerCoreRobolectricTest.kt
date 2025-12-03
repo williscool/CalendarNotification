@@ -7,6 +7,7 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
+import com.github.quarck.calnotify.persistentState
 import com.github.quarck.calnotify.testutils.MockEventsStorage
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
@@ -67,7 +68,7 @@ class ApplicationControllerCoreRobolectricTest {
         isTask: Boolean = false,
         lastStatusChangeTime: Long = baseTime
     ): EventAlertRecord {
-        return EventAlertRecord(
+        val event = EventAlertRecord(
             calendarId = 1L,
             eventId = eventId,
             isAllDay = false,
@@ -85,13 +86,15 @@ class ApplicationControllerCoreRobolectricTest {
             snoozedUntil = snoozedUntil,
             displayStatus = com.github.quarck.calnotify.calendar.EventDisplayStatus.Hidden,
             color = 0,
-            isTask = isTask,
-            isMuted = isMuted,
             origin = EventOrigin.ProviderBroadcast,
             timeFirstSeen = baseTime,
             eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
             attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None
         )
+        // isMuted and isTask are computed from flags, set via property setters
+        event.isMuted = isMuted
+        event.isTask = isTask
+        return event
     }
 
     // === hasActiveEventsToRemind tests ===
@@ -322,6 +325,61 @@ class ApplicationControllerCoreRobolectricTest {
 
         val events = mockEventsStorage.events
         assertFalse("No events should be muted", events.any { it.isMuted })
+    }
+
+    // === onEventAlarm tests ===
+
+    @Test
+    fun testOnEventAlarm_postsNotificationsAndReschedulesAlarms() {
+        // Setup mocks for notification manager and alarm scheduler
+        every { ApplicationController.notificationManager } returns mockNotificationManager
+        every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
+
+        // Call onEventAlarm
+        ApplicationController.onEventAlarm(context)
+
+        // Verify notification manager was called to post notifications
+        verify { mockNotificationManager.postEventNotifications(any(), any(), false, null) }
+        
+        // Verify alarm scheduler was called to reschedule alarms
+        verify { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+    }
+
+    @Test
+    fun testOnEventAlarm_detectsLateAlarm() {
+        // Setup mocks
+        every { ApplicationController.notificationManager } returns mockNotificationManager
+        every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
+        
+        // Set up expected alarm time in the past (beyond threshold)
+        val expectedAlarmTime = baseTime - Consts.ALARM_THRESHOLD - 60000L // 1 min past threshold
+        context.persistentState.nextSnoozeAlarmExpectedAt = expectedAlarmTime
+
+        // Capture the onSnoozeAlarmLate call
+        every { ApplicationController.onSnoozeAlarmLate(any(), any(), any()) } just Runs
+
+        // Call onEventAlarm
+        ApplicationController.onEventAlarm(context)
+
+        // Verify late alarm was detected
+        verify { ApplicationController.onSnoozeAlarmLate(context, baseTime, expectedAlarmTime) }
+    }
+
+    @Test
+    fun testOnEventAlarm_onTimeAlarmNotReportedAsLate() {
+        // Setup mocks
+        every { ApplicationController.notificationManager } returns mockNotificationManager
+        every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
+        
+        // Set up expected alarm time within threshold
+        val expectedAlarmTime = baseTime - 5000L // 5 seconds ago (within threshold)
+        context.persistentState.nextSnoozeAlarmExpectedAt = expectedAlarmTime
+
+        // Call onEventAlarm
+        ApplicationController.onEventAlarm(context)
+
+        // Verify late alarm was NOT reported
+        verify(exactly = 0) { ApplicationController.onSnoozeAlarmLate(any(), any(), any()) }
     }
 }
 
