@@ -64,8 +64,13 @@ class MockEventsStorage : EventsStorageInterface {
             isRepeating = isRepeating ?: existing.isRepeating
         )
         
+        // isMuted is a computed property from flags, set it via the property setter
+        if (isMuted != null) {
+            updated.isMuted = isMuted
+        }
+        
         eventsMap[key] = updated
-        DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}")
+        DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}, isMuted=${updated.isMuted}")
         return Pair(true, updated)
     }
     
