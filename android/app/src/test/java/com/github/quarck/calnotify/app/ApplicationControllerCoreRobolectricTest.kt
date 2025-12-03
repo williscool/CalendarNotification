@@ -5,8 +5,11 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
+import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.persistentState
 import com.github.quarck.calnotify.testutils.MockEventsStorage
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
@@ -35,6 +38,8 @@ class ApplicationControllerCoreRobolectricTest {
     private lateinit var mockEventsStorage: MockEventsStorage
     private lateinit var mockNotificationManager: EventNotificationManagerInterface
     private lateinit var mockAlarmScheduler: AlarmSchedulerInterface
+    private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
+    private lateinit var mockReminderState: ReminderStateInterface
 
     private val baseTime = 1635724800000L // 2021-11-01 00:00:00 UTC
 
@@ -46,17 +51,23 @@ class ApplicationControllerCoreRobolectricTest {
 
         mockNotificationManager = mockk(relaxed = true)
         mockAlarmScheduler = mockk(relaxed = true)
+        mockDismissedEventsStorage = mockk(relaxed = true)
+        mockReminderState = mockk(relaxed = true)
 
         mockkObject(ApplicationController)
         every { ApplicationController.clock } returns testClock
+        every { ApplicationController.notificationManager } returns mockNotificationManager
+        every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
 
-        // Inject mock storage
+        // Inject mock storage and reminder state
         ApplicationController.eventsStorageProvider = { mockEventsStorage }
+        ApplicationController.reminderStateProvider = { mockReminderState }
     }
 
     @After
     fun cleanup() {
         ApplicationController.eventsStorageProvider = null
+        ApplicationController.reminderStateProvider = null
         unmockkAll()
     }
 
@@ -207,7 +218,11 @@ class ApplicationControllerCoreRobolectricTest {
         )
         mockEventsStorage.addEvent(oldEvent)
 
-        ApplicationController.dismissAllButRecentAndSnoozed(context, EventDismissType.ManuallyDismissedFromNotification)
+        ApplicationController.dismissAllButRecentAndSnoozed(
+            context, 
+            EventDismissType.ManuallyDismissedFromNotification,
+            mockDismissedEventsStorage
+        )
 
         val remainingEvents = mockEventsStorage.events
         assertTrue("Old event should be dismissed", remainingEvents.isEmpty())
@@ -222,7 +237,11 @@ class ApplicationControllerCoreRobolectricTest {
         )
         mockEventsStorage.addEvent(recentEvent)
 
-        ApplicationController.dismissAllButRecentAndSnoozed(context, EventDismissType.ManuallyDismissedFromNotification)
+        ApplicationController.dismissAllButRecentAndSnoozed(
+            context, 
+            EventDismissType.ManuallyDismissedFromNotification,
+            mockDismissedEventsStorage
+        )
 
         val remainingEvents = mockEventsStorage.events
         assertEquals("Recent event should be kept", 1, remainingEvents.size)
@@ -238,7 +257,11 @@ class ApplicationControllerCoreRobolectricTest {
         )
         mockEventsStorage.addEvent(snoozedEvent)
 
-        ApplicationController.dismissAllButRecentAndSnoozed(context, EventDismissType.ManuallyDismissedFromNotification)
+        ApplicationController.dismissAllButRecentAndSnoozed(
+            context, 
+            EventDismissType.ManuallyDismissedFromNotification,
+            mockDismissedEventsStorage
+        )
 
         val remainingEvents = mockEventsStorage.events
         assertEquals("Snoozed event should be kept", 1, remainingEvents.size)
@@ -263,7 +286,11 @@ class ApplicationControllerCoreRobolectricTest {
             snoozedUntil = baseTime + 3600000L
         ))
 
-        ApplicationController.dismissAllButRecentAndSnoozed(context, EventDismissType.ManuallyDismissedFromNotification)
+        ApplicationController.dismissAllButRecentAndSnoozed(
+            context, 
+            EventDismissType.ManuallyDismissedFromNotification,
+            mockDismissedEventsStorage
+        )
 
         val remainingEvents = mockEventsStorage.events
         assertEquals("Should keep 2 events (recent and snoozed)", 2, remainingEvents.size)
