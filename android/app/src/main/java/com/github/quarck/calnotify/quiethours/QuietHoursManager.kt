@@ -32,6 +32,7 @@ import com.github.quarck.calnotify.utils.addDays
 import java.util.*
 import android.text.format.DateUtils
 
+@Deprecated("Quiet Hours feature is deprecated. Use Android's built-in Do Not Disturb mode instead.")
 class QuietHoursManager(private val ctx: Context, override val clock: CNPlusClockInterface = CNPlusSystemClock()) : QuietHoursManagerInterface {
 
     private val btDeviceManager: BTDeviceManager by lazy { BTDeviceManager(ctx) }

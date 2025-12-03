@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.calendareditor.storage
 import io.requery.android.database.sqlite.SQLiteDatabase
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequest
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 interface CalendarChangeRequestsStorageImplInterface {
     fun createDb(db: SQLiteDatabase)
 

@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.quiethours
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
+@Deprecated("Quiet Hours feature is deprecated. Use Android's built-in Do Not Disturb mode instead.")
 interface QuietHoursManagerInterface {
 
     val clock: CNPlusClockInterface

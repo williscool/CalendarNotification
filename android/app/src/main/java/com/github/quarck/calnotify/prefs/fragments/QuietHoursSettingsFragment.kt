@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.preference.PreferenceFragment
 import com.github.quarck.calnotify.R
 
+@Deprecated("Quiet Hours feature is deprecated. Use Android's built-in Do Not Disturb mode instead.")
 class QuietHoursSettingsFragment : PreferenceFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
