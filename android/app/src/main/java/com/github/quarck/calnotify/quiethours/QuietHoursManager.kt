@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.quiethours
 import android.content.Context
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.SettingsInterface
 import com.github.quarck.calnotify.bluetooth.BTDeviceManager
 import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
@@ -56,6 +57,15 @@ class QuietHoursManager(private val ctx: Context, override val clock: CNPlusCloc
 
     override fun isCustomQuietHoursActive(settings: Settings): Boolean =
             (settings.manualQuietPeriodUntil > clock.currentTimeMillis())
+
+    // Overload for SettingsInterface - delegates to concrete Settings implementation
+    override fun getSilentUntil(settings: SettingsInterface): Long {
+        return if (settings is Settings) {
+            getSilentUntil(settings, 0L)
+        } else {
+            0L // For test mocks that don't extend Settings
+        }
+    }
 
     // returns time in millis, when silent period ends,
     // or 0 if we are not on silent
