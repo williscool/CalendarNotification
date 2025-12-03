@@ -7,8 +7,8 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
-import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
+import com.github.quarck.calnotify.testutils.MockEventsStorage
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
 import org.junit.After
@@ -20,7 +20,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Tests for snooze functionality in ApplicationController
+ * Tests for snooze functionality in ApplicationController.
+ * Uses MockEventsStorage injection to avoid SQLite native library issues in Robolectric.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [24])
@@ -28,6 +29,7 @@ class SnoozeRobolectricTest {
 
     private lateinit var context: Context
     private lateinit var testClock: CNPlusUnitTestClock
+    private lateinit var mockEventsStorage: MockEventsStorage
     private lateinit var mockNotificationManager: EventNotificationManagerInterface
     private lateinit var mockAlarmScheduler: AlarmSchedulerInterface
 
@@ -37,31 +39,28 @@ class SnoozeRobolectricTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         testClock = CNPlusUnitTestClock(baseTime)
+        mockEventsStorage = MockEventsStorage()
 
         // Create mocks
         mockNotificationManager = mockk(relaxed = true)
         mockAlarmScheduler = mockk(relaxed = true)
 
-        // Mock ApplicationController - only public properties
+        // Mock ApplicationController
         mockkObject(ApplicationController)
         every { ApplicationController.clock } returns testClock
         every { ApplicationController.notificationManager } returns mockNotificationManager
         every { ApplicationController.alarmScheduler } returns mockAlarmScheduler
+
+        // Inject mock storage provider
+        ApplicationController.eventsStorageProvider = { mockEventsStorage }
     }
 
     @After
     fun cleanup() {
+        // Clear the storage injection
+        ApplicationController.eventsStorageProvider = null
+        mockEventsStorage.clear()
         unmockkAll()
-        // Clean up any events from storage
-        try {
-            EventsStorage(context).use { db ->
-                db.events.forEach { event ->
-                    db.deleteEvent(event)
-                }
-            }
-        } catch (e: Exception) {
-            // Ignore cleanup errors
-        }
     }
 
     private fun createTestEvent(
@@ -97,19 +96,13 @@ class SnoozeRobolectricTest {
         )
     }
 
-    private fun addEventToStorage(event: EventAlertRecord) {
-        EventsStorage(context).use { db ->
-            db.addEvent(event)
-        }
-    }
-
     // === snoozeEvent tests ===
 
     @Test
     fun testSnoozeEventBasic() {
         // Given
         val event = createTestEvent(eventId = 100L)
-        addEventToStorage(event)
+        mockEventsStorage.addEvent(event)
 
         val snoozeDelay = 15 * 60 * 1000L // 15 minutes
 
@@ -126,12 +119,10 @@ class SnoozeRobolectricTest {
         assertEquals(SnoozeType.Snoozed, result?.type)
 
         // Verify the event was updated in storage
-        EventsStorage(context).use { db ->
-            val updatedEvent = db.getEvent(event.eventId, event.instanceStartTime)
-            assertNotNull("Event should still exist", updatedEvent)
-            assertTrue("snoozedUntil should be set",
-                updatedEvent!!.snoozedUntil >= baseTime + snoozeDelay)
-        }
+        val updatedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
+        assertNotNull("Event should still exist", updatedEvent)
+        assertTrue("snoozedUntil should be set",
+            updatedEvent!!.snoozedUntil >= baseTime + snoozeDelay)
 
         // Verify notification was updated
         verify { mockNotificationManager.onEventSnoozed(any(), any(), event.eventId, any()) }
@@ -158,7 +149,7 @@ class SnoozeRobolectricTest {
     fun testSnoozeEventPastTimeFallback() {
         // Given
         val event = createTestEvent(eventId = 101L)
-        addEventToStorage(event)
+        mockEventsStorage.addEvent(event)
 
         // Advance time
         testClock.advanceBy(60 * 60 * 1000L) // 1 hour
@@ -177,13 +168,11 @@ class SnoozeRobolectricTest {
         // Then - should use FAILBACK_SHORT_SNOOZE instead
         assertNotNull("Snooze result should not be null", result)
 
-        EventsStorage(context).use { db ->
-            val updatedEvent = db.getEvent(event.eventId, event.instanceStartTime)
-            assertNotNull("Event should still exist", updatedEvent)
-            // The snoozedUntil should be at least current time (not in the past)
-            assertTrue("snoozedUntil should be >= current time",
-                updatedEvent!!.snoozedUntil >= testClock.currentTimeMillis())
-        }
+        val updatedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
+        assertNotNull("Event should still exist", updatedEvent)
+        // The snoozedUntil should be at least current time (not in the past)
+        assertTrue("snoozedUntil should be >= current time",
+            updatedEvent!!.snoozedUntil >= testClock.currentTimeMillis())
     }
 
     // === snoozeAllEvents tests ===
@@ -193,8 +182,8 @@ class SnoozeRobolectricTest {
         // Given - add multiple events
         val event1 = createTestEvent(eventId = 200L, title = "Event 1")
         val event2 = createTestEvent(eventId = 201L, title = "Event 2")
-        addEventToStorage(event1)
-        addEventToStorage(event2)
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
 
         val snoozeDelay = 30 * 60 * 1000L // 30 minutes
 
@@ -211,15 +200,13 @@ class SnoozeRobolectricTest {
         assertEquals(SnoozeType.Snoozed, result?.type)
 
         // Verify both events were snoozed
-        EventsStorage(context).use { db ->
-            val updated1 = db.getEvent(event1.eventId, event1.instanceStartTime)
-            val updated2 = db.getEvent(event2.eventId, event2.instanceStartTime)
+        val updated1 = mockEventsStorage.getEvent(event1.eventId, event1.instanceStartTime)
+        val updated2 = mockEventsStorage.getEvent(event2.eventId, event2.instanceStartTime)
 
-            assertNotNull(updated1)
-            assertNotNull(updated2)
-            assertTrue("Event 1 should be snoozed", updated1!!.snoozedUntil > 0)
-            assertTrue("Event 2 should be snoozed", updated2!!.snoozedUntil > 0)
-        }
+        assertNotNull(updated1)
+        assertNotNull(updated2)
+        assertTrue("Event 1 should be snoozed", updated1!!.snoozedUntil > 0)
+        assertTrue("Event 2 should be snoozed", updated2!!.snoozedUntil > 0)
     }
 
     @Test
@@ -227,8 +214,8 @@ class SnoozeRobolectricTest {
         // Given - add events with different titles
         val matchingEvent = createTestEvent(eventId = 300L, title = "Important Meeting")
         val nonMatchingEvent = createTestEvent(eventId = 301L, title = "Lunch Break")
-        addEventToStorage(matchingEvent)
-        addEventToStorage(nonMatchingEvent)
+        mockEventsStorage.addEvent(matchingEvent)
+        mockEventsStorage.addEvent(nonMatchingEvent)
 
         val snoozeDelay = 30 * 60 * 1000L
 
@@ -244,15 +231,13 @@ class SnoozeRobolectricTest {
         // Then
         assertNotNull("Snooze result should not be null", result)
 
-        EventsStorage(context).use { db ->
-            val updatedMatching = db.getEvent(matchingEvent.eventId, matchingEvent.instanceStartTime)
-            val updatedNonMatching = db.getEvent(nonMatchingEvent.eventId, nonMatchingEvent.instanceStartTime)
+        val updatedMatching = mockEventsStorage.getEvent(matchingEvent.eventId, matchingEvent.instanceStartTime)
+        val updatedNonMatching = mockEventsStorage.getEvent(nonMatchingEvent.eventId, nonMatchingEvent.instanceStartTime)
 
-            assertNotNull(updatedMatching)
-            assertNotNull(updatedNonMatching)
-            assertTrue("Matching event should be snoozed", updatedMatching!!.snoozedUntil > 0)
-            assertEquals("Non-matching event should NOT be snoozed", 0L, updatedNonMatching!!.snoozedUntil)
-        }
+        assertNotNull(updatedMatching)
+        assertNotNull(updatedNonMatching)
+        assertTrue("Matching event should be snoozed", updatedMatching!!.snoozedUntil > 0)
+        assertEquals("Non-matching event should NOT be snoozed", 0L, updatedNonMatching!!.snoozedUntil)
     }
 
     @Test
@@ -284,8 +269,8 @@ class SnoozeRobolectricTest {
             eventId = 401L,
             displayStatus = EventDisplayStatus.DisplayedNormal
         )
-        addEventToStorage(collapsedEvent)
-        addEventToStorage(normalEvent)
+        mockEventsStorage.addEvent(collapsedEvent)
+        mockEventsStorage.addEvent(normalEvent)
 
         val snoozeDelay = 30 * 60 * 1000L
 
@@ -300,15 +285,13 @@ class SnoozeRobolectricTest {
         // Then
         assertNotNull("Snooze result should not be null", result)
 
-        EventsStorage(context).use { db ->
-            val updatedCollapsed = db.getEvent(collapsedEvent.eventId, collapsedEvent.instanceStartTime)
-            val updatedNormal = db.getEvent(normalEvent.eventId, normalEvent.instanceStartTime)
+        val updatedCollapsed = mockEventsStorage.getEvent(collapsedEvent.eventId, collapsedEvent.instanceStartTime)
+        val updatedNormal = mockEventsStorage.getEvent(normalEvent.eventId, normalEvent.instanceStartTime)
 
-            assertNotNull(updatedCollapsed)
-            assertNotNull(updatedNormal)
-            assertTrue("Collapsed event should be snoozed", updatedCollapsed!!.snoozedUntil > 0)
-            assertEquals("Normal event should NOT be snoozed", 0L, updatedNormal!!.snoozedUntil)
-        }
+        assertNotNull(updatedCollapsed)
+        assertNotNull(updatedNormal)
+        assertTrue("Collapsed event should be snoozed", updatedCollapsed!!.snoozedUntil > 0)
+        assertEquals("Normal event should NOT be snoozed", 0L, updatedNormal!!.snoozedUntil)
     }
 
     // === onlySnoozeVisible tests ===
@@ -321,8 +304,8 @@ class SnoozeRobolectricTest {
             snoozedUntil = baseTime + 60 * 60 * 1000L // Already snoozed for 1 hour
         )
         val notSnoozed = createTestEvent(eventId = 501L, snoozedUntil = 0L)
-        addEventToStorage(alreadySnoozed)
-        addEventToStorage(notSnoozed)
+        mockEventsStorage.addEvent(alreadySnoozed)
+        mockEventsStorage.addEvent(notSnoozed)
 
         val snoozeDelay = 30 * 60 * 1000L
 
@@ -337,18 +320,15 @@ class SnoozeRobolectricTest {
         // Then
         assertNotNull("Snooze result should not be null", result)
 
-        EventsStorage(context).use { db ->
-            val updatedAlready = db.getEvent(alreadySnoozed.eventId, alreadySnoozed.instanceStartTime)
-            val updatedNot = db.getEvent(notSnoozed.eventId, notSnoozed.instanceStartTime)
+        val updatedAlready = mockEventsStorage.getEvent(alreadySnoozed.eventId, alreadySnoozed.instanceStartTime)
+        val updatedNot = mockEventsStorage.getEvent(notSnoozed.eventId, notSnoozed.instanceStartTime)
 
-            assertNotNull(updatedAlready)
-            assertNotNull(updatedNot)
-            // Already snoozed event should keep its original snooze time
-            assertEquals("Already snoozed event should keep original snooze time",
-                baseTime + 60 * 60 * 1000L, updatedAlready!!.snoozedUntil)
-            // Not snoozed event should now be snoozed
-            assertTrue("Not snoozed event should be snoozed", updatedNot!!.snoozedUntil > 0)
-        }
+        assertNotNull(updatedAlready)
+        assertNotNull(updatedNot)
+        // Already snoozed event should keep its original snooze time
+        assertEquals("Already snoozed event should keep original snooze time",
+            baseTime + 60 * 60 * 1000L, updatedAlready!!.snoozedUntil)
+        // Not snoozed event should now be snoozed
+        assertTrue("Not snoozed event should be snoozed", updatedNot!!.snoozedUntil > 0)
     }
 }
-
