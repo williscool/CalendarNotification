@@ -21,7 +21,7 @@ package com.github.quarck.calnotify.calendareditor.storage
 
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequest
 
-
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 interface CalendarChangeRequestsStorageInterface {
 
     fun add(req: CalendarChangeRequest)

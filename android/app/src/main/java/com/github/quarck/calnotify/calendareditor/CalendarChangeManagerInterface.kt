@@ -25,6 +25,7 @@ import com.github.quarck.calnotify.calendar.CalendarRecord
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventRecord
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 interface CalendarChangeManagerInterface {
 
     /**

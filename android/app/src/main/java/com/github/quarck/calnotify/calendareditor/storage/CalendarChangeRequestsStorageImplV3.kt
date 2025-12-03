@@ -30,6 +30,7 @@ import com.github.quarck.calnotify.calendareditor.*
 import com.github.quarck.calnotify.logs.DevLog
 import java.util.*
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 class CalendarChangeRequestsStorageImplV3 : CalendarChangeRequestsStorageImplInterface {
 
     @Suppress("ConvertToStringTemplate")

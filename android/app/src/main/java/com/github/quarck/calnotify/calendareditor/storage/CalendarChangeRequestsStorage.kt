@@ -27,6 +27,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import com.github.quarck.calnotify.logs.DevLog
 import java.io.Closeable
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 class CalendarChangeRequestsStorage(val context: Context)
     : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION)
         , Closeable

@@ -33,6 +33,7 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 class CalendarChangeRequestMonitor(
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
 ) : CalendarChangeRequestMonitorInterface {

@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.calendareditor
 import android.content.Context
 import android.content.Intent
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 interface CalendarChangeRequestMonitorInterface {
     fun onRescanFromService(context: Context)
 }

@@ -147,6 +147,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     val alarmScheduler: AlarmSchedulerInterface by lazy { AlarmScheduler(clock) }
 
+    // Injectable storage provider for testing - when null, uses real EventsStorage
+    var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
+
+    private fun getEventsStorage(ctx: Context): EventsStorageInterface {
+        return eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
+    }
+
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
     private fun getQuietHoursManager(ctx: Context): QuietHoursManagerInterface {
         if (quietHoursManagerValue == null) {
@@ -747,7 +754,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         val currentTime = clock.currentTimeMillis()
 
         val snoozedEvent: EventAlertRecord? =
-                EventsStorage(context).classCustomUse {
+                getEventsStorage(context).classCustomUse {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -806,7 +813,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         var allSuccess = true
 
-        EventsStorage(context).classCustomUse {
+        getEventsStorage(context).classCustomUse {
             db ->
             val events = db.events.filter { it.isNotSpecial && filter(it) }
 

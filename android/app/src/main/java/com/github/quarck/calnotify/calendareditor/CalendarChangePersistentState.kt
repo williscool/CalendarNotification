@@ -21,7 +21,7 @@ package com.github.quarck.calnotify.calendareditor
 import android.content.Context
 import com.github.quarck.calnotify.utils.PersistentStorageBase
 
-
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 class CalendarChangePersistentState(val ctx: Context): PersistentStorageBase(ctx, PREFS_NAME) {
 
     var lastCalendar by LongProperty(-1, "A") // give a short name to simplify XML parsing

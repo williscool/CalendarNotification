@@ -23,7 +23,7 @@ import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
-
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 enum class EventChangeStatus(val code: Int) {
     Dirty(0),
     Synced(1),
@@ -35,6 +35,7 @@ enum class EventChangeStatus(val code: Int) {
     }
 }
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 enum class EventChangeRequestType(val code: Int) {
     AddNewEvent(0),
     MoveExistingEvent(1),
@@ -46,6 +47,7 @@ enum class EventChangeRequestType(val code: Int) {
     }
 }
 
+@Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 data class CalendarChangeRequest(
         var id: Long,
         var type: EventChangeRequestType,
