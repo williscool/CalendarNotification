@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.broadcastreceivers
 
 import android.content.Context
 import android.content.Intent
+import android.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
@@ -387,7 +388,19 @@ class ReminderAlarmRobolectricTest {
 
     @Test
     fun testQuietHoursManagerDelegatesSettingsInterfaceToRealImplementation() {
-        // Given - real QuietHoursManager and Settings (not mocks)
+        // Given - real QuietHoursManager and Settings with quiet hours ENABLED
+        // This is the key: when quiet hours are enabled and we're inside them,
+        // the real implementation returns non-zero, but interface default returns 0L (the bug!)
+        
+        // Set quiet hours via SharedPreferences (Settings properties are read-only)
+        // Settings uses PreferenceManager.getDefaultSharedPreferences, not a custom file
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit()
+            .putBoolean("enable_quiet_hours", true)
+            .putInt("quiet_hours_from", 0)      // midnight (0 * 60 + 0)
+            .putInt("quiet_hours_to", 23 * 60 + 59)  // 11:59pm
+            .apply()
+        
         val realSettings = Settings(context)
         val realQuietHoursManager = QuietHoursManager(context, testClock)
 
@@ -396,17 +409,14 @@ class ReminderAlarmRobolectricTest {
         val settingsAsInterface: SettingsInterface = realSettings
         val result = realQuietHoursManager.getSilentUntil(settingsAsInterface)
 
-        // Then - should delegate to real implementation (not return interface default of 0L)
-        // With quiet hours disabled, result should be 0L from the REAL implementation
-        // The key is that this path exercises the override in QuietHoursManager
-        // If the override was missing, Kotlin would use interface default (also 0L but wrong path)
-        assertEquals(
-            "getSilentUntil(SettingsInterface) should delegate to real implementation",
-            0L,
-            result
+        // Then - should delegate to real implementation and return non-zero (quiet until end time)
+        // If the override is missing, interface default returns 0L (BUG!)
+        assertTrue(
+            "getSilentUntil(SettingsInterface) should delegate to real implementation. " +
+            "Expected non-zero (quiet hours active), got $result. " +
+            "If this fails, the override in QuietHoursManager is missing!",
+            result > 0L
         )
-        // Note: We can't easily verify the "right" 0L vs "wrong" 0L, but this test ensures
-        // the method compiles and runs through QuietHoursManager, not the interface default.
     }
 }
 
