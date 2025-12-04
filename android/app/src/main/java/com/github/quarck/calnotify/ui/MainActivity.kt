@@ -55,6 +55,7 @@ import com.github.quarck.calnotify.calendar.isSpecial
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
@@ -537,10 +538,10 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         background {
 
-            DismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
+            getDismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
 
             val events =
-                    EventsStorage(this).classCustomUse {
+                    getEventsStorage(this).classCustomUse {
 
                         db ->
 
@@ -700,5 +701,29 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     companion object {
         private const val LOG_TAG = "MainActivity"
+        
+        /**
+         * Provider for DismissedEventsStorage to enable dependency injection in tests.
+         */
+        var dismissedEventsStorageProvider: (() -> DismissedEventsStorageInterface)? = null
+        
+        /**
+         * Provider for EventsStorage to enable dependency injection in tests.
+         */
+        var eventsStorageProvider: ((android.content.Context) -> com.github.quarck.calnotify.eventsstorage.EventsStorageInterface)? = null
+        
+        /**
+         * Gets DismissedEventsStorage - uses provider if set, otherwise creates real instance.
+         */
+        fun getDismissedEventsStorage(context: android.content.Context): DismissedEventsStorageInterface {
+            return dismissedEventsStorageProvider?.invoke() ?: DismissedEventsStorage(context)
+        }
+        
+        /**
+         * Gets EventsStorage - uses provider if set, otherwise creates real instance.
+         */
+        fun getEventsStorage(context: android.content.Context): com.github.quarck.calnotify.eventsstorage.EventsStorageInterface {
+            return eventsStorageProvider?.invoke(context) ?: EventsStorage(context)
+        }
     }
 }

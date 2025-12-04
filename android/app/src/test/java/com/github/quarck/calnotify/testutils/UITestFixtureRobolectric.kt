@@ -54,6 +54,8 @@ class UITestFixtureRobolectric {
         ApplicationController.eventsStorageProvider = { eventsStorage }
         
         // Inject mock storage into activities
+        MainActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
+        MainActivity.eventsStorageProvider = { eventsStorage }
         DismissedEventsActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
         
         DevLog.info(LOG_TAG, "Injected mock storage into ApplicationController and activities")
@@ -71,6 +73,8 @@ class UITestFixtureRobolectric {
         
         // Reset ApplicationController and activities to use real storage
         ApplicationController.eventsStorageProvider = null
+        MainActivity.dismissedEventsStorageProvider = null
+        MainActivity.eventsStorageProvider = null
         DismissedEventsActivity.dismissedEventsStorageProvider = null
         
         unmockkAll()

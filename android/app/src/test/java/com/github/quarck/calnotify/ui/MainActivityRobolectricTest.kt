@@ -12,7 +12,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import android.os.Looper
 
 /**
  * Robolectric UI tests for MainActivity.
@@ -67,6 +69,10 @@ class MainActivityRobolectricTest {
     @Test
     fun mainActivity_shows_empty_view_when_no_events() {
         val scenario = fixture.launchMainActivity()
+        
+        // Wait for async data loading
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
         
         scenario.onActivity { activity ->
             val emptyView = activity.findViewById<View>(R.id.empty_view)
@@ -130,6 +136,10 @@ class MainActivityRobolectricTest {
         
         val scenario = fixture.launchMainActivity()
         
+        // Wait for async data loading
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
+        
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
             val adapter = recyclerView.adapter
@@ -178,6 +188,10 @@ class MainActivityRobolectricTest {
         
         val scenario = fixture.launchMainActivity()
         
+        // Wait for async data loading
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
+        
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
             val adapter = recyclerView.adapter
@@ -196,6 +210,10 @@ class MainActivityRobolectricTest {
         
         val scenario = fixture.launchMainActivity()
         
+        // Wait for async data loading
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
+        
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
             val adapter = recyclerView.adapter
@@ -213,6 +231,10 @@ class MainActivityRobolectricTest {
         fixture.createTaskEvent(title = "Task Event")
         
         val scenario = fixture.launchMainActivity()
+        
+        // Wait for async data loading
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
         
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
