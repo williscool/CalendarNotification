@@ -22,11 +22,7 @@ import org.junit.runner.RunWith
  * Espresso UI tests for DismissedEventsActivity.
  * 
  * Tests the dismissed events list display and restore functionality.
- * 
- * NOTE: Temporarily disabled due to AndroidX dependency conflicts with AppCompat 1.7.0
- * causing resource ID collisions in checkVectorDrawableSetup.
  */
-@Ignore("Disabled pending AndroidX dependency resolution - see AppCompat 1.7.0 resource bug")
 @RunWith(AndroidJUnit4::class)
 class DismissedEventsActivityTest {
     

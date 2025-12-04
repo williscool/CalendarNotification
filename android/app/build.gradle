@@ -279,12 +279,12 @@ dependencies {
     testImplementation 'androidx.test.ext:junit:1.1.5'
     testImplementation 'androidx.test.ext:junit-ktx:1.1.5'
 
-  // Test dependencies - use test-compatible versions
-    androidTestImplementation "androidx.core:core:$android_core_test_version"
-    androidTestImplementation "androidx.core:core-ktx:$android_core_test_version"
-    androidTestImplementation "androidx.appcompat:appcompat:$androidx_test_version"
-    androidTestImplementation "androidx.appcompat:appcompat-resources:$androidx_test_version"
-    androidTestImplementation "androidx.fragment:fragment:$androidx_test_version"
+  // Test dependencies - use same versions as main app to avoid conflicts
+    androidTestImplementation "androidx.core:core:$android_core_version"
+    androidTestImplementation "androidx.core:core-ktx:$android_core_version"
+    androidTestImplementation "androidx.appcompat:appcompat:$androidx_lib_version"
+    androidTestImplementation "androidx.appcompat:appcompat-resources:$androidx_lib_version"
+    androidTestImplementation "androidx.fragment:fragment:$androidx_lib_version"
     androidTestImplementation "androidx.lifecycle:lifecycle-runtime:2.5.1"
     androidTestImplementation "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
     androidTestImplementation "androidx.annotation:annotation:1.4.0"
