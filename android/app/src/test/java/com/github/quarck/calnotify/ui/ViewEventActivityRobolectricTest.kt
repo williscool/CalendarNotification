@@ -61,7 +61,7 @@ class ViewEventActivityRobolectricTest {
             val titleView = activity.findViewById<TextView>(R.id.snooze_view_title)
             assertNotNull(titleView)
             assertEquals(View.VISIBLE, titleView.visibility)
-            assertEquals("Important Meeting", titleView.text)
+            assertEquals("Important Meeting", titleView.text.toString())
         }
         
         scenario.close()
@@ -235,7 +235,7 @@ class ViewEventActivityRobolectricTest {
             assertEquals(View.VISIBLE, titleView.visibility)
             // Should show placeholder for empty title
             val expectedText = activity.getString(R.string.empty_title)
-            assertEquals(expectedText, titleView.text)
+            assertEquals(expectedText, titleView.text.toString())
         }
         
         scenario.close()
@@ -258,7 +258,7 @@ class ViewEventActivityRobolectricTest {
             assertEquals(View.VISIBLE, descLayout.visibility)
             
             val descView = activity.findViewById<TextView>(R.id.snooze_view_event_description)
-            assertEquals("This is the event description", descView.text)
+            assertEquals("This is the event description", descView.text.toString())
         }
         
         scenario.close()
@@ -275,7 +275,8 @@ class ViewEventActivityRobolectricTest {
         scenario.onActivity { activity ->
             val toolbar = activity.findViewById<View>(R.id.toolbar)
             assertNotNull(toolbar)
-            assertEquals(View.VISIBLE, toolbar.visibility)
+            // Toolbar is intentionally hidden in ViewEventActivityNoRecents (line 200)
+            assertEquals(View.GONE, toolbar.visibility)
         }
         
         scenario.close()
