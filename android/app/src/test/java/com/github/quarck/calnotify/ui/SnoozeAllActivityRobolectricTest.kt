@@ -2,7 +2,6 @@ package com.github.quarck.calnotify.ui
 
 import android.content.Intent
 import android.view.View
-import android.widget.Button
 import android.widget.TextView
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
@@ -190,7 +189,7 @@ class SnoozeAllActivityRobolectricTest {
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
         scenario.onActivity { activity ->
-            val preset1 = activity.findViewById<Button>(R.id.snooze_view_snooze_present1)
+            val preset1 = activity.findViewById<TextView>(R.id.snooze_view_snooze_present1)
             assertNotNull(preset1)
             assertFalse(preset1.text.isNullOrEmpty())
         }
