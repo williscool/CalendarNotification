@@ -37,7 +37,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_launches_successfully() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         scenario.onActivity { activity ->
             assert(activity != null)
@@ -50,7 +50,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_calendars_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.title_calendars_activity))
             .check(matches(isDisplayed()))
@@ -60,7 +60,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_notification_settings_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.notification_settings))
             .check(matches(isDisplayed()))
@@ -70,7 +70,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_snooze_presets_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.snooze_presets))
             .check(matches(isDisplayed()))
@@ -80,7 +80,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_reminders_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.reminders_section))
             .check(matches(isDisplayed()))
@@ -90,7 +90,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_quiet_hours_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.quiet_hours_section))
             .check(matches(isDisplayed()))
@@ -100,7 +100,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_behavior_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.app_behavior))
             .check(matches(isDisplayed()))
@@ -110,7 +110,7 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_misc_settings_header() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.misc_settings))
             .check(matches(isDisplayed()))
@@ -122,7 +122,7 @@ class SettingsActivityTest {
     
     @Test
     fun clicking_notification_settings_opens_fragment() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.notification_settings))
             .perform(click())
@@ -136,7 +136,7 @@ class SettingsActivityTest {
     
     @Test
     fun clicking_snooze_settings_opens_fragment() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.snooze_presets))
             .perform(click())
@@ -148,7 +148,7 @@ class SettingsActivityTest {
     
     @Test
     fun clicking_reminders_settings_opens_fragment() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.reminders_section))
             .perform(click())
@@ -160,7 +160,7 @@ class SettingsActivityTest {
     
     @Test
     fun clicking_behavior_settings_opens_fragment() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.app_behavior))
             .perform(click())
@@ -172,7 +172,7 @@ class SettingsActivityTest {
     
     @Test
     fun clicking_misc_settings_opens_fragment() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         onView(withText(R.string.misc_settings))
             .perform(click())
@@ -186,7 +186,7 @@ class SettingsActivityTest {
     
     @Test
     fun navigating_to_fragment_and_back_returns_to_headers() {
-        val scenario = fixture.launchActivity<SettingsActivity>()
+        val scenario = fixture.launchSettingsActivity()
         
         // Navigate to a fragment
         onView(withText(R.string.notification_settings))

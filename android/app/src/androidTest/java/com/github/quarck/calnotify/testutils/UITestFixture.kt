@@ -1,6 +1,5 @@
 package com.github.quarck.calnotify.testutils
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ActivityScenario
@@ -14,7 +13,9 @@ import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.MainActivity
+import com.github.quarck.calnotify.ui.SettingsActivity
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import io.mockk.mockkObject
@@ -27,8 +28,6 @@ import io.mockk.unmockkAll
  * and managing test state for Espresso UI tests.
  */
 class UITestFixture {
-    
-    private val LOG_TAG = "UITestFixture"
     
     val context: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
@@ -77,7 +76,7 @@ class UITestFixture {
             calendarId = 1L,
             eventId = eventId,
             isAllDay = isAllDay,
-            isTask = isTask,
+            isRepeating = false,
             alertTime = currentTime,
             notificationId = 0,
             title = title,
@@ -90,9 +89,11 @@ class UITestFixture {
             lastStatusChangeTime = currentTime,
             snoozedUntil = snoozedUntil,
             displayStatus = EventDisplayStatus.Hidden,
-            color = color,
-            isMuted = isMuted
+            color = color
         )
+        // Set flags-based properties after construction
+        event.isMuted = isMuted
+        event.isTask = isTask
         
         EventsStorage(context).classCustomUse { db ->
             db.addEvent(event)
@@ -181,8 +182,8 @@ class UITestFixture {
         }
         
         DismissedEventsStorage(context).classCustomUse { db ->
-            db.events.forEach { event ->
-                db.deleteEvent(event.eventId, event.instanceStartTime)
+            db.events.forEach { entry ->
+                db.deleteEvent(entry)
             }
         }
         
@@ -256,18 +257,28 @@ class UITestFixture {
     }
     
     /**
-     * Launches any activity with a fresh intent.
+     * Launches DismissedEventsActivity.
      */
-    inline fun <reified T : Activity> launchActivity(): ActivityScenario<T> {
-        DevLog.info(LOG_TAG, "Launching ${T::class.java.simpleName}")
-        return ActivityScenario.launch(T::class.java)
+    fun launchDismissedEventsActivity(): ActivityScenario<DismissedEventsActivity> {
+        DevLog.info(LOG_TAG, "Launching DismissedEventsActivity")
+        val intent = Intent(context, DismissedEventsActivity::class.java)
+        return ActivityScenario.launch(intent)
     }
     
     /**
-     * Launches any activity with a custom intent.
+     * Launches SettingsActivity.
      */
-    inline fun <reified T : Activity> launchActivityWithIntent(intent: Intent): ActivityScenario<T> {
-        DevLog.info(LOG_TAG, "Launching ${T::class.java.simpleName} with intent")
+    fun launchSettingsActivity(): ActivityScenario<SettingsActivity> {
+        DevLog.info(LOG_TAG, "Launching SettingsActivity")
+        val intent = Intent(context, SettingsActivity::class.java)
+        return ActivityScenario.launch(intent)
+    }
+    
+    /**
+     * Launches SnoozeAllActivity with a custom intent.
+     */
+    fun launchSnoozeAllActivityWithIntent(intent: Intent): ActivityScenario<SnoozeAllActivity> {
+        DevLog.info(LOG_TAG, "Launching SnoozeAllActivity with intent")
         return ActivityScenario.launch(intent)
     }
     
@@ -281,6 +292,8 @@ class UITestFixture {
     }
     
     companion object {
+        private const val LOG_TAG = "UITestFixture"
+        
         /**
          * Creates a fixture instance. Typically used with JUnit rules.
          */

@@ -42,7 +42,7 @@ class DismissedEventsActivityTest {
     
     @Test
     fun dismissedEventsActivity_launches_successfully() {
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         scenario.onActivity { activity ->
             assert(activity != null)
@@ -53,7 +53,7 @@ class DismissedEventsActivityTest {
     
     @Test
     fun dismissedEventsActivity_shows_toolbar() {
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         onView(withId(R.id.toolbar))
             .check(matches(isDisplayed()))
@@ -63,7 +63,7 @@ class DismissedEventsActivityTest {
     
     @Test
     fun dismissedEventsActivity_has_back_navigation() {
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // The activity should have a back button/up navigation
         onView(withContentDescription("Navigate up"))
@@ -76,7 +76,7 @@ class DismissedEventsActivityTest {
     
     @Test
     fun dismissedEventsActivity_shows_recycler_view() {
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         onView(withId(R.id.list_events))
             .check(matches(isDisplayed()))
@@ -92,7 +92,7 @@ class DismissedEventsActivityTest {
         fixture.createDismissedEvent(title = "Dismissed Meeting")
         fixture.createDismissedEvent(title = "Dismissed Appointment")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Give time for data to load
         Thread.sleep(500)
@@ -108,7 +108,7 @@ class DismissedEventsActivityTest {
     fun dismissedEventsActivity_displays_event_title() {
         fixture.createDismissedEvent(title = "Important Dismissed Event")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Give time for data to load
         Thread.sleep(500)
@@ -125,7 +125,7 @@ class DismissedEventsActivityTest {
     fun clicking_dismissed_event_shows_popup_menu() {
         fixture.createDismissedEvent(title = "Clickable Dismissed Event")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Give time for data to load
         Thread.sleep(500)
@@ -150,7 +150,7 @@ class DismissedEventsActivityTest {
         
         fixture.createDismissedEvent(title = "Event to Restore")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Give time for data to load
         Thread.sleep(500)
@@ -177,7 +177,7 @@ class DismissedEventsActivityTest {
     fun dismissedEventsActivity_has_remove_all_option() {
         fixture.createDismissedEvent(title = "Test Event")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Open overflow menu
         openActionBarOverflowOrOptionsMenu(
@@ -195,7 +195,7 @@ class DismissedEventsActivityTest {
     fun clicking_remove_all_shows_confirmation_dialog() {
         fixture.createDismissedEvent(title = "Test Event")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Open overflow menu
         openActionBarOverflowOrOptionsMenu(
@@ -221,7 +221,7 @@ class DismissedEventsActivityTest {
         fixture.createDismissedEvent(title = "Second Dismissed")
         fixture.createDismissedEvent(title = "Third Dismissed")
         
-        val scenario = fixture.launchActivity<DismissedEventsActivity>()
+        val scenario = fixture.launchDismissedEventsActivity()
         
         // Give time for data to load
         Thread.sleep(500)

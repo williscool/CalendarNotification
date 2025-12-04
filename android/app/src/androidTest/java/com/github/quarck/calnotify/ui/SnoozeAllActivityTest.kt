@@ -245,7 +245,7 @@ class SnoozeAllActivityTest {
             putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, 3)
         }
         
-        val scenario = fixture.launchActivityWithIntent<SnoozeAllActivity>(intent)
+        val scenario = fixture.launchSnoozeAllActivityWithIntent(intent)
         
         onView(withId(R.id.snooze_count_text))
             .check(matches(isDisplayed()))
