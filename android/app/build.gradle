@@ -301,10 +301,10 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     androidTestImplementation 'junit:junit:4.13.2'
     
-    // Ultron UI Testing Framework
-    androidTestImplementation 'com.atiurin:ultron-android:2.6.2'
-    androidTestImplementation 'com.atiurin:ultron-allure:2.6.2'
-    androidTestImplementation 'com.atiurin:ultron-compose:2.6.2'
+    // Ultron UI Testing Framework (for traditional View-based UI tests)
+    // Using 2.3.1 for Kotlin 1.9.x compatibility (2.6.x requires Kotlin 2.x)
+    androidTestImplementation 'com.atiurin:ultron:2.3.1'
+    androidTestImplementation 'com.atiurin:ultron-allure:2.3.1'
 
     // Additional test dependencies
     androidTestImplementation 'androidx.test:core:1.5.0'

@@ -1,11 +1,11 @@
 package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.Espresso.pressBack
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.atiurin.ultron.core.config.UltronConfig
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isDisplayed
-import com.atiurin.ultron.core.espresso.UltronEspresso.withText
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixture
 import org.junit.After

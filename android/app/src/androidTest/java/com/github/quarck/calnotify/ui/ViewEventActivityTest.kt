@@ -1,13 +1,13 @@
 package com.github.quarck.calnotify.ui
 
+import androidx.test.espresso.matcher.ViewMatchers.withClassName
+import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.atiurin.ultron.core.config.UltronConfig
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.hasText
 import com.atiurin.ultron.extensions.isDisplayed
 import com.atiurin.ultron.extensions.isNotDisplayed
-import com.atiurin.ultron.core.espresso.UltronEspresso.withId
-import com.atiurin.ultron.core.espresso.UltronEspresso.withClassName
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.testutils.UITestFixture

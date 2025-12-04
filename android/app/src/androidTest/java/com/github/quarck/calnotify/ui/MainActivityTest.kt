@@ -1,6 +1,8 @@
 package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.atiurin.ultron.core.config.UltronConfig
@@ -8,8 +10,6 @@ import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isClickable
 import com.atiurin.ultron.extensions.isDisplayed
 import com.atiurin.ultron.extensions.isNotDisplayed
-import com.atiurin.ultron.core.espresso.UltronEspresso.withId
-import com.atiurin.ultron.core.espresso.UltronEspresso.withText
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
