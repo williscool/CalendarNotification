@@ -4,8 +4,10 @@ import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.atiurin.ultron.core.config.UltronConfig
+import com.atiurin.ultron.custom.espresso.matcher.withSuitableRoot
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.extensions.withSuitableRoot
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixture
 import org.junit.After
@@ -18,6 +20,9 @@ import org.junit.runner.RunWith
  * Ultron UI tests for SettingsActivity.
  * 
  * Tests settings navigation and preference fragment loading.
+ * 
+ * Note: Uses withSuitableRoot() because SettingsActivity uses PreferenceActivity 
+ * with AppCompatDelegate, which creates views in a separate root hierarchy.
  */
 @RunWith(AndroidJUnit4::class)
 class SettingsActivityTest {
@@ -54,7 +59,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_calendars_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.title_calendars_activity).isDisplayed()
+        withText(R.string.title_calendars_activity).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -63,7 +68,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_notification_settings_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.notification_settings).isDisplayed()
+        withText(R.string.notification_settings).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -72,7 +77,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_snooze_presets_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.snooze_presets).isDisplayed()
+        withText(R.string.snooze_presets).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -81,7 +86,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_reminders_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.reminders_section).isDisplayed()
+        withText(R.string.reminders_section).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -90,7 +95,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_quiet_hours_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.quiet_hours_section).isDisplayed()
+        withText(R.string.quiet_hours_section).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -99,7 +104,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_behavior_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.app_behavior).isDisplayed()
+        withText(R.string.app_behavior).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -108,7 +113,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_misc_settings_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.misc_settings).isDisplayed()
+        withText(R.string.misc_settings).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
@@ -119,7 +124,7 @@ class SettingsActivityTest {
     fun clicking_notification_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.notification_settings).click()
+        withText(R.string.notification_settings).withSuitableRoot().click()
         
         // Fragment should load (Ultron auto-waits)
         
@@ -130,7 +135,7 @@ class SettingsActivityTest {
     fun clicking_snooze_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.snooze_presets).click()
+        withText(R.string.snooze_presets).withSuitableRoot().click()
         
         scenario.close()
     }
@@ -139,7 +144,7 @@ class SettingsActivityTest {
     fun clicking_reminders_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.reminders_section).click()
+        withText(R.string.reminders_section).withSuitableRoot().click()
         
         scenario.close()
     }
@@ -148,7 +153,7 @@ class SettingsActivityTest {
     fun clicking_behavior_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.app_behavior).click()
+        withText(R.string.app_behavior).withSuitableRoot().click()
         
         scenario.close()
     }
@@ -157,7 +162,7 @@ class SettingsActivityTest {
     fun clicking_misc_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        withText(R.string.misc_settings).click()
+        withText(R.string.misc_settings).withSuitableRoot().click()
         
         scenario.close()
     }
@@ -169,13 +174,13 @@ class SettingsActivityTest {
         val scenario = fixture.launchSettingsActivity()
         
         // Navigate to a fragment
-        withText(R.string.notification_settings).click()
+        withText(R.string.notification_settings).withSuitableRoot().click()
         
         // Press back
         pressBack()
         
         // Should be back at headers - check that another header is visible
-        withText(R.string.snooze_presets).isDisplayed()
+        withText(R.string.snooze_presets).withSuitableRoot().isDisplayed()
         
         scenario.close()
     }
