@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
  * Tests settings navigation and preference fragment loading.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
 class SettingsActivityRobolectricTest {
     
     private lateinit var fixture: UITestFixtureRobolectric

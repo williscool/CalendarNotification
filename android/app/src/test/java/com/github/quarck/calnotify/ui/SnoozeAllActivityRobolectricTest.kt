@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
  * Tests snooze preset buttons, custom snooze dialog, and snooze actions.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
 class SnoozeAllActivityRobolectricTest {
     
     private lateinit var fixture: UITestFixtureRobolectric

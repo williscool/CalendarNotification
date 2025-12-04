@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
  * Tests the dismissed events list display and restore functionality.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
 class DismissedEventsActivityRobolectricTest {
     
     private lateinit var fixture: UITestFixtureRobolectric

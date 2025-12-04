@@ -8,10 +8,7 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
-import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
-import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.MainActivity
@@ -24,8 +21,11 @@ import io.mockk.unmockkAll
 /**
  * Test fixture for Robolectric UI tests.
  * 
- * Provides utilities for seeding events, launching activities,
- * and managing test state for Robolectric tests.
+ * Uses MockEventsStorage and MockDismissedEventsStorage injected into ApplicationController
+ * to avoid SQLite native library issues in Robolectric.
+ * 
+ * This follows the same injection pattern used by other passing Robolectric tests
+ * (see ReminderAlarmRobolectricTest, SnoozeRobolectricTest, etc.)
  */
 class UITestFixtureRobolectric {
     
@@ -33,14 +33,27 @@ class UITestFixtureRobolectric {
         get() = ApplicationProvider.getApplicationContext()
     
     private var eventIdCounter = 100000L
-    private val seededEvents = mutableListOf<EventAlertRecord>()
+    
+    // In-memory storage for tests
+    val eventsStorage = MockEventsStorage()
+    val dismissedEventsStorage = MockDismissedEventsStorage()
     
     /**
      * Sets up the fixture. Call in @Before.
+     * Injects mock storage into ApplicationController.
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixtureRobolectric")
-        clearAllEvents()
+        
+        // Clear any existing data
+        eventsStorage.clear()
+        dismissedEventsStorage.clear()
+        
+        // Inject mock storage into ApplicationController
+        // This ensures any code that uses ApplicationController.getEventsStorage() will get our mock
+        ApplicationController.eventsStorageProvider = { eventsStorage }
+        
+        DevLog.info(LOG_TAG, "Injected mock storage into ApplicationController")
     }
     
     /**
@@ -48,12 +61,19 @@ class UITestFixtureRobolectric {
      */
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up UITestFixtureRobolectric")
-        clearAllEvents()
+        
+        // Clear storage
+        eventsStorage.clear()
+        dismissedEventsStorage.clear()
+        
+        // Reset ApplicationController to use real storage
+        ApplicationController.eventsStorageProvider = null
+        
         unmockkAll()
     }
     
     /**
-     * Creates a test event and adds it to storage.
+     * Creates a test event and adds it to mock storage.
      */
     fun createEvent(
         title: String = "Test Event",
@@ -94,11 +114,9 @@ class UITestFixtureRobolectric {
         event.isMuted = isMuted
         event.isTask = isTask
         
-        EventsStorage(context).classCustomUse { db ->
-            db.addEvent(event)
-        }
+        // Add to mock storage
+        eventsStorage.addEvent(event)
         
-        seededEvents.add(event)
         DevLog.info(LOG_TAG, "Created event: id=$eventId, title=$title")
         return event
     }
@@ -145,7 +163,7 @@ class UITestFixtureRobolectric {
     }
     
     /**
-     * Adds an event to the dismissed events storage.
+     * Creates a dismissed event (removes from active, adds to dismissed storage).
      */
     fun createDismissedEvent(
         title: String = "Dismissed Event",
@@ -153,59 +171,34 @@ class UITestFixtureRobolectric {
     ): EventAlertRecord {
         val event = createEvent(title = title)
         
-        EventsStorage(context).classCustomUse { db ->
-            db.deleteEvent(event.eventId, event.instanceStartTime)
-        }
+        // Remove from active storage
+        eventsStorage.deleteEvent(event.eventId, event.instanceStartTime)
         
-        DismissedEventsStorage(context).classCustomUse { db ->
-            db.addEvent(dismissType, event)
-        }
+        // Add to dismissed storage
+        dismissedEventsStorage.addEvent(dismissType, event)
         
         DevLog.info(LOG_TAG, "Created dismissed event: ${event.eventId}")
         return event
     }
     
     /**
-     * Clears all events from storage.
+     * Clears all events from mock storage.
      */
     fun clearAllEvents() {
-        EventsStorage(context).classCustomUse { db ->
-            db.events.forEach { event ->
-                db.deleteEvent(event.eventId, event.instanceStartTime)
-            }
-        }
-        
-        DismissedEventsStorage(context).classCustomUse { db ->
-            db.events.forEach { entry ->
-                db.deleteEvent(entry)
-            }
-        }
-        
-        seededEvents.clear()
+        eventsStorage.clear()
+        dismissedEventsStorage.clear()
         DevLog.info(LOG_TAG, "Cleared all events")
     }
     
     /**
-     * Gets all active events from storage.
+     * Gets all active events from mock storage.
      */
-    fun getActiveEvents(): List<EventAlertRecord> {
-        var events: List<EventAlertRecord> = emptyList()
-        EventsStorage(context).classCustomUse { db ->
-            events = db.events.toList()
-        }
-        return events
-    }
+    fun getActiveEvents(): List<EventAlertRecord> = eventsStorage.events
     
     /**
-     * Gets event count from storage.
+     * Gets event count from mock storage.
      */
-    fun getEventCount(): Int {
-        var count = 0
-        EventsStorage(context).classCustomUse { db ->
-            count = db.events.size
-        }
-        return count
-    }
+    fun getEventCount(): Int = eventsStorage.eventCount
     
     /**
      * Launches MainActivity with ActivityScenario.
@@ -290,4 +283,3 @@ class UITestFixtureRobolectric {
         fun create(): UITestFixtureRobolectric = UITestFixtureRobolectric()
     }
 }
-

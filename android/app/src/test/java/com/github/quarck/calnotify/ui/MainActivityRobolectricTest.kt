@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
  * Tests the main event list display, search, and bulk actions.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
 class MainActivityRobolectricTest {
     
     private lateinit var fixture: UITestFixtureRobolectric

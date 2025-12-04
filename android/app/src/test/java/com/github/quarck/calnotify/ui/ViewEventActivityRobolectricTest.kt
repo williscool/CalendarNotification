@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
  * Tests event detail display, snooze actions, and dismiss functionality.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28])
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
 class ViewEventActivityRobolectricTest {
     
     private lateinit var fixture: UITestFixtureRobolectric
