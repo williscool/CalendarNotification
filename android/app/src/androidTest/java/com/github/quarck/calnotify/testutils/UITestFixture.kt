@@ -3,6 +3,7 @@ package com.github.quarck.calnotify.testutils
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
@@ -18,6 +19,7 @@ import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivity
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 
@@ -35,12 +37,21 @@ class UITestFixture {
     private var eventIdCounter = 100000L
     private val seededEvents = mutableListOf<EventAlertRecord>()
     
+    // IdlingResource for AsyncTask tracking
+    private val asyncTaskIdlingResource = AsyncTaskIdlingResource()
+    
     /**
      * Sets up the fixture. Call in @Before.
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixture")
         clearAllEvents()
+        
+        // Register IdlingResource to track AsyncTasks
+        IdlingRegistry.getInstance().register(asyncTaskIdlingResource)
+        globalAsyncTaskCallback = asyncTaskIdlingResource
+        
+        DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
     }
     
     /**
@@ -49,6 +60,11 @@ class UITestFixture {
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up UITestFixture")
         clearAllEvents()
+        
+        // Unregister IdlingResource
+        IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
+        globalAsyncTaskCallback = null
+        
         unmockkAll()
     }
     

@@ -26,16 +26,40 @@ package com.github.quarck.calnotify.utils
 
 import android.os.AsyncTask
 
-class AsyncOperation(val fn: () -> Unit)
+/**
+ * Callback for tracking AsyncTask lifecycle - used by IdlingResource in tests.
+ */
+interface AsyncTaskCallback {
+    fun onTaskStarted()
+    fun onTaskCompleted()
+}
+
+class AsyncOperation(val fn: () -> Unit, val callback: AsyncTaskCallback? = null)
     : AsyncTask<Void?, Void?, Void?>() {
+    
+    override fun onPreExecute() {
+        super.onPreExecute()
+        callback?.onTaskStarted()
+    }
+    
     override fun doInBackground(vararg p0: Void?): Void? {
         fn()
         return null
     }
+    
+    override fun onPostExecute(result: Void?) {
+        super.onPostExecute(result)
+        callback?.onTaskCompleted()
+    }
 }
+
+/**
+ * Global callback for tracking all AsyncTasks - set by tests.
+ */
+var globalAsyncTaskCallback: AsyncTaskCallback? = null
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun background(noinline fn: () -> Unit) {
-    AsyncOperation(fn).execute();
+    AsyncOperation(fn, globalAsyncTaskCallback).execute();
 }
 

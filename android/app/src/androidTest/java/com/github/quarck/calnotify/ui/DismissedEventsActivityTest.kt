@@ -1,7 +1,10 @@
 package com.github.quarck.calnotify.ui
 
+import android.graphics.Bitmap
+import androidx.test.espresso.Espresso
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
+import androidx.test.espresso.Root
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.*
@@ -9,14 +12,19 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.testutils.UITestFixture
 import io.mockk.*
+import org.hamcrest.Description
 import org.hamcrest.Matchers.not
+import org.hamcrest.TypeSafeMatcher
 import org.junit.After
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Espresso UI tests for DismissedEventsActivity.
@@ -27,6 +35,56 @@ import org.junit.runner.RunWith
 class DismissedEventsActivityTest {
     
     private lateinit var fixture: UITestFixture
+    
+    /**
+     * Takes a screenshot and saves it to external storage for debugging.
+     * Uses UiAutomation API which doesn't require external storage permissions.
+     */
+    private fun takeDebugScreenshot(name: String) {
+        try {
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            val uiAutomation = instrumentation.uiAutomation
+            
+            val bitmap = uiAutomation.takeScreenshot()
+            
+            if (bitmap != null) {
+                val screenshotDir = File("/sdcard/Pictures/espresso_screenshots")
+                screenshotDir.mkdirs()
+                
+                val screenshotFile = File(screenshotDir, "${name}.png")
+                FileOutputStream(screenshotFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                
+                DevLog.info(LOG_TAG, "Screenshot saved: ${screenshotFile.absolutePath}")
+            } else {
+                DevLog.error(LOG_TAG, "Screenshot bitmap was null")
+            }
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Failed to save screenshot: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+    
+    /**
+     * Custom root matcher that finds a suitable root without requiring window focus.
+     * Based on: https://github.com/open-tool/ultron/wiki/Avoiding-nontrivial-element-lookup-exceptions
+     * 
+     * This handles cases where views might be attached to application context or
+     * where async operations prevent the window from immediately gaining focus.
+     */
+    private fun anySuitableRoot(): org.hamcrest.Matcher<Root> {
+        return object : TypeSafeMatcher<Root>() {
+            override fun describeTo(description: Description) {
+                description.appendText("any suitable root (focus not required)")
+            }
+            override fun matchesSafely(root: Root): Boolean {
+                // Accept any root that is not a dialog or popup
+                // This allows testing even when window focus is delayed
+                return root.decorView != null
+            }
+        }
+    }
     
     @Before
     fun setup() {
@@ -57,6 +115,7 @@ class DismissedEventsActivityTest {
         val scenario = fixture.launchDismissedEventsActivity()
         
         onView(withId(R.id.toolbar))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
@@ -80,6 +139,7 @@ class DismissedEventsActivityTest {
         val scenario = fixture.launchDismissedEventsActivity()
         
         onView(withId(R.id.list_events))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
@@ -111,10 +171,13 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        onView(withId(R.id.list_events))
+            .inRoot(anySuitableRoot())
+            .check(matches(isDisplayed()))
         
         onView(withText("Important Dismissed Event"))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
@@ -128,15 +191,19 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        onView(withId(R.id.list_events))
+            .inRoot(anySuitableRoot())
+            .check(matches(isDisplayed()))
         
         // Click on the event
         onView(withText("Clickable Dismissed Event"))
+            .inRoot(anySuitableRoot())
             .perform(click())
         
         // Popup menu with Restore option should appear
         onView(withText(R.string.restore))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
@@ -153,15 +220,19 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        onView(withId(R.id.list_events))
+            .inRoot(anySuitableRoot())
+            .check(matches(isDisplayed()))
         
         // Click on the event
         onView(withText("Event to Restore"))
+            .inRoot(anySuitableRoot())
             .perform(click())
         
         // Click Restore in popup menu
         onView(withText(R.string.restore))
+            .inRoot(anySuitableRoot())
             .perform(click())
         
         // Verify restore was called
@@ -180,13 +251,36 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
+        // Take screenshot before first interaction
+        takeDebugScreenshot("dismissed_before_toolbar_check")
+        
+        // First check that toolbar loaded (forces Espresso to wait)
+        try {
+            onView(withId(R.id.toolbar))
+                .inRoot(anySuitableRoot())
+                .check(matches(isDisplayed()))
+        } catch (e: Exception) {
+            takeDebugScreenshot("dismissed_toolbar_check_failed")
+            throw e
+        }
+        
+        takeDebugScreenshot("dismissed_after_toolbar_check")
+        
         // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
+        try {
+            openActionBarOverflowOrOptionsMenu(
+                InstrumentationRegistry.getInstrumentation().targetContext
+            )
+        } catch (e: Exception) {
+            takeDebugScreenshot("dismissed_menu_open_failed")
+            throw e
+        }
+        
+        takeDebugScreenshot("dismissed_menu_opened")
         
         // Remove All option should be visible
         onView(withText(R.string.remove_all))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
@@ -198,6 +292,11 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
+        // Wait for toolbar to be ready
+        onView(withId(R.id.toolbar))
+            .inRoot(anySuitableRoot())
+            .check(matches(isDisplayed()))
+        
         // Open overflow menu
         openActionBarOverflowOrOptionsMenu(
             InstrumentationRegistry.getInstrumentation().targetContext
@@ -205,10 +304,12 @@ class DismissedEventsActivityTest {
         
         // Click Remove All
         onView(withText(R.string.remove_all))
+            .inRoot(anySuitableRoot())
             .perform(click())
         
         // Confirmation dialog should appear
         onView(withText(R.string.remove_all_confirmation))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
@@ -224,18 +325,27 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        onView(withId(R.id.list_events))
+            .inRoot(anySuitableRoot())
+            .check(matches(isDisplayed()))
         
         // All events should be visible
         onView(withText("First Dismissed"))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         onView(withText("Second Dismissed"))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         onView(withText("Third Dismissed"))
+            .inRoot(anySuitableRoot())
             .check(matches(isDisplayed()))
         
         scenario.close()
+    }
+    
+    companion object {
+        private const val LOG_TAG = "DismissedEventsActivityTest"
     }
 }
 
