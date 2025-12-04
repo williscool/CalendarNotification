@@ -12,9 +12,9 @@ buildscript {
       android_core_version = '1.6.0'
       androidCoreVersion = '1.6.0'
 
-      // Test versions - need 1.7.0+ for MenuHost interface
+      // Test versions - need 1.9.0+ for activity 1.7.0 interfaces
       androidx_test_version = '1.7.0'
-      android_core_test_version = '1.7.0'
+      android_core_test_version = '1.9.0'
 
       gradleVersion = '8.6.0'
       gradle_version = '8.6.0'
@@ -60,13 +60,13 @@ subprojects {
                 force "androidx.core:core:$android_core_test_version"
                 force "androidx.core:core-ktx:$android_core_test_version"
                 force "androidx.fragment:fragment:$androidx_test_version"
-                force "androidx.lifecycle:lifecycle-runtime:2.5.1"
-                force "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
-                force "androidx.annotation:annotation:1.4.0"
+                force "androidx.lifecycle:lifecycle-runtime:2.6.0"
+                force "androidx.lifecycle:lifecycle-viewmodel:2.6.0"
+                force "androidx.annotation:annotation:1.6.0"
                 force "androidx.vectordrawable:vectordrawable:1.1.0"
                 force "androidx.vectordrawable:vectordrawable-animated:1.1.0"
-                force "androidx.activity:activity:1.4.0"
-                force "androidx.activity:activity-ktx:1.4.0"
+                force "androidx.activity:activity:1.7.0"
+                force "androidx.activity:activity-ktx:1.7.0"
                 force "com.google.android.material:material:1.6.1"
             }
         }
