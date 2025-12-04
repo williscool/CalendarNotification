@@ -40,7 +40,7 @@ class UITestFixtureRobolectric {
     
     /**
      * Sets up the fixture. Call in @Before.
-     * Injects mock storage into ApplicationController.
+     * Injects mock storage into ApplicationController and UI activities.
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixtureRobolectric")
@@ -53,7 +53,10 @@ class UITestFixtureRobolectric {
         // This ensures any code that uses ApplicationController.getEventsStorage() will get our mock
         ApplicationController.eventsStorageProvider = { eventsStorage }
         
-        DevLog.info(LOG_TAG, "Injected mock storage into ApplicationController")
+        // Inject mock storage into activities
+        DismissedEventsActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
+        
+        DevLog.info(LOG_TAG, "Injected mock storage into ApplicationController and activities")
     }
     
     /**
@@ -66,8 +69,9 @@ class UITestFixtureRobolectric {
         eventsStorage.clear()
         dismissedEventsStorage.clear()
         
-        // Reset ApplicationController to use real storage
+        // Reset ApplicationController and activities to use real storage
         ApplicationController.eventsStorageProvider = null
+        DismissedEventsActivity.dismissedEventsStorageProvider = null
         
         unmockkAll()
     }

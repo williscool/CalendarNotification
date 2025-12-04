@@ -10,7 +10,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import android.os.Looper
 
 /**
  * Robolectric UI tests for DismissedEventsActivity.
@@ -84,6 +86,10 @@ class DismissedEventsActivityRobolectricTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
+        // Wait for async data loading (reloadData uses background{})
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
+        
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
             assertNotNull(recyclerView)
@@ -117,6 +123,10 @@ class DismissedEventsActivityRobolectricTest {
         fixture.createDismissedEvent(title = "Third Dismissed")
         
         val scenario = fixture.launchDismissedEventsActivity()
+        
+        // Wait for async data loading
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
         
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)

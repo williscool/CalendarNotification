@@ -16,6 +16,7 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
 import com.github.quarck.calnotify.utils.background
@@ -63,7 +64,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
     private fun reloadData() {
         background {
             val events =
-                    DismissedEventsStorage(this).classCustomUse {
+                    getDismissedEventsStorage(this).classCustomUse {
                         db ->
                         db.events.sortedByDescending { it.dismissTime }.toTypedArray()
                     }
@@ -75,7 +76,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
 
 
     override fun onItemRemoved(entry: DismissedEventAlertRecord) {
-        DismissedEventsStorage(this).classCustomUse { db -> db.deleteEvent(entry) }
+        getDismissedEventsStorage(this).classCustomUse { db -> db.deleteEvent(entry) }
     }
 
     override fun onItemClick(v: View, position: Int, entry: DismissedEventAlertRecord) {
@@ -123,7 +124,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
                         .setCancelable(false)
                         .setPositiveButton(android.R.string.ok) {
                             _, _ ->
-                            DismissedEventsStorage(this).classCustomUse { db -> db.clearHistory() }
+                            getDismissedEventsStorage(this).classCustomUse { db -> db.clearHistory() }
                             adapter.removeAll()
                         }
                         .setNegativeButton(R.string.cancel) {
@@ -140,5 +141,18 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
 
     companion object {
         private const val LOG_TAG = "DismissedEventsActivity"
+        
+        /**
+         * Provider for DismissedEventsStorage to enable dependency injection in tests.
+         * If null, creates real DismissedEventsStorage instances.
+         */
+        var dismissedEventsStorageProvider: (() -> DismissedEventsStorageInterface)? = null
+        
+        /**
+         * Gets DismissedEventsStorage - uses provider if set (for tests), otherwise creates real instance.
+         */
+        fun getDismissedEventsStorage(context: android.content.Context): DismissedEventsStorageInterface {
+            return dismissedEventsStorageProvider?.invoke() ?: DismissedEventsStorage(context)
+        }
     }
 }
