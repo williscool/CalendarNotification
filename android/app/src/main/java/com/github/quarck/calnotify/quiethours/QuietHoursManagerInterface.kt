@@ -20,9 +20,10 @@
 package com.github.quarck.calnotify.quiethours
 
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.SettingsInterface
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 
-@Deprecated("Quiet Hours feature is deprecated. Use Android's built-in Do Not Disturb mode instead.")
+@Deprecated("Quiet Hours functionality is deprecated. Use Android's built-in Do Not Disturb mode instead.")
 interface QuietHoursManagerInterface {
 
     val clock: CNPlusClockInterface
@@ -34,6 +35,9 @@ interface QuietHoursManagerInterface {
     fun getSilentUntil(settings: Settings, time: Long = 0L): Long
 
     fun getSilentUntil(settings: Settings, currentTimes: LongArray): LongArray
+
+    // Overload for SettingsInterface (used by ReminderAlarmBroadcastReceiver tests)
+    fun getSilentUntil(settings: SettingsInterface): Long = 0L
 
     fun startManualQuietPeriod(settings: Settings, until: Long)
 

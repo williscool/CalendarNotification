@@ -31,10 +31,12 @@ import com.github.quarck.calnotify.calendar.isNotSpecial
 import com.github.quarck.calnotify.calendar.isSnoozed
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.persistentState
 import com.github.quarck.calnotify.quiethours.QuietHoursManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
+import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.utils.alarmManager
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
@@ -47,13 +49,28 @@ class AlarmScheduler(override val clock: CNPlusClockInterface) : AlarmSchedulerI
 
     companion object {
         const val LOG_TAG = "AlarmScheduler"
+        
+        // Injectable providers for testing
+        var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
+        var reminderStateProvider: ((Context) -> ReminderStateInterface)? = null
+        
+        private fun getEventsStorage(ctx: Context): EventsStorageInterface =
+            eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
+            
+        private fun getReminderState(ctx: Context): ReminderStateInterface =
+            reminderStateProvider?.invoke(ctx) ?: ReminderState(ctx)
+        
+        fun resetProviders() {
+            eventsStorageProvider = null
+            reminderStateProvider = null
+        }
     }
 
     override fun rescheduleAlarms(context: Context, settings: Settings, quietHoursManager: QuietHoursManagerInterface) {
 
         DevLog.debug(LOG_TAG, "rescheduleAlarms called");
 
-        EventsStorage(context).classCustomUse {
+        getEventsStorage(context).classCustomUse {
             db ->
 
             val events = db.events
@@ -94,7 +111,7 @@ class AlarmScheduler(override val clock: CNPlusClockInterface) : AlarmSchedulerI
                         SnoozeExactAlarmBroadcastReceiver::class.java)
             }
 
-            val reminderState = ReminderState(context)
+            val reminderState = getReminderState(context)
 
             // Schedule reminders alarm
             var reminderAlarmNextFire: Long? = null

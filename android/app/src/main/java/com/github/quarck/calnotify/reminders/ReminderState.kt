@@ -24,21 +24,21 @@ import android.annotation.SuppressLint
 import android.content.Context
 import com.github.quarck.calnotify.utils.PersistentStorageBase
 
-class ReminderState(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) {
+class ReminderState(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME), ReminderStateInterface {
 
-    var reminderLastFireTime by LongProperty(0, REMINDER_LAST_FIRE_TIME_KEY)
+    override var reminderLastFireTime by LongProperty(0, REMINDER_LAST_FIRE_TIME_KEY)
 
-    var numRemindersFired by IntProperty(0, NUM_REMINDERS_FIRED_KEY)
+    override var numRemindersFired by IntProperty(0, NUM_REMINDERS_FIRED_KEY)
 
-    var quietHoursOneTimeReminderEnabled by BooleanProperty(false, QUIET_HOURS_ONE_TIME_REMINDER_KEY)
+    override var quietHoursOneTimeReminderEnabled by BooleanProperty(false, QUIET_HOURS_ONE_TIME_REMINDER_KEY)
 
-    var nextFireExpectedAt by LongProperty(0, NEXT_FIRE_EXPECTED_AT_KEY)
+    override var nextFireExpectedAt by LongProperty(0, NEXT_FIRE_EXPECTED_AT_KEY)
 
-    var currentReminderPatternIndex by IntProperty(0, CURRENT_REMINDER_PATTERN_IDX_KEY)
+    override var currentReminderPatternIndex by IntProperty(0, CURRENT_REMINDER_PATTERN_IDX_KEY)
 
 
     @SuppressLint("CommitPrefEdits")
-    fun onReminderFired(currentTime: Long) {
+    override fun onReminderFired(currentTime: Long) {
 
         val quietHoursOneTime = quietHoursOneTimeReminderEnabled
         val numReminders = numRemindersFired
@@ -58,12 +58,12 @@ class ReminderState(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) {
         editor.commit()
     }
 
-    fun onUserInteraction(currentTime: Long) {
+    override fun onUserInteraction(currentTime: Long) {
         // update last fire time to prevent from firing too yearly
         reminderLastFireTime = currentTime
     }
 
-    fun onNewEventFired() {
+    override fun onNewEventFired() {
         currentReminderPatternIndex = 0;
     }
 

@@ -43,6 +43,7 @@ import com.github.quarck.calnotify.persistentState
 import com.github.quarck.calnotify.quiethours.QuietHoursManager
 import com.github.quarck.calnotify.quiethours.QuietHoursManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
+import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.ui.UINotifier
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManagerInterface
@@ -154,6 +155,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
     }
 
+    // Injectable ReminderState provider for testing - when null, uses real ReminderState
+    var reminderStateProvider: ((Context) -> ReminderStateInterface)? = null
+
+    private fun getReminderState(ctx: Context): ReminderStateInterface {
+        return reminderStateProvider?.invoke(ctx) ?: ReminderState(ctx)
+    }
+
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
     private fun getQuietHoursManager(ctx: Context): QuietHoursManagerInterface {
         if (quietHoursManagerValue == null) {
@@ -193,7 +201,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //            }
 
     override fun hasActiveEventsToRemind(context: Context) =
-            EventsStorage(context).classCustomUse {
+            getEventsStorage(context).classCustomUse {
                 //val settings = Settings(context)
                 it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
             }
@@ -484,7 +492,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //            }
         }
 
-        ReminderState(context).onNewEventFired()
+        getReminderState(context).onNewEventFired()
 
         return ret
     }
@@ -624,7 +632,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             DevLog.warn(LOG_TAG, "registerNewEvents: Added ${validPairs.size} requests out of ${pairs.size}")
         }
 
-        ReminderState(context).onNewEventFired()
+        getReminderState(context).onNewEventFired()
 
         return validPairs
     }
@@ -716,7 +724,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         //val currentTime = clock.currentTimeMillis()
 
         val mutedEvent: EventAlertRecord? =
-                EventsStorage(context).classCustomUse {
+                getEventsStorage(context).classCustomUse {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -734,7 +742,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             notificationManager.onEventMuteToggled(context, EventFormatter(context), mutedEvent)
 
-            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+            getReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
@@ -784,7 +792,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (snoozedEvent != null) {
             notificationManager.onEventSnoozed(context, EventFormatter(context), snoozedEvent.eventId, snoozedEvent.notificationId);
 
-            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+            getReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             val quietHoursManager = getQuietHoursManager(context)
 
@@ -984,7 +992,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             notificationManager.onEventsDismissed(context, EventFormatter(context), events, true, hasActiveEvents);
 
-            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+            getReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
@@ -1006,11 +1014,14 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return ret
     }
 
-    fun dismissAllButRecentAndSnoozed(context: Context, dismissType: EventDismissType) {
-
+    fun dismissAllButRecentAndSnoozed(
+        context: Context, 
+        dismissType: EventDismissType,
+        dismissedEventsStorage: DismissedEventsStorage? = null
+    ) {
         val currentTime = clock.currentTimeMillis()
 
-        EventsStorage(context).classCustomUse {
+        getEventsStorage(context).classCustomUse {
             db ->
             val eventsToDismiss = db.events.filter {
                 event ->
@@ -1018,13 +1029,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                         (event.snoozedUntil == 0L) &&
                         event.isNotSpecial
             }
-            dismissEvents(context, db, eventsToDismiss, dismissType, false)
+            dismissEvents(context, db, eventsToDismiss, dismissType, false, dismissedEventsStorage)
         }
     }
 
     fun muteAllVisibleEvents(context: Context) {
 
-        EventsStorage(context).classCustomUse {
+        getEventsStorage(context).classCustomUse {
             db ->
             val eventsToMute = db.events.filter {
                 event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask
@@ -1039,7 +1050,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 for (mutedEvent in mutedEvents)
                     notificationManager.onEventMuteToggled(context, formatter, mutedEvent)
 
-                ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+                getReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
                 alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
             }
@@ -1071,7 +1082,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             notificationManager.onEventDismissed(context, EventFormatter(context), event.eventId, event.notificationId);
 
-            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+            getReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
@@ -1408,7 +1419,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 return results
             }
 
-            ReminderState(context).onUserInteraction(clock.currentTimeMillis())
+            getReminderState(context).onUserInteraction(clock.currentTimeMillis())
             alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
 
             if (notifyActivity) {

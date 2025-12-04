@@ -25,16 +25,20 @@ import android.content.Intent
 import android.os.PowerManager
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.SettingsInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.isActiveAlarm
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
 import com.github.quarck.calnotify.persistentState
 import com.github.quarck.calnotify.quiethours.QuietHoursManager
+import com.github.quarck.calnotify.quiethours.QuietHoursManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderState
+import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.utils.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
@@ -43,7 +47,9 @@ import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
-    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+    // Injectable clock for testing
+    private val clock: CNPlusClockInterface
+        get() = clockProvider?.invoke() ?: CNPlusSystemClock()
 
     override fun onReceive(context: Context?, intent: Intent?) {
 
@@ -55,22 +61,24 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
         context.globalState?.lastTimerBroadcastReceived = clock.currentTimeMillis()
 
-        partialWakeLocked(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) {
+        // Use injectable wake lock wrapper (allows bypassing in tests)
+        val wakeLockFn = wakeLockWrapper ?: { ctx, timeout, tag, fn -> partialWakeLocked(ctx, timeout, tag, fn) }
+        wakeLockFn(context, Consts.REMINDER_ALARM_TIMEOUT, REMINDER_WAKE_LOCK_NAME) wakeLock@ {
 
             if (!ApplicationController.hasActiveEventsToRemind(context)) {
                 DevLog.info(LOG_TAG, "Reminder broadcast alarm received: no active requests")
-                return@partialWakeLocked
+                return@wakeLock
             }
 
-            val settings = Settings(context)
-            val reminderState = ReminderState(context)
+            val settings = getSettings(context)
+            val reminderState = getReminderState(context)
 
             val (currentReminderInterval, nextReminderInterval) =
                     settings.currentAndNextReminderIntervalsMillis(reminderState.currentReminderPatternIndex)
 
             val currentTime = clock.currentTimeMillis()
 
-            val hasActiveAlarms = EventsStorage(context).classCustomUse {
+            val hasActiveAlarms = getEventsStorage(context).classCustomUse {
                 db -> db.events.any { it.isActiveAlarm && !it.isMuted && !it.isTask }
             }
 
@@ -78,7 +86,7 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
                     if (hasActiveAlarms)
                         0L
                     else
-                        QuietHoursManager(context).getSilentUntil(settings)
+                        getQuietHoursManager(context).getSilentUntil(settings)
 
             if (hasActiveAlarms) {
                 DevLog.info(LOG_TAG, "Quiet hours overriden by #alarm tag")
@@ -192,12 +200,50 @@ open class ReminderAlarmGenericBroadcastReceiver : BroadcastReceiver() {
 
         ApplicationController.fireEventReminder(context, itIsAfterQuietHoursReminder, hasActiveAlarms)
 
-        ReminderState(context).onReminderFired(currentTime)
+        getReminderState(context).onReminderFired(currentTime)
+    }
+
+    // Helper methods that use injectable providers
+    private fun getSettings(context: Context): SettingsInterface {
+        return settingsProvider?.invoke(context) ?: Settings(context)
+    }
+
+    private fun getReminderState(context: Context): ReminderStateInterface {
+        return reminderStateProvider?.invoke(context) ?: ReminderState(context)
+    }
+
+    private fun getEventsStorage(context: Context): EventsStorageInterface {
+        return eventsStorageProvider?.invoke(context) ?: EventsStorage(context)
+    }
+
+    private fun getQuietHoursManager(context: Context): QuietHoursManagerInterface {
+        return quietHoursManagerProvider?.invoke(context) ?: QuietHoursManager(context)
     }
 
     companion object {
         private const val LOG_TAG = "BroadcastReceiverReminderAlarm"
         private const val REMINDER_WAKE_LOCK_NAME = "ReminderWakeLock"
+
+        // Injectable providers for testing
+        var clockProvider: (() -> CNPlusClockInterface)? = null
+        var settingsProvider: ((Context) -> SettingsInterface)? = null
+        var reminderStateProvider: ((Context) -> ReminderStateInterface)? = null
+        var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
+        var quietHoursManagerProvider: ((Context) -> QuietHoursManagerInterface)? = null
+        
+        // Injectable wake lock wrapper - allows bypassing wake lock in tests
+        // Signature: (context, timeout, tag, fn) -> Unit
+        var wakeLockWrapper: ((Context, Long, String, () -> Unit) -> Unit)? = null
+
+        // Helper to reset all providers (useful in test cleanup)
+        fun resetProviders() {
+            clockProvider = null
+            settingsProvider = null
+            reminderStateProvider = null
+            eventsStorageProvider = null
+            quietHoursManagerProvider = null
+            wakeLockWrapper = null
+        }
     }
 }
 

@@ -120,7 +120,7 @@ data class NotificationSettings
             )
 }
 
-class Settings(context: Context) : PersistentStorageBase(context) {
+class Settings(context: Context) : PersistentStorageBase(context), SettingsInterface {
 
     var devModeEnabled: Boolean
         get() = getBoolean(DEVELOPER_MODE_KEY, false)
@@ -180,7 +180,7 @@ class Settings(context: Context) : PersistentStorageBase(context) {
 //    val notificationUseAlarmStream: Boolean
 //        get() = getBoolean(USE_ALARM_STREAM_FOR_NOTIFICATION_KEY, false)
 //
-    val remindersEnabled: Boolean
+    override val remindersEnabled: Boolean
         get() = getBoolean(ENABLE_REMINDERS_KEY, false)
 
     private val remindersIntervalMillisPatternRaw
@@ -199,7 +199,7 @@ class Settings(context: Context) : PersistentStorageBase(context) {
         return Math.max(value, Consts.MIN_REMINDER_INTERVAL_SECONDS * 1000L)
     }
 
-    fun currentAndNextReminderIntervalsMillis(indexCurrent: Int): Pair<Long, Long> {
+    override fun currentAndNextReminderIntervalsMillis(indexCurrent: Int): Pair<Long, Long> {
         val pattern = remindersIntervalMillisPattern
         val minInterval = Consts.MIN_REMINDER_INTERVAL_SECONDS * 1000L
 
@@ -209,7 +209,7 @@ class Settings(context: Context) : PersistentStorageBase(context) {
         return Pair(current, next)
     }
 
-    val maxNumberOfReminders: Int
+    override val maxNumberOfReminders: Int
         get() = getString(MAX_REMINDERS_KEY, DEFAULT_MAX_REMINDERS).toIntOrNull() ?: 0
 
     val quietHoursEnabled: Boolean
@@ -231,7 +231,7 @@ class Settings(context: Context) : PersistentStorageBase(context) {
         get() = getLong(VERSION_CODE_FIRST_INSTALLED_KEY, 0L)
         set(value) = setLong(VERSION_CODE_FIRST_INSTALLED_KEY, value)
 
-    val useSetAlarmClock: Boolean
+    override val useSetAlarmClock: Boolean
         get() = getBoolean(BEHAVIOR_USE_SET_ALARM_CLOCK_KEY, true)
 
     val useSetAlarmClockForFailbackEventPaths: Boolean
