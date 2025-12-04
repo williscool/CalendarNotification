@@ -2,21 +2,28 @@ package com.github.quarck.calnotify.testutils
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.CalendarRecord
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.app.CalendarReloadManager
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivity
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import org.robolectric.Shadows.shadowOf
 
 /**
  * Test fixture for Robolectric UI tests.
@@ -45,6 +52,9 @@ class UITestFixtureRobolectric {
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixtureRobolectric")
         
+        // Grant calendar permissions for Robolectric
+        grantCalendarPermissions()
+        
         // Clear any existing data
         eventsStorage.clear()
         dismissedEventsStorage.clear()
@@ -57,8 +67,47 @@ class UITestFixtureRobolectric {
         MainActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
         MainActivity.eventsStorageProvider = { eventsStorage }
         DismissedEventsActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
+        ViewEventActivityNoRecents.eventsStorageProvider = { eventsStorage }
         
-        DevLog.info(LOG_TAG, "Injected mock storage into ApplicationController and activities")
+        // Mock PermissionsManager to return true for calendar permissions
+        mockkObject(PermissionsManager)
+        every { PermissionsManager.hasAllCalendarPermissions(any()) } returns true
+        
+        // Mock CalendarProvider to avoid native calendar access
+        mockkObject(CalendarProvider)
+        every { CalendarProvider.getCalendarById(any(), any()) } returns CalendarRecord(
+            calendarId = 1L,
+            owner = "test@test.com",
+            accountName = "test@test.com",
+            accountType = "com.google",
+            name = "Test Calendar",
+            color = 0xFF6200EE.toInt(),
+            isVisible = true,
+          displayName = "deez",
+          timeZone = "montreal",
+          isReadOnly = false,
+            isPrimary = true,
+          isSynced = true
+        )
+        every { CalendarProvider.getNextEventReminderTime(any(), any()) } returns 0L
+        
+        // Mock CalendarReloadManager to prevent reloading from real calendar
+        mockkObject(CalendarReloadManager)
+        every { CalendarReloadManager.reloadSingleEvent(any(), any(), any(), any(), any()) } returns false
+        
+        DevLog.info(LOG_TAG, "Injected mock storage, granted permissions, and mocked calendar components")
+    }
+    
+    /**
+     * Grants calendar permissions in Robolectric shadow application.
+     */
+    private fun grantCalendarPermissions() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val shadowApp = shadowOf(app)
+        shadowApp.grantPermissions(
+            android.Manifest.permission.READ_CALENDAR,
+            android.Manifest.permission.WRITE_CALENDAR
+        )
     }
     
     /**
@@ -76,6 +125,7 @@ class UITestFixtureRobolectric {
         MainActivity.dismissedEventsStorageProvider = null
         MainActivity.eventsStorageProvider = null
         DismissedEventsActivity.dismissedEventsStorageProvider = null
+        ViewEventActivityNoRecents.eventsStorageProvider = null
         
         unmockkAll()
     }

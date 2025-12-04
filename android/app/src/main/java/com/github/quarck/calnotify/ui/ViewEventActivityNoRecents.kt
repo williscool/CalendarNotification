@@ -35,6 +35,7 @@ import com.github.quarck.calnotify.app.*
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 //import com.github.quarck.calnotify.logs.Logger
 import com.github.quarck.calnotify.maps.MapsIntents
 import com.github.quarck.calnotify.quiethours.QuietHoursManager
@@ -199,7 +200,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         find<Toolbar?>(R.id.toolbar)?.visibility = View.GONE
 
         // load event if it is not a "snooze all"
-        EventsStorage(this).classCustomUse {
+        getEventsStorage(this).classCustomUse {
             db ->
 
             var dbEvent = db.getEvent(eventId, instanceStartTime)
@@ -916,6 +917,18 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
         const val CUSTOM_SNOOZE_SNOOZE_FOR_IDX = 0
         const val CUSTOM_SNOOZE_SNOOZE_UNTIL_IDX = 1
+        
+        /**
+         * Provider for EventsStorage to enable dependency injection in tests.
+         */
+        var eventsStorageProvider: ((android.content.Context) -> EventsStorageInterface)? = null
+        
+        /**
+         * Gets EventsStorage - uses provider if set, otherwise creates real instance.
+         */
+        fun getEventsStorage(context: android.content.Context): EventsStorageInterface {
+            return eventsStorageProvider?.invoke(context) ?: EventsStorage(context)
+        }
 
     }
 
