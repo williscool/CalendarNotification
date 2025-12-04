@@ -1,32 +1,30 @@
 package com.github.quarck.calnotify.ui
 
 import android.content.Intent
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.atiurin.ultron.core.config.UltronConfig
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.core.espresso.UltronEspresso.withId
+import com.atiurin.ultron.core.espresso.UltronEspresso.withText
+import com.atiurin.ultron.core.espresso.UltronEspresso.withClassName
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.testutils.UITestFixture
 import io.mockk.*
-import org.hamcrest.Matchers.allOf
+import org.hamcrest.Matchers.containsString
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Espresso UI tests for SnoozeAllActivity.
+ * Ultron UI tests for SnoozeAllActivity.
  * 
  * Tests snooze preset buttons, custom snooze dialog, and snooze actions.
- * 
- * NOTE: Temporarily disabled due to AndroidX dependency conflicts with AppCompat 1.7.0
- * causing resource ID collisions in checkVectorDrawableSetup.
  */
-@Ignore("Disabled pending AndroidX dependency resolution - see AppCompat 1.7.0 resource bug")
 @RunWith(AndroidJUnit4::class)
 class SnoozeAllActivityTest {
     
@@ -78,8 +76,7 @@ class SnoozeAllActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        onView(withId(R.id.toolbar))
-            .check(matches(isDisplayed()))
+        withId(R.id.toolbar).isDisplayed()
         
         scenario.close()
     }
@@ -91,7 +88,7 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeAllActivity()
         
         // Title should be "Snooze All"
-        onView(allOf(withText(R.string.snooze_all_title), isDisplayed()))
+        withText(R.string.snooze_all_title).isDisplayed()
         
         scenario.close()
     }
@@ -103,8 +100,7 @@ class SnoozeAllActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_present1).isDisplayed()
         
         scenario.close()
     }
@@ -115,10 +111,8 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
         // First few presets should be visible
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .check(matches(isDisplayed()))
-        onView(withId(R.id.snooze_view_snooze_present2))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_present1).isDisplayed()
+        withId(R.id.snooze_view_snooze_present2).isDisplayed()
         
         scenario.close()
     }
@@ -128,8 +122,7 @@ class SnoozeAllActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        onView(withId(R.id.snooze_view_snooze_custom))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_custom).isDisplayed()
         
         scenario.close()
     }
@@ -139,8 +132,7 @@ class SnoozeAllActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        onView(withId(R.id.snooze_view_snooze_until))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_until).isDisplayed()
         
         scenario.close()
     }
@@ -156,8 +148,7 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
         // Click first preset
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_present1).click()
         
         // Verify snooze was called
         verify(timeout = 2000) { 
@@ -176,8 +167,7 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeAllActivity()
         
         // Click first preset
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_present1).click()
         
         // Verify snoozeAllEvents was called
         verify(timeout = 2000) { 
@@ -195,13 +185,10 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
         // Click custom snooze button
-        onView(withId(R.id.snooze_view_snooze_custom))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_custom).click()
         
         // Dialog should show number picker or time interval controls
-        // The dialog contains a NumberPicker and Spinner
-        onView(withId(R.id.numberPickerTimeInterval))
-            .check(matches(isDisplayed()))
+        withId(R.id.numberPickerTimeInterval).isDisplayed()
         
         scenario.close()
     }
@@ -214,13 +201,10 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
         // Click snooze until button
-        onView(withId(R.id.snooze_view_snooze_until))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_until).click()
         
         // Should show a date picker
-        // The exact view depends on implementation - check for DatePicker
-        onView(withClassName(org.hamcrest.Matchers.containsString("DatePicker")))
-            .check(matches(isDisplayed()))
+        withClassName(containsString("DatePicker")).isDisplayed()
         
         scenario.close()
     }
@@ -232,8 +216,7 @@ class SnoozeAllActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        onView(withId(R.id.snooze_snooze_for))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_snooze_for).isDisplayed()
         
         scenario.close()
     }
@@ -252,8 +235,7 @@ class SnoozeAllActivityTest {
         
         val scenario = fixture.launchSnoozeAllActivityWithIntent(intent)
         
-        onView(withId(R.id.snooze_count_text))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_count_text).isDisplayed()
         
         scenario.close()
     }
@@ -269,14 +251,16 @@ class SnoozeAllActivityTest {
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
         // Click first preset
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_present1).click()
         
-        // Give time for activity to finish
-        Thread.sleep(500)
-        
-        // Activity should be finishing/finished
+        // Activity should be finishing/finished (Ultron auto-waits)
         scenario.close()
     }
+    
+    companion object {
+        @BeforeClass @JvmStatic
+        fun setConfig() {
+            UltronConfig.applyRecommended()
+        }
+    }
 }
-

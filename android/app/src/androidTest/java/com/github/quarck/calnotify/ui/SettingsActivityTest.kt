@@ -1,20 +1,21 @@
 package com.github.quarck.calnotify.ui
 
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.atiurin.ultron.core.config.UltronConfig
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.core.espresso.UltronEspresso.withText
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixture
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Espresso UI tests for SettingsActivity.
+ * Ultron UI tests for SettingsActivity.
  * 
  * Tests settings navigation and preference fragment loading.
  */
@@ -53,8 +54,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_calendars_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.title_calendars_activity))
-            .check(matches(isDisplayed()))
+        withText(R.string.title_calendars_activity).isDisplayed()
         
         scenario.close()
     }
@@ -63,8 +63,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_notification_settings_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.notification_settings))
-            .check(matches(isDisplayed()))
+        withText(R.string.notification_settings).isDisplayed()
         
         scenario.close()
     }
@@ -73,8 +72,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_snooze_presets_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.snooze_presets))
-            .check(matches(isDisplayed()))
+        withText(R.string.snooze_presets).isDisplayed()
         
         scenario.close()
     }
@@ -83,8 +81,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_reminders_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.reminders_section))
-            .check(matches(isDisplayed()))
+        withText(R.string.reminders_section).isDisplayed()
         
         scenario.close()
     }
@@ -93,8 +90,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_quiet_hours_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.quiet_hours_section))
-            .check(matches(isDisplayed()))
+        withText(R.string.quiet_hours_section).isDisplayed()
         
         scenario.close()
     }
@@ -103,8 +99,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_behavior_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.app_behavior))
-            .check(matches(isDisplayed()))
+        withText(R.string.app_behavior).isDisplayed()
         
         scenario.close()
     }
@@ -113,8 +108,7 @@ class SettingsActivityTest {
     fun settingsActivity_shows_misc_settings_header() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.misc_settings))
-            .check(matches(isDisplayed()))
+        withText(R.string.misc_settings).isDisplayed()
         
         scenario.close()
     }
@@ -125,12 +119,9 @@ class SettingsActivityTest {
     fun clicking_notification_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.notification_settings))
-            .perform(click())
+        withText(R.string.notification_settings).click()
         
-        // Fragment should load - verify by checking for a preference within it
-        // Note: This may need adjustment based on actual preference contents
-        Thread.sleep(500)
+        // Fragment should load (Ultron auto-waits)
         
         scenario.close()
     }
@@ -139,10 +130,7 @@ class SettingsActivityTest {
     fun clicking_snooze_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.snooze_presets))
-            .perform(click())
-        
-        Thread.sleep(500)
+        withText(R.string.snooze_presets).click()
         
         scenario.close()
     }
@@ -151,10 +139,7 @@ class SettingsActivityTest {
     fun clicking_reminders_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.reminders_section))
-            .perform(click())
-        
-        Thread.sleep(500)
+        withText(R.string.reminders_section).click()
         
         scenario.close()
     }
@@ -163,10 +148,7 @@ class SettingsActivityTest {
     fun clicking_behavior_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.app_behavior))
-            .perform(click())
-        
-        Thread.sleep(500)
+        withText(R.string.app_behavior).click()
         
         scenario.close()
     }
@@ -175,10 +157,7 @@ class SettingsActivityTest {
     fun clicking_misc_settings_opens_fragment() {
         val scenario = fixture.launchSettingsActivity()
         
-        onView(withText(R.string.misc_settings))
-            .perform(click())
-        
-        Thread.sleep(500)
+        withText(R.string.misc_settings).click()
         
         scenario.close()
     }
@@ -190,21 +169,21 @@ class SettingsActivityTest {
         val scenario = fixture.launchSettingsActivity()
         
         // Navigate to a fragment
-        onView(withText(R.string.notification_settings))
-            .perform(click())
-        
-        Thread.sleep(300)
+        withText(R.string.notification_settings).click()
         
         // Press back
-        androidx.test.espresso.Espresso.pressBack()
-        
-        Thread.sleep(300)
+        pressBack()
         
         // Should be back at headers - check that another header is visible
-        onView(withText(R.string.snooze_presets))
-            .check(matches(isDisplayed()))
+        withText(R.string.snooze_presets).isDisplayed()
         
         scenario.close()
     }
+    
+    companion object {
+        @BeforeClass @JvmStatic
+        fun setConfig() {
+            UltronConfig.applyRecommended()
+        }
+    }
 }
-

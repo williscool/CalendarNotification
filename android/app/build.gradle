@@ -84,8 +84,8 @@ android {
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
-    // Enhanced test instrumentation with JaCoCo
-    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    // Enhanced test instrumentation with JaCoCo and Ultron/Allure
+    testInstrumentationRunner "com.atiurin.ultron.allure.UltronAllureTestRunner"
     testInstrumentationRunnerArguments = [
         'coverage': 'true',
         'jacoco-agent.destfile': '/data/data/com.github.quarck.calnotify/files/coverage.ec',
@@ -301,6 +301,11 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     androidTestImplementation 'junit:junit:4.13.2'
     
+    // Ultron UI Testing Framework
+    androidTestImplementation 'com.atiurin:ultron-android:2.6.2'
+    androidTestImplementation 'com.atiurin:ultron-allure:2.6.2'
+    androidTestImplementation 'com.atiurin:ultron-compose:2.6.2'
+
     // Additional test dependencies
     androidTestImplementation 'androidx.test:core:1.5.0'
     androidTestImplementation 'androidx.test:core-ktx:1.5.0'
