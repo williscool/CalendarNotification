@@ -51,8 +51,8 @@ echo "Starting instrumentation tests via ADB..."
 APP_PACKAGE="com.github.quarck.calnotify"
 # Test package name is APP_PACKAGE.test
 TEST_PACKAGE="${APP_PACKAGE}.test"
-# Test runner from build.gradle
-TEST_RUNNER="androidx.test.runner.AndroidJUnitRunner"
+# Test runner from build.gradle (updated for Ultron/Allure)
+TEST_RUNNER="com.atiurin.ultron.allure.UltronAllureTestRunner"
 
 # Create coverage file name based on architecture
 COVERAGE_FILE_NAME="${ARCH_SUFFIX}DebugAndroidTest.ec"
