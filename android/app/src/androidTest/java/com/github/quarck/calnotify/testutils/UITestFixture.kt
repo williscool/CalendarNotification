@@ -47,17 +47,23 @@ class UITestFixture {
     
     /**
      * Sets up the fixture. Call in @Before.
+     * 
+     * @param waitForAsyncTasks If true, registers IdlingResource to wait for background tasks.
+     *                          Set to false for UI-only tests that don't need data loading.
      */
-    fun setup() {
-        DevLog.info(LOG_TAG, "Setting up UITestFixture")
+    fun setup(waitForAsyncTasks: Boolean = false) {
+        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks)")
         
         clearAllEvents()
         
-        // Register IdlingResource to track AsyncTasks
-        IdlingRegistry.getInstance().register(asyncTaskIdlingResource)
-        globalAsyncTaskCallback = asyncTaskIdlingResource
-        
-        DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
+        // Only register IdlingResource if we need to wait for async operations
+        if (waitForAsyncTasks) {
+            IdlingRegistry.getInstance().register(asyncTaskIdlingResource)
+            globalAsyncTaskCallback = asyncTaskIdlingResource
+            DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
+        } else {
+            DevLog.info(LOG_TAG, "Skipping AsyncTask IdlingResource for faster UI tests")
+        }
     }
     
     /**
@@ -130,9 +136,13 @@ class UITestFixture {
         DevLog.info(LOG_TAG, "Cleaning up UITestFixture")
         clearAllEvents()
         
-        // Unregister IdlingResource
-        IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
-        globalAsyncTaskCallback = null
+        // Unregister IdlingResource if it was registered
+        try {
+            IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
+            globalAsyncTaskCallback = null
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
         
         unmockkAll()
     }
