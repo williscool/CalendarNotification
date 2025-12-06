@@ -58,29 +58,49 @@ class UITestFixture {
     }
     
     /**
-     * Dismisses the "This app was built for an older version of Android" warning dialog.
-     * This dialog appears because targetSdkVersion is 25 (Android 7.1) but tests run on newer emulators.
-     * The dialog steals window focus and prevents Espresso/Ultron from finding views.
+     * Dismisses system dialogs that appear during app startup and steal window focus.
+     * Handles: targetSdk warning, notification permission, battery optimization, background running.
      * 
-     * @param timeoutMs Maximum time to wait for dialog (default 50ms)
+     * @param timeoutMs Maximum time to wait for each dialog (default 50ms)
+     * @param maxAttempts Maximum number of dialogs to dismiss (default 5 for chained dialogs)
      */
-    private fun dismissTargetSdkWarningDialog(timeoutMs: Long = 50) {
+    private fun dismissTargetSdkWarningDialog(timeoutMs: Long = 50, maxAttempts: Int = 5) {
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
             
-            // Wait for the OK button with timeout instead of blind sleep
-            val okButton = device.findObject(UiSelector().text("OK"))
+            // Buttons to click for each dialog type (order matters for multi-button dialogs)
+            val buttonsToTry = listOf(
+                "OK",                  // targetSdk warning - just acknowledge
+                "DISMISS",             // Battery optimization - skip without changing
+                "Allow",               // Notification permission - grant for app to work
+                "Allow",               // Background running - grant for notification app
+                "Don't allow"          // Fallback if we want to skip permissions
+            )
             
-            if (okButton.waitForExists(timeoutMs)) {
-                DevLog.info(LOG_TAG, "Found targetSdk warning dialog, dismissing it")
-                okButton.click()
-                okButton.waitUntilGone(50) // Wait for dialog animation to complete
-                DevLog.info(LOG_TAG, "Dismissed targetSdk warning dialog")
+            var dialogsFound = 0
+            for (buttonText in buttonsToTry) {
+                if (dialogsFound >= maxAttempts) break
+                
+                val button = device.findObject(UiSelector().text(buttonText))
+                if (button.waitForExists(timeoutMs)) {
+                    DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
+                    button.click()
+                    button.waitUntilGone(50)
+                    DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
+                    dialogsFound++
+                    
+                    // Brief wait to see if another dialog appears
+                    Thread.sleep(100)
+                }
+            }
+            
+            if (dialogsFound == 0) {
+                DevLog.info(LOG_TAG, "No system dialogs found")
             } else {
-                DevLog.info(LOG_TAG, "No targetSdk warning dialog appeared within ${timeoutMs}ms")
+                DevLog.info(LOG_TAG, "Dismissed $dialogsFound system dialog(s)")
             }
         } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "Error dismissing warning dialog: ${e.message}")
+            DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
         }
     }
     
@@ -264,7 +284,9 @@ class UITestFixture {
      */
     fun launchMainActivity(): ActivityScenario<MainActivity> {
         DevLog.info(LOG_TAG, "Launching MainActivity")
-        return ActivityScenario.launch(MainActivity::class.java)
+        val scenario = ActivityScenario.launch<MainActivity>(MainActivity::class.java)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -276,7 +298,9 @@ class UITestFixture {
             putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
             putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
         }
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -287,7 +311,9 @@ class UITestFixture {
         val intent = Intent(context, SnoozeAllActivity::class.java).apply {
             putExtra(Consts.INTENT_SNOOZE_ALL_KEY, true)
         }
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -299,7 +325,9 @@ class UITestFixture {
             putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
             putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
         }
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<ViewEventActivityNoRecents>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -335,7 +363,9 @@ class UITestFixture {
      */
     fun launchSnoozeAllActivityWithIntent(intent: Intent): ActivityScenario<SnoozeAllActivity> {
         DevLog.info(LOG_TAG, "Launching SnoozeAllActivity with intent")
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
