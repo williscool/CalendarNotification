@@ -226,8 +226,11 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        // Verify the event is displayed and clickable
-        withText("Clickable Event Card").isDisplayed().isClickable()
+        // Verify the event is displayed
+        withText("Clickable Event Card").isDisplayed()
+        
+        // The click listener is on the card container (card_view_main_holder), not the text view
+        withId(R.id.card_view_main_holder).isClickable()
         
         scenario.close()
     }
