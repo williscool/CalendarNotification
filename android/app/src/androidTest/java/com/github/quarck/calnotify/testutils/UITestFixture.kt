@@ -62,9 +62,9 @@ class UITestFixture {
      * This dialog appears because targetSdkVersion is 25 (Android 7.1) but tests run on newer emulators.
      * The dialog steals window focus and prevents Espresso/Ultron from finding views.
      * 
-     * @param timeoutMs Maximum time to wait for dialog (default 500ms)
+     * @param timeoutMs Maximum time to wait for dialog (default 50ms)
      */
-    private fun dismissTargetSdkWarningDialog(timeoutMs: Long = 500) {
+    private fun dismissTargetSdkWarningDialog(timeoutMs: Long = 50) {
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
             
@@ -74,7 +74,7 @@ class UITestFixture {
             if (okButton.waitForExists(timeoutMs)) {
                 DevLog.info(LOG_TAG, "Found targetSdk warning dialog, dismissing it")
                 okButton.click()
-                okButton.waitUntilGone(300) // Wait for dialog animation to complete
+                okButton.waitUntilGone(50) // Wait for dialog animation to complete
                 DevLog.info(LOG_TAG, "Dismissed targetSdk warning dialog")
             } else {
                 DevLog.info(LOG_TAG, "No targetSdk warning dialog appeared within ${timeoutMs}ms")
@@ -311,7 +311,7 @@ class UITestFixture {
         val scenario = ActivityScenario.launch<DismissedEventsActivity>(intent)
         
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
-        dismissTargetSdkWarningDialog(timeoutMs = 500)
+        dismissTargetSdkWarningDialog()
         
         return scenario
     }
@@ -325,7 +325,7 @@ class UITestFixture {
         val scenario = ActivityScenario.launch<SettingsActivity>(intent)
         
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
-        dismissTargetSdkWarningDialog(timeoutMs = 500)
+        dismissTargetSdkWarningDialog()
         
         return scenario
     }
