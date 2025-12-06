@@ -23,6 +23,9 @@ import com.github.quarck.calnotify.ui.SettingsActivity
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
+import io.mockk.every
+import io.mockk.just
+import io.mockk.Runs
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 
@@ -43,19 +46,30 @@ class UITestFixture {
     // IdlingResource for AsyncTask tracking
     private val asyncTaskIdlingResource = AsyncTaskIdlingResource()
     
+    // Track if calendar reload prevention is active
+    private var calendarReloadPrevented = false
+    
     /**
      * Sets up the fixture. Call in @Before.
      * 
      * @param waitForAsyncTasks If true, registers IdlingResource to wait for background tasks.
      *                          Set to false for UI-only tests that don't need data loading.
+     * @param preventCalendarReload If true, mocks ApplicationController to prevent calendar reloads
+     *                              that would clear test events from EventsStorage. Lightweight alternative
+     *                              to full MockCalendarProvider setup.
      */
-    fun setup(waitForAsyncTasks: Boolean = false) {
-        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks)")
+    fun setup(waitForAsyncTasks: Boolean = false, preventCalendarReload: Boolean = false) {
+        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload)")
         
         // Reset dialog flag so each test can handle dialogs if they appear
         startupDialogsDismissed = false
         
         clearAllEvents()
+        
+        // Prevent calendar reload if needed - this stops CalendarReloadManager from clearing test events
+        if (preventCalendarReload) {
+            setupCalendarReloadPrevention()
+        }
         
         // Only register IdlingResource if we need to wait for async operations
         if (waitForAsyncTasks) {
@@ -65,6 +79,30 @@ class UITestFixture {
         } else {
             DevLog.info(LOG_TAG, "Skipping AsyncTask IdlingResource for faster UI tests")
         }
+    }
+    
+    /**
+     * Sets up lightweight mocking to prevent calendar reloads from clearing test events.
+     * This mocks ApplicationController.onMainActivityResumed to skip the calendar rescan.
+     */
+    private fun setupCalendarReloadPrevention() {
+        DevLog.info(LOG_TAG, "Setting up calendar reload prevention")
+        
+        mockkObject(ApplicationController)
+        
+        // Mock onMainActivityResumed to do nothing - this prevents the background calendar rescan
+        // that would query the real CalendarProvider and clear our test events
+        every { 
+            ApplicationController.onMainActivityResumed(any(), any(), any()) 
+        } just Runs
+        
+        // Also mock onCalendarChanged to prevent calendar change broadcasts from triggering rescans
+        every { 
+            ApplicationController.onCalendarChanged(any()) 
+        } just Runs
+        
+        calendarReloadPrevented = true
+        DevLog.info(LOG_TAG, "Calendar reload prevention active")
     }
     
     /**
@@ -170,6 +208,8 @@ class UITestFixture {
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up UITestFixture")
         clearAllEvents()
+        
+        calendarReloadPrevented = false
         
         // Unregister IdlingResource if it was registered
         try {

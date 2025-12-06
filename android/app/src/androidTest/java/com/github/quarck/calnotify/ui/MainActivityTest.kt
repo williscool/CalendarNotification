@@ -34,8 +34,10 @@ class MainActivityTest {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        // MainActivity loads event data asynchronously - wait for it
-        fixture.setup(waitForAsyncTasks = true)
+        // Prevent calendar reloads that would clear test events from EventsStorage
+        // This is a lightweight mock that just stops ApplicationController.onMainActivityResumed
+        // from triggering background calendar scans
+        fixture.setup(preventCalendarReload = true)
     }
     
     @After
@@ -167,13 +169,12 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
+        // Wait for events to load - reloadData() runs in background thread
+        withText("Event 1").isDisplayed()
         
-        // Snooze All should be visible
-        withText(R.string.snooze_all).isDisplayed()
+        // Snooze All appears in toolbar as icon (showAsAction="ifRoom"), not in overflow menu
+        // Check by ID since it's an icon, not text
+        withId(R.id.action_snooze_all).isDisplayed()
         
         scenario.close()
     }
@@ -184,6 +185,10 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
+        // Wait for events to load
+        withText("Event 1").isDisplayed()
+        
+        // Dismiss all is in overflow menu (showAsAction="never")
         openActionBarOverflowOrOptionsMenu(
             InstrumentationRegistry.getInstrumentation().targetContext
         )
