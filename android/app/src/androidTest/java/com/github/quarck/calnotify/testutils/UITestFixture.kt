@@ -42,6 +42,9 @@ class UITestFixture {
     // IdlingResource for AsyncTask tracking
     private val asyncTaskIdlingResource = AsyncTaskIdlingResource()
     
+    // Track if startup dialogs have been dismissed (they only appear once per test session)
+    private var hasCheckedForStartupDialogs = false
+    
     /**
      * Sets up the fixture. Call in @Before.
      */
@@ -61,44 +64,60 @@ class UITestFixture {
      * Dismisses system dialogs that appear during app startup and steal window focus.
      * Handles: targetSdk warning, notification permission, battery optimization, background running.
      * 
-     * @param timeoutMs Maximum time to wait for each dialog (default 50ms)
-     * @param maxAttempts Maximum number of dialogs to dismiss (default 5 for chained dialogs)
+     * These dialogs only appear ONCE per app session. After the first check, this becomes a quick no-op.
      */
-    private fun dismissTargetSdkWarningDialog(timeoutMs: Long = 50, maxAttempts: Int = 5) {
+    private fun dismissTargetSdkWarningDialog() {
+        // Quick check timeout on subsequent calls (dialogs already dismissed)
+        val timeout = if (hasCheckedForStartupDialogs) 50L else DIALOG_APPEAR_TIMEOUT_MS
+        
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
             
-            // Buttons to click for each dialog type (order matters for multi-button dialogs)
+            // Buttons to check and click (in any order since dialogs can appear in different sequences)
             val buttonsToTry = listOf(
-                "OK",                  // targetSdk warning - just acknowledge
-                "DISMISS",             // Battery optimization - skip without changing
-                "Allow",               // Notification permission - grant for app to work
-                "Allow",               // Background running - grant for notification app
-                "Don't allow"          // Fallback if we want to skip permissions
+                "OK",                  // targetSdk warning
+                "Allow",               // Notification & background permissions
+                "DISMISS",             // Battery optimization (skip it)
+                "LATER",               // Battery optimization alternative
+                "Don't allow"          // Permission denial fallback
             )
             
-            var dialogsFound = 0
-            for (buttonText in buttonsToTry) {
-                if (dialogsFound >= maxAttempts) break
+            var totalDismissed = 0
+            var attempts = 0
+            
+            // Check multiple times since dialogs can chain (use while for proper break)
+            while (attempts < MAX_DIALOG_DISMISSAL_ATTEMPTS) {
+                var foundInThisPass = false
                 
-                val button = device.findObject(UiSelector().text(buttonText))
-                if (button.waitForExists(timeoutMs)) {
-                    DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
-                    button.click()
-                    button.waitUntilGone(50)
-                    DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
-                    dialogsFound++
-                    
-                    // Brief wait to see if another dialog appears
-                    Thread.sleep(100)
+                for (buttonText in buttonsToTry) {
+                    val button = device.findObject(UiSelector().text(buttonText))
+                    if (button.waitForExists(timeout)) {
+                        DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
+                        button.click()
+                        button.waitUntilGone(DIALOG_DISMISS_ANIMATION_MS)
+                        DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
+                        totalDismissed++
+                        foundInThisPass = true
+                        Thread.sleep(DIALOG_CHAIN_WAIT_MS)
+                        break  // Found one, check again from the start
+                    }
                 }
+                
+                if (!foundInThisPass) {
+                    // No more dialogs found in this pass, we're done
+                    break
+                }
+                
+                attempts++
             }
             
-            if (dialogsFound == 0) {
+            if (totalDismissed == 0) {
                 DevLog.info(LOG_TAG, "No system dialogs found")
             } else {
-                DevLog.info(LOG_TAG, "Dismissed $dialogsFound system dialog(s)")
+                DevLog.info(LOG_TAG, "Dismissed $totalDismissed system dialog(s)")
             }
+            
+            hasCheckedForStartupDialogs = true
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
         }
@@ -379,6 +398,12 @@ class UITestFixture {
     
     companion object {
         private const val LOG_TAG = "UITestFixture"
+        
+        // Dialog dismissal timing constants
+        private const val DIALOG_APPEAR_TIMEOUT_MS = 50L
+        private const val DIALOG_DISMISS_ANIMATION_MS = 100L
+        private const val DIALOG_CHAIN_WAIT_MS = 100L
+        private const val MAX_DIALOG_DISMISSAL_ATTEMPTS = 5
         
         /**
          * Creates a fixture instance. Typically used with JUnit rules.
