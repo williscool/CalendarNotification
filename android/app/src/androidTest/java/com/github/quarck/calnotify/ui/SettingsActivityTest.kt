@@ -1,5 +1,6 @@
 package com.github.quarck.calnotify.ui
 
+import android.util.Log
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -56,11 +57,20 @@ class SettingsActivityTest {
     
     @Test
     fun settingsActivity_shows_calendars_header() {
+        val startTime = System.currentTimeMillis()
+        Log.i("TIMING", "Test start: $startTime")
+        
         val scenario = fixture.launchSettingsActivity()
+        val afterLaunch = System.currentTimeMillis()
+        Log.i("TIMING", "After launch: ${afterLaunch - startTime}ms elapsed")
         
         withText(R.string.title_calendars_activity).isDisplayed()
+        val afterAssertion = System.currentTimeMillis()
+        Log.i("TIMING", "After assertion: ${afterAssertion - afterLaunch}ms (total: ${afterAssertion - startTime}ms)")
         
         scenario.close()
+        val afterClose = System.currentTimeMillis()
+        Log.i("TIMING", "After close: ${afterClose - afterAssertion}ms (total: ${afterClose - startTime}ms)")
     }
     
     @Test

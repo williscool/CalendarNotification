@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
 import com.github.quarck.calnotify.Consts
@@ -42,9 +43,6 @@ class UITestFixture {
     // IdlingResource for AsyncTask tracking
     private val asyncTaskIdlingResource = AsyncTaskIdlingResource()
     
-    // Track if startup dialogs have been dismissed (they only appear once per test session)
-    private var hasCheckedForStartupDialogs = false
-    
     /**
      * Sets up the fixture. Call in @Before.
      * 
@@ -69,15 +67,21 @@ class UITestFixture {
     /**
      * Dismisses system dialogs that appear during app startup and steal window focus.
      * Handles: targetSdk warning, notification permission, battery optimization, background running.
-     * 
-     * These dialogs only appear ONCE per app session. After the first check, this becomes a quick no-op.
      */
     private fun dismissTargetSdkWarningDialog() {
-        // Quick check timeout on subsequent calls (dialogs already dismissed)
-        val timeout = if (hasCheckedForStartupDialogs) 50L else DIALOG_APPEAR_TIMEOUT_MS
+        // Quick exit if we've already dismissed dialogs in a previous test
+        if (startupDialogsDismissed) {
+            DevLog.info(LOG_TAG, "Startup dialogs already dismissed, skipping check")
+            return
+        }
         
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            
+            // Disable wait-for-idle to speed up dialog detection (default waits 10+ seconds for "idle")
+            val configurator = Configurator.getInstance()
+            val originalIdleTimeout = configurator.waitForIdleTimeout
+            configurator.waitForIdleTimeout = 0  // Skip idle detection entirely
             
             // Buttons to check and click (in any order since dialogs can appear in different sequences)
             val buttonsToTry = listOf(
@@ -94,6 +98,9 @@ class UITestFixture {
             // Check multiple times since dialogs can chain (use while for proper break)
             while (attempts < MAX_DIALOG_DISMISSAL_ATTEMPTS) {
                 var foundInThisPass = false
+                
+                // Use longer timeout for first dialog, shorter for subsequent chained dialogs
+                val timeout = if (totalDismissed == 0) FIRST_DIALOG_TIMEOUT_MS else SUBSEQUENT_DIALOG_TIMEOUT_MS
                 
                 for (buttonText in buttonsToTry) {
                     val button = device.findObject(UiSelector().text(buttonText))
@@ -123,7 +130,11 @@ class UITestFixture {
                 DevLog.info(LOG_TAG, "Dismissed $totalDismissed system dialog(s)")
             }
             
-            hasCheckedForStartupDialogs = true
+            // Restore original idle timeout
+            configurator.waitForIdleTimeout = originalIdleTimeout
+            
+            // Mark as dismissed so subsequent tests skip this entirely
+            startupDialogsDismissed = true
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
         }
@@ -410,10 +421,15 @@ class UITestFixture {
         private const val LOG_TAG = "UITestFixture"
         
         // Dialog dismissal timing constants
-        private const val DIALOG_APPEAR_TIMEOUT_MS = 50L
+        private const val FIRST_DIALOG_TIMEOUT_MS = 500L      // First dialog might take time to appear
+        private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
         private const val DIALOG_DISMISS_ANIMATION_MS = 100L
-        private const val DIALOG_CHAIN_WAIT_MS = 100L
+        private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs
         private const val MAX_DIALOG_DISMISSAL_ATTEMPTS = 5
+        
+        // Track if startup dialogs have been dismissed across ALL test instances
+        @Volatile
+        private var startupDialogsDismissed = false
         
         /**
          * Creates a fixture instance. Typically used with JUnit rules.
