@@ -51,6 +51,11 @@ class AsyncOperation(val fn: () -> Unit, val callback: AsyncTaskCallback? = null
         super.onPostExecute(result)
         callback?.onTaskCompleted()
     }
+    
+    override fun onCancelled(result: Void?) {
+        super.onCancelled(result)
+        callback?.onTaskCompleted()
+    }
 }
 
 /**
