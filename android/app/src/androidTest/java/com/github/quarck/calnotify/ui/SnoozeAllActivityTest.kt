@@ -142,17 +142,20 @@ class SnoozeAllActivityTest {
     @Test
     fun clicking_preset_button_triggers_snooze() {
         fixture.mockApplicationController()
-        every { ApplicationController.snoozeEvent(any(), any(), any(), any()) } returns mockk(relaxed = true)
+        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
         
         val event = fixture.createEvent(title = "Snooze Me")
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        // Click first preset
+        // Click first preset - this shows a confirmation dialog
         withId(R.id.snooze_view_snooze_present1).click()
         
-        // Verify snooze was called
+        // Click "Yes" on the confirmation dialog
+        withText(android.R.string.yes).click()
+        
+        // Verify snoozeAllEvents was called (SnoozeAllActivity always uses snoozeAllEvents)
         verify(timeout = 2000) { 
-            ApplicationController.snoozeEvent(any(), any(), any(), any()) 
+            ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) 
         }
         
         scenario.close()
@@ -161,17 +164,20 @@ class SnoozeAllActivityTest {
     @Test
     fun clicking_preset_in_snooze_all_mode_triggers_snooze_all() {
         fixture.mockApplicationController()
-        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any()) } returns mockk(relaxed = true)
+        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
         
         fixture.seedEvents(3)
         val scenario = fixture.launchSnoozeAllActivity()
         
-        // Click first preset
+        // Click first preset - this shows a confirmation dialog
         withId(R.id.snooze_view_snooze_present1).click()
+        
+        // Click "Yes" on the confirmation dialog
+        withText(android.R.string.yes).click()
         
         // Verify snoozeAllEvents was called
         verify(timeout = 2000) { 
-            ApplicationController.snoozeAllEvents(any(), any(), any(), any()) 
+            ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) 
         }
         
         scenario.close()
@@ -184,10 +190,13 @@ class SnoozeAllActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        // Click custom snooze button
+        // Click custom snooze button - this shows a list dialog first
         withId(R.id.snooze_view_snooze_custom).click()
         
-        // Dialog should show number picker or time interval controls
+        // Click "Enter manually" option in the list (first item, value -1)
+        withText("Enter manually").click()
+        
+        // Dialog should now show number picker or time interval controls
         withId(R.id.numberPickerTimeInterval).isDisplayed()
         
         scenario.close()
