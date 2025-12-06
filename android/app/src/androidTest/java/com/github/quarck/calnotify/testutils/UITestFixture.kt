@@ -48,9 +48,6 @@ class UITestFixture {
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixture")
         
-        // Dismiss targetSdk warning dialog if present
-        dismissTargetSdkWarningDialog()
-        
         clearAllEvents()
         
         // Register IdlingResource to track AsyncTasks
@@ -309,7 +306,13 @@ class UITestFixture {
     fun launchDismissedEventsActivity(): ActivityScenario<DismissedEventsActivity> {
         DevLog.info(LOG_TAG, "Launching DismissedEventsActivity")
         val intent = Intent(context, DismissedEventsActivity::class.java)
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<DismissedEventsActivity>(intent)
+        
+        // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
+        Thread.sleep(500)  // Give activity time to fully render
+        dismissTargetSdkWarningDialog()
+        
+        return scenario
     }
     
     /**
@@ -318,7 +321,13 @@ class UITestFixture {
     fun launchSettingsActivity(): ActivityScenario<SettingsActivity> {
         DevLog.info(LOG_TAG, "Launching SettingsActivity")
         val intent = Intent(context, SettingsActivity::class.java)
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SettingsActivity>(intent)
+        
+        // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
+        Thread.sleep(500)  // Give activity time to fully render
+        dismissTargetSdkWarningDialog()
+        
+        return scenario
     }
     
     /**
