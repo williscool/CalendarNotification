@@ -84,35 +84,58 @@ class UITestFixture {
             configurator.waitForIdleTimeout = 0  // Skip idle detection entirely
             
             // Buttons to check and click (in any order since dialogs can appear in different sequences)
+            // Use textContains() instead of exact text match for flexibility
             val buttonsToTry = listOf(
                 "OK",                  // targetSdk warning
-                "Allow",               // Notification & background permissions
+                "Allow",               // Notification & background permissions  
+                "ALLOW",               // Uppercase variant
                 "DISMISS",             // Battery optimization (skip it)
+                "Dismiss",             // Lowercase variant
                 "LATER",               // Battery optimization alternative
+                "Later",               // Lowercase variant
                 "Don't allow"          // Permission denial fallback
             )
             
             var totalDismissed = 0
             val maxDialogs = 3  // Handle up to 3 chained dialogs
             
+            // Known resourceIds for Android 13+ permission dialogs
+            val permissionResourceIds = listOf(
+                "com.android.permissioncontroller:id/permission_allow_button",
+                "com.android.permissioncontroller:id/permission_deny_button"
+            )
+            
             // Check for dialogs up to 3 times (notification, battery, background)
             for (attempt in 1..maxDialogs) {
                 var foundOne = false
                 
-                // Use longer timeout only for first dialog, very short for chained ones
-                val timeout = if (attempt == 1) FIRST_DIALOG_TIMEOUT_MS else SUBSEQUENT_DIALOG_TIMEOUT_MS
-                
-                for (buttonText in buttonsToTry) {
-                    val button = device.findObject(UiSelector().text(buttonText))
-                    if (button.exists()) {  // Use exists() not waitForExists() to avoid idle wait
-                        DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
+                // First, try known resourceIds for permission dialogs (Android 13+)
+                for (resourceId in permissionResourceIds) {
+                    val button = device.findObject(UiSelector().resourceId(resourceId))
+                    if (button.waitForExists(FIRST_DIALOG_TIMEOUT_MS)) {
+                        DevLog.info(LOG_TAG, "Found permission dialog via resourceId: $resourceId")
                         button.click()
-                        Thread.sleep(DIALOG_DISMISS_ANIMATION_MS)
-                        DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
+                        button.waitUntilGone(DIALOG_DISMISS_ANIMATION_MS)
+                        DevLog.info(LOG_TAG, "Dismissed permission dialog")
                         totalDismissed++
                         foundOne = true
-                        Thread.sleep(DIALOG_CHAIN_WAIT_MS)  // Wait for next dialog to appear
                         break
+                    }
+                }
+                
+                // If no resourceId match, try textContains() for flexibility
+                if (!foundOne) {
+                    for (buttonText in buttonsToTry) {
+                        val button = device.findObject(UiSelector().textContains(buttonText))
+                        if (button.waitForExists(FIRST_DIALOG_TIMEOUT_MS)) {
+                            DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
+                            button.click()
+                            button.waitUntilGone(DIALOG_DISMISS_ANIMATION_MS)
+                            DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
+                            totalDismissed++
+                            foundOne = true
+                            break  // Check for next dialog
+                        }
                     }
                 }
                 
@@ -416,7 +439,7 @@ class UITestFixture {
         private const val LOG_TAG = "UITestFixture"
         
         // Dialog dismissal timing constants
-        private const val FIRST_DIALOG_TIMEOUT_MS = 500L      // First dialog might take time to appear
+        private const val FIRST_DIALOG_TIMEOUT_MS = 200L      // First dialog might take time to appear
         private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
         private const val DIALOG_DISMISS_ANIMATION_MS = 100L
         private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs
