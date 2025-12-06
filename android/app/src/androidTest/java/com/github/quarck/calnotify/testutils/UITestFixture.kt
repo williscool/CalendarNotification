@@ -61,21 +61,23 @@ class UITestFixture {
      * Dismisses the "This app was built for an older version of Android" warning dialog.
      * This dialog appears because targetSdkVersion is 25 (Android 7.1) but tests run on newer emulators.
      * The dialog steals window focus and prevents Espresso/Ultron from finding views.
+     * 
+     * @param timeoutMs Maximum time to wait for dialog (default 500ms)
      */
-    private fun dismissTargetSdkWarningDialog() {
+    private fun dismissTargetSdkWarningDialog(timeoutMs: Long = 500) {
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
             
-            // Look for the OK button in the warning dialog
+            // Wait for the OK button with timeout instead of blind sleep
             val okButton = device.findObject(UiSelector().text("OK"))
             
-            if (okButton != null && okButton.exists()) {
+            if (okButton.waitForExists(timeoutMs)) {
                 DevLog.info(LOG_TAG, "Found targetSdk warning dialog, dismissing it")
                 okButton.click()
-                Thread.sleep(300) // Brief wait for dialog to fully dismiss
+                okButton.waitUntilGone(300) // Wait for dialog animation to complete
                 DevLog.info(LOG_TAG, "Dismissed targetSdk warning dialog")
             } else {
-                DevLog.info(LOG_TAG, "No targetSdk warning dialog found")
+                DevLog.info(LOG_TAG, "No targetSdk warning dialog appeared within ${timeoutMs}ms")
             }
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error dismissing warning dialog: ${e.message}")
@@ -309,8 +311,7 @@ class UITestFixture {
         val scenario = ActivityScenario.launch<DismissedEventsActivity>(intent)
         
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
-        Thread.sleep(500)  // Give activity time to fully render
-        dismissTargetSdkWarningDialog()
+        dismissTargetSdkWarningDialog(timeoutMs = 500)
         
         return scenario
     }
@@ -324,8 +325,7 @@ class UITestFixture {
         val scenario = ActivityScenario.launch<SettingsActivity>(intent)
         
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
-        Thread.sleep(500)  // Give activity time to fully render
-        dismissTargetSdkWarningDialog()
+        dismissTargetSdkWarningDialog(timeoutMs = 500)
         
         return scenario
     }
