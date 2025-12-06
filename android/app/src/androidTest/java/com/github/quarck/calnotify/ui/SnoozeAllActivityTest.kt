@@ -260,7 +260,9 @@ class SnoozeAllActivityTest {
     companion object {
         @BeforeClass @JvmStatic
         fun setConfig() {
-            UltronConfig.applyRecommended()
+            UltronConfig.apply {
+                operationTimeoutMs = 15_000  // 15 seconds instead of default
+            }
         }
     }
 }

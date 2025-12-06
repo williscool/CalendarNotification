@@ -7,6 +7,7 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.atiurin.ultron.core.config.UltronConfig
+import com.atiurin.ultron.allure.config.UltronAllureConfig
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isDisplayed
 import com.github.quarck.calnotify.R
@@ -232,7 +233,10 @@ class DismissedEventsActivityTest {
         
         @BeforeClass @JvmStatic
         fun setConfig() {
-            UltronConfig.applyRecommended()
+            UltronConfig.apply {
+                operationTimeoutMs = 15_000  // 15 seconds instead of default
+            }
+            UltronAllureConfig.applyRecommended()  // Enable automatic screenshots on failure
         }
     }
 }

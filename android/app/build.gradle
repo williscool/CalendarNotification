@@ -305,7 +305,7 @@ dependencies {
     // Using 2.3.1 for Kotlin 1.9.x compatibility (2.6.x requires Kotlin 2.x)
     androidTestImplementation 'com.atiurin:ultron:2.3.1'
     androidTestImplementation 'com.atiurin:ultron-allure:2.3.1'
-
+    
     // Additional test dependencies
     androidTestImplementation 'androidx.test:core:1.5.0'
     androidTestImplementation 'androidx.test:core-ktx:1.5.0'
