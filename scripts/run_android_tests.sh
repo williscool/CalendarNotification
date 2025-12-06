@@ -186,6 +186,39 @@ else
   fi
 fi
 
+# Pull Allure results (screenshots, logs) from device (non-fatal - don't fail build)
+echo "Attempting to pull Allure test results from device..."
+ALLURE_RESULTS_DIR="./$MAIN_PROJECT_MODULE/build/outputs/allure-results"
+mkdir -p "$ALLURE_RESULTS_DIR" 2>/dev/null || true
+
+# Check if allure-results exists on device (non-fatal check)
+if adb shell "run-as $APP_PACKAGE ls /data/data/${APP_PACKAGE}/files/allure-results 2>/dev/null" | grep -q "." 2>/dev/null; then
+  echo "Found Allure results on device, pulling..."
+  
+  # Try tar method first (fast)
+  if adb exec-out "run-as $APP_PACKAGE tar cf - -C /data/data/${APP_PACKAGE}/files allure-results 2>/dev/null" 2>/dev/null | tar xf - -C "$ALLURE_RESULTS_DIR" 2>/dev/null; then
+    echo "✅ Pulled Allure results via tar"
+  else
+    echo "⚠️ tar method failed, trying adb pull..."
+    # Fallback: pull individual files (slower but more compatible)
+    adb pull "/data/data/${APP_PACKAGE}/files/allure-results" "$ALLURE_RESULTS_DIR/" 2>/dev/null || {
+      echo "⚠️ adb pull failed, Allure results not available (non-fatal)"
+    }
+  fi
+  
+  # Verify what we got (non-fatal)
+  if [ -d "$ALLURE_RESULTS_DIR/allure-results" ] && [ "$(ls -A $ALLURE_RESULTS_DIR/allure-results 2>/dev/null)" ]; then
+    FILE_COUNT=$(find "$ALLURE_RESULTS_DIR/allure-results" -type f | wc -l)
+    echo "✅ Allure results pulled successfully! ($FILE_COUNT files)"
+    echo "Contents preview:"
+    ls -lh "$ALLURE_RESULTS_DIR/allure-results" 2>/dev/null | head -10 || true
+  else
+    echo "⚠️ Allure results directory empty or not found (non-fatal)"
+  fi
+else
+  echo "ℹ️ No Allure results found on device (likely all tests passed with no failures)"
+fi
+
 # If tests failed (non-zero exit code), exit with the same code
 if [ $TEST_EXIT_CODE -ne 0 ]; then
   echo "Android tests completed with errors. Exit code: $TEST_EXIT_CODE"

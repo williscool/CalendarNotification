@@ -802,6 +802,15 @@ jobs:
           android/app/build/test-results/
         retention-days: 90
 
+    - name: Upload Allure Results (Screenshots, Logs)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: allure-results-${{ needs.set_build_datetime.outputs.build_datetime }}
+        path: android/app/build/outputs/allure-results/
+        retention-days: 90
+        if-no-files-found: ignore
+
     - name: Upload Emulator Log
       if: always()
       uses: actions/upload-artifact@v4
