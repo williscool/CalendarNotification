@@ -1,7 +1,9 @@
 package com.github.quarck.calnotify.testutils
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
@@ -57,14 +59,26 @@ class UITestFixture {
      * @param preventCalendarReload If true, mocks ApplicationController to prevent calendar reloads
      *                              that would clear test events from EventsStorage. Lightweight alternative
      *                              to full MockCalendarProvider setup.
+     * @param grantCalendarPermissions If true, grants calendar permissions programmatically.
+     *                                 Set to false to test permission dialogs (e.g., MainActivityTest).
      */
-    fun setup(waitForAsyncTasks: Boolean = false, preventCalendarReload: Boolean = false) {
-        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload)")
+    fun setup(
+        waitForAsyncTasks: Boolean = false, 
+        preventCalendarReload: Boolean = false,
+        grantCalendarPermissions: Boolean = false
+    ) {
+        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantCalendarPermissions=$grantCalendarPermissions)")
         
         // Reset dialog flag so each test can handle dialogs if they appear
         startupDialogsDismissed = false
         
         clearAllEvents()
+        
+        // Grant calendar permissions programmatically if requested
+        // Only use this for tests that need permissions but shouldn't test the permission dialog flow
+        if (grantCalendarPermissions) {
+            grantCalendarPermissions()
+        }
         
         // Prevent calendar reload if needed - this stops CalendarReloadManager from clearing test events
         if (preventCalendarReload) {
@@ -78,6 +92,33 @@ class UITestFixture {
             DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
         } else {
             DevLog.info(LOG_TAG, "Skipping AsyncTask IdlingResource for faster UI tests")
+        }
+    }
+    
+    /**
+     * Grants calendar permissions programmatically for UI tests.
+     * This ensures tests work in isolation without requiring permission dialogs.
+     */
+    private fun grantCalendarPermissions() {
+        try {
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            val packageName = instrumentation.targetContext.packageName
+            val uiAutomation = instrumentation.uiAutomation
+            
+            // Grant calendar permissions
+            uiAutomation.grantRuntimePermission(
+                packageName,
+                Manifest.permission.READ_CALENDAR
+            )
+            uiAutomation.grantRuntimePermission(
+                packageName,
+                Manifest.permission.WRITE_CALENDAR
+            )
+            
+            DevLog.info(LOG_TAG, "Granted calendar permissions to $packageName")
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Failed to grant calendar permissions: ${e.message}")
+            // Don't throw - some test environments might not support this
         }
     }
     
