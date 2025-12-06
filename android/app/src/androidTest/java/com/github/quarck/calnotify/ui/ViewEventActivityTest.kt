@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.matcher.ViewMatchers.withClassName
 import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.atiurin.ultron.core.config.UltronConfig
 import com.atiurin.ultron.extensions.click
@@ -181,7 +182,11 @@ class ViewEventActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchViewEventActivity(event)
         
+        // Click custom snooze button - this shows a simplified list dialog first
         withId(R.id.snooze_view_snooze_custom).click()
+        
+        // Click "Enter manually" (first item) to open the number picker dialog
+        withText("Enter manually").click()
         
         // Should show number picker dialog
         withId(R.id.numberPickerTimeInterval).isDisplayed()
@@ -271,12 +276,22 @@ class ViewEventActivityTest {
     
     @Test
     fun viewEventActivity_has_back_navigation() {
-        val event = fixture.createEvent()
+        val event = fixture.createEvent(title = "Back Navigation Test")
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        // Toolbar should be present
-        withId(R.id.toolbar).isDisplayed()
+        // Verify activity is alive by checking a displayed element
+        withId(R.id.snooze_view_title).isDisplayed()
+        
+        // Toolbar exists in layout but is hidden (set to View.GONE in onCreate)
+        // This is expected behavior - the activity uses system back button for navigation
+        scenario.onActivity { activity ->
+            val toolbar = activity.findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+            assert(toolbar != null) { "Toolbar should exist in layout" }
+            assert(toolbar?.visibility == android.view.View.GONE) { 
+                "Toolbar should be hidden (View.GONE), but visibility is ${toolbar?.visibility}" 
+            }
+        }
         
         scenario.close()
     }
