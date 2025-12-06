@@ -157,12 +157,13 @@ class UITestFixture {
             return
         }
         
+        val configurator = Configurator.getInstance()
+        val originalIdleTimeout = configurator.waitForIdleTimeout
+        
         try {
             val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
             
             // Disable wait-for-idle to speed up dialog detection (default waits 10+ seconds for "idle")
-            val configurator = Configurator.getInstance()
-            val originalIdleTimeout = configurator.waitForIdleTimeout
             configurator.waitForIdleTimeout = 0  // Skip idle detection entirely
             
             // Buttons to check and click (in any order since dialogs can appear in different sequences)
@@ -236,10 +237,12 @@ class UITestFixture {
                 DevLog.info(LOG_TAG, "No system dialogs found")
             }
             
-            configurator.waitForIdleTimeout = originalIdleTimeout
             startupDialogsDismissed = true
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
+        } finally {
+            // Always restore the original timeout, even if an exception occurred
+            configurator.waitForIdleTimeout = originalIdleTimeout
         }
     }
     
