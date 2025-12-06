@@ -112,14 +112,18 @@ class UITestFixture {
             for (attempt in 1..maxDialogs) {
                 var foundOne = false
                 
+                // Brief wait only on first attempt to let dialog appear
+                if (attempt == 1) {
+                    Thread.sleep(FIRST_DIALOG_TIMEOUT_MS)
+                }
+                
                 // First, try known resourceIds for permission dialogs (Android 13+)
                 for (resourceId in permissionResourceIds) {
                     val button = device.findObject(UiSelector().resourceId(resourceId))
-                    if (button.waitForExists(FIRST_DIALOG_TIMEOUT_MS)) {
+                    if (button.exists()) {
                         DevLog.info(LOG_TAG, "Found permission dialog via resourceId: $resourceId")
                         button.click()
-                        button.waitUntilGone(DIALOG_DISMISS_ANIMATION_MS)
-                        DevLog.info(LOG_TAG, "Dismissed permission dialog")
+                        Thread.sleep(DIALOG_DISMISS_ANIMATION_MS)
                         totalDismissed++
                         foundOne = true
                         break
@@ -130,14 +134,13 @@ class UITestFixture {
                 if (!foundOne) {
                     for (buttonText in buttonsToTry) {
                         val button = device.findObject(UiSelector().textContains(buttonText))
-                        if (button.waitForExists(FIRST_DIALOG_TIMEOUT_MS)) {
+                        if (button.exists()) {
                             DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
                             button.click()
-                            button.waitUntilGone(DIALOG_DISMISS_ANIMATION_MS)
-                            DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
+                            Thread.sleep(DIALOG_DISMISS_ANIMATION_MS)
                             totalDismissed++
                             foundOne = true
-                            break  // Check for next dialog
+                            break
                         }
                     }
                 }
