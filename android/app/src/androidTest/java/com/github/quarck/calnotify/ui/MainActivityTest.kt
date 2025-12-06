@@ -34,7 +34,8 @@ class MainActivityTest {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // MainActivity loads event data asynchronously - wait for it
+        fixture.setup(waitForAsyncTasks = true)
     }
     
     @After
