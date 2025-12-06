@@ -93,47 +93,42 @@ class UITestFixture {
             )
             
             var totalDismissed = 0
-            var attempts = 0
+            val maxDialogs = 3  // Handle up to 3 chained dialogs
             
-            // Check multiple times since dialogs can chain (use while for proper break)
-            while (attempts < MAX_DIALOG_DISMISSAL_ATTEMPTS) {
-                var foundInThisPass = false
+            // Check for dialogs up to 3 times (notification, battery, background)
+            for (attempt in 1..maxDialogs) {
+                var foundOne = false
                 
-                // Use longer timeout for first dialog, shorter for subsequent chained dialogs
-                val timeout = if (totalDismissed == 0) FIRST_DIALOG_TIMEOUT_MS else SUBSEQUENT_DIALOG_TIMEOUT_MS
+                // Use longer timeout only for first dialog, very short for chained ones
+                val timeout = if (attempt == 1) FIRST_DIALOG_TIMEOUT_MS else SUBSEQUENT_DIALOG_TIMEOUT_MS
                 
                 for (buttonText in buttonsToTry) {
                     val button = device.findObject(UiSelector().text(buttonText))
-                    if (button.waitForExists(timeout)) {
+                    if (button.exists()) {  // Use exists() not waitForExists() to avoid idle wait
                         DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
                         button.click()
-                        button.waitUntilGone(DIALOG_DISMISS_ANIMATION_MS)
+                        Thread.sleep(DIALOG_DISMISS_ANIMATION_MS)
                         DevLog.info(LOG_TAG, "Dismissed dialog via '$buttonText'")
                         totalDismissed++
-                        foundInThisPass = true
-                        Thread.sleep(DIALOG_CHAIN_WAIT_MS)
-                        break  // Found one, check again from the start
+                        foundOne = true
+                        Thread.sleep(DIALOG_CHAIN_WAIT_MS)  // Wait for next dialog to appear
+                        break
                     }
                 }
                 
-                if (!foundInThisPass) {
-                    // No more dialogs found in this pass, we're done
+                if (!foundOne) {
+                    // No more dialogs, stop checking
                     break
                 }
-                
-                attempts++
             }
             
-            if (totalDismissed == 0) {
-                DevLog.info(LOG_TAG, "No system dialogs found")
-            } else {
+            if (totalDismissed > 0) {
                 DevLog.info(LOG_TAG, "Dismissed $totalDismissed system dialog(s)")
+            } else {
+                DevLog.info(LOG_TAG, "No system dialogs found")
             }
             
-            // Restore original idle timeout
             configurator.waitForIdleTimeout = originalIdleTimeout
-            
-            // Mark as dismissed so subsequent tests skip this entirely
             startupDialogsDismissed = true
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
