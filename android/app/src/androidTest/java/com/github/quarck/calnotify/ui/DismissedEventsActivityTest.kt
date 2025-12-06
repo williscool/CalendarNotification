@@ -174,9 +174,9 @@ class DismissedEventsActivityTest {
         withId(R.id.toolbar).isDisplayed()
         
         // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
+            openActionBarOverflowOrOptionsMenu(
+                InstrumentationRegistry.getInstrumentation().targetContext
+            )
         
         // Remove All option should be visible
         withText(R.string.remove_all).isDisplayed()
@@ -237,6 +237,6 @@ class DismissedEventsActivityTest {
                 operationTimeoutMs = 15_000  // 15 seconds instead of default
             }
             UltronAllureConfig.applyRecommended()  // Enable automatic screenshots on failure
-        }
     }
+}
 }

@@ -5,6 +5,8 @@ import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiSelector
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -45,6 +47,10 @@ class UITestFixture {
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixture")
+        
+        // Dismiss targetSdk warning dialog if present
+        dismissTargetSdkWarningDialog()
+        
         clearAllEvents()
         
         // Register IdlingResource to track AsyncTasks
@@ -52,6 +58,31 @@ class UITestFixture {
         globalAsyncTaskCallback = asyncTaskIdlingResource
         
         DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
+    }
+    
+    /**
+     * Dismisses the "This app was built for an older version of Android" warning dialog.
+     * This dialog appears because targetSdkVersion is 25 (Android 7.1) but tests run on newer emulators.
+     * The dialog steals window focus and prevents Espresso/Ultron from finding views.
+     */
+    private fun dismissTargetSdkWarningDialog() {
+        try {
+            val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            
+            // Look for the OK button in the warning dialog
+            val okButton = device.findObject(UiSelector().text("OK"))
+            
+            if (okButton != null && okButton.exists()) {
+                DevLog.info(LOG_TAG, "Found targetSdk warning dialog, dismissing it")
+                okButton.click()
+                Thread.sleep(300) // Brief wait for dialog to fully dismiss
+                DevLog.info(LOG_TAG, "Dismissed targetSdk warning dialog")
+            } else {
+                DevLog.info(LOG_TAG, "No targetSdk warning dialog found")
+            }
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Error dismissing warning dialog: ${e.message}")
+        }
     }
     
     /**
