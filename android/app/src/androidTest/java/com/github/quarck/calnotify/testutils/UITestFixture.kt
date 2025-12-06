@@ -52,6 +52,9 @@ class UITestFixture {
     fun setup(waitForAsyncTasks: Boolean = false) {
         DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks)")
         
+        // Reset dialog flag so each test can handle dialogs if they appear
+        startupDialogsDismissed = false
+        
         clearAllEvents()
         
         // Only register IdlingResource if we need to wait for async operations
