@@ -702,7 +702,7 @@ jobs:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
     - uses: actions/checkout@v3
@@ -812,7 +812,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Generate Allure HTML Report
-      uses: simple-elf/allure-report-action@v1.12
+      uses: simple-elf/allure-report-action@v1.13
       if: always()
       with:
         allure_results: android/app/build/outputs/allure-results/allure-results
