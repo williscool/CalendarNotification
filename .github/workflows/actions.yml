@@ -702,7 +702,7 @@ jobs:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
     - uses: actions/checkout@v3

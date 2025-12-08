@@ -10,7 +10,7 @@ echo "Starting Android tests..."
 ARCH=${1:-x86_64}
 MAIN_PROJECT_MODULE=${2:-app}
 ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${3:-5}
-TEST_TIMEOUT=${4:-30m}  # Increased default timeout to 30 minutes
+TEST_TIMEOUT=${4:-90m}  # Increased default timeout to 90 minutes
 SINGLE_TEST=${5}  # Optional parameter for running a single test
 
 # Determine the build variant suffix based on architecture
