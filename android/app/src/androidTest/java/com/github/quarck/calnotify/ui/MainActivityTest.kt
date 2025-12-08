@@ -5,7 +5,6 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.atiurin.ultron.core.config.UltronConfig
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isClickable
 import com.atiurin.ultron.extensions.isDisplayed
@@ -27,7 +26,7 @@ import org.junit.runner.RunWith
  * Tests the main event list display, search, and bulk actions.
  */
 @RunWith(AndroidJUnit4::class)
-class MainActivityTest {
+class MainActivityTest : BaseUltronTest() {
     
     private lateinit var fixture: UITestFixture
     
@@ -285,12 +284,5 @@ class MainActivityTest {
         scenario.close()
     }
     
-    companion object {
-        @BeforeClass @JvmStatic
-        fun setConfig() {
-            UltronConfig.apply {
-                operationTimeoutMs = 15_000  // 15 seconds instead of default
-            }
-        }
-    }
+    // Inherits setConfig() from BaseUltronTest
 }

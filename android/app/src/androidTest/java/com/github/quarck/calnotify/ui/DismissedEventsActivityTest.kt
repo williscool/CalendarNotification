@@ -6,8 +6,6 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.atiurin.ultron.core.config.UltronConfig
-import com.atiurin.ultron.allure.config.UltronAllureConfig
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isDisplayed
 import com.github.quarck.calnotify.R
@@ -26,7 +24,7 @@ import org.junit.runner.RunWith
  * Tests the dismissed events list display and restore functionality.
  */
 @RunWith(AndroidJUnit4::class)
-class DismissedEventsActivityTest {
+class DismissedEventsActivityTest : BaseUltronTest() {
     
     private lateinit var fixture: UITestFixture
     
@@ -230,13 +228,5 @@ class DismissedEventsActivityTest {
     
     companion object {
         private const val LOG_TAG = "DismissedEventsActivityTest"
-        
-        @BeforeClass @JvmStatic
-        fun setConfig() {
-            UltronConfig.apply {
-                operationTimeoutMs = 15_000  // 15 seconds instead of default
-            }
-            UltronAllureConfig.applyRecommended()  // Enable automatic screenshots on failure
     }
-}
 }

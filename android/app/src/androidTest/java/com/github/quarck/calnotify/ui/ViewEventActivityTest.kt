@@ -4,7 +4,6 @@ import androidx.test.espresso.matcher.ViewMatchers.withClassName
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.atiurin.ultron.core.config.UltronConfig
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.hasText
 import com.atiurin.ultron.extensions.isDisplayed
@@ -26,7 +25,7 @@ import org.junit.runner.RunWith
  * Tests event detail display, snooze actions, and dismiss functionality.
  */
 @RunWith(AndroidJUnit4::class)
-class ViewEventActivityTest {
+class ViewEventActivityTest : BaseUltronTest() {
     
     private lateinit var fixture: UITestFixture
     
@@ -298,12 +297,5 @@ class ViewEventActivityTest {
         scenario.close()
     }
     
-    companion object {
-        @BeforeClass @JvmStatic
-        fun setConfig() {
-            UltronConfig.apply {
-                operationTimeoutMs = 15_000  // 15 seconds instead of default
-            }
-        }
-    }
+    // Inherits setConfig() from BaseUltronTest
 }
