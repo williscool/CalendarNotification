@@ -210,10 +210,10 @@ class UITestFixture {
                     }
                 }
                 
-                // If no resourceId match, try textContains() for flexibility
+                // If no resourceId match, try exact text match to avoid false positives
                 if (!foundOne) {
                     for (buttonText in buttonsToTry) {
-                        val button = device.findObject(UiSelector().textContains(buttonText))
+                        val button = device.findObject(UiSelector().text(buttonText))  // Exact match only!
                         if (button.exists()) {
                             DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
                             button.click()
