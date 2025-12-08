@@ -253,13 +253,16 @@ class SnoozeAllActivityTest : BaseUltronTest() {
     @Test
     fun snooze_finishes_activity() {
         fixture.mockApplicationController()
-        every { ApplicationController.snoozeEvent(any(), any(), any(), any()) } returns mockk(relaxed = true)
+        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
         
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)
         
-        // Click first preset
+        // Click first preset - this shows a confirmation dialog
         withId(R.id.snooze_view_snooze_present1).click()
+        
+        // Click "Yes" on the confirmation dialog
+        withText(android.R.string.yes).click()
         
         // Activity should be finishing/finished (Ultron auto-waits)
         scenario.close()

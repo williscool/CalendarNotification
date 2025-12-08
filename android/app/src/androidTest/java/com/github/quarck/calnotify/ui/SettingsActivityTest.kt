@@ -55,20 +55,11 @@ class SettingsActivityTest : BaseUltronTest() {
     
     @Test
     fun settingsActivity_shows_calendars_header() {
-        val startTime = System.currentTimeMillis()
-        Log.i("TIMING", "Test start: $startTime")
-        
         val scenario = fixture.launchSettingsActivity()
-        val afterLaunch = System.currentTimeMillis()
-        Log.i("TIMING", "After launch: ${afterLaunch - startTime}ms elapsed")
         
         withText(R.string.title_calendars_activity).isDisplayed()
-        val afterAssertion = System.currentTimeMillis()
-        Log.i("TIMING", "After assertion: ${afterAssertion - afterLaunch}ms (total: ${afterAssertion - startTime}ms)")
         
         scenario.close()
-        val afterClose = System.currentTimeMillis()
-        Log.i("TIMING", "After close: ${afterClose - afterAssertion}ms (total: ${afterClose - startTime}ms)")
     }
     
     @Test
