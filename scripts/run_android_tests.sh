@@ -131,6 +131,7 @@ INSTRUMENT_COMMAND="am instrument -w -r \
   -e outputFormat \"xml\" \
   -e jaco-agent.destfile \"${COVERAGE_FILE_PATH}\" \
   -e jaco-agent.includes \"com.github.quarck.calnotify.*\" \
+  -e notPackage com.github.quarck.calnotify.ui \
   -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
 
 # If a specific test is specified, add it to the command
