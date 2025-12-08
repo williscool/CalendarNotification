@@ -61,6 +61,7 @@ class AsyncOperation(val fn: () -> Unit, val callback: AsyncTaskCallback? = null
 /**
  * Global callback for tracking all AsyncTasks - set by tests.
  */
+@Volatile
 var globalAsyncTaskCallback: AsyncTaskCallback? = null
 
 @Suppress("NOTHING_TO_INLINE")
