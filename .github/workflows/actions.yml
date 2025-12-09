@@ -773,15 +773,25 @@ jobs:
 
     # Note: JaCoCo report generation moved to merge-integration-coverage job
 
-    # Publish integration test results
+    # Debug: List any XML files that might contain test results
+    - name: Debug test result files (Shard ${{ matrix.shard }})
+      if: always()
+      run: |
+        echo "=== Looking for XML test results ==="
+        find android/app/build/outputs -name "*.xml" -type f 2>/dev/null || echo "No XML files found"
+        echo "=== Looking in androidTest-results ==="
+        find android/app/build/outputs/androidTest-results -type f 2>/dev/null || echo "No files in androidTest-results"
+
+    # Publish integration test results (unique name per shard to avoid conflicts)
     - name: Publish Integration Test Results (Shard ${{ matrix.shard }})
       uses: dorny/test-reporter@v2
-      if: always()
+      if: always() && hashFiles('android/app/build/outputs/**/*.xml') != ''
       with:
-        name: 'Integration Tests'
+        name: 'Integration Tests (Shard ${{ matrix.shard }})'
         path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
         reporter: java-junit
-        fail-on-error: true
+        fail-on-error: false
+      continue-on-error: true
 
     - name: Upload Shard Coverage Data
       if: always()
@@ -796,7 +806,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: allure-results-shard-${{ matrix.shard }}
-        path: android/app/build/outputs/allure-results/
+        # Note: pull_allure_results creates nested allure-results/allure-results structure
+        path: android/app/build/outputs/allure-results/allure-results/
         retention-days: 1
         if-no-files-found: ignore
 
@@ -835,6 +846,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Fail early if any integration test shard failed (prevents release with broken tests)
+      - name: Check integration test results
+        run: |
+          if [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "::error::Integration tests failed or were skipped. Result: ${{ needs.integration-test.result }}"
+            exit 1
+          fi
+          echo "All integration test shards passed"
+
       - name: Download all shard coverage artifacts
         uses: actions/download-artifact@v4
         with:
@@ -849,6 +869,12 @@ jobs:
           path: android/app/build/outputs/allure-results/
           merge-multiple: true
         continue-on-error: true
+
+      - name: Debug Allure directory structure
+        if: always()
+        run: |
+          echo "=== Allure results structure ==="
+          find android/app/build/outputs/allure-results/ -type f 2>/dev/null | head -20 || echo "No allure files found"
 
       - name: Download Coverage artifacts (classes for JaCoCo)
         uses: actions/download-artifact@v4

@@ -194,6 +194,8 @@ build_instrument_command() {
 }
 
 pull_allure_results() {
+  # Note: Creates structure at ./$MODULE/build/outputs/allure-results/allure-results/
+  # The workflow uploads from the inner allure-results dir
   local allure_dir="./$MODULE/build/outputs/allure-results"
   mkdir -p "$allure_dir" 2>/dev/null || true
 
@@ -203,8 +205,11 @@ pull_allure_results() {
   fi
 
   echo "Pulling Allure results..."
+  # tar extracts "allure-results" dir INTO $allure_dir, creating nested structure
   if adb exec-out "run-as $APP_PACKAGE tar cf - -C /data/data/$APP_PACKAGE/files allure-results 2>/dev/null" 2>/dev/null | tar xf - -C "$allure_dir" 2>/dev/null; then
     echo "Allure results pulled successfully"
+    # Show what we got
+    find "$allure_dir" -type f 2>/dev/null | head -5 || true
   else
     adb pull "/data/data/$APP_PACKAGE/files/allure-results" "$allure_dir/" 2>/dev/null || true
   fi
