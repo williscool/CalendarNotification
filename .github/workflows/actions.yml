@@ -463,6 +463,16 @@ jobs:
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
         -Pandroid.externalNativeBuild.skip=true
 
+    # Debug: List coverage report files
+    - name: List Coverage Report Files
+      if: always()
+      run: |
+        echo "=== Unit Test Coverage Reports ==="
+        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -20 || echo "No XML/CSV files found"
+        echo ""
+        echo "=== Coverage directory structure ==="
+        find android/app/build/reports/coverage -type f 2>/dev/null | head -20 || echo "No coverage directory"
+
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
       uses: dorny/test-reporter@v2

@@ -341,6 +341,18 @@ tasks.withType(Test) {
     jacoco.excludes = ['jdk.internal.*']
 }
 
+// Configure unit test coverage reports to generate XML and CSV (not just HTML)
+tasks.withType(JacocoReport).configureEach { task ->
+    // Only configure the unit test coverage reports (create*UnitTestCoverageReport)
+    if (task.name.contains('UnitTestCoverageReport')) {
+        reports {
+            xml.required = true
+            html.required = true
+            csv.required = true
+        }
+    }
+}
+
 // Add task to generate coverage report for Android tests
 task jacocoAndroidTestReport(type: JacocoReport) {
     group = "Reporting"
