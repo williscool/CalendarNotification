@@ -1,9 +1,15 @@
 package com.github.quarck.calnotify.testutils
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.Configurator
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiSelector
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -18,6 +24,10 @@ import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivity
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
+import io.mockk.every
+import io.mockk.just
+import io.mockk.Runs
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 
@@ -35,12 +45,205 @@ class UITestFixture {
     private var eventIdCounter = 100000L
     private val seededEvents = mutableListOf<EventAlertRecord>()
     
+    // IdlingResource for AsyncTask tracking
+    private val asyncTaskIdlingResource = AsyncTaskIdlingResource()
+    
+    // Track if calendar reload prevention is active
+    private var calendarReloadPrevented = false
+    
     /**
      * Sets up the fixture. Call in @Before.
+     * 
+     * @param waitForAsyncTasks If true, registers IdlingResource to wait for background tasks.
+     *                          Set to false for UI-only tests that don't need data loading.
+     * @param preventCalendarReload If true, mocks ApplicationController to prevent calendar reloads
+     *                              that would clear test events from EventsStorage. Lightweight alternative
+     *                              to full MockCalendarProvider setup.
+     * @param grantCalendarPermissions If true, grants calendar permissions programmatically.
+     *                                 Set to false to test permission dialogs (e.g., MainActivityTest).
      */
-    fun setup() {
-        DevLog.info(LOG_TAG, "Setting up UITestFixture")
+    fun setup(
+        waitForAsyncTasks: Boolean = false, 
+        preventCalendarReload: Boolean = false,
+        grantCalendarPermissions: Boolean = false
+    ) {
+        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantCalendarPermissions=$grantCalendarPermissions)")
+        
+        // Reset dialog flag so each test can handle dialogs if they appear
+        startupDialogsDismissed = false
+        
         clearAllEvents()
+        
+        // Grant calendar permissions programmatically if requested
+        // Only use this for tests that need permissions but shouldn't test the permission dialog flow
+        if (grantCalendarPermissions) {
+            grantCalendarPermissions()
+        }
+        
+        // Prevent calendar reload if needed - this stops CalendarReloadManager from clearing test events
+        if (preventCalendarReload) {
+            setupCalendarReloadPrevention()
+        }
+        
+        // Only register IdlingResource if we need to wait for async operations
+        if (waitForAsyncTasks) {
+            IdlingRegistry.getInstance().register(asyncTaskIdlingResource)
+            globalAsyncTaskCallback = asyncTaskIdlingResource
+            DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
+        } else {
+            DevLog.info(LOG_TAG, "Skipping AsyncTask IdlingResource for faster UI tests")
+        }
+    }
+    
+    /**
+     * Grants calendar permissions programmatically for UI tests.
+     * This ensures tests work in isolation without requiring permission dialogs.
+     */
+    private fun grantCalendarPermissions() {
+        try {
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            val packageName = instrumentation.targetContext.packageName
+            val uiAutomation = instrumentation.uiAutomation
+            
+            // Grant calendar permissions
+            uiAutomation.grantRuntimePermission(
+                packageName,
+                Manifest.permission.READ_CALENDAR
+            )
+            uiAutomation.grantRuntimePermission(
+                packageName,
+                Manifest.permission.WRITE_CALENDAR
+            )
+            
+            DevLog.info(LOG_TAG, "Granted calendar permissions to $packageName")
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Failed to grant calendar permissions: ${e.message}")
+            // Don't throw - some test environments might not support this
+        }
+    }
+    
+    /**
+     * Sets up lightweight mocking to prevent calendar reloads from clearing test events.
+     * This mocks ApplicationController.onMainActivityResumed to skip the calendar rescan.
+     */
+    private fun setupCalendarReloadPrevention() {
+        DevLog.info(LOG_TAG, "Setting up calendar reload prevention")
+        
+        mockkObject(ApplicationController)
+        
+        // Mock onMainActivityResumed to do nothing - this prevents the background calendar rescan
+        // that would query the real CalendarProvider and clear our test events
+        every { 
+            ApplicationController.onMainActivityResumed(any(), any(), any()) 
+        } just Runs
+        
+        // Also mock onCalendarChanged to prevent calendar change broadcasts from triggering rescans
+        every { 
+            ApplicationController.onCalendarChanged(any()) 
+        } just Runs
+        
+        calendarReloadPrevented = true
+        DevLog.info(LOG_TAG, "Calendar reload prevention active")
+    }
+    
+    /**
+     * Dismisses system dialogs that appear during app startup and steal window focus.
+     * Handles: targetSdk warning, notification permission, battery optimization, background running.
+     */
+    private fun dismissTargetSdkWarningDialog() {
+        // Quick exit if we've already dismissed dialogs in a previous test
+        if (startupDialogsDismissed) {
+            DevLog.info(LOG_TAG, "Startup dialogs already dismissed, skipping check")
+            return
+        }
+        
+        val configurator = Configurator.getInstance()
+        val originalIdleTimeout = configurator.waitForIdleTimeout
+        
+        try {
+            val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            
+            // Disable wait-for-idle to speed up dialog detection (default waits 10+ seconds for "idle")
+            configurator.waitForIdleTimeout = 0  // Skip idle detection entirely
+            
+            // Buttons to check and click (in any order since dialogs can appear in different sequences)
+            // Use textContains() instead of exact text match for flexibility
+            val buttonsToTry = listOf(
+                "OK",                  // targetSdk warning
+                "Allow",               // Notification & background permissions  
+                "ALLOW",               // Uppercase variant
+                "DISMISS",             // Battery optimization (skip it)
+                "Dismiss",             // Lowercase variant
+                "LATER",               // Battery optimization alternative
+                "Later",               // Lowercase variant
+                "Don't allow"          // Permission denial fallback
+            )
+            
+            var totalDismissed = 0
+            val maxDialogs = 3  // Handle up to 3 chained dialogs
+            
+            // Known resourceIds for Android 13+ permission dialogs
+            val permissionResourceIds = listOf(
+                "com.android.permissioncontroller:id/permission_allow_button",
+                "com.android.permissioncontroller:id/permission_deny_button"
+            )
+            
+            // Check for dialogs up to 3 times (notification, battery, background)
+            for (attempt in 1..maxDialogs) {
+                var foundOne = false
+                
+                // Brief wait only on first attempt to let dialog appear
+                if (attempt == 1) {
+                    Thread.sleep(FIRST_DIALOG_TIMEOUT_MS)
+                }
+                
+                // First, try known resourceIds for permission dialogs (Android 13+)
+                for (resourceId in permissionResourceIds) {
+                    val button = device.findObject(UiSelector().resourceId(resourceId))
+                    if (button.exists()) {
+                        DevLog.info(LOG_TAG, "Found permission dialog via resourceId: $resourceId")
+                        button.click()
+                        Thread.sleep(DIALOG_DISMISS_ANIMATION_MS)
+                        totalDismissed++
+                        foundOne = true
+                        break
+                    }
+                }
+                
+                // If no resourceId match, try exact text match to avoid false positives
+                if (!foundOne) {
+                    for (buttonText in buttonsToTry) {
+                        val button = device.findObject(UiSelector().text(buttonText))  // Exact match only!
+                        if (button.exists()) {
+                            DevLog.info(LOG_TAG, "Found dialog with '$buttonText' button, clicking it")
+                            button.click()
+                            Thread.sleep(DIALOG_DISMISS_ANIMATION_MS)
+                            totalDismissed++
+                            foundOne = true
+                            break
+                        }
+                    }
+                }
+                
+                if (!foundOne) {
+                    // No more dialogs, stop checking
+                    break
+                }
+            }
+            
+            if (totalDismissed > 0) {
+                DevLog.info(LOG_TAG, "Dismissed $totalDismissed system dialog(s)")
+            } else {
+                DevLog.info(LOG_TAG, "No system dialogs found")
+            }
+            
+            startupDialogsDismissed = true
+        } catch (e: Exception) {
+            DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
+        } finally {
+            // Always restore the original timeout, even if an exception occurred
+            configurator.waitForIdleTimeout = originalIdleTimeout
+        }
     }
     
     /**
@@ -49,6 +252,17 @@ class UITestFixture {
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up UITestFixture")
         clearAllEvents()
+        
+        calendarReloadPrevented = false
+        
+        // Unregister IdlingResource if it was registered
+        try {
+            IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
+            globalAsyncTaskCallback = null
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
+        
         unmockkAll()
     }
     
@@ -218,7 +432,9 @@ class UITestFixture {
      */
     fun launchMainActivity(): ActivityScenario<MainActivity> {
         DevLog.info(LOG_TAG, "Launching MainActivity")
-        return ActivityScenario.launch(MainActivity::class.java)
+        val scenario = ActivityScenario.launch<MainActivity>(MainActivity::class.java)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -230,7 +446,9 @@ class UITestFixture {
             putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
             putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
         }
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -241,7 +459,9 @@ class UITestFixture {
         val intent = Intent(context, SnoozeAllActivity::class.java).apply {
             putExtra(Consts.INTENT_SNOOZE_ALL_KEY, true)
         }
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -253,7 +473,9 @@ class UITestFixture {
             putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
             putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
         }
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<ViewEventActivityNoRecents>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -262,7 +484,12 @@ class UITestFixture {
     fun launchDismissedEventsActivity(): ActivityScenario<DismissedEventsActivity> {
         DevLog.info(LOG_TAG, "Launching DismissedEventsActivity")
         val intent = Intent(context, DismissedEventsActivity::class.java)
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<DismissedEventsActivity>(intent)
+        
+        // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
+        dismissTargetSdkWarningDialog()
+        
+        return scenario
     }
     
     /**
@@ -271,7 +498,12 @@ class UITestFixture {
     fun launchSettingsActivity(): ActivityScenario<SettingsActivity> {
         DevLog.info(LOG_TAG, "Launching SettingsActivity")
         val intent = Intent(context, SettingsActivity::class.java)
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SettingsActivity>(intent)
+        
+        // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
+        dismissTargetSdkWarningDialog()
+        
+        return scenario
     }
     
     /**
@@ -279,7 +511,9 @@ class UITestFixture {
      */
     fun launchSnoozeAllActivityWithIntent(intent: Intent): ActivityScenario<SnoozeAllActivity> {
         DevLog.info(LOG_TAG, "Launching SnoozeAllActivity with intent")
-        return ActivityScenario.launch(intent)
+        val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        dismissTargetSdkWarningDialog()
+        return scenario
     }
     
     /**
@@ -293,6 +527,17 @@ class UITestFixture {
     
     companion object {
         private const val LOG_TAG = "UITestFixture"
+        
+        // Dialog dismissal timing constants
+        private const val FIRST_DIALOG_TIMEOUT_MS = 200L      // First dialog might take time to appear
+        private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
+        private const val DIALOG_DISMISS_ANIMATION_MS = 100L
+        private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs
+        private const val MAX_DIALOG_DISMISSAL_ATTEMPTS = 5
+        
+        // Track if startup dialogs have been dismissed across ALL test instances
+        @Volatile
+        private var startupDialogsDismissed = false
         
         /**
          * Creates a fixture instance. Typically used with JUnit rules.

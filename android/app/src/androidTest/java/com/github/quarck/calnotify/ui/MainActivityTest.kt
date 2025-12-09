@@ -1,43 +1,42 @@
 package com.github.quarck.calnotify.ui
 
-import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
-import androidx.test.espresso.action.ViewActions.*
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.isClickable
+import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.extensions.isNotDisplayed
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.testutils.UITestFixture
 import io.mockk.*
-import org.hamcrest.Matchers.not
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Espresso UI tests for MainActivity.
+ * Ultron UI tests for MainActivity.
  * 
  * Tests the main event list display, search, and bulk actions.
- * 
- * NOTE: Temporarily disabled due to AndroidX dependency conflicts with AppCompat 1.7.0
- * causing resource ID collisions in checkVectorDrawableSetup. Will be re-enabled
- * once dependency issues are resolved.
  */
-@Ignore("Disabled pending AndroidX dependency resolution - see AppCompat 1.7.0 resource bug")
 @RunWith(AndroidJUnit4::class)
-class MainActivityTest {
+class MainActivityTest : BaseUltronTest() {
     
     private lateinit var fixture: UITestFixture
     
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // Prevent calendar reloads that would clear test events from EventsStorage
+        // This is a lightweight mock that just stops ApplicationController.onMainActivityResumed
+        // from triggering background calendar scans
+        fixture.setup(preventCalendarReload = true)
     }
     
     @After
@@ -62,8 +61,7 @@ class MainActivityTest {
     fun mainActivity_shows_toolbar() {
         val scenario = fixture.launchMainActivity()
         
-        onView(withId(R.id.toolbar))
-            .check(matches(isDisplayed()))
+        withId(R.id.toolbar).isDisplayed()
         
         scenario.close()
     }
@@ -75,8 +73,7 @@ class MainActivityTest {
         // No events seeded
         val scenario = fixture.launchMainActivity()
         
-        onView(withId(R.id.empty_view))
-            .check(matches(isDisplayed()))
+        withId(R.id.empty_view).isDisplayed()
         
         scenario.close()
     }
@@ -87,8 +84,7 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        onView(withId(R.id.empty_view))
-            .check(matches(not(isDisplayed())))
+        withId(R.id.empty_view).isNotDisplayed()
         
         scenario.close()
     }
@@ -103,8 +99,7 @@ class MainActivityTest {
         val scenario = fixture.launchMainActivity()
         
         // RecyclerView should be visible
-        onView(withId(R.id.list_events))
-            .check(matches(isDisplayed()))
+        withId(R.id.list_events).isDisplayed()
         
         scenario.close()
     }
@@ -116,8 +111,7 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        onView(withText(title))
-            .check(matches(isDisplayed()))
+        withText(title).isDisplayed()
         
         scenario.close()
     }
@@ -131,12 +125,9 @@ class MainActivityTest {
         val scenario = fixture.launchMainActivity()
         
         // All events should be visible (assuming they fit on screen)
-        onView(withText("Event One"))
-            .check(matches(isDisplayed()))
-        onView(withText("Event Two"))
-            .check(matches(isDisplayed()))
-        onView(withText("Event Three"))
-            .check(matches(isDisplayed()))
+        withText("Event One").isDisplayed()
+        withText("Event Two").isDisplayed()
+        withText("Event Three").isDisplayed()
         
         scenario.close()
     }
@@ -150,8 +141,7 @@ class MainActivityTest {
         val scenario = fixture.launchMainActivity()
         
         // Click on the event
-        onView(withText("Clickable Event"))
-            .perform(click())
+        withText("Clickable Event").click()
         
         // The ViewEventActivity should open - we verify by checking the scenario doesn't crash
         // In a real test, we'd use Intents to verify the launched activity
@@ -165,8 +155,7 @@ class MainActivityTest {
     fun fab_is_displayed() {
         val scenario = fixture.launchMainActivity()
         
-        onView(withId(R.id.action_btn_add_event))
-            .check(matches(isDisplayed()))
+        withId(R.id.action_btn_add_event).isDisplayed()
         
         scenario.close()
     }
@@ -179,14 +168,12 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
+        // Wait for events to load - reloadData() runs in background thread
+        withText("Event 1").isDisplayed()
         
-        // Snooze All should be visible
-        onView(withText(R.string.snooze_all))
-            .check(matches(isDisplayed()))
+        // Snooze All appears in toolbar as icon (showAsAction="ifRoom"), not in overflow menu
+        // Check by ID since it's an icon, not text
+        withId(R.id.action_snooze_all).isDisplayed()
         
         scenario.close()
     }
@@ -197,12 +184,15 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
+        // Wait for events to load
+        withText("Event 1").isDisplayed()
+        
+        // Dismiss all is in overflow menu (showAsAction="never")
         openActionBarOverflowOrOptionsMenu(
             InstrumentationRegistry.getInstrumentation().targetContext
         )
         
-        onView(withText(R.string.dismiss_all_events))
-            .check(matches(isDisplayed()))
+        withText(R.string.dismiss_all_events).isDisplayed()
         
         scenario.close()
     }
@@ -215,8 +205,7 @@ class MainActivityTest {
             InstrumentationRegistry.getInstrumentation().targetContext
         )
         
-        onView(withText(R.string.settings))
-            .check(matches(isDisplayed()))
+        withText(R.string.settings).isDisplayed()
         
         scenario.close()
     }
@@ -236,10 +225,11 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        // Verify the event is displayed and clickable
-        onView(withText("Clickable Event Card"))
-            .check(matches(isDisplayed()))
-            .check(matches(isClickable()))
+        // Verify the event is displayed
+        withText("Clickable Event Card").isDisplayed()
+        
+        // The click listener is on the card container (card_view_main_holder), not the text view
+        withId(R.id.card_view_main_holder).isClickable()
         
         scenario.close()
     }
@@ -250,8 +240,7 @@ class MainActivityTest {
     fun swipe_refresh_layout_exists() {
         val scenario = fixture.launchMainActivity()
         
-        onView(withId(R.id.cardview_refresh_layout))
-            .check(matches(isDisplayed()))
+        withId(R.id.cardview_refresh_layout).isDisplayed()
         
         scenario.close()
     }
@@ -264,8 +253,7 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        onView(withText("Snoozed Event"))
-            .check(matches(isDisplayed()))
+        withText("Snoozed Event").isDisplayed()
         
         scenario.close()
     }
@@ -278,8 +266,7 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        onView(withText("Muted Event"))
-            .check(matches(isDisplayed()))
+        withText("Muted Event").isDisplayed()
         
         scenario.close()
     }
@@ -292,10 +279,10 @@ class MainActivityTest {
         
         val scenario = fixture.launchMainActivity()
         
-        onView(withText("Task Event"))
-            .check(matches(isDisplayed()))
+        withText("Task Event").isDisplayed()
         
         scenario.close()
     }
+    
+    // Inherits setConfig() from BaseUltronTest
 }
-

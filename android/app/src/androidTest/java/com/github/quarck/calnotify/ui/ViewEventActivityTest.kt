@@ -1,39 +1,40 @@
 package com.github.quarck.calnotify.ui
 
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.espresso.matcher.ViewMatchers.withClassName
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.hasText
+import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.extensions.isNotDisplayed
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.testutils.UITestFixture
 import io.mockk.*
-import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.containsString
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Espresso UI tests for ViewEventActivityNoRecents.
+ * Ultron UI tests for ViewEventActivityNoRecents.
  * 
  * Tests event detail display, snooze actions, and dismiss functionality.
- * 
- * NOTE: Temporarily disabled due to AndroidX dependency conflicts with AppCompat 1.7.0
- * causing resource ID collisions in checkVectorDrawableSetup.
  */
-@Ignore("Disabled pending AndroidX dependency resolution - see AppCompat 1.7.0 resource bug")
 @RunWith(AndroidJUnit4::class)
-class ViewEventActivityTest {
+class ViewEventActivityTest : BaseUltronTest() {
     
     private lateinit var fixture: UITestFixture
     
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // Grant permissions programmatically so ViewEventActivity doesn't finish() immediately
+        // This allows the test to work in isolation while other tests can still test permission dialogs
+        fixture.setup(grantCalendarPermissions = true)
     }
     
     @After
@@ -64,9 +65,7 @@ class ViewEventActivityTest {
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_title))
-            .check(matches(isDisplayed()))
-            .check(matches(withText("Important Meeting")))
+        withId(R.id.snooze_view_title).isDisplayed().hasText("Important Meeting")
         
         scenario.close()
     }
@@ -78,8 +77,7 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // Date line should be displayed
-        onView(withId(R.id.snooze_view_event_date_line1))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_event_date_line1).isDisplayed()
         
         scenario.close()
     }
@@ -93,9 +91,7 @@ class ViewEventActivityTest {
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_location))
-            .check(matches(isDisplayed()))
-            .check(matches(withText("Conference Room A")))
+        withId(R.id.snooze_view_location).isDisplayed().hasText("Conference Room A")
         
         scenario.close()
     }
@@ -110,8 +106,7 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // Location layout should not be visible
-        onView(withId(R.id.snooze_view_location_layout))
-            .check(matches(not(isDisplayed())))
+        withId(R.id.snooze_view_location_layout).isNotDisplayed()
         
         scenario.close()
     }
@@ -122,8 +117,7 @@ class ViewEventActivityTest {
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.view_event_calendar_name))
-            .check(matches(isDisplayed()))
+        withId(R.id.view_event_calendar_name).isDisplayed()
         
         scenario.close()
     }
@@ -136,8 +130,7 @@ class ViewEventActivityTest {
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_present1).isDisplayed()
         
         scenario.close()
     }
@@ -148,8 +141,7 @@ class ViewEventActivityTest {
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_snooze_custom))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_custom).isDisplayed()
         
         scenario.close()
     }
@@ -160,8 +152,7 @@ class ViewEventActivityTest {
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_snooze_until))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_snooze_until).isDisplayed()
         
         scenario.close()
     }
@@ -177,8 +168,7 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // Click first snooze preset
-        onView(withId(R.id.snooze_view_snooze_present1))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_present1).click()
         
         // Verify snooze was called
         verify(timeout = 2000) { 
@@ -193,12 +183,14 @@ class ViewEventActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_snooze_custom))
-            .perform(click())
+        // Click custom snooze button - this shows a simplified list dialog first
+        withId(R.id.snooze_view_snooze_custom).click()
+        
+        // Click "Enter manually" (first item) to open the number picker dialog
+        withText("Enter manually").click()
         
         // Should show number picker dialog
-        onView(withId(R.id.numberPickerTimeInterval))
-            .check(matches(isDisplayed()))
+        withId(R.id.numberPickerTimeInterval).isDisplayed()
         
         scenario.close()
     }
@@ -208,12 +200,10 @@ class ViewEventActivityTest {
         val event = fixture.createEvent()
         val scenario = fixture.launchViewEventActivity(event)
         
-        onView(withId(R.id.snooze_view_snooze_until))
-            .perform(click())
+        withId(R.id.snooze_view_snooze_until).click()
         
         // Should show date picker
-        onView(withClassName(org.hamcrest.Matchers.containsString("DatePicker")))
-            .check(matches(isDisplayed()))
+        withClassName(containsString("DatePicker")).isDisplayed()
         
         scenario.close()
     }
@@ -227,9 +217,7 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // The header text should indicate changing snooze time
-        onView(withId(R.id.snooze_snooze_for))
-            .check(matches(isDisplayed()))
-            .check(matches(withText(R.string.change_snooze_to)))
+        withId(R.id.snooze_snooze_for).isDisplayed().hasText(R.string.change_snooze_to)
         
         scenario.close()
     }
@@ -246,8 +234,7 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // The event details layout should be visible
-        onView(withId(R.id.snooze_view_event_details_layout))
-            .check(matches(isDisplayed()))
+        withId(R.id.snooze_view_event_details_layout).isDisplayed()
         
         scenario.close()
     }
@@ -262,9 +249,7 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // Should show empty title placeholder
-        onView(withId(R.id.snooze_view_title))
-            .check(matches(isDisplayed()))
-            .check(matches(withText(R.string.empty_title)))
+        withId(R.id.snooze_view_title).isDisplayed().hasText(R.string.empty_title)
         
         scenario.close()
     }
@@ -281,11 +266,9 @@ class ViewEventActivityTest {
         val scenario = fixture.launchViewEventActivity(event)
         
         // Description layout should be visible
-        onView(withId(R.id.layout_event_description))
-            .check(matches(isDisplayed()))
+        withId(R.id.layout_event_description).isDisplayed()
         
-        onView(withId(R.id.snooze_view_event_description))
-            .check(matches(withText("This is the event description")))
+        withId(R.id.snooze_view_event_description).hasText("This is the event description")
         
         scenario.close()
     }
@@ -294,15 +277,25 @@ class ViewEventActivityTest {
     
     @Test
     fun viewEventActivity_has_back_navigation() {
-        val event = fixture.createEvent()
+        val event = fixture.createEvent(title = "Back Navigation Test")
         
         val scenario = fixture.launchViewEventActivity(event)
         
-        // Toolbar should be present
-        onView(withId(R.id.toolbar))
-            .check(matches(isDisplayed()))
+        // Verify activity is alive by checking a displayed element
+        withId(R.id.snooze_view_title).isDisplayed()
+        
+        // Toolbar exists in layout but is hidden (set to View.GONE in onCreate)
+        // This is expected behavior - the activity uses system back button for navigation
+        scenario.onActivity { activity ->
+            val toolbar = activity.findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+            assert(toolbar != null) { "Toolbar should exist in layout" }
+            assert(toolbar?.visibility == android.view.View.GONE) { 
+                "Toolbar should be hidden (View.GONE), but visibility is ${toolbar?.visibility}" 
+            }
+        }
         
         scenario.close()
     }
+    
+    // Inherits setConfig() from BaseUltronTest
 }
-

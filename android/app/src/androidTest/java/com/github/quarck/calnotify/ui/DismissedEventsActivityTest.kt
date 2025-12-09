@@ -1,34 +1,30 @@
 package com.github.quarck.calnotify.ui
 
-import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.isDisplayed
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.testutils.UITestFixture
 import io.mockk.*
-import org.hamcrest.Matchers.not
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Espresso UI tests for DismissedEventsActivity.
+ * Ultron UI tests for DismissedEventsActivity.
  * 
  * Tests the dismissed events list display and restore functionality.
- * 
- * NOTE: Temporarily disabled due to AndroidX dependency conflicts with AppCompat 1.7.0
- * causing resource ID collisions in checkVectorDrawableSetup.
  */
-@Ignore("Disabled pending AndroidX dependency resolution - see AppCompat 1.7.0 resource bug")
 @RunWith(AndroidJUnit4::class)
-class DismissedEventsActivityTest {
+class DismissedEventsActivityTest : BaseUltronTest() {
     
     private lateinit var fixture: UITestFixture
     
@@ -60,8 +56,7 @@ class DismissedEventsActivityTest {
     fun dismissedEventsActivity_shows_toolbar() {
         val scenario = fixture.launchDismissedEventsActivity()
         
-        onView(withId(R.id.toolbar))
-            .check(matches(isDisplayed()))
+        withId(R.id.toolbar).isDisplayed()
         
         scenario.close()
     }
@@ -71,8 +66,7 @@ class DismissedEventsActivityTest {
         val scenario = fixture.launchDismissedEventsActivity()
         
         // The activity should have a back button/up navigation
-        onView(withContentDescription("Navigate up"))
-            .check(matches(isDisplayed()))
+        withContentDescription("Navigate up").isDisplayed()
         
         scenario.close()
     }
@@ -83,8 +77,7 @@ class DismissedEventsActivityTest {
     fun dismissedEventsActivity_shows_recycler_view() {
         val scenario = fixture.launchDismissedEventsActivity()
         
-        onView(withId(R.id.list_events))
-            .check(matches(isDisplayed()))
+        withId(R.id.list_events).isDisplayed()
         
         scenario.close()
     }
@@ -99,12 +92,8 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
-        
-        // RecyclerView should be visible
-        onView(withId(R.id.list_events))
-            .check(matches(isDisplayed()))
+        // RecyclerView should be visible (Ultron auto-waits)
+        withId(R.id.list_events).isDisplayed()
         
         scenario.close()
     }
@@ -115,11 +104,10 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        withId(R.id.list_events).isDisplayed()
         
-        onView(withText("Important Dismissed Event"))
-            .check(matches(isDisplayed()))
+        withText("Important Dismissed Event").isDisplayed()
         
         scenario.close()
     }
@@ -132,16 +120,14 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        withId(R.id.list_events).isDisplayed()
         
         // Click on the event
-        onView(withText("Clickable Dismissed Event"))
-            .perform(click())
+        withText("Clickable Dismissed Event").click()
         
         // Popup menu with Restore option should appear
-        onView(withText(R.string.restore))
-            .check(matches(isDisplayed()))
+        withText(R.string.restore).isDisplayed()
         
         scenario.close()
     }
@@ -157,16 +143,14 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        withId(R.id.list_events).isDisplayed()
         
         // Click on the event
-        onView(withText("Event to Restore"))
-            .perform(click())
+        withText("Event to Restore").click()
         
         // Click Restore in popup menu
-        onView(withText(R.string.restore))
-            .perform(click())
+        withText(R.string.restore).click()
         
         // Verify restore was called
         verify(timeout = 2000) { 
@@ -184,14 +168,16 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
+        // First check that toolbar loaded
+        withId(R.id.toolbar).isDisplayed()
+        
         // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
+            openActionBarOverflowOrOptionsMenu(
+                InstrumentationRegistry.getInstrumentation().targetContext
+            )
         
         // Remove All option should be visible
-        onView(withText(R.string.remove_all))
-            .check(matches(isDisplayed()))
+        withText(R.string.remove_all).isDisplayed()
         
         scenario.close()
     }
@@ -202,18 +188,19 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
+        // Wait for toolbar to be ready
+        withId(R.id.toolbar).isDisplayed()
+        
         // Open overflow menu
         openActionBarOverflowOrOptionsMenu(
             InstrumentationRegistry.getInstrumentation().targetContext
         )
         
         // Click Remove All
-        onView(withText(R.string.remove_all))
-            .perform(click())
+        withText(R.string.remove_all).click()
         
         // Confirmation dialog should appear
-        onView(withText(R.string.remove_all_confirmation))
-            .check(matches(isDisplayed()))
+        withText(R.string.remove_all_confirmation).isDisplayed()
         
         scenario.close()
     }
@@ -228,18 +215,18 @@ class DismissedEventsActivityTest {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Give time for data to load
-        Thread.sleep(500)
+        // Wait for recycler to be ready
+        withId(R.id.list_events).isDisplayed()
         
         // All events should be visible
-        onView(withText("First Dismissed"))
-            .check(matches(isDisplayed()))
-        onView(withText("Second Dismissed"))
-            .check(matches(isDisplayed()))
-        onView(withText("Third Dismissed"))
-            .check(matches(isDisplayed()))
+        withText("First Dismissed").isDisplayed()
+        withText("Second Dismissed").isDisplayed()
+        withText("Third Dismissed").isDisplayed()
         
         scenario.close()
     }
+    
+    companion object {
+        private const val LOG_TAG = "DismissedEventsActivityTest"
+    }
 }
-

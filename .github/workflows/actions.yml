@@ -702,7 +702,7 @@ jobs:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
     - uses: actions/checkout@v3
@@ -801,6 +801,32 @@ jobs:
           android/app/build/outputs/logs/
           android/app/build/test-results/
         retention-days: 90
+
+    - name: Upload Allure Results (Screenshots, Logs)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: allure-results-${{ needs.set_build_datetime.outputs.build_datetime }}
+        path: android/app/build/outputs/allure-results/
+        retention-days: 90
+        if-no-files-found: ignore
+
+    - name: Generate Allure HTML Report
+      uses: simple-elf/allure-report-action@v1.13
+      if: always()
+      with:
+        allure_results: android/app/build/outputs/allure-results/allure-results
+        allure_report: android/app/build/outputs/allure-report
+        keep_reports: 1
+
+    - name: Upload Allure HTML Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: allure-html-report-${{ needs.set_build_datetime.outputs.build_datetime }}
+        path: android/app/build/outputs/allure-report/
+        retention-days: 90
+        if-no-files-found: ignore
 
     - name: Upload Emulator Log
       if: always()

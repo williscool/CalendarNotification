@@ -84,8 +84,8 @@ android {
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
-    // Enhanced test instrumentation with JaCoCo
-    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    // Enhanced test instrumentation with JaCoCo and Ultron/Allure
+    testInstrumentationRunner "com.atiurin.ultron.allure.UltronAllureTestRunner"
     testInstrumentationRunnerArguments = [
         'coverage': 'true',
         'jacoco-agent.destfile': '/data/data/com.github.quarck.calnotify/files/coverage.ec',
@@ -279,12 +279,12 @@ dependencies {
     testImplementation 'androidx.test.ext:junit:1.1.5'
     testImplementation 'androidx.test.ext:junit-ktx:1.1.5'
 
-  // Test dependencies - use test-compatible versions
-    androidTestImplementation "androidx.core:core:$android_core_test_version"
-    androidTestImplementation "androidx.core:core-ktx:$android_core_test_version"
-    androidTestImplementation "androidx.appcompat:appcompat:$androidx_test_version"
-    androidTestImplementation "androidx.appcompat:appcompat-resources:$androidx_test_version"
-    androidTestImplementation "androidx.fragment:fragment:$androidx_test_version"
+  // Test dependencies - use same versions as main app to avoid conflicts
+    androidTestImplementation "androidx.core:core:$android_core_version"
+    androidTestImplementation "androidx.core:core-ktx:$android_core_version"
+    androidTestImplementation "androidx.appcompat:appcompat:$androidx_lib_version"
+    androidTestImplementation "androidx.appcompat:appcompat-resources:$androidx_lib_version"
+    androidTestImplementation "androidx.fragment:fragment:$androidx_lib_version"
     androidTestImplementation "androidx.lifecycle:lifecycle-runtime:2.5.1"
     androidTestImplementation "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
     androidTestImplementation "androidx.annotation:annotation:1.4.0"
@@ -298,8 +298,13 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.5.2'
     androidTestImplementation 'androidx.test:rules:1.5.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'  // Downgraded for Ultron 2.3.1 compatibility
     androidTestImplementation 'junit:junit:4.13.2'
+    
+    // Ultron UI Testing Framework (for traditional View-based UI tests)
+    // Using 2.3.1 for Kotlin 1.9.x compatibility (2.6.x requires Kotlin 2.x)
+    androidTestImplementation 'com.atiurin:ultron:2.3.1'
+    androidTestImplementation 'com.atiurin:ultron-allure:2.3.1'
     
     // Additional test dependencies
     androidTestImplementation 'androidx.test:core:1.5.0'

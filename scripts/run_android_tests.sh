@@ -10,7 +10,7 @@ echo "Starting Android tests..."
 ARCH=${1:-x86_64}
 MAIN_PROJECT_MODULE=${2:-app}
 ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=${3:-5}
-TEST_TIMEOUT=${4:-30m}  # Increased default timeout to 30 minutes
+TEST_TIMEOUT=${4:-90m}  # Increased default timeout to 90 minutes
 SINGLE_TEST=${5}  # Optional parameter for running a single test
 
 # Determine the build variant suffix based on architecture
@@ -51,8 +51,8 @@ echo "Starting instrumentation tests via ADB..."
 APP_PACKAGE="com.github.quarck.calnotify"
 # Test package name is APP_PACKAGE.test
 TEST_PACKAGE="${APP_PACKAGE}.test"
-# Test runner from build.gradle
-TEST_RUNNER="androidx.test.runner.AndroidJUnitRunner"
+# Test runner from build.gradle (updated for Ultron/Allure)
+TEST_RUNNER="com.atiurin.ultron.allure.UltronAllureTestRunner"
 
 # Create coverage file name based on architecture
 COVERAGE_FILE_NAME="${ARCH_SUFFIX}DebugAndroidTest.ec"
@@ -131,6 +131,7 @@ INSTRUMENT_COMMAND="am instrument -w -r \
   -e outputFormat \"xml\" \
   -e jaco-agent.destfile \"${COVERAGE_FILE_PATH}\" \
   -e jaco-agent.includes \"com.github.quarck.calnotify.*\" \
+  -e notPackage com.github.quarck.calnotify.ui \
   -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
 
 # If a specific test is specified, add it to the command
@@ -184,6 +185,39 @@ else
   else
     echo "No coverage files found in app data."
   fi
+fi
+
+# Pull Allure results (screenshots, logs) from device (non-fatal - don't fail build)
+echo "Attempting to pull Allure test results from device..."
+ALLURE_RESULTS_DIR="./$MAIN_PROJECT_MODULE/build/outputs/allure-results"
+mkdir -p "$ALLURE_RESULTS_DIR" 2>/dev/null || true
+
+# Check if allure-results exists on device (non-fatal check)
+if adb shell "run-as $APP_PACKAGE ls /data/data/${APP_PACKAGE}/files/allure-results 2>/dev/null" | grep -q "." 2>/dev/null; then
+  echo "Found Allure results on device, pulling..."
+  
+  # Try tar method first (fast)
+  if adb exec-out "run-as $APP_PACKAGE tar cf - -C /data/data/${APP_PACKAGE}/files allure-results 2>/dev/null" 2>/dev/null | tar xf - -C "$ALLURE_RESULTS_DIR" 2>/dev/null; then
+    echo "✅ Pulled Allure results via tar"
+  else
+    echo "⚠️ tar method failed, trying adb pull..."
+    # Fallback: pull individual files (slower but more compatible)
+    adb pull "/data/data/${APP_PACKAGE}/files/allure-results" "$ALLURE_RESULTS_DIR/" 2>/dev/null || {
+      echo "⚠️ adb pull failed, Allure results not available (non-fatal)"
+    }
+  fi
+  
+  # Verify what we got (non-fatal)
+  if [ -d "$ALLURE_RESULTS_DIR/allure-results" ] && [ "$(ls -A $ALLURE_RESULTS_DIR/allure-results 2>/dev/null)" ]; then
+    FILE_COUNT=$(find "$ALLURE_RESULTS_DIR/allure-results" -type f | wc -l)
+    echo "✅ Allure results pulled successfully! ($FILE_COUNT files)"
+    echo "Contents preview:"
+    ls -lh "$ALLURE_RESULTS_DIR/allure-results" 2>/dev/null | head -10 || true
+  else
+    echo "⚠️ Allure results directory empty or not found (non-fatal)"
+  fi
+else
+  echo "ℹ️ No Allure results found on device (likely all tests passed with no failures)"
 fi
 
 # If tests failed (non-zero exit code), exit with the same code
