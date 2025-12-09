@@ -484,12 +484,12 @@ jobs:
         use-actions-summary: 'true'
         fail-on-error: true
 
-    # Upload test results
-    - name: Upload Unit Test Results
-      if: always() # Always upload results even if tests fail
+    # Upload test results and coverage
+    - name: Upload Unit Test Results and Coverage
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: unit-test-results-${{ needs.set_build_datetime.outputs.build_datetime }}
+        name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
         path: |
           android/app/build/reports/
           android/app/build/test-results/
@@ -962,7 +962,7 @@ jobs:
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
         with:
-          name: unit-test-results-${{ needs.set_build_datetime.outputs.build_datetime }}
+          name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
 
@@ -987,14 +987,20 @@ jobs:
           title: 'Code Coverage Report'
           update-comment: true
 
-      # Upload detailed HTML coverage report
-      - name: Upload HTML Coverage Report
+      # Upload combined coverage reports (HTML, XML, CSV)
+      - name: Upload Combined Coverage Reports
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage-report-html-${{ needs.set_build_datetime.outputs.build_datetime }}
+          name: full-code-coverage-reports-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: |
             coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
+            coverage-data/unit-tests/android/app/build/reports/jacoco/**/xml
+            coverage-data/unit-tests/android/app/build/reports/jacoco/**/*.csv
+            coverage-data/unit-tests/android/app/build/reports/coverage/**/*.xml
+            coverage-data/unit-tests/android/app/build/reports/coverage/**/*.csv
             coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
+            coverage-data/integration-tests/android/app/build/reports/jacoco/**/xml
+            coverage-data/integration-tests/android/app/build/reports/jacoco/**/*.csv
           retention-days: 90
 
       # Create a PR comment with coverage report link if this is a PR
