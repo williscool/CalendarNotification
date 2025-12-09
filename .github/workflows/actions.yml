@@ -18,7 +18,7 @@ env:
   ANDROID_API_LEVEL: 34
   ANDROID_TARGET: google_apis
   ANDROID_ARCH: x86_64
-  ANDROID_PROFILE: 7.6in Foldable
+  ANDROID_PROFILE: Nexus 5X  # Light profile for CI stability (foldable was too resource-heavy)
   ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
   ANDROID_EMULATOR_MEMORY: 4096  # Increased from 2048 for CI stability
 
