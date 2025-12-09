@@ -773,25 +773,34 @@ jobs:
 
     # Note: JaCoCo report generation moved to merge-integration-coverage job
 
-    # Debug: List any XML files that might contain test results
-    - name: Debug test result files (Shard ${{ matrix.shard }})
+    # Verify test results were generated (catches am instrument crashes)
+    - name: Verify test results exist (Shard ${{ matrix.shard }})
+      id: verify_results
       if: always()
       run: |
         echo "=== Looking for XML test results ==="
-        find android/app/build/outputs -name "*.xml" -type f 2>/dev/null || echo "No XML files found"
-        echo "=== Looking in androidTest-results ==="
-        find android/app/build/outputs/androidTest-results -type f 2>/dev/null || echo "No files in androidTest-results"
+        XML_COUNT=$(find android/app/build/outputs -name "*.xml" -type f 2>/dev/null | wc -l)
+        echo "Found $XML_COUNT XML files"
+        find android/app/build/outputs -name "*.xml" -type f 2>/dev/null || true
+        
+        if [ "$XML_COUNT" -eq 0 ]; then
+          echo "::error::No test result XML files found! Tests may have crashed."
+          echo "This usually means am instrument failed mid-execution."
+          echo "has_results=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        echo "has_results=true" >> $GITHUB_OUTPUT
 
     # Publish integration test results (unique name per shard to avoid conflicts)
+    # Only runs if verify step found XML files (prevents cryptic dorny error)
     - name: Publish Integration Test Results (Shard ${{ matrix.shard }})
       uses: dorny/test-reporter@v2
-      if: always() && hashFiles('android/app/build/outputs/**/*.xml') != ''
+      if: always() && steps.verify_results.outputs.has_results == 'true'
       with:
         name: 'Integration Tests (Shard ${{ matrix.shard }})'
         path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
         reporter: java-junit
-        fail-on-error: false
-      continue-on-error: true
+        fail-on-error: true
 
     - name: Upload Shard Coverage Data
       if: always()
