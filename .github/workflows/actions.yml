@@ -640,7 +640,7 @@ jobs:
   #       profile: ${{ env.ANDROID_PROFILE }}
   #       avd-name: 'connected-android-integration-test'
   #       force-avd-creation: false
-  #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+  #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
   #       disable-animations: true
   #       script: ./scripts/wait_for_emulator.sh && ./scripts/deprecated_run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} 
 
@@ -708,14 +708,14 @@ jobs:
     strategy:
       matrix:
         arch: [x86_64]
-        shard: [0, 1, 2, 3]  # 4 parallel shards (more stable than 8)
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]  # 8 parallel shards (4 UI + 4 non-UI)
       fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-      NUM_SHARDS: 4
-    timeout-minutes: 20  # Slightly increased with fewer shards
+      NUM_SHARDS: 8
+    timeout-minutes: 15  # Further reduced with 8 shards
 
     steps:
     - uses: actions/checkout@v3
