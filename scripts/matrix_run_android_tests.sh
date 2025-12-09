@@ -17,6 +17,12 @@ set -e
 APP_PACKAGE="com.github.quarck.calnotify"
 TEST_PACKAGE="${APP_PACKAGE}.test"
 TEST_RUNNER="com.atiurin.ultron.allure.UltronAllureTestRunner"
+UI_TEST_PACKAGE="com.github.quarck.calnotify.ui"
+
+# Sharding strategy (with 4 shards):
+#   Shards 0-1: UI tests (slow) - get 2 shards
+#   Shards 2-3: Non-UI tests (fast) - get 2 shards
+UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
 
 # --- Default Configuration (from env vars or defaults) ---
 SHARD_INDEX="${SHARD_INDEX:-}"
@@ -31,7 +37,11 @@ show_usage() {
   cat << EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Run Android instrumentation tests with optional sharding support.
+Run Android instrumentation tests with smart sharding support.
+
+Smart Sharding Strategy (with 4 shards):
+  Shards 0-1: UI tests (slow) - 2 parallel shards
+  Shards 2-3: Non-UI tests (fast) - 2 parallel shards
 
 Options:
   --shard-index N    Which shard to run (0-indexed). Env: SHARD_INDEX
@@ -46,8 +56,11 @@ Examples:
   # Run all tests (no sharding)
   $(basename "$0")
 
-  # Run shard 0 of 4
+  # Run UI tests shard 0 (of 2 UI shards)
   $(basename "$0") --shard-index 0 --num-shards 4
+
+  # Run non-UI tests shard 0 (of 2 non-UI shards)
+  $(basename "$0") --shard-index 2 --num-shards 4
 
   # Via env vars
   SHARD_INDEX=1 NUM_SHARDS=4 $(basename "$0")
@@ -142,22 +155,38 @@ build_instrument_command() {
   cmd+=" -e outputFormat \"xml\""
   cmd+=" -e jaco-agent.destfile \"$coverage_path\""
   cmd+=" -e jaco-agent.includes \"com.github.quarck.calnotify.*\""
-  cmd+=" -e notPackage com.github.quarck.calnotify.ui"
   cmd+=" -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
 
-  # Add sharding flags if enabled
+  # Smart sharding: UI tests get shards 0-(UI_SHARD_COUNT-1), non-UI get the rest
+  # With 4 total shards and UI_SHARD_COUNT=2:
+  #   Shard 0: UI tests, shard 0 of 2
+  #   Shard 1: UI tests, shard 1 of 2
+  #   Shard 2: Non-UI tests, shard 0 of 2
+  #   Shard 3: Non-UI tests, shard 1 of 2
   if [ -n "$NUM_SHARDS" ] && [ -n "$SHARD_INDEX" ]; then
-    cmd+=" -e numShards $NUM_SHARDS"
-    cmd+=" -e shardIndex $SHARD_INDEX"
+    if [ "$SHARD_INDEX" -lt "$UI_SHARD_COUNT" ]; then
+      # UI test shard
+      cmd+=" -e package $UI_TEST_PACKAGE"
+      cmd+=" -e numShards $UI_SHARD_COUNT"
+      cmd+=" -e shardIndex $SHARD_INDEX"
+      echo "Shard $SHARD_INDEX: Running UI tests (shard $SHARD_INDEX of $UI_SHARD_COUNT)" >&2
+    else
+      # Non-UI test shard
+      local non_ui_shard_count=$((NUM_SHARDS - UI_SHARD_COUNT))
+      local non_ui_shard_index=$((SHARD_INDEX - UI_SHARD_COUNT))
+      cmd+=" -e notPackage $UI_TEST_PACKAGE"
+      cmd+=" -e numShards $non_ui_shard_count"
+      cmd+=" -e shardIndex $non_ui_shard_index"
+      echo "Shard $SHARD_INDEX: Running non-UI tests (shard $non_ui_shard_index of $non_ui_shard_count)" >&2
+    fi
+  else
+    # No sharding - run all tests (no package filter)
+    echo "Running all tests (no sharding)" >&2
   fi
 
-  # Add single test filter if specified
+  # Add single test filter if specified (overrides package filter)
   if [ -n "$SINGLE_TEST" ]; then
-    if [[ "$SINGLE_TEST" == *"#"* ]]; then
-      cmd+=" -e class $SINGLE_TEST"
-    else
-      cmd+=" -e class $SINGLE_TEST"
-    fi
+    cmd+=" -e class $SINGLE_TEST"
   fi
 
   cmd+=" \"$TEST_PACKAGE/$TEST_RUNNER\""
@@ -191,7 +220,13 @@ main() {
   echo "Module: $MODULE"
   echo "Timeout: $TEST_TIMEOUT"
   if [ -n "$NUM_SHARDS" ] && [ -n "$SHARD_INDEX" ]; then
-    echo "Sharding: shard $SHARD_INDEX of $NUM_SHARDS"
+    if [ "$SHARD_INDEX" -lt "$UI_SHARD_COUNT" ]; then
+      echo "Sharding: UI tests - shard $SHARD_INDEX of $UI_SHARD_COUNT"
+    else
+      local non_ui_idx=$((SHARD_INDEX - UI_SHARD_COUNT))
+      local non_ui_count=$((NUM_SHARDS - UI_SHARD_COUNT))
+      echo "Sharding: Non-UI tests - shard $non_ui_idx of $non_ui_count"
+    fi
   else
     echo "Sharding: disabled (running all tests)"
   fi

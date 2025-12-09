@@ -4,6 +4,19 @@
 
 Android instrumentation tests run sequentially on a single emulator, which can take 60+ minutes in CI. Test sharding distributes tests across multiple parallel emulators, significantly reducing total execution time while still producing a complete code coverage report.
 
+## Smart Sharding Strategy
+
+UI tests (in `com.github.quarck.calnotify.ui`) are significantly slower than other tests. To optimize parallel execution, we use **smart sharding**:
+
+| Shard | Test Type | Internal Sharding |
+|-------|-----------|-------------------|
+| 0 | UI tests | Shard 0 of 2 |
+| 1 | UI tests | Shard 1 of 2 |
+| 2 | Non-UI tests | Shard 0 of 2 |
+| 3 | Non-UI tests | Shard 1 of 2 |
+
+This gives UI tests 50% of parallel capacity (2 of 4 shards) despite being a smaller portion of the test count, because they take longer to run.
+
 ## How It Works
 
 ### Architecture
@@ -16,10 +29,14 @@ flowchart TB
     
     subgraph ParallelShards["integration-test (matrix: shard 0-3)"]
         direction LR
-        S0["Shard 0<br/>coverage_shard_0.ec"]
-        S1["Shard 1<br/>coverage_shard_1.ec"]
-        S2["Shard 2<br/>coverage_shard_2.ec"]
-        S3["Shard 3<br/>coverage_shard_3.ec"]
+        subgraph UIShards["UI Tests (slow)"]
+            S0["Shard 0<br/>UI 0/2"]
+            S1["Shard 1<br/>UI 1/2"]
+        end
+        subgraph NonUIShards["Non-UI Tests (fast)"]
+            S2["Shard 2<br/>Non-UI 0/2"]
+            S3["Shard 3<br/>Non-UI 1/2"]
+        end
     end
     
     subgraph MergeJob["merge-integration-coverage job"]
@@ -40,7 +57,11 @@ Android's `am instrument` command supports native test sharding via two flags:
 - `-e numShards N` - Total number of shards
 - `-e shardIndex I` - Which shard to run (0-indexed)
 
-When these flags are provided, the test runner automatically distributes tests across shards. Tests are divided deterministically (typically alphabetically by class name), ensuring each test runs in exactly one shard.
+Combined with package filtering:
+- `-e package com.github.quarck.calnotify.ui` - Run only UI tests
+- `-e notPackage com.github.quarck.calnotify.ui` - Run only non-UI tests
+
+The script automatically maps the global shard index to the appropriate package filter and internal shard index.
 
 ### Coverage Merging
 
@@ -123,15 +144,27 @@ To change the number of shards, update two places in `.github/workflows/actions.
 **Trade-offs:**
 - More shards = faster execution, but more CI minutes (parallel)
 - Fewer shards = slower execution, but fewer emulator startup overheads
-- Recommended: 2-6 shards depending on test suite size
+- Recommended: 4-6 shards depending on test suite size
+
+### Adjusting UI vs Non-UI Shard Ratio
+
+The ratio of UI to non-UI shards is controlled by `UI_SHARD_COUNT` in `scripts/matrix_run_android_tests.sh`:
+
+```bash
+UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
+```
+
+With 4 total shards and `UI_SHARD_COUNT=2`:
+- Shards 0-1: UI tests
+- Shards 2-3: Non-UI tests
+
+To give UI tests 3 of 6 shards, set `UI_SHARD_COUNT=3` and update the matrix to `[0, 1, 2, 3, 4, 5]`.
 
 ## Troubleshooting
 
 ### Uneven Shard Distribution
 
-Android distributes tests alphabetically by class name. If some tests are much slower, shards may finish at different times. Solutions:
-- Rename test classes for better distribution
-- Use manual test class assignment (not implemented)
+Within each test type (UI vs non-UI), Android distributes tests alphabetically by class name. The smart sharding strategy already addresses the main imbalance (slow UI tests), but within each category, shards may still finish at different times.
 
 ### Missing Coverage Data
 
