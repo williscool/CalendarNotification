@@ -19,10 +19,10 @@ TEST_PACKAGE="${APP_PACKAGE}.test"
 TEST_RUNNER="com.atiurin.ultron.allure.UltronAllureTestRunner"
 UI_TEST_PACKAGE="com.github.quarck.calnotify.ui"
 
-# Sharding strategy (with 8 shards):
-#   Shards 0-3: UI tests (slow) - get 4 shards
-#   Shards 4-7: Non-UI tests (fast) - get 4 shards
-UI_SHARD_COUNT=4  # Number of shards dedicated to UI tests
+# Sharding strategy (with 4 shards):
+#   Shards 0-1: UI tests (slow) - get 2 shards
+#   Shards 2-3: Non-UI tests (fast) - get 2 shards
+UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
 
 # --- Default Configuration (from env vars or defaults) ---
 SHARD_INDEX="${SHARD_INDEX:-}"
@@ -39,9 +39,9 @@ Usage: $(basename "$0") [OPTIONS]
 
 Run Android instrumentation tests with smart sharding support.
 
-Smart Sharding Strategy (with 8 shards):
-  Shards 0-3: UI tests (slow) - 4 parallel shards
-  Shards 4-7: Non-UI tests (fast) - 4 parallel shards
+Smart Sharding Strategy (with 4 shards):
+  Shards 0-1: UI tests (slow) - 2 parallel shards
+  Shards 2-3: Non-UI tests (fast) - 2 parallel shards
 
 Options:
   --shard-index N    Which shard to run (0-indexed). Env: SHARD_INDEX
@@ -56,14 +56,14 @@ Examples:
   # Run all tests (no sharding)
   $(basename "$0")
 
-  # Run UI tests shard 0 (of 4 UI shards)
-  $(basename "$0") --shard-index 0 --num-shards 8
+  # Run UI tests shard 0 (of 2 UI shards)
+  $(basename "$0") --shard-index 0 --num-shards 4
 
-  # Run non-UI tests shard 0 (of 4 non-UI shards)
-  $(basename "$0") --shard-index 4 --num-shards 8
+  # Run non-UI tests shard 0 (of 2 non-UI shards)
+  $(basename "$0") --shard-index 2 --num-shards 4
 
   # Via env vars
-  SHARD_INDEX=1 NUM_SHARDS=8 $(basename "$0")
+  SHARD_INDEX=1 NUM_SHARDS=4 $(basename "$0")
 
   # Run single test
   $(basename "$0") --single-test com.example.MyTest#testMethod
