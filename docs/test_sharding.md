@@ -10,12 +10,16 @@ UI tests (in `com.github.quarck.calnotify.ui`) are significantly slower than oth
 
 | Shard | Test Type | Internal Sharding |
 |-------|-----------|-------------------|
-| 0 | UI tests | Shard 0 of 2 |
-| 1 | UI tests | Shard 1 of 2 |
-| 2 | Non-UI tests | Shard 0 of 2 |
-| 3 | Non-UI tests | Shard 1 of 2 |
+| 0 | UI tests | Shard 0 of 4 |
+| 1 | UI tests | Shard 1 of 4 |
+| 2 | UI tests | Shard 2 of 4 |
+| 3 | UI tests | Shard 3 of 4 |
+| 4 | Non-UI tests | Shard 0 of 4 |
+| 5 | Non-UI tests | Shard 1 of 4 |
+| 6 | Non-UI tests | Shard 2 of 4 |
+| 7 | Non-UI tests | Shard 3 of 4 |
 
-This gives UI tests 50% of parallel capacity (2 of 4 shards) despite being a smaller portion of the test count, because they take longer to run.
+This gives UI tests 50% of parallel capacity (4 of 8 shards) despite being a smaller portion of the test count, because they take longer to run.
 
 ## How It Works
 
@@ -27,15 +31,19 @@ flowchart TB
         APK["App + Test APKs"]
     end
     
-    subgraph ParallelShards["integration-test (matrix: shard 0-3)"]
+    subgraph ParallelShards["integration-test (matrix: shard 0-7)"]
         direction LR
         subgraph UIShards["UI Tests (slow)"]
-            S0["Shard 0<br/>UI 0/2"]
-            S1["Shard 1<br/>UI 1/2"]
+            S0["Shard 0"]
+            S1["Shard 1"]
+            S2["Shard 2"]
+            S3["Shard 3"]
         end
         subgraph NonUIShards["Non-UI Tests (fast)"]
-            S2["Shard 2<br/>Non-UI 0/2"]
-            S3["Shard 3<br/>Non-UI 1/2"]
+            S4["Shard 4"]
+            S5["Shard 5"]
+            S6["Shard 6"]
+            S7["Shard 7"]
         end
     end
     
@@ -46,8 +54,8 @@ flowchart TB
         Download --> Merge --> JaCoCo
     end
     
-    APK --> S0 & S1 & S2 & S3
-    S0 & S1 & S2 & S3 --> Download
+    APK --> S0 & S1 & S2 & S3 & S4 & S5 & S6 & S7
+    S0 & S1 & S2 & S3 & S4 & S5 & S6 & S7 --> Download
 ```
 
 ### Android Test Sharding Mechanism
@@ -110,12 +118,12 @@ SHARD_INDEX=1 NUM_SHARDS=4 ./scripts/matrix_run_android_tests.sh
 
 ## CI Workflow
 
-The GitHub Actions workflow is configured with 4 shards by default:
+The GitHub Actions workflow is configured with 8 shards by default:
 
 ```yaml
 strategy:
   matrix:
-    shard: [0, 1, 2, 3]
+    shard: [0, 1, 2, 3, 4, 5, 6, 7]
 ```
 
 ### Jobs Flow
@@ -132,33 +140,33 @@ To change the number of shards, update two places in `.github/workflows/actions.
 1. The matrix definition:
    ```yaml
    matrix:
-     shard: [0, 1, 2, 3, 4, 5]  # For 6 shards
+     shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  # For 10 shards
    ```
 
 2. The `NUM_SHARDS` environment variable:
    ```yaml
    env:
-     NUM_SHARDS: 6
+     NUM_SHARDS: 10
    ```
 
 **Trade-offs:**
 - More shards = faster execution, but more CI minutes (parallel)
 - Fewer shards = slower execution, but fewer emulator startup overheads
-- Recommended: 4-6 shards depending on test suite size
+- Current config: 8 shards keeps each runner under ~10 minutes
 
 ### Adjusting UI vs Non-UI Shard Ratio
 
 The ratio of UI to non-UI shards is controlled by `UI_SHARD_COUNT` in `scripts/matrix_run_android_tests.sh`:
 
 ```bash
-UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
+UI_SHARD_COUNT=4  # Number of shards dedicated to UI tests
 ```
 
-With 4 total shards and `UI_SHARD_COUNT=2`:
-- Shards 0-1: UI tests
-- Shards 2-3: Non-UI tests
+With 8 total shards and `UI_SHARD_COUNT=4`:
+- Shards 0-3: UI tests
+- Shards 4-7: Non-UI tests
 
-To give UI tests 3 of 6 shards, set `UI_SHARD_COUNT=3` and update the matrix to `[0, 1, 2, 3, 4, 5]`.
+To give UI tests 5 of 10 shards, set `UI_SHARD_COUNT=5` and update the matrix to `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]`.
 
 ## Troubleshooting
 
