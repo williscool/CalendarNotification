@@ -10,6 +10,7 @@ echo "Preparing Android coverage data for JaCoCo..."
 # Get the architecture from command line or default to x86_64
 ARCH=${1:-x86_64}
 MAIN_PROJECT_MODULE=${2:-app}
+SHARD_INDEX=${3:-}  # Optional: shard index for parallel test execution
 
 # Determine the build variant suffix based on architecture
 if [ "$ARCH" == "arm64-v8a" ]; then
@@ -18,7 +19,11 @@ else
   ARCH_SUFFIX="X8664"
 fi
 
-echo "Processing coverage for architecture: $ARCH (using suffix: $ARCH_SUFFIX)"
+if [ -n "$SHARD_INDEX" ]; then
+  echo "Processing coverage for architecture: $ARCH (shard $SHARD_INDEX)"
+else
+  echo "Processing coverage for architecture: $ARCH (using suffix: $ARCH_SUFFIX)"
+fi
 
 # Navigate to the Android directory
 cd android
@@ -38,9 +43,14 @@ if [ "$DEVICE_COUNT" -eq 0 ]; then
 fi
 echo "Found $DEVICE_COUNT connected device(s)"
 
-# Define paths for coverage data and test results
+# Define paths for coverage data and test results (shard-specific if sharding enabled)
+if [ -n "$SHARD_INDEX" ]; then
+  DEVICE_JACOCO_PATH="/data/data/${APP_PACKAGE}/files/coverage_shard_${SHARD_INDEX}.ec"
+  COVERAGE_FILE_NAME="${ARCH_SUFFIX}DebugAndroidTest_shard_${SHARD_INDEX}.ec"
+else
+  DEVICE_JACOCO_PATH="/data/data/${APP_PACKAGE}/files/coverage.ec"
+fi
 DEVICE_COVERAGE_PATH="/data/data/${APP_PACKAGE}/coverage/${COVERAGE_FILE_NAME}"
-DEVICE_JACOCO_PATH="/data/data/${APP_PACKAGE}/files/coverage.ec"
 DEVICE_TEST_RESULT_PATH="/data/local/tmp/test-results.xml"
 LOCAL_COVERAGE_PATH="./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/connected/${COVERAGE_FILE_NAME}"
 JACOCO_COVERAGE_PATH="./$MAIN_PROJECT_MODULE/build/outputs/code_coverage/${COVERAGE_FILE_NAME}"
