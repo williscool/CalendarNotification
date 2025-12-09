@@ -20,6 +20,7 @@ env:
   ANDROID_ARCH: x86_64
   ANDROID_PROFILE: 7.6in Foldable
   ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
+  ANDROID_EMULATOR_MEMORY: 4096  # Increased from 2048 for CI stability
 
   # Define constant for each job to use
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
@@ -554,7 +555,7 @@ jobs:
         arch: ${{ matrix.arch }}
         profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
         # TODO: make a PR so this thing can properly take a multiline script call
         # too easy to make mistakes with line this long
@@ -707,14 +708,14 @@ jobs:
     strategy:
       matrix:
         arch: [x86_64]
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]  # 8 parallel shards (4 UI + 4 non-UI)
+        shard: [0, 1, 2, 3]  # 4 parallel shards (more stable than 8)
       fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-      NUM_SHARDS: 8
-    timeout-minutes: 15  # Further reduced with 8 shards
+      NUM_SHARDS: 4
+    timeout-minutes: 20  # Slightly increased with fewer shards
 
     steps:
     - uses: actions/checkout@v3
@@ -777,7 +778,7 @@ jobs:
         arch: ${{ matrix.arch }}
         profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
         script: ./scripts/wait_for_emulator.sh && ./scripts/matrix_run_android_tests.sh --shard-index ${{ matrix.shard }} --num-shards ${{ env.NUM_SHARDS }} --arch ${{ matrix.arch }} --module ${{ env.main_project_module }} --timeout 25m && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ matrix.shard }}
 
