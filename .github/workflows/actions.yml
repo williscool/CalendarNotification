@@ -18,8 +18,9 @@ env:
   ANDROID_API_LEVEL: 34
   ANDROID_TARGET: google_apis
   ANDROID_ARCH: x86_64
-  ANDROID_PROFILE: 7.6in Foldable
+  ANDROID_PROFILE: Nexus 5X  # Light profile for CI stability (foldable was too resource-heavy)
   ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
+  ANDROID_EMULATOR_MEMORY: 4096  # Increased from 2048 for CI stability
 
   # Define constant for each job to use
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
@@ -463,6 +464,16 @@ jobs:
         ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
         -Pandroid.externalNativeBuild.skip=true
 
+    # Debug: List coverage report files
+    - name: List Coverage Report Files
+      if: always()
+      run: |
+        echo "=== Unit Test Coverage Reports ==="
+        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -20 || echo "No XML/CSV files found"
+        echo ""
+        echo "=== Coverage directory structure ==="
+        find android/app/build/reports/coverage -type f 2>/dev/null | head -20 || echo "No coverage directory"
+
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
       uses: dorny/test-reporter@v2
@@ -474,12 +485,12 @@ jobs:
         use-actions-summary: 'true'
         fail-on-error: true
 
-    # Upload test results
-    - name: Upload Unit Test Results
-      if: always() # Always upload results even if tests fail
+    # Upload test results and coverage
+    - name: Upload Unit Test Results and Coverage
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: unit-test-results-${{ needs.set_build_datetime.outputs.build_datetime }}
+        name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
         path: |
           android/app/build/reports/
           android/app/build/test-results/
@@ -544,7 +555,7 @@ jobs:
         arch: ${{ matrix.arch }}
         profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
         # TODO: make a PR so this thing can properly take a multiline script call
         # too easy to make mistakes with line this long
@@ -629,7 +640,7 @@ jobs:
   #       profile: ${{ env.ANDROID_PROFILE }}
   #       avd-name: 'connected-android-integration-test'
   #       force-avd-creation: false
-  #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+  #       emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
   #       disable-animations: true
   #       script: ./scripts/wait_for_emulator.sh && ./scripts/deprecated_run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} 
 
@@ -691,18 +702,20 @@ jobs:
   # 1. we have to figure out how mark tests failing as a failure but still get the coverage files exported ( just occured to me we can use same xml file as below!)
   # 2. we need to get the xml file that does the test results for the dorny thing
   integration-test:
-    name: Test Android App
+    name: Test Android App (Shard ${{ matrix.shard }})
     needs: [set_build_datetime, build]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [x86_64] # Only test on x86_64 to save time and resources
+        arch: [x86_64]
+        shard: [0, 1, 2, 3]  # 4 parallel shards (2 UI + 2 non-UI) - 8 was too flaky
       fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 60
+      NUM_SHARDS: 4
+    timeout-minutes: 15  # Further reduced with 8 shards
 
     steps:
     - uses: actions/checkout@v3
@@ -726,7 +739,7 @@ jobs:
     - name: Make scripts executable
       run: |
         chmod +x scripts/wait_for_emulator.sh
-        chmod +x scripts/run_android_tests.sh
+        chmod +x scripts/matrix_run_android_tests.sh
         chmod +x scripts/generate_android_coverage.sh
 
     - name: Download APK artifacts
@@ -756,7 +769,7 @@ jobs:
           echo "Directory android/${{ env.main_project_module }}/build/ doesn't exist"
         fi
 
-    - name: Run Android Tests
+    - name: Run Android Tests (Shard ${{ matrix.shard }})
       id: run_tests
       uses: reactivecircus/android-emulator-runner@v2
       with:
@@ -765,74 +778,64 @@ jobs:
         arch: ${{ matrix.arch }}
         profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory 2048
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
-        # TODO: make a PR so this thing can properly take a multiline script call
-        # too easy to make mistakes with line this long
-        # super annoying to have to make yet another script to forget to chmod +x on accident
-        script: ./scripts/wait_for_emulator.sh && ./scripts/run_android_tests.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }} && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }}
+        script: ./scripts/wait_for_emulator.sh && ./scripts/matrix_run_android_tests.sh --shard-index ${{ matrix.shard }} --num-shards ${{ env.NUM_SHARDS }} --arch ${{ matrix.arch }} --module ${{ env.main_project_module }} --timeout 25m && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ matrix.shard }}
 
-    # Step 3: Generate JaCoCo coverage report
-    - name: Generate Jacoco Coverage Report
+    # Note: JaCoCo report generation moved to merge-integration-coverage job
+
+    # Verify test results were generated (catches am instrument crashes)
+    - name: Verify test results exist (Shard ${{ matrix.shard }})
+      id: verify_results
       if: always()
       run: |
-        cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+        echo "=== Looking for XML test results ==="
+        XML_COUNT=$(find android/app/build/outputs -name "*.xml" -type f 2>/dev/null | wc -l)
+        echo "Found $XML_COUNT XML files"
+        find android/app/build/outputs -name "*.xml" -type f 2>/dev/null || true
+        
+        if [ "$XML_COUNT" -eq 0 ]; then
+          echo "::error::No test result XML files found! Tests may have crashed."
+          echo "This usually means am instrument failed mid-execution."
+          echo "has_results=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        echo "has_results=true" >> $GITHUB_OUTPUT
 
-    # Publish integration test results
-    - name: Publish Integration Test Results
+    # Publish integration test results (unique name per shard to avoid conflicts)
+    # Only runs if verify step found XML files (prevents cryptic dorny error)
+    - name: Publish Integration Test Results (Shard ${{ matrix.shard }})
       uses: dorny/test-reporter@v2
-      if: always()
+      if: always() && steps.verify_results.outputs.has_results == 'true'
       with:
-        name: 'Integration Tests'
+        name: 'Integration Tests (Shard ${{ matrix.shard }})'
         path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
         reporter: java-junit
         fail-on-error: true
 
-    - name: Upload Coverage Report
+    - name: Upload Shard Coverage Data
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
-        path: |
-          android/app/build/reports/
-          android/app/build/reports/jacoco/jacocoAndroidTestReport/
-          android/app/build/outputs/code_coverage/
-          android/app/build/outputs/logs/
-          android/app/build/test-results/
-        retention-days: 90
+        name: integration-coverage-shard-${{ matrix.shard }}
+        path: android/app/build/outputs/code_coverage/
+        retention-days: 1
 
-    - name: Upload Allure Results (Screenshots, Logs)
+    - name: Upload Allure Results (Shard ${{ matrix.shard }})
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: allure-results-${{ needs.set_build_datetime.outputs.build_datetime }}
-        path: android/app/build/outputs/allure-results/
-        retention-days: 90
+        name: allure-results-shard-${{ matrix.shard }}
+        # Note: pull_allure_results creates nested allure-results/allure-results structure
+        path: android/app/build/outputs/allure-results/allure-results/
+        retention-days: 1
         if-no-files-found: ignore
 
-    - name: Generate Allure HTML Report
-      uses: simple-elf/allure-report-action@v1.13
-      if: always()
-      with:
-        allure_results: android/app/build/outputs/allure-results/allure-results
-        allure_report: android/app/build/outputs/allure-report
-        keep_reports: 1
-
-    - name: Upload Allure HTML Report
+    - name: Upload Emulator Log (Shard ${{ matrix.shard }})
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: allure-html-report-${{ needs.set_build_datetime.outputs.build_datetime }}
-        path: android/app/build/outputs/allure-report/
-        retention-days: 90
-        if-no-files-found: ignore
-
-    - name: Upload Emulator Log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: emulator-log
+        name: emulator-log-shard-${{ matrix.shard }}
         path: emulator.log
         retention-days: 90
 
@@ -852,9 +855,103 @@ jobs:
       with:
         limit-access-to-actor: true
 
+  merge-integration-coverage:
+    name: Merge Integration Test Coverage
+    needs: [set_build_datetime, build, integration-test]
+    runs-on: ubuntu-latest
+    if: always() && needs.integration-test.result != 'cancelled'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      # Fail early if any integration test shard failed (prevents release with broken tests)
+      - name: Check integration test results
+        run: |
+          if [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "::error::Integration tests failed or were skipped. Result: ${{ needs.integration-test.result }}"
+            exit 1
+          fi
+          echo "All integration test shards passed"
+
+      - name: Download all shard coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: integration-coverage-shard-*
+          path: android/app/build/outputs/code_coverage/
+          merge-multiple: true
+
+      - name: Download all shard Allure results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-shard-*
+          path: android/app/build/outputs/allure-results/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Debug Allure directory structure
+        if: always()
+        run: |
+          echo "=== Allure results structure ==="
+          find android/app/build/outputs/allure-results/ -type f 2>/dev/null | head -20 || echo "No allure files found"
+
+      - name: Download Coverage artifacts (classes for JaCoCo)
+        uses: actions/download-artifact@v4
+        with:
+          name: android-coverage-artifacts-x86_64
+          path: android/app/build/
+
+      - name: Debug merged coverage files
+        run: |
+          echo "=== Merged coverage files ==="
+          find android/app/build/outputs/code_coverage/ -name "*.ec" -ls 2>/dev/null || echo "No .ec files found"
+
+      - name: Common Setup
+        uses: ./.github/actions/common-setup
+        with:
+          optional_cache_key: "merge-coverage"
+          gradle_max_workers: "4"
+          node_version: "22.x"
+          arch: x86_64
+
+      - name: Generate Merged JaCoCo Report
+        run: |
+          cd android && ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+
+      - name: Upload Merged Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
+          path: |
+            android/app/build/reports/
+            android/app/build/reports/jacoco/jacocoAndroidTestReport/
+            android/app/build/outputs/code_coverage/
+            android/app/build/outputs/logs/
+            android/app/build/test-results/
+          retention-days: 90
+
+      - name: Generate Allure HTML Report
+        uses: simple-elf/allure-report-action@v1.13
+        if: always()
+        with:
+          allure_results: android/app/build/outputs/allure-results
+          allure_report: android/app/build/outputs/allure-report
+          keep_reports: 1
+
+      - name: Upload Allure HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-html-report-${{ needs.set_build_datetime.outputs.build_datetime }}
+          path: android/app/build/outputs/allure-report/
+          retention-days: 90
+          if-no-files-found: ignore
+
   coverage-report:
     name: Process Code Coverage
-    needs: [set_build_datetime,unit-tests, build, integration-test]
+    needs: [set_build_datetime, unit-tests, build, merge-integration-coverage]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -866,16 +963,14 @@ jobs:
       - name: Download unit test coverage
         uses: actions/download-artifact@v4
         with:
-          name: unit-test-results-${{ needs.set_build_datetime.outputs.build_datetime }}
-          # path relative to build directory. because highest common directory is build
+          name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
 
-      - name: Download integration test coverage
+      - name: Download integration test coverage (merged from all shards)
         uses: actions/download-artifact@v4
         with:
           name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
-          # path relative to build directory. because highest common directory is build
           path: coverage-data/integration-tests/android/app/build/
         continue-on-error: true
 
@@ -893,14 +988,20 @@ jobs:
           title: 'Code Coverage Report'
           update-comment: true
 
-      # Upload detailed HTML coverage report
-      - name: Upload HTML Coverage Report
+      # Upload combined coverage reports (HTML, XML, CSV)
+      - name: Upload Combined Coverage Reports
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage-report-html-${{ needs.set_build_datetime.outputs.build_datetime }}
+          name: full-code-coverage-reports-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: |
             coverage-data/unit-tests/android/app/build/reports/jacoco/**/html
+            coverage-data/unit-tests/android/app/build/reports/jacoco/**/xml
+            coverage-data/unit-tests/android/app/build/reports/jacoco/**/*.csv
+            coverage-data/unit-tests/android/app/build/reports/coverage/**/*.xml
+            coverage-data/unit-tests/android/app/build/reports/coverage/**/*.csv
             coverage-data/integration-tests/android/app/build/reports/jacoco/**/html
+            coverage-data/integration-tests/android/app/build/reports/jacoco/**/xml
+            coverage-data/integration-tests/android/app/build/reports/jacoco/**/*.csv
           retention-days: 90
 
       # Create a PR comment with coverage report link if this is a PR
@@ -930,7 +1031,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [sign, integration-test, unit-tests]
+    needs: [sign, merge-integration-coverage, unit-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

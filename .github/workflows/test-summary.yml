@@ -22,118 +22,180 @@ jobs:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           run_id: ${{ github.event.workflow_run.id }}
           path: artifacts
+        continue-on-error: true
+
+      # Debug: Show what artifacts were downloaded
+      - name: List downloaded artifacts
+        if: always()
+        run: |
+          echo "=== Downloaded Artifacts ==="
+          ls -la artifacts/ 2>/dev/null || echo "No artifacts directory"
+          echo ""
+          echo "=== Directory structure ==="
+          find artifacts -type d 2>/dev/null | head -20 || echo "No directories found"
+
+      # Find and symlink artifacts to predictable paths (artifact names include timestamps)
+      - name: Setup artifact paths
+        if: always()
+        run: |
+          mkdir -p normalized
           
+          # Find unit test results (name: unit-test-results-and-coverage-{datetime})
+          UNIT_TEST_DIR=$(find artifacts -maxdepth 1 -type d -name "unit-test-results-and-coverage-*" | head -1)
+          if [ -n "$UNIT_TEST_DIR" ]; then
+            ln -s "../$UNIT_TEST_DIR" normalized/unit-tests
+            echo "Found unit tests: $UNIT_TEST_DIR"
+          else
+            echo "No unit test results found"
+          fi
+          
+          # Find integration test coverage (name: android-test-coverage-report-{datetime})
+          INTEGRATION_DIR=$(find artifacts -maxdepth 1 -type d -name "android-test-coverage-report-*" | head -1)
+          if [ -n "$INTEGRATION_DIR" ]; then
+            ln -s "../$INTEGRATION_DIR" normalized/integration-tests
+            echo "Found integration tests: $INTEGRATION_DIR"
+          else
+            echo "No integration test coverage found"
+          fi
+          
+          # Find full coverage reports (name: full-code-coverage-reports-{datetime})
+          FULL_COVERAGE_DIR=$(find artifacts -maxdepth 1 -type d -name "full-code-coverage-reports-*" | head -1)
+          if [ -n "$FULL_COVERAGE_DIR" ]; then
+            ln -s "../$FULL_COVERAGE_DIR" normalized/full-coverage
+            echo "Found full coverage: $FULL_COVERAGE_DIR"
+          else
+            echo "No full coverage reports found"
+          fi
+          
+          echo ""
+          echo "=== Normalized paths ==="
+          ls -la normalized/
+
+      # Find test result XML files
+      - name: Locate test result files
+        id: find_results
+        if: always()
+        run: |
+          echo "=== Looking for unit test XML files ==="
+          UNIT_XML=$(find normalized/unit-tests -name "*.xml" -path "*test-results*" 2>/dev/null | head -5)
+          echo "$UNIT_XML"
+          
+          echo ""
+          echo "=== Looking for integration test XML files ==="
+          # Integration tests use XmlRunListener output
+          INTEGRATION_XML=$(find normalized/integration-tests -name "*.xml" 2>/dev/null | head -5)
+          echo "$INTEGRATION_XML"
+          
+          # Set outputs for conditional steps
+          if [ -n "$UNIT_XML" ]; then
+            echo "has_unit_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_unit_results=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -n "$INTEGRATION_XML" ]; then
+            echo "has_integration_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_integration_results=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Publish Unit Test Summary
         uses: dorny/test-reporter@v2
-        if: always()
+        if: always() && steps.find_results.outputs.has_unit_results == 'true'
         with:
           name: 'Unit Tests Summary'
-          path: 'artifacts/unit-test-results/android/app/build/test-results/test*DebugUnitTest/**/*.xml'
+          path: 'normalized/unit-tests/**/test-results/**/*.xml'
           reporter: java-junit
           fail-on-error: false
           use-actions-summary: true
-          badge-title: 'Unit Tests'
+        continue-on-error: true
           
       - name: Publish Integration Test Summary
         uses: dorny/test-reporter@v2
-        if: always()
+        if: always() && steps.find_results.outputs.has_integration_results == 'true'
         with:
           name: 'Integration Tests Summary'
-          path: 'artifacts/android-test-coverage-report/android/app/build/outputs/**/connected/**/TEST-*.xml'
+          path: 'normalized/integration-tests/**/*.xml'
           reporter: java-junit
           fail-on-error: false
           use-actions-summary: true
-          badge-title: 'Integration Tests'
-          
-      - name: Publish Combined Test Report
-        uses: dorny/test-reporter@v2
-        if: always()
-        with:
-          name: 'Combined Test Report'
-          path: |
-            artifacts/unit-test-results/android/app/build/test-results/test*DebugUnitTest/**/*.xml
-            artifacts/android-test-coverage-report/android/app/build/outputs/**/connected/**/TEST-*.xml
-          reporter: java-junit
-          fail-on-error: false
-          only-summary: true
-          use-actions-summary: true
-          badge-title: 'All Tests'
-          
-      # Extract and display the code coverage from JaCoCo reports
+        continue-on-error: true
+
+      # Process and display code coverage from JaCoCo XML reports
       - name: Process Code Coverage Summary
         if: always()
         run: |
-          echo "## 📊 Code Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Code Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          # First, check if there's a coverage-report-html artifact with the placeholder file
-          if [ -d "artifacts/coverage-report-html" ] && [ -f "artifacts/coverage-report-html/index.html" ]; then
-            echo "JaCoCo HTML report is available in the artifacts." >> $GITHUB_STEP_SUMMARY
+          # Look for JaCoCo XML reports
+          JACOCO_XML=$(find normalized -name "*.xml" -path "*jacoco*" 2>/dev/null | head -1)
+          
+          if [ -n "$JACOCO_XML" ] && [ -f "$JACOCO_XML" ]; then
+            echo "Found JaCoCo report: $JACOCO_XML" 
+            
+            # Extract coverage metrics from XML using grep/sed (no jq needed for XML)
+            INSTRUCTION_MISSED=$(grep -oP 'type="INSTRUCTION"[^/]*missed="\K[0-9]+' "$JACOCO_XML" | head -1 || echo "0")
+            INSTRUCTION_COVERED=$(grep -oP 'type="INSTRUCTION"[^/]*covered="\K[0-9]+' "$JACOCO_XML" | head -1 || echo "0")
+            
+            BRANCH_MISSED=$(grep -oP 'type="BRANCH"[^/]*missed="\K[0-9]+' "$JACOCO_XML" | head -1 || echo "0")
+            BRANCH_COVERED=$(grep -oP 'type="BRANCH"[^/]*covered="\K[0-9]+' "$JACOCO_XML" | head -1 || echo "0")
+            
+            LINE_MISSED=$(grep -oP 'type="LINE"[^/]*missed="\K[0-9]+' "$JACOCO_XML" | head -1 || echo "0")
+            LINE_COVERED=$(grep -oP 'type="LINE"[^/]*covered="\K[0-9]+' "$JACOCO_XML" | head -1 || echo "0")
+            
+            # Calculate percentages
+            if [ "$((INSTRUCTION_COVERED + INSTRUCTION_MISSED))" -gt 0 ]; then
+              INSTRUCTION_PCT=$((100 * INSTRUCTION_COVERED / (INSTRUCTION_COVERED + INSTRUCTION_MISSED)))
+            else
+              INSTRUCTION_PCT=0
+            fi
+            
+            if [ "$((BRANCH_COVERED + BRANCH_MISSED))" -gt 0 ]; then
+              BRANCH_PCT=$((100 * BRANCH_COVERED / (BRANCH_COVERED + BRANCH_MISSED)))
+            else
+              BRANCH_PCT=0
+            fi
+            
+            if [ "$((LINE_COVERED + LINE_MISSED))" -gt 0 ]; then
+              LINE_PCT=$((100 * LINE_COVERED / (LINE_COVERED + LINE_MISSED)))
+            else
+              LINE_PCT=0
+            fi
+            
+            echo "| Metric | Covered | Missed | Total | Coverage |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|---------|--------|-------|----------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Instructions | $INSTRUCTION_COVERED | $INSTRUCTION_MISSED | $((INSTRUCTION_COVERED + INSTRUCTION_MISSED)) | ${INSTRUCTION_PCT}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Branches | $BRANCH_COVERED | $BRANCH_MISSED | $((BRANCH_COVERED + BRANCH_MISSED)) | ${BRANCH_PCT}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Lines | $LINE_COVERED | $LINE_MISSED | $((LINE_COVERED + LINE_MISSED)) | ${LINE_PCT}% |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Add badge
+            if [ "$LINE_PCT" -ge 80 ]; then
+              COLOR="brightgreen"
+            elif [ "$LINE_PCT" -ge 60 ]; then
+              COLOR="yellow"
+            elif [ "$LINE_PCT" -ge 40 ]; then
+              COLOR="orange"
+            else
+              COLOR="red"
+            fi
+            echo "![Line Coverage](https://img.shields.io/badge/Line_Coverage-${LINE_PCT}%25-${COLOR})" >> $GITHUB_STEP_SUMMARY
+            
+          else
+            echo "No JaCoCo XML reports found." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Coverage reports may not have been generated in this run." >> $GITHUB_STEP_SUMMARY
           fi
           
-          # Check if coverage badge files exist
-          if [ -d "artifacts/coverage-badges" ]; then
-            if [ -f "artifacts/coverage-badges/jacoco.svg" ] && [ -f "artifacts/coverage-badges/jacoco.json" ]; then
-              LINE_COVERAGE=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.coverage')
-              COVERED_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.covered')
-              MISSED_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.missed')
-              TOTAL_LINES=$(cat artifacts/coverage-badges/jacoco.json | jq -r '.branches.total')
-              
-              echo "### Line Coverage: ${LINE_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
-              echo "- Covered Lines: ${COVERED_LINES}" >> $GITHUB_STEP_SUMMARY
-              echo "- Missed Lines: ${MISSED_LINES}" >> $GITHUB_STEP_SUMMARY
-              echo "- Total Lines: ${TOTAL_LINES}" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "No line coverage data available." >> $GITHUB_STEP_SUMMARY
-            fi
-            
-            if [ -f "artifacts/coverage-badges/branches.json" ]; then
-              BRANCH_COVERAGE=$(cat artifacts/coverage-badges/branches.json | jq -r '.coverage')
-              COVERED_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.covered')
-              MISSED_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.missed')
-              TOTAL_BRANCHES=$(cat artifacts/coverage-badges/branches.json | jq -r '.total')
-              
-              echo "### Branch Coverage: ${BRANCH_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
-              echo "- Covered Branches: ${COVERED_BRANCHES}" >> $GITHUB_STEP_SUMMARY
-              echo "- Missed Branches: ${MISSED_BRANCHES}" >> $GITHUB_STEP_SUMMARY
-              echo "- Total Branches: ${TOTAL_BRANCHES}" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "No branch coverage data available." >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            # Look for raw reports
-            XML_COUNT=0
-            HTML_COUNT=0
-            
-            if [ -d "artifacts/android-test-coverage-report" ]; then
-              XML_COUNT=$(find artifacts/android-test-coverage-report -name "*.xml" | grep -i jacoco | wc -l)
-              HTML_COUNT=$(find artifacts/android-test-coverage-report -name "*.html" | grep -i jacoco | wc -l)
-            fi
-            
-            echo "### Coverage Data" >> $GITHUB_STEP_SUMMARY
-            if [ "$XML_COUNT" -gt 0 ] || [ "$HTML_COUNT" -gt 0 ]; then
-              echo "JaCoCo reports found. Please check the artifacts for detailed coverage information." >> $GITHUB_STEP_SUMMARY
-              echo "Raw XML files: $XML_COUNT" >> $GITHUB_STEP_SUMMARY
-              echo "HTML report files: $HTML_COUNT" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "No coverage data found. Test coverage may not have been generated in this run." >> $GITHUB_STEP_SUMMARY
-              echo "This may be expected for new projects or projects without coverage instrumentation." >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
+          # List available coverage artifacts
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Available Coverage Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-      - name: Add Coverage Badge to Summary
-        if: always()
-        run: |
-          echo "### Coverage Visualization" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -d "artifacts/coverage-badges" ] && [ -f "artifacts/coverage-badges/jacoco.svg" ] && [ -f "artifacts/coverage-badges/jacoco.json" ]; then
-            echo "![Coverage](https://img.shields.io/badge/Coverage-$(cat artifacts/coverage-badges/jacoco.json | jq -r '.coverage')%25-$(cat artifacts/coverage-badges/jacoco.json | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
-            
-            if [ -f "artifacts/coverage-badges/branches.svg" ] && [ -f "artifacts/coverage-badges/branches.json" ]; then
-              echo "![Branch Coverage](https://img.shields.io/badge/Branch_Coverage-$(cat artifacts/coverage-badges/branches.json | jq -r '.coverage')%25-$(cat artifacts/coverage-badges/branches.json | jq -r 'if .coverage >= 80 then "success" elif .coverage >= 60 then "yellow" else "critical" end'))" >> $GITHUB_STEP_SUMMARY
+          for dir in artifacts/*/; do
+            dirname=$(basename "$dir")
+            if [[ "$dirname" == *"coverage"* ]] || [[ "$dirname" == *"test"* ]]; then
+              echo "- \`$dirname\`" >> $GITHUB_STEP_SUMMARY
             fi
-          else
-            echo "No coverage badges available. Using placeholder badges instead." >> $GITHUB_STEP_SUMMARY
-            echo "![Coverage](https://img.shields.io/badge/Coverage-unknown-lightgrey)" >> $GITHUB_STEP_SUMMARY
-            echo "![Branch Coverage](https://img.shields.io/badge/Branch_Coverage-unknown-lightgrey)" >> $GITHUB_STEP_SUMMARY
-          fi 
+          done

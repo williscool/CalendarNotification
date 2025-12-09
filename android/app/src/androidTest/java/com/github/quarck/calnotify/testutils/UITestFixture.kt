@@ -433,6 +433,10 @@ class UITestFixture {
     fun launchMainActivity(): ActivityScenario<MainActivity> {
         DevLog.info(LOG_TAG, "Launching MainActivity")
         val scenario = ActivityScenario.launch<MainActivity>(MainActivity::class.java)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "MainActivity is ready: ${activity.javaClass.simpleName}")
+        }
         dismissTargetSdkWarningDialog()
         return scenario
     }
@@ -447,6 +451,10 @@ class UITestFixture {
             putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
         }
         val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "SnoozeAllActivity is ready: ${activity.javaClass.simpleName}")
+        }
         dismissTargetSdkWarningDialog()
         return scenario
     }
@@ -460,6 +468,10 @@ class UITestFixture {
             putExtra(Consts.INTENT_SNOOZE_ALL_KEY, true)
         }
         val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "SnoozeAllActivity is ready: ${activity.javaClass.simpleName}")
+        }
         dismissTargetSdkWarningDialog()
         return scenario
     }
@@ -474,6 +486,10 @@ class UITestFixture {
             putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
         }
         val scenario = ActivityScenario.launch<ViewEventActivityNoRecents>(intent)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "ViewEventActivity is ready: ${activity.javaClass.simpleName}")
+        }
         dismissTargetSdkWarningDialog()
         return scenario
     }
@@ -485,7 +501,10 @@ class UITestFixture {
         DevLog.info(LOG_TAG, "Launching DismissedEventsActivity")
         val intent = Intent(context, DismissedEventsActivity::class.java)
         val scenario = ActivityScenario.launch<DismissedEventsActivity>(intent)
-        
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "DismissedEventsActivity is ready: ${activity.javaClass.simpleName}")
+        }
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
         dismissTargetSdkWarningDialog()
         
@@ -499,7 +518,10 @@ class UITestFixture {
         DevLog.info(LOG_TAG, "Launching SettingsActivity")
         val intent = Intent(context, SettingsActivity::class.java)
         val scenario = ActivityScenario.launch<SettingsActivity>(intent)
-        
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "SettingsActivity is ready: ${activity.javaClass.simpleName}")
+        }
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
         dismissTargetSdkWarningDialog()
         
@@ -512,6 +534,10 @@ class UITestFixture {
     fun launchSnoozeAllActivityWithIntent(intent: Intent): ActivityScenario<SnoozeAllActivity> {
         DevLog.info(LOG_TAG, "Launching SnoozeAllActivity with intent")
         val scenario = ActivityScenario.launch<SnoozeAllActivity>(intent)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "SnoozeAllActivity is ready: ${activity.javaClass.simpleName}")
+        }
         dismissTargetSdkWarningDialog()
         return scenario
     }
