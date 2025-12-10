@@ -1,14 +1,15 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Theme preference temporarily removed for debugging
     <ListPreference
         android:key="theme_mode"
         android:title="@string/theme_setting_title"
         android:summary="@string/theme_setting_summary"
         android:dialogTitle="@string/theme_setting_title"
         android:entries="@array/theme_mode_entries"
-        android:entryValues="@array/theme_mode_values"
-        android:defaultValue="-1" />
+        android:entryValues="@array/theme_mode_values" />
+    -->
 
     <ListPreference
         android:key="first_day_of_week"
