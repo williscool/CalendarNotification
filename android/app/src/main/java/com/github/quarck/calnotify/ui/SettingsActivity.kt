@@ -19,7 +19,6 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
 import android.content.res.Configuration
 import android.os.Bundle
 import android.preference.PreferenceActivity
@@ -31,9 +30,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import com.github.quarck.calnotify.R
-import com.github.quarck.calnotify.Settings
 
 class SettingsActivity : PreferenceActivity() {
 
@@ -43,48 +40,6 @@ class SettingsActivity : PreferenceActivity() {
         delegate.installViewFactory()
         delegate.onCreate(savedInstanceState)
         super.onCreate(savedInstanceState)
-        
-        // Add theme selector as list header
-        addThemeHeader()
-    }
-    
-    private fun addThemeHeader() {
-        val headerView = layoutInflater.inflate(R.layout.settings_theme_header, null)
-        val summaryView = headerView.findViewById<TextView>(R.id.theme_summary)
-        
-        summaryView?.text = getCurrentThemeName()
-        
-        headerView.setOnClickListener { showThemeDialog() }
-        
-        listView.addHeaderView(headerView, null, true)
-    }
-    
-    private fun getCurrentThemeName(): String {
-        val themeMode = Settings(this).themeMode
-        val entries = resources.getStringArray(R.array.theme_mode_entries)
-        val values = resources.getStringArray(R.array.theme_mode_values)
-        val index = values.indexOf(themeMode.toString())
-        return if (index >= 0) entries[index] else entries[0]
-    }
-    
-    private fun showThemeDialog() {
-        val entries = resources.getStringArray(R.array.theme_mode_entries)
-        val values = resources.getStringArray(R.array.theme_mode_values)
-        val currentMode = Settings(this).themeMode
-        val currentIndex = values.indexOf(currentMode.toString()).coerceAtLeast(0)
-        
-        AlertDialog.Builder(this)
-            .setTitle(R.string.theme_setting_title)
-            .setSingleChoiceItems(entries, currentIndex) { dialog, which ->
-                val newMode = values[which].toInt()
-                Settings(this).themeMode = newMode
-                AppCompatDelegate.setDefaultNightMode(newMode)
-                dialog.dismiss()
-                // Recreate to apply theme
-                recreate()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {

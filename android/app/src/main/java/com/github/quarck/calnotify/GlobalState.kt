@@ -30,13 +30,8 @@ class GlobalState : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        applyTheme()
-    }
-
-    /** Apply the saved theme preference */
-    fun applyTheme() {
-        val settings = Settings(this)
-        AppCompatDelegate.setDefaultNightMode(settings.themeMode)
+        // Always follow system theme
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
     }
 }
 

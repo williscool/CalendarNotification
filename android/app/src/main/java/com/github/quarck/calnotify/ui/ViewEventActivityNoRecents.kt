@@ -171,7 +171,6 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
 
         if (!PermissionsManager.hasAllCalendarPermissions(this)) {
