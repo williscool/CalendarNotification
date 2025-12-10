@@ -6,10 +6,10 @@
     <color name="background">#121212</color>
     <color name="cardview_light_background">#1E1E1E</color>
 
-    <!-- Primary colors (keeping brand identity) -->
-    <color name="primary">#607D8B</color>
-    <color name="primary_dark">#455A64</color>
-    <color name="primary_light">#CFD8DC</color>
+    <!-- Primary colors (darker for dark mode toolbar) -->
+    <color name="primary">#1A2327</color>
+    <color name="primary_dark">#0F1518</color>
+    <color name="primary_light">#37474F</color>
 
     <!-- Accent (keeping teal for consistency) -->
     <color name="accent">#4DB6AC</color>
