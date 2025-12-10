@@ -1,0 +1,8 @@
+<resources>
+    <!-- Dark mode specific style overrides -->
+    
+    <!-- Use dark popup overlay in dark mode -->
+    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Dark"></style>
+    
+</resources>
+

@@ -20,37 +20,13 @@
 package com.github.quarck.calnotify.prefs.fragments
 
 import android.os.Bundle
-import android.preference.Preference
 import android.preference.PreferenceFragment
-import androidx.appcompat.app.AppCompatDelegate
 import com.github.quarck.calnotify.R
-import com.github.quarck.calnotify.Settings
-import com.github.quarck.calnotify.logs.DevLog
 
 class MiscSettingsFragment : PreferenceFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         addPreferencesFromResource(R.xml.misc_preferences)
-    }
-
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        
-        // Set up theme preference listener after activity is available
-        try {
-            findPreference("theme_mode")?.onPreferenceChangeListener =
-                Preference.OnPreferenceChangeListener { _, newValue ->
-                    val themeMode = (newValue as String).toInt()
-                    // Save to Settings and apply immediately
-                    activity?.let { ctx ->
-                        Settings(ctx).themeMode = themeMode
-                        AppCompatDelegate.setDefaultNightMode(themeMode)
-                    }
-                    true
-                }
-        } catch (e: Exception) {
-            DevLog.error("MiscSettingsFragment", "Error setting up theme preference: ${e.message}")
-        }
     }
 }
