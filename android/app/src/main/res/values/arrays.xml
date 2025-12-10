@@ -105,4 +105,17 @@
         <item>86400</item>
     </integer-array>
 
+    <!-- Theme mode options -->
+    <string-array name="theme_mode_entries">
+        <item>Follow System</item>
+        <item>Light</item>
+        <item>Dark</item>
+    </string-array>
+
+    <string-array name="theme_mode_values">
+        <item>-1</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
 </resources>

@@ -126,6 +126,11 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         get() = getBoolean(DEVELOPER_MODE_KEY, false)
         set(value) = setBoolean(DEVELOPER_MODE_KEY, value)
 
+    /** Theme mode: -1 = follow system, 1 = light, 2 = dark (matches AppCompatDelegate constants) */
+    var themeMode: Int
+        get() = getInt(THEME_MODE_KEY, DEFAULT_THEME_MODE)
+        set(value) = setInt(THEME_MODE_KEY, value)
+
     val viewAfterEdit: Boolean
         get() = getBoolean(VIEW_AFTER_EDIT_KEY, true)
 
@@ -505,8 +510,11 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val SHOW_EVENT_DESC_IN_THE_NOTIFICATION_KEY = "show_event_desc_in_the_notification" // false
 
         private const val CLOSE_ACTION_AFTER_SNOOZE_FROM_MAIN = "close_action_after_snooze_from_main"
+        private const val THEME_MODE_KEY = "theme_mode"
 
         // Default values
+        /** Default theme mode: follow system (-1 = MODE_NIGHT_FOLLOW_SYSTEM) */
+        internal const val DEFAULT_THEME_MODE = -1
         internal const val DEFAULT_SNOOZE_PRESET = "15m, 1h, 4h, 1d, -5m"
         internal const val DEFAULT_REMINDER_INTERVAL_MINUTES = 10
         internal const val DEFAULT_REMINDER_INTERVAL_SECONDS = 600

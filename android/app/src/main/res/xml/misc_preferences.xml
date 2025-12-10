@@ -2,6 +2,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <ListPreference
+        android:key="theme_mode"
+        android:title="@string/theme_setting_title"
+        android:summary="@string/theme_setting_summary"
+        android:dialogTitle="@string/theme_setting_title"
+        android:entries="@array/theme_mode_entries"
+        android:entryValues="@array/theme_mode_values"
+        android:defaultValue="-1" />
+
+    <ListPreference
         android:key="first_day_of_week"
         android:title="@string/first_day_of_week"
         android:summary="@string/first_day_of_week_summary"

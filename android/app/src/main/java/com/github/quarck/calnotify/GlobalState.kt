@@ -20,12 +20,24 @@ package com.github.quarck.calnotify
 
 import android.app.Application;
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 
 // This storage is wiped every time app is restarted. Only keep variables
 // that are instance-specific here
 class GlobalState : Application() {
     var lastNotificationRePost: Long = 0
     var lastTimerBroadcastReceived: Long = 0
+
+    override fun onCreate() {
+        super.onCreate()
+        applyTheme()
+    }
+
+    /** Apply the saved theme preference */
+    fun applyTheme() {
+        val settings = Settings(this)
+        AppCompatDelegate.setDefaultNightMode(settings.themeMode)
+    }
 }
 
 val Context.globalState: GlobalState?

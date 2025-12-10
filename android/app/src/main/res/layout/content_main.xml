@@ -274,7 +274,7 @@
             android:id="@+id/list_events"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@color/cardview_light_background"
+            android:background="?attr/colorSurface"
             />
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
