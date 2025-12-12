@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:title="@string/snooze_presets">
+
+    <com.github.quarck.calnotify.prefs.SnoozePresetPreferenceX
+        android:key="pref_snooze_presets"
+        android:title="@string/snooze_presets_title"
+        android:summary="@string/snooze_presets_summary"
+        android:defaultValue="15m, 1h, 4h, 1d" />
+
+    <CheckBoxPreference
+        android:key="show_event_after_reschedule"
+        android:title="@string/view_after_edit"
+        android:summary="@string/view_after_edit_summary"
+        android:defaultValue="true" />
+
+    <PreferenceCategory
+        android:title="@string/advanced"
+        android:key="_snooze_advanced">
+
+        <CheckBoxPreference
+            android:key="snooze_hide_event_description"
+            android:title="@string/snooze_hide_event_description_title"
+            android:summary="@string/snooze_hide_event_description_summary"
+            android:defaultValue="false" />
+
+        <CheckBoxPreference
+            android:key="always_use_external_editor"
+            android:title="@string/always_use_extenal_editor"
+            android:summary="@string/always_use_external_editor_summary"
+            android:defaultValue="false" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
+

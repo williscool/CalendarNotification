@@ -17,17 +17,16 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.prefs.fragments
+package com.github.quarck.calnotify.prefs
 
 import android.os.Bundle
-import android.preference.PreferenceFragment
+import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 
-@Deprecated("Quiet Hours feature is deprecated. Use Android's built-in Do Not Disturb mode instead.")
-class QuietHoursSettingsFragment : PreferenceFragment() {
+class BehaviorSettingsFragmentX : PreferenceFragmentCompat() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState);
-        addPreferencesFromResource(R.xml.quiet_hours_preferences)
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+        setPreferencesFromResource(R.xml.behavior_preferences, rootKey)
     }
 }
+
