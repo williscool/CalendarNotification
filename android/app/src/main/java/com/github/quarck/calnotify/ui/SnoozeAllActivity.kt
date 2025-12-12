@@ -105,7 +105,6 @@ open class SnoozeAllActivity : AppCompatActivity() {
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
 
         if (savedInstanceState != null)

@@ -26,7 +26,7 @@ import com.github.quarck.calnotify.R
 class MiscSettingsFragment : PreferenceFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState);
+        super.onCreate(savedInstanceState)
         addPreferencesFromResource(R.xml.misc_preferences)
     }
 }

@@ -11,6 +11,7 @@
     <color name="divider">#B6B6B6</color> -->
 
     <color name="background">#ffffffff</color>
+    <color name="cardview_light_background">#FAFAFA</color>
 
     <color name="primary">#607D8B</color>
     <color name="primary_dark">#455A64</color>
@@ -47,6 +48,8 @@
     <color name="material_blue">#3f51b8</color>
 
     <color name="cal_sample_primary">#03A9F4</color>
+
+    <color name="fab_background">#134093</color>
 
     <color name="quiet_hours_active_text">#FFC107</color>
     <color name="quiet_hours_active_background">#212121</color>

@@ -3,10 +3,26 @@ description:
 globs: 
 alwaysApply: true
 ---
- 
-# Dont change any non test code without getting confirmation first
 
-Dont change any non test code without getting confirmation first. this is a very old application I'm working on making a thorough test suite for before making any changes
+
+# Code Changes
+
+Non-test code changes are now permitted for:
+- Bug fixes with corresponding test coverage
+- Refactoring with existing test coverage
+- Removal of deprecated features (QuietHours, CalendarEditor)
+
+For new features or significant changes, add tests first.
+
+Previously the name of this rule was 
+
+dont change any non test code without getting confirmation first
+
+and its body:
+
+dont change any non test code without getting confirmation first. this is a very old application I'm working on making a thorough test suite for before making any changes. 
+
+now the test suite is a lot more robust we've relaxed the rule a bit but still be cognizant of it
 
 
 # Work to make tests as faithful to the real code as possible

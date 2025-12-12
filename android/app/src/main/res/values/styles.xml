@@ -1,11 +1,19 @@
 <resources>
 
-    <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Base application theme with DayNight support for system theme following -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
         <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:colorBackground">@color/background</item>
+        <!-- Preference list styling -->
+        <item name="android:listViewStyle">@style/AppListView</item>
+    </style>
+    
+    <style name="AppListView" parent="Widget.AppCompat.ListView">
+        <item name="android:background">@color/background</item>
     </style>
 
     <style name="AppTheme.NoActionBar">

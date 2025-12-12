@@ -8,7 +8,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="@dimen/compact_view_layout_height"
-    android:background="@color/cardview_light_background">
+    android:background="@color/cardview_light_background"
+    >
 
     <RelativeLayout
         android:layout_width="match_parent"
