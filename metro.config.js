@@ -1,5 +1,5 @@
-const {getDefaultConfig} = require('expo/metro-config');
-const {mergeConfig} = require('@react-native/metro-config');
+const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
 /**
  * Metro configuration
@@ -9,18 +9,20 @@ const {mergeConfig} = require('@react-native/metro-config');
  *
  * @type {import('metro-config').MetroConfig}
  */
-const config = {
-	transformer: {
-	  getTransformOptions: async () => ({
-		transform: {
-		  inlineRequires: {
-			blockList: {
-			  [require.resolve('@powersync/react-native')]: true,
-			}
-		  }
-		}
-	  })
-	}
-  };
+const config = getDefaultConfig(__dirname);
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+// PowerSync specific configuration
+config.transformer = {
+  ...config.transformer,
+  getTransformOptions: async () => ({
+    transform: {
+      inlineRequires: {
+        blockList: {
+          [require.resolve('@powersync/react-native')]: true,
+        }
+      }
+    }
+  })
+};
+
+module.exports = withNativeWind(config, { input: './global.css' });
