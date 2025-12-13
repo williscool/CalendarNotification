@@ -1,0 +1,28 @@
+---
+alwaysApply: false
+---
+# Development Environment Setup - WSL/Unison Sync
+
+This project uses a dual-filesystem setup for development:
+
+## File Locations
+
+- **Linux/WSL location** (primary development location):
+  `/home/william/not_connected_to_windows/CalendarNotification`
+
+- **Windows location** (accessible via WSL at `/mnt/c`):
+  `/mnt/c/Users/william/unison-with-dropbox-symlinked-to-linux/CalendarNotification`
+
+## Sync Strategy
+
+- **Unison** is used to sync files between the Linux and Windows filesystems
+- Most files are synced, but **`node_modules` is NOT synced** due to size
+- `node_modules` is installed separately on each side of the sync
+
+## Implications
+
+- When referencing paths, prefer the Linux location (`/home/william/not_connected_to_windows/CalendarNotification`)
+- If `node_modules` appears missing or incomplete, it may need to be installed separately on that side
+- Git operations and file system operations are faster on the Linux side
+- Windows Android Studio builds must use the Windows-synced location
+- File system permission issues may occur when accessing Windows files from Linux and vice versus (hence keeping them separate)
