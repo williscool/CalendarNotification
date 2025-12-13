@@ -2,7 +2,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/lib'],
-  testMatch: ['**/*.test.ts'],
+  testMatch: ['**/*.test.ts', '**/*.test.tsx'],
   moduleNameMapper: {
     '^@lib/(.*)$': '<rootDir>/lib/$1',
   },
@@ -24,9 +24,8 @@ module.exports = {
     'lib/**/*.{ts,tsx}',
     '!lib/**/*.test.{ts,tsx}',
     '!lib/**/testSetup.ts',
+    '!lib/**/__tests__/**',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'text-summary', 'lcov', 'html'],
 };
-
-
