@@ -21,7 +21,7 @@ import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.MainActivity
-import com.github.quarck.calnotify.ui.SettingsActivity
+import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
@@ -512,15 +512,15 @@ class UITestFixture {
     }
     
     /**
-     * Launches SettingsActivity.
+     * Launches SettingsActivityX (the new AndroidX-based settings).
      */
-    fun launchSettingsActivity(): ActivityScenario<SettingsActivity> {
-        DevLog.info(LOG_TAG, "Launching SettingsActivity")
-        val intent = Intent(context, SettingsActivity::class.java)
-        val scenario = ActivityScenario.launch<SettingsActivity>(intent)
+    fun launchSettingsActivity(): ActivityScenario<SettingsActivityX> {
+        DevLog.info(LOG_TAG, "Launching SettingsActivityX")
+        val intent = Intent(context, SettingsActivityX::class.java)
+        val scenario = ActivityScenario.launch<SettingsActivityX>(intent)
         // Wait for activity to be created and ready before proceeding
         scenario.onActivity { activity ->
-            DevLog.info(LOG_TAG, "SettingsActivity is ready: ${activity.javaClass.simpleName}")
+            DevLog.info(LOG_TAG, "SettingsActivityX is ready: ${activity.javaClass.simpleName}")
         }
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
         dismissTargetSdkWarningDialog()

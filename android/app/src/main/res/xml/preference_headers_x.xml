@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Theme Selection - persistent=false because Settings.kt stores as Int -->
+    <ListPreference
+        android:key="theme_mode"
+        android:title="@string/theme_setting_title"
+        android:summary="@string/theme_setting_summary"
+        android:entries="@array/theme_mode_entries"
+        android:entryValues="@array/theme_mode_values"
+        android:defaultValue="-1"
+        android:persistent="false" />
+
+    <!-- Calendars - launches separate activity -->
+    <Preference
+        android:key="pref_calendars"
+        android:title="@string/title_calendars_activity"
+        android:icon="@drawable/ic_event_note_black_24dp" />
+
+    <!-- Notification Settings -->
+    <Preference
+        android:key="pref_notification"
+        android:title="@string/notification_settings"
+        android:fragment="com.github.quarck.calnotify.prefs.NotificationSettingsFragmentX" />
+
+    <!-- Snooze Settings -->
+    <Preference
+        android:key="pref_snooze"
+        android:title="@string/snooze_presets"
+        android:fragment="com.github.quarck.calnotify.prefs.SnoozeSettingsFragmentX" />
+
+    <!-- Reminders -->
+    <Preference
+        android:key="pref_reminders"
+        android:title="@string/reminders_section"
+        android:fragment="com.github.quarck.calnotify.prefs.ReminderSettingsFragmentX" />
+
+    <!-- Quiet Hours (deprecated but keeping for now) -->
+    <Preference
+        android:key="pref_quiet_hours"
+        android:title="@string/quiet_hours_section"
+        android:fragment="com.github.quarck.calnotify.prefs.QuietHoursSettingsFragmentX" />
+
+    <!-- Behavior -->
+    <Preference
+        android:key="pref_behavior"
+        android:title="@string/app_behavior"
+        android:fragment="com.github.quarck.calnotify.prefs.BehaviorSettingsFragmentX" />
+
+    <!-- Misc Settings -->
+    <Preference
+        android:key="pref_misc"
+        android:title="@string/misc_settings"
+        android:fragment="com.github.quarck.calnotify.prefs.MiscSettingsFragmentX" />
+
+    <!-- Car Mode - launches separate activity -->
+    <Preference
+        android:key="pref_car_mode"
+        android:title="@string/car_mode_pref_name" />
+
+</PreferenceScreen>
+

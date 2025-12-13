@@ -15,11 +15,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Ultron UI tests for SettingsActivity.
+ * Ultron UI tests for SettingsActivityX.
  * 
  * Tests settings navigation and preference fragment loading.
  * 
- * Note: SettingsActivity uses old PreferenceActivity with AppCompatDelegate pattern.
+ * Note: SettingsActivityX uses AndroidX Preferences with PreferenceFragmentCompat.
  * Window focus behavior is handled by Ultron's default retry mechanism.
  */
 @RunWith(AndroidJUnit4::class)
