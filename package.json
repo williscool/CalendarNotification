@@ -45,7 +45,6 @@
     "typed-emitter": "^2.1.0"
   },
   "devDependencies": {
-    "@testing-library/react-hooks": "^8.0.1",
     "@babel/plugin-transform-async-generator-functions": "^7.26.8",
     "@babel/plugin-transform-private-property-in-object": "^7.25.9",
     "@commitlint/cli": "^19.5.0",
@@ -54,6 +53,7 @@
     "@react-native/metro-babel-transformer": "^0.74.0",
     "@react-native/metro-config": "^0.74.0",
     "@swc-node/register": "^1.6.7",
+    "@testing-library/react-hooks": "^8.0.1",
     "@tsconfig/react-native": "^3.0.2",
     "@types/jest": "^29.5.5",
     "@types/node": "^22.14.0",
