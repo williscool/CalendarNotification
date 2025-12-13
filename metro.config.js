@@ -14,15 +14,15 @@ const config = getDefaultConfig(__dirname);
 // PowerSync specific configuration
 config.transformer = {
   ...config.transformer,
-  getTransformOptions: async () => ({
-    transform: {
-      inlineRequires: {
-        blockList: {
-          [require.resolve('@powersync/react-native')]: true,
-        }
-      }
-    }
-  })
-};
+	  getTransformOptions: async () => ({
+		transform: {
+		  inlineRequires: {
+			blockList: {
+			  [require.resolve('@powersync/react-native')]: true,
+			}
+		  }
+		}
+	  })
+  };
 
 module.exports = withNativeWind(config, { input: './global.css' });
