@@ -26,6 +26,8 @@ buildscript {
       ndkVersion = '26.1.10909125'
       minSdk = 24 // https://github.com/software-mansion/react-native-screens/pull/2251#ref-issue-2457327086
       minSdkVersion = 24
+      compileSdkVersion = 34
+      targetSdkVersion = 34
       
       // Supported architectures
       supportedArchs = ['arm64-v8a', 'x86_64']
