@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWindowDimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import {
   Box,
   Text,
@@ -12,13 +12,12 @@ import {
   VStack,
   Pressable,
 } from '@gluestack-ui/themed';
-import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { Section, ActionButton, SecureInput, WarningBanner } from '@lib/components/ui';
 import { colors } from '@lib/theme/colors';
 
 export default function Settings() {
-  const router = useRouter();
+  const navigation = useNavigation<any>();
   const { settings, updateSettings } = useSettings();
   const [tempSettings, setTempSettings] = useState(settings);
   const [isDirty, setIsDirty] = useState(false);
@@ -149,7 +148,7 @@ export default function Settings() {
       </Section>
 
       <Pressable
-        onPress={() => router.push('/sync-debug')}
+        onPress={() => navigation.navigate('SyncDebug')}
         bg="#f0f0f0"
         p="$3.5"
         borderRadius="$lg"
@@ -160,7 +159,7 @@ export default function Settings() {
         alignItems="center"
         justifyContent="center"
       >
-        <Ionicons name="bug-outline" size={20} color={colors.textMuted} style={{ marginRight: 8 }} />
+        <Text color={colors.textMuted} mr="$2">🐛</Text>
         <Text color={colors.textMuted} fontSize="$sm" fontWeight="$medium">
           View Sync Debug Logs
         </Text>

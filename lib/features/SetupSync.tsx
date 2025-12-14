@@ -7,7 +7,7 @@ import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
 import { psInsertDbTable, psClearTable } from '@lib/orm';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner } from '@lib/components/ui';
@@ -16,7 +16,7 @@ import { colors } from '@lib/theme/colors';
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 
 export const SetupSync = () => {
-  const router = useRouter();
+  const navigation = useNavigation<any>();
   const { settings } = useSettings();
   const debugDisplayKeys = ['id', 'ttl', 'istart' ,'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
@@ -119,7 +119,7 @@ export const SetupSync = () => {
           <Text fontSize="$md" textAlign="center" color={colors.textMuted} mb="$4">
             or
           </Text>
-          <Button onPress={() => router.push('/settings')} bg={colors.primary}>
+          <Button onPress={() => navigation.navigate('Settings')} bg={colors.primary}>
             <ButtonText>Go to Settings</ButtonText>
           </Button>
         </VStack>
@@ -144,7 +144,7 @@ export const SetupSync = () => {
             color={colors.primary}
             fontWeight="$semibold"
             underline
-            onPress={() => router.push('/settings')}
+            onPress={() => navigation.navigate('Settings')}
           >
             Go to Settings
           </Text>

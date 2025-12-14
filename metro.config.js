@@ -10,11 +10,12 @@ const { getDefaultConfig } = require('expo/metro-config');
  */
 const config = getDefaultConfig(__dirname);
 
-// PowerSync specific configuration
+// Enable require.context for expo-router
 config.transformer = {
   ...config.transformer,
 	  getTransformOptions: async () => ({
 		transform: {
+      experimentalImportSupport: false,
 		  inlineRequires: {
 			blockList: {
 			  [require.resolve('@powersync/react-native')]: true,
@@ -22,6 +23,12 @@ config.transformer = {
 		  }
 		}
 	  })
+};
+
+// Required for expo-router to work in bare RN
+config.resolver = {
+  ...config.resolver,
+  sourceExts: [...config.resolver.sourceExts, 'mjs'],
   };
 
 module.exports = config;

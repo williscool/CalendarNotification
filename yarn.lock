@@ -2003,7 +2003,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@expo/vector-icons@npm:^14.0.3":
+"@expo/vector-icons@npm:^14.0.0, @expo/vector-icons@npm:^14.0.3":
   version: 14.1.0
   resolution: "@expo/vector-icons@npm:14.1.0"
   peerDependencies:
@@ -7010,6 +7010,7 @@ __metadata:
     "@commander-js/extra-typings": ^13.1.0
     "@commitlint/cli": ^19.5.0
     "@commitlint/config-conventional": ^19.5.0
+    "@expo/vector-icons": ^14.0.0
     "@gluestack-style/react": ^1.0.57
     "@gluestack-ui/config": ^1.1.20
     "@gluestack-ui/themed": ^1.1.73
@@ -7048,7 +7049,7 @@ __metadata:
     expo-application: 5.9.1
     expo-constants: ~16.0.2
     expo-linking: ~6.3.1
-    expo-router: ~3.5.23
+    expo-router: ~3.5.14
     expo-status-bar: ^3.0.9
     gts: ^5.0.0
     husky: ^9.1.6
@@ -10677,7 +10678,7 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"expo-router@npm:~3.5.23":
+"expo-router@npm:~3.5.14":
   version: 3.5.24
   resolution: "expo-router@npm:3.5.24"
   dependencies:
