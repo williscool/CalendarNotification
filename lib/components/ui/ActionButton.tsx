@@ -1,8 +1,7 @@
 import React from 'react';
 import { Button, ButtonText } from '@gluestack-ui/themed';
-import { colors } from '@lib/theme/colors';
-
-type ButtonVariant = 'primary' | 'success' | 'danger' | 'warning' | 'secondary' | 'disabled';
+import { useTheme } from '@lib/theme/ThemeContext';
+import { getVariantStyle, ButtonVariant } from './variants';
 
 interface ActionButtonProps {
   onPress: () => void;
@@ -11,15 +10,6 @@ interface ActionButtonProps {
   disabled?: boolean;
   testID?: string;
 }
-
-const variantStyles: Record<ButtonVariant, { bg: string; textColor: string }> = {
-  primary: { bg: colors.primary, textColor: '#fff' },
-  success: { bg: colors.success, textColor: '#fff' },
-  danger: { bg: colors.danger, textColor: '#fff' },
-  warning: { bg: colors.warning, textColor: '#000' },
-  secondary: { bg: '#6c757d', textColor: '#fff' },
-  disabled: { bg: colors.backgroundDisabled, textColor: '#888' },
-};
 
 /**
  * A styled button with variant support.
@@ -32,8 +22,8 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   disabled = false,
   testID,
 }) => {
-  const effectiveVariant = disabled ? 'disabled' : variant;
-  const { bg, textColor } = variantStyles[effectiveVariant];
+  const { colors } = useTheme();
+  const { bg, textColor } = getVariantStyle(variant, disabled, colors);
 
   return (
     <Button
@@ -53,13 +43,3 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     </Button>
   );
 };
-
-/**
- * Returns the variant style configuration for testing purposes.
- * This allows tests to verify our variant logic without testing Gluestack internals.
- */
-export const getVariantStyle = (variant: ButtonVariant, disabled: boolean) => {
-  const effectiveVariant = disabled ? 'disabled' : variant;
-  return variantStyles[effectiveVariant];
-};
-

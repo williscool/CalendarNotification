@@ -5,29 +5,32 @@ import { PowerSyncContext } from "@powersync/react";
 import { useSyncDebug } from '@lib/hooks/SyncDebugContext';
 import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Connector';
 import { Section, ActionButton } from '@lib/components/ui';
-import { colors } from '@lib/theme/colors';
+import { useTheme } from '@lib/theme/ThemeContext';
+import { ThemeColors } from '@lib/theme/colors';
 
 const formatTimestamp = (ts: number): string => {
   const date = new Date(ts);
   return date.toLocaleTimeString() + '.' + String(date.getMilliseconds()).padStart(3, '0');
 };
 
-const logLevelColors: Record<SyncLogEntry['level'], string> = {
-  error: colors.logError,
-  warn: colors.logWarn,
-  info: colors.logInfo,
-  debug: colors.logDebug,
+const LogLevelBadge: React.FC<{ level: SyncLogEntry['level']; colors: ThemeColors }> = ({ level, colors }) => {
+  const logLevelColors: Record<SyncLogEntry['level'], string> = {
+    error: colors.logError,
+    warn: colors.logWarn,
+    info: colors.logInfo,
+    debug: colors.logDebug,
+  };
+  
+  return (
+    <Badge bg={logLevelColors[level]} borderRadius="$sm" px="$1.5" py="$0.5" mr="$2">
+      <BadgeText color="#fff" fontSize="$2xs" fontWeight="$bold">
+        {level.toUpperCase()}
+      </BadgeText>
+    </Badge>
+  );
 };
 
-const LogLevelBadge: React.FC<{ level: SyncLogEntry['level'] }> = ({ level }) => (
-  <Badge bg={logLevelColors[level]} borderRadius="$sm" px="$1.5" py="$0.5" mr="$2">
-    <BadgeText color="#fff" fontSize="$2xs" fontWeight="$bold">
-      {level.toUpperCase()}
-    </BadgeText>
-  </Badge>
-);
-
-const LogEntryView = memo<{ entry: SyncLogEntry }>(({ entry }) => (
+const LogEntryView = memo<{ entry: SyncLogEntry; colors: ThemeColors }>(({ entry, colors }) => (
   <Box
     bg={colors.backgroundMuted}
     p="$2.5"
@@ -38,7 +41,7 @@ const LogEntryView = memo<{ entry: SyncLogEntry }>(({ entry }) => (
     borderLeftColor={colors.border}
   >
     <HStack alignItems="center" mb="$1">
-      <LogLevelBadge level={entry.level} />
+      <LogLevelBadge level={entry.level} colors={colors} />
       <Text fontSize="$2xs" color={colors.textLight} fontFamily="monospace">
         {formatTimestamp(entry.timestamp)}
       </Text>
@@ -59,7 +62,8 @@ const LogEntryView = memo<{ entry: SyncLogEntry }>(({ entry }) => (
 const LogFilterToggle: React.FC<{
   value: LogFilterLevel;
   onChange: (level: LogFilterLevel) => void;
-}> = ({ value, onChange }) => {
+  colors: ThemeColors;
+}> = ({ value, onChange, colors }) => {
   const levels: { key: LogFilterLevel; label: string; description: string }[] = [
     { key: 'info', label: 'Info', description: 'PowerSync only' },
     { key: 'debug', label: 'Debug', description: '+ Supabase & sync' },
@@ -71,7 +75,7 @@ const LogFilterToggle: React.FC<{
       <Text fontSize="$sm" fontWeight="$semibold" color={colors.text}>
         Log Filter:
       </Text>
-      <HStack bg="#f0f0f0" borderRadius="$lg" p="$1">
+      <HStack bg={colors.backgroundMuted} borderRadius="$lg" p="$1">
         {levels.map(({ key, label }) => (
           <Pressable
             key={key}
@@ -102,9 +106,10 @@ const LogFilterToggle: React.FC<{
 const FailedOperationView: React.FC<{
   op: FailedOperation;
   onRemove: () => void;
-}> = ({ op, onRemove }) => (
+  colors: ThemeColors;
+}> = ({ op, onRemove, colors }) => (
   <Box
-    bg="#fff5f5"
+    bg={colors.failedOpBackground}
     p="$3"
     borderRadius="$md"
     mt="$2"
@@ -126,7 +131,7 @@ const FailedOperationView: React.FC<{
       Error: {op.error} ({op.errorCode})
     </Text>
     {op.opData && (
-      <Box bg="#f8f0f0" p="$1.5" borderRadius="$sm" mt="$1">
+      <Box bg={colors.failedOpDataBackground} p="$1.5" borderRadius="$sm" mt="$1">
         <Text fontSize="$2xs" color={colors.textMuted} fontFamily="monospace" numberOfLines={3} selectable>
           Data: {JSON.stringify(op.opData)}
         </Text>
@@ -149,6 +154,7 @@ const FailedOperationView: React.FC<{
 );
 
 export default function SyncDebug() {
+  const { colors } = useTheme();
   const providerDb = useContext(PowerSyncContext);
   const { logs, failedOperations, logFilterLevel, setLogFilterLevel, clearLogs, refreshFailedOperations, removeFailedOperation, clearFailedOperations } = useSyncDebug();
   const [syncStatus, setSyncStatus] = useState<string>('{}');
@@ -170,8 +176,8 @@ export default function SyncDebug() {
   };
 
   const renderLogItem = useCallback(({ item }: { item: SyncLogEntry }) => (
-    <LogEntryView entry={item} />
-  ), []);
+    <LogEntryView entry={item} colors={colors} />
+  ), [colors]);
 
   const keyExtractor = useCallback((item: SyncLogEntry, index: number) =>
     `${item.timestamp}-${index}`, []);
@@ -187,7 +193,7 @@ export default function SyncDebug() {
       </Section>
 
       <Section>
-        <LogFilterToggle value={logFilterLevel} onChange={setLogFilterLevel} />
+        <LogFilterToggle value={logFilterLevel} onChange={setLogFilterLevel} colors={colors} />
       </Section>
 
       {failedOperations.length > 0 && (
@@ -208,6 +214,7 @@ export default function SyncDebug() {
               key={op.id}
               op={op}
               onRemove={() => removeFailedOperation(op.id)}
+              colors={colors}
             />
           ))}
         </Section>
@@ -231,7 +238,7 @@ export default function SyncDebug() {
         </HStack>
       </Box>
     </>
-  ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, clearLogs]);
+  ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, clearLogs, colors]);
 
   const ListEmpty = useCallback(() => (
     <Box bg={colors.backgroundWhite} mx="$4" pb="$4" borderBottomLeftRadius="$lg" borderBottomRightRadius="$lg">
@@ -239,7 +246,7 @@ export default function SyncDebug() {
         No logs yet. Sync activity will appear here.
       </Text>
     </Box>
-  ), []);
+  ), [colors]);
 
   return (
     <FlatList
@@ -252,7 +259,6 @@ export default function SyncDebug() {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
-      // Performance optimizations - kept from original
       removeClippedSubviews={true}
       maxToRenderPerBatch={20}
       windowSize={10}

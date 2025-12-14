@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Input, InputField, InputSlot, Pressable } from '@gluestack-ui/themed';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@lib/theme/colors';
+import { useTheme } from '@lib/theme/ThemeContext';
 
 interface SecureInputProps {
   value: string;
@@ -17,9 +17,6 @@ interface SecureInputProps {
 /**
  * A password input with visibility toggle.
  * Replaces the SecureInput pattern in Settings screen.
- * 
- * Our novel logic: the visibility toggle state and callback.
- * Tests should verify: toggling visibility changes the secureTextEntry behavior.
  */
 export const SecureInput: React.FC<SecureInputProps> = ({
   value,
@@ -29,6 +26,7 @@ export const SecureInput: React.FC<SecureInputProps> = ({
   isVisible: externalVisible,
   onVisibilityChange,
 }) => {
+  const { colors } = useTheme();
   const [internalVisible, setInternalVisible] = useState(false);
   
   // Use external control if provided, otherwise use internal state
@@ -58,6 +56,7 @@ export const SecureInput: React.FC<SecureInputProps> = ({
         placeholder={placeholder}
         placeholderTextColor={colors.textLight}
         secureTextEntry={!showPassword}
+        color={colors.text}
         testID={testID ? `${testID}-field` : undefined}
       />
       <InputSlot pr="$3">
@@ -75,4 +74,3 @@ export const SecureInput: React.FC<SecureInputProps> = ({
 
 // Re-export hook for backwards compatibility
 export { useSecureInputVisibility } from './hooks';
-

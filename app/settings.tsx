@@ -14,11 +14,12 @@ import {
   Pressable,
 } from '@gluestack-ui/themed';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { useTheme } from '@lib/theme/ThemeContext';
 import { Section, ActionButton, SecureInput, WarningBanner } from '@lib/components/ui';
-import { colors } from '@lib/theme/colors';
 
 export default function Settings() {
   const navigation = useNavigation<AppNavigationProp>();
+  const { colors } = useTheme();
   const { settings, updateSettings } = useSettings();
   const [tempSettings, setTempSettings] = useState(settings);
   const [isDirty, setIsDirty] = useState(false);
@@ -150,7 +151,7 @@ export default function Settings() {
 
       <Pressable
         onPress={() => navigation.navigate('SyncDebug')}
-        bg="#f0f0f0"
+        bg={colors.backgroundMuted}
         p="$3.5"
         borderRadius="$lg"
         mx="$4"
@@ -167,7 +168,7 @@ export default function Settings() {
       </Pressable>
 
       <Section title="Current Settings Output">
-        <Box bg={colors.backgroundWhite} p="$4" borderRadius="$lg">
+        <Box bg={colors.backgroundMuted} p="$4" borderRadius="$lg">
           <Text fontSize="$sm" color={colors.text} fontFamily="monospace">
             {JSON.stringify({
               ...tempSettings,
@@ -186,6 +187,7 @@ export default function Settings() {
               onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
               placeholder="https://your-project.supabase.co"
               placeholderTextColor={colors.textLight}
+              color={colors.text}
             />
           </Input>
         </SettingRow>
@@ -209,6 +211,7 @@ export default function Settings() {
               onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
               placeholder="https://your-project.powersync.journeyapps.com"
               placeholderTextColor={colors.textLight}
+              color={colors.text}
             />
           </Input>
         </SettingRow>

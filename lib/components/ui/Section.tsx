@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Heading } from '@gluestack-ui/themed';
+import { useTheme } from '@lib/theme/ThemeContext';
 
 interface SectionProps {
   title?: string;
@@ -12,9 +13,11 @@ interface SectionProps {
  * Replaces the repeated styles.section pattern across screens.
  */
 export const Section: React.FC<SectionProps> = ({ title, children, testID }) => {
+  const { colors } = useTheme();
+  
   return (
     <Box
-      bg="$white"
+      bg={colors.backgroundWhite}
       p="$4"
       mb="$4"
       mx="$4"
@@ -22,7 +25,7 @@ export const Section: React.FC<SectionProps> = ({ title, children, testID }) => 
       testID={testID}
     >
       {title && (
-        <Heading size="md" mb="$4" color="$textDark900">
+        <Heading size="md" mb="$4" color={colors.text}>
           {title}
         </Heading>
       )}
@@ -30,4 +33,3 @@ export const Section: React.FC<SectionProps> = ({ title, children, testID }) => 
     </Box>
   );
 };
-

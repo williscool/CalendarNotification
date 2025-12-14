@@ -10,14 +10,15 @@ import { psInsertDbTable, psClearTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner } from '@lib/components/ui';
-import { colors } from '@lib/theme/colors';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 
 export const SetupSync = () => {
   const navigation = useNavigation<AppNavigationProp>();
+  const { colors } = useTheme();
   const { settings } = useSettings();
   const debugDisplayKeys = ['id', 'ttl', 'istart' ,'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);
@@ -99,9 +100,9 @@ export const SetupSync = () => {
 
   if (!isConfigured) {
     return (
-      <Center flex={1} p="$5">
+      <Center flex={1} p="$5" bg={colors.background}>
         <VStack space="md" alignItems="center">
-          <Text fontSize="$xl" textAlign="center">PowerSync not configured</Text>
+          <Text fontSize="$xl" textAlign="center" color={colors.text}>PowerSync not configured</Text>
           <Text fontSize="$md" textAlign="center" color={colors.textMuted}>
             Please configure your sync settings to continue
           </Text>
@@ -129,11 +130,11 @@ export const SetupSync = () => {
   }
 
   return (
-    <ScrollView flex={1} contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 10 }}>
-      <Text fontSize="$xl" textAlign="center" m="$2.5" selectable>
+    <ScrollView flex={1} bg={colors.background} contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 10 }}>
+      <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
         PowerSync Status: {dbStatus}
       </Text>
-      <Text fontSize="$xl" textAlign="center" m="$2.5">
+      <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text}>
         Last Updated: {lastUpdate}
       </Text>
 
@@ -169,23 +170,23 @@ export const SetupSync = () => {
         <Box
           my="$2.5"
           p="$2.5"
-          bg={colors.background}
+          bg={colors.backgroundMuted}
           borderRadius="$lg"
           borderWidth={1}
           borderColor={colors.border}
           mx="$4"
         >
-          <Text fontSize="$xl" textAlign="center" m="$2.5" selectable>
+          <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
             Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}
           </Text>
-          <Text fontSize="$xl" textAlign="center" m="$2.5" selectable>
+          <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
             Sample PowerSync Remote Events: {JSON.stringify(psEvents)}
           </Text>
-          <Text fontSize="$xl" textAlign="center" m="$2.5" selectable>
+          <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
             Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations?.slice(0, numEventsToDisplay))}
           </Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
-            <Text fontSize="$xl" textAlign="center" m="$2.5" selectable>
+            <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
               Events V9 Temp Table: {JSON.stringify(tempTableEvents)}
             </Text>
           )}
@@ -245,12 +246,6 @@ export const SetupSync = () => {
           </ActionButton>
         </>
       )}
-
-      {/* this native module can be used to communicate with the kotlin code */}
-      {/* I want to use it to get things like the mute status of a notification  */}
-      {/* or whatever other useful things. so dont delete it so I remember to use it later  */}
-
-      {/* <MyModuleView name="MyModuleView" /> */}
     </ScrollView>
   );
 };

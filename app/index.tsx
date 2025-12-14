@@ -5,12 +5,13 @@ import { Box, Text, Button, ButtonText, Center, VStack, Pressable } from '@glues
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { setupPowerSync } from '@lib/powersync';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { SetupSync } from '@lib/features/SetupSync';
-import { colors } from '@lib/theme/colors';
 
 const InitialSetupScreen = () => {
   const navigation = useNavigation<AppNavigationProp>();
+  const { colors } = useTheme();
 
   return (
     <Center flex={1} p="$5" bg={colors.backgroundWhite}>
@@ -44,6 +45,16 @@ const InitialSetupScreen = () => {
   );
 };
 
+const LoadingScreen = () => {
+  const { colors } = useTheme();
+  
+  return (
+    <Center flex={1} bg={colors.backgroundWhite}>
+      <Text fontSize="$xl" color={colors.text}>Initializing...</Text>
+    </Center>
+  );
+};
+
 export default function HomeScreen() {
   const { settings } = useSettings();
   const [isReady, setIsReady] = useState(false);
@@ -59,11 +70,7 @@ export default function HomeScreen() {
   }, [settings.syncEnabled, settings]);
 
   if (!isReady) {
-    return (
-      <Center flex={1} bg={colors.backgroundWhite}>
-        <Text fontSize="$xl" color={colors.text}>Initializing...</Text>
-      </Center>
-    );
+    return <LoadingScreen />;
   }
 
   return settings.syncEnabled ? <SetupSync /> : <InitialSetupScreen />;
