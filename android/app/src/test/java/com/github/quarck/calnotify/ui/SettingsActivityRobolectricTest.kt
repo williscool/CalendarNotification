@@ -12,7 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Robolectric UI tests for SettingsActivity.
+ * Robolectric UI tests for SettingsActivityX.
  * 
  * Tests settings navigation and preference fragment loading.
  */
@@ -39,7 +39,7 @@ class SettingsActivityRobolectricTest {
     fun settingsActivity_launches_successfully() {
         val scenario = fixture.launchSettingsActivity()
         
-        scenario.onActivity { activity ->
+        scenario.onActivity { activity: SettingsActivityX ->
             assertNotNull(activity)
         }
         
@@ -52,7 +52,7 @@ class SettingsActivityRobolectricTest {
     fun settingsActivity_shows_preference_list() {
         val scenario = fixture.launchSettingsActivity()
         
-        scenario.onActivity { activity ->
+        scenario.onActivity { activity: SettingsActivityX ->
             val listView = activity.findViewById<View>(android.R.id.list)
             assertNotNull(listView)
             assertEquals(View.VISIBLE, listView.visibility)
@@ -65,7 +65,7 @@ class SettingsActivityRobolectricTest {
     fun settingsActivity_has_content_view() {
         val scenario = fixture.launchSettingsActivity()
         
-        scenario.onActivity { activity ->
+        scenario.onActivity { activity: SettingsActivityX ->
             val contentView = activity.findViewById<View>(android.R.id.content)
             assertNotNull(contentView)
         }

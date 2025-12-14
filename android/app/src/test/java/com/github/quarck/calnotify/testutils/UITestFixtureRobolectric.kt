@@ -17,7 +17,7 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.MainActivity
-import com.github.quarck.calnotify.ui.SettingsActivity
+import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import io.mockk.every
@@ -311,11 +311,11 @@ class UITestFixtureRobolectric {
     }
     
     /**
-     * Launches SettingsActivity.
+     * Launches SettingsActivityX.
      */
-    fun launchSettingsActivity(): ActivityScenario<SettingsActivity> {
-        DevLog.info(LOG_TAG, "Launching SettingsActivity")
-        val intent = Intent(context, SettingsActivity::class.java)
+    fun launchSettingsActivity(): ActivityScenario<SettingsActivityX> {
+        DevLog.info(LOG_TAG, "Launching SettingsActivityX")
+        val intent = Intent(context, SettingsActivityX::class.java)
         return ActivityScenario.launch(intent)
     }
     
