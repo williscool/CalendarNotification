@@ -49,13 +49,14 @@ class SettingsActivityRobolectricTest {
     // === Preference Headers Display Tests ===
     
     @Test
-    fun settingsActivity_shows_preference_list() {
+    fun settingsActivity_shows_preference_container() {
         val scenario = fixture.launchSettingsActivity()
         
         scenario.onActivity { activity: SettingsActivityX ->
-            val listView = activity.findViewById<View>(android.R.id.list)
-            assertNotNull(listView)
-            assertEquals(View.VISIBLE, listView.visibility)
+            // AndroidX Preferences use a FrameLayout container instead of android.R.id.list
+            val container = activity.findViewById<View>(R.id.settings_container)
+            assertNotNull(container)
+            assertEquals(View.VISIBLE, container.visibility)
         }
         
         scenario.close()
