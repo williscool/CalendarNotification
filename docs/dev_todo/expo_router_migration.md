@@ -8,10 +8,27 @@ Attempted migration to Expo Router v3 for file-based routing but encountered com
 
 ## Current Setup (Working)
 
+- **React Native**: 0.74.5
+- **Expo SDK**: 51
 - **Navigation**: React Navigation (`@react-navigation/native-stack`)
 - **UI Components**: Gluestack UI v1
 - **Styling**: NativeWind v2 (Tailwind for RN)
 - **Entry Point**: `index.tsx` with explicit screen imports
+
+## Target Versions for Original Goals
+
+| Package | Current | Target | Why |
+|---------|---------|--------|-----|
+| **React Native** | 0.74.5 | **0.76.x** | New Architecture required for worklets |
+| **Expo SDK** | 51 | **52** | Expo Router v4 + updated gradle plugins |
+| **Expo Router** | ❌ removed | **~4.x** | Better bare RN support in v4 |
+| **NativeWind** | 2.x | **4.x** | Requires RN 0.76+ for worklets |
+| **react-native-svg** | 15.2.0 (broken) | **15.x** | Compatible with RN 0.76+ |
+
+### Upgrade Helper
+
+Use this link to see all required changes:
+https://react-native-community.github.io/upgrade-helper/?from=0.74.5&to=0.76.0
 
 ## What We Tried
 
@@ -43,34 +60,43 @@ Expo Router uses `require.context('./app')` to auto-discover route files. This r
 - Separate `node_modules` on Windows and Linux due to file sync
 - Native binary dependencies (like `lightningcss`) need platform-specific builds
 
-## Retry When
+## Migration Checklist
 
-- [ ] Upgrade to React Native 0.76+ (New Architecture stable)
-- [ ] Upgrade to Expo SDK 52+
-- [ ] Consider managed Expo workflow if bare RN issues persist
+### Prerequisites
+- [ ] Upgrade to React Native 0.76.x
+- [ ] Upgrade to Expo SDK 52
+- [ ] Verify New Architecture is enabled
+- [ ] Clean rebuild on Windows (`.\gradlew clean`)
 
-## Migration Plan (For Future)
+### Migration Steps
+1. [ ] Add `expo-router@~4.x` and `expo-linking`
+2. [ ] Update `package.json` main to `"expo-router/entry"`
+3. [ ] Update `app.json` with expo-router plugin
+4. [ ] Recreate `app/_layout.tsx` with providers
+5. [ ] Update screen files to use `useRouter()` instead of `useNavigation()`
+6. [ ] Add NativeWind v4 + tailwindcss v3
+7. [ ] Update `metro.config.js` with `withNativeWind`
+8. [ ] Test on Windows/WSL environment
+9. [ ] Remove React Navigation packages
 
-1. **Upgrade React Native** to latest stable (0.76+)
-2. **Upgrade Expo SDK** to 52+
-3. **Try Expo Router v4** (or latest) - should have better bare RN support
-4. **Try NativeWind v4** - worklets support should be better on new RN
-5. **Test in Windows/WSL** - verify native dependencies work
+## Files to Reuse
 
-## Files Created (Keep for Reference)
+These files were created and can be adapted:
 
-These files were created during the migration attempt and can be reused:
-
-- `app/_layout.tsx` - Root layout with providers (needs expo-router imports)
-- `app/index.tsx` - Home screen (currently using React Navigation)
-- `app/settings.tsx` - Settings screen
-- `app/sync-debug.tsx` - Debug screen
-- `lib/components/ui/` - Reusable UI components (working)
-- `lib/theme/colors.ts` - Centralized color tokens (working)
+| File | Status | Notes |
+|------|--------|-------|
+| `app/index.tsx` | ✅ Working | Update imports for expo-router |
+| `app/settings.tsx` | ✅ Working | Update imports for expo-router |
+| `app/sync-debug.tsx` | ✅ Working | No navigation changes needed |
+| `lib/components/ui/` | ✅ Working | Keep as-is |
+| `lib/theme/colors.ts` | ✅ Working | Keep as-is |
+| `lib/navigation/types.ts` | ⚠️ Remove | Not needed with expo-router |
+| `app/_layout.tsx` | ❌ Deleted | Recreate with expo-router imports |
 
 ## References
 
 - [Expo Router Docs](https://docs.expo.dev/router/introduction/)
 - [NativeWind v4 Docs](https://www.nativewind.dev/)
-- [React Native Upgrade Helper](https://react-native-community.github.io/upgrade-helper/)
-
+- [React Native Upgrade Helper](https://react-native-community.github.io/upgrade-helper/?from=0.74.5&to=0.76.0)
+- [Expo SDK 52 Release Notes](https://expo.dev/changelog)
+- [React Native 0.76 Release](https://reactnative.dev/blog)
