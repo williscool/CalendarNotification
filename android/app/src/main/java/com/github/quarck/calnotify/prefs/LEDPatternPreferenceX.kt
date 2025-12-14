@@ -1,6 +1,6 @@
 //
 //   Calendar Notifications Plus
-//   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
