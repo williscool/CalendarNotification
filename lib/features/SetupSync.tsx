@@ -8,6 +8,7 @@ import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
 import { psInsertDbTable, psClearTable } from '@lib/orm';
 import { useNavigation } from '@react-navigation/native';
+import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner } from '@lib/components/ui';
@@ -16,7 +17,7 @@ import { colors } from '@lib/theme/colors';
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 
 export const SetupSync = () => {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<AppNavigationProp>();
   const { settings } = useSettings();
   const debugDisplayKeys = ['id', 'ttl', 'istart' ,'loc'];
   const [showDangerZone, setShowDangerZone] = useState(false);

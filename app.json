@@ -5,13 +5,6 @@
     "scheme": "cnplussync",
     "version": "0.0.1",
     "platforms": ["android"],
-    "jsEngine": "hermes",
-    "plugins": [
-      "expo-router"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    "jsEngine": "hermes"
   }
 }
-

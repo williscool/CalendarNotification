@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { AppNavigationProp } from '@lib/navigation/types';
 import {
   Box,
   Text,
@@ -17,7 +18,7 @@ import { Section, ActionButton, SecureInput, WarningBanner } from '@lib/componen
 import { colors } from '@lib/theme/colors';
 
 export default function Settings() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<AppNavigationProp>();
   const { settings, updateSettings } = useSettings();
   const [tempSettings, setTempSettings] = useState(settings);
   const [isDirty, setIsDirty] = useState(false);
