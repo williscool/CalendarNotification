@@ -42,10 +42,10 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".ui.SettingsActivity"
+            android:name=".ui.SettingsActivityX"
             android:label="@string/settings_name"
             android:parentActivityName=".ui.MainActivity"
-            android:theme="@style/AppTheme" />
+            android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".ui.ReportABugActivity"
             android:label="@string/help_feedback"

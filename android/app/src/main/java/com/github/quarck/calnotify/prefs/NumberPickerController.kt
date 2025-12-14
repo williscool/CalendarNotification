@@ -1,6 +1,6 @@
 //
 //   Calendar Notifications Plus
-//   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
@@ -17,17 +17,33 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.prefs.fragments
+package com.github.quarck.calnotify.prefs
 
-import android.os.Bundle
-import android.preference.PreferenceFragment
+import android.view.View
+import android.widget.NumberPicker
 import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.utils.findOrThrow
 
-@Deprecated("Quiet Hours feature is deprecated. Use Android's built-in Do Not Disturb mode instead.")
-class QuietHoursSettingsFragment : PreferenceFragment() {
+class NumberPickerController(val view: View, val minValue: Int, val maxValue: Int) {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState);
-        addPreferencesFromResource(R.xml.quiet_hours_preferences)
+    var numberPicker: NumberPicker = view.findOrThrow(R.id.numberPickerMaxReminders)
+
+    init {
+        numberPicker.minValue = minValue
+        numberPicker.maxValue = maxValue
     }
+
+    fun clearFocus() {
+        numberPicker.clearFocus()
+    }
+
+    var value: Int
+        get() {
+            clearFocus()
+            return numberPicker.value
+        }
+        set(value) {
+            numberPicker.value = value
+        }
 }
+

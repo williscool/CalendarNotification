@@ -500,7 +500,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             R.id.action_settings -> {
                 shouldForceRepost = true // so onResume would re-post everything
                 startActivity(
-                        Intent(this, SettingsActivity::class.java)
+                        Intent(this, SettingsActivityX::class.java)
                         .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
             }
 

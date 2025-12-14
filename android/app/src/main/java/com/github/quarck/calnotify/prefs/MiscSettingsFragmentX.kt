@@ -1,6 +1,6 @@
 //
 //   Calendar Notifications Plus
-//   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
@@ -17,16 +17,16 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.prefs.fragments
+package com.github.quarck.calnotify.prefs
 
 import android.os.Bundle
-import android.preference.PreferenceFragment
+import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 
-class SnoozeSettingsFragment : PreferenceFragment() {
+class MiscSettingsFragmentX : PreferenceFragmentCompat() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState);
-        addPreferencesFromResource(R.xml.snooze_preferences)
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+        setPreferencesFromResource(R.xml.misc_preferences, rootKey)
     }
 }
+

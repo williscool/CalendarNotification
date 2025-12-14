@@ -25,21 +25,19 @@
             android:dependency="enable_manual_calendar_rescan"
             android:defaultValue="false"/>
 
-        <com.github.quarck.calnotify.prefs.DefaultManualNotificationPreference
+        <com.github.quarck.calnotify.prefs.DefaultManualNotificationPreferenceX
             android:key="default_rminder_time"
             android:title="@string/default_reminder_time"
             android:summary="@string/default_reminder_time_summary_short"
             android:dependency="remind_events_no_rmdnrs"
-            android:numeric="integer"
             android:defaultValue="15"
             />
 
-        <com.github.quarck.calnotify.prefs.DefaultManualAllDayNotificationPreference
+        <com.github.quarck.calnotify.prefs.DefaultManualAllDayNotificationPreferenceX
             android:key="default_all_day_rminder_time"
             android:title="@string/default_all_day_reminder_time"
             android:summary="@string/default_all_day_reminder_time_summary_short"
             android:dependency="remind_events_no_rmdnrs"
-            android:numeric="integer"
             android:defaultValue="-480"
             />
 

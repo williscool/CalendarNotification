@@ -12,7 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Robolectric UI tests for SettingsActivity.
+ * Robolectric UI tests for SettingsActivityX.
  * 
  * Tests settings navigation and preference fragment loading.
  */
@@ -39,7 +39,7 @@ class SettingsActivityRobolectricTest {
     fun settingsActivity_launches_successfully() {
         val scenario = fixture.launchSettingsActivity()
         
-        scenario.onActivity { activity ->
+        scenario.onActivity { activity: SettingsActivityX ->
             assertNotNull(activity)
         }
         
@@ -49,13 +49,14 @@ class SettingsActivityRobolectricTest {
     // === Preference Headers Display Tests ===
     
     @Test
-    fun settingsActivity_shows_preference_list() {
+    fun settingsActivity_shows_preference_container() {
         val scenario = fixture.launchSettingsActivity()
         
-        scenario.onActivity { activity ->
-            val listView = activity.findViewById<View>(android.R.id.list)
-            assertNotNull(listView)
-            assertEquals(View.VISIBLE, listView.visibility)
+        scenario.onActivity { activity: SettingsActivityX ->
+            // AndroidX Preferences use a FrameLayout container instead of android.R.id.list
+            val container = activity.findViewById<View>(R.id.settings_container)
+            assertNotNull(container)
+            assertEquals(View.VISIBLE, container.visibility)
         }
         
         scenario.close()
@@ -65,7 +66,7 @@ class SettingsActivityRobolectricTest {
     fun settingsActivity_has_content_view() {
         val scenario = fixture.launchSettingsActivity()
         
-        scenario.onActivity { activity ->
+        scenario.onActivity { activity: SettingsActivityX ->
             val contentView = activity.findViewById<View>(android.R.id.content)
             assertNotNull(contentView)
         }
