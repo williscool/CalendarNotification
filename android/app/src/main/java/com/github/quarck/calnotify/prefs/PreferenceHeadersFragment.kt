@@ -46,11 +46,14 @@ class PreferenceHeadersFragment : PreferenceFragmentCompat() {
             // Update summary to show current selection
             updateThemeSummary(this)
             
-            onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
+            onPreferenceChangeListener = Preference.OnPreferenceChangeListener { pref, newValue ->
                 val mode = (newValue as String).toInt()
                 settings.themeMode = mode
                 AppCompatDelegate.setDefaultNightMode(mode)
-                updateThemeSummary(this)
+                // Use newValue to find the entry since the preference value hasn't been committed yet
+                val listPref = pref as ListPreference
+                val index = listPref.findIndexOfValue(newValue)
+                pref.summary = if (index >= 0) listPref.entries[index] else getString(R.string.theme_setting_summary)
                 true
             }
         }
