@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react-hooks';
-import { useSecureInputVisibility } from '../SecureInput';
+import { useSecureInputVisibility } from '../hooks';
 
 /**
  * Tests for SecureInput's visibility toggle logic.

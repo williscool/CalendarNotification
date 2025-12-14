@@ -1,4 +1,4 @@
-import { getVariantStyle } from '../ActionButton';
+import { getVariantStyle } from '../variants';
 import { colors } from '@lib/theme/colors';
 
 /**
@@ -58,4 +58,3 @@ describe('ActionButton variant logic', () => {
     });
   });
 });
-

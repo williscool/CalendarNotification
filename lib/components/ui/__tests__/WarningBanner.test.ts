@@ -1,4 +1,4 @@
-import { getWarningVariantStyle } from '../WarningBanner';
+import { getWarningVariantStyle } from '../variants';
 import { colors } from '@lib/theme/colors';
 
 /**
@@ -43,4 +43,3 @@ describe('WarningBanner variant logic', () => {
     });
   });
 });
-

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Input, InputField, InputSlot, InputIcon, Pressable } from '@gluestack-ui/themed';
+import { Input, InputField, InputSlot, Pressable } from '@gluestack-ui/themed';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@lib/theme/colors';
 
@@ -73,21 +73,6 @@ export const SecureInput: React.FC<SecureInputProps> = ({
   );
 };
 
-/**
- * Hook for managing secure input visibility state.
- * Useful when you need to control multiple secure inputs or access visibility state externally.
- */
-export const useSecureInputVisibility = (initialVisible = false) => {
-  const [isVisible, setIsVisible] = useState(initialVisible);
-  
-  const toggle = useCallback(() => {
-    setIsVisible(prev => !prev);
-  }, []);
-
-  return {
-    isVisible,
-    setIsVisible,
-    toggle,
-  };
-};
+// Re-export hook for backwards compatibility
+export { useSecureInputVisibility } from './hooks';
 
