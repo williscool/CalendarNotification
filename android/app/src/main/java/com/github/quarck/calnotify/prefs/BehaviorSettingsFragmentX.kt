@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.prefs
 
 import android.os.Bundle
+import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 
@@ -27,6 +28,27 @@ class BehaviorSettingsFragmentX : PreferenceFragmentCompat() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.behavior_preferences, rootKey)
+    }
+
+    override fun onDisplayPreferenceDialog(preference: Preference) {
+        val dialogFragment = when (preference) {
+            is DefaultManualNotificationPreferenceX ->
+                DefaultManualNotificationPreferenceX.Dialog.newInstance(preference.key)
+            is DefaultManualAllDayNotificationPreferenceX ->
+                DefaultManualAllDayNotificationPreferenceX.Dialog.newInstance(preference.key)
+            else -> {
+                super.onDisplayPreferenceDialog(preference)
+                return
+            }
+        }
+
+        @Suppress("DEPRECATION")
+        dialogFragment.setTargetFragment(this, 0)
+        dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+    }
+
+    companion object {
+        private const val DIALOG_FRAGMENT_TAG = "BehaviorSettingsFragmentX.DIALOG"
     }
 }
 
