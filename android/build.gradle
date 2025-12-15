@@ -24,8 +24,8 @@ buildscript {
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
-      // SDK versions used by React Native dependencies and the main app
-      minSdk = 24 // https://github.com/software-mansion/react-native-screens/pull/2251#ref-issue-2457327086
+      // SDK versions - aligned with Expo SDK 52 requirements
+      minSdk = 24
       minSdkVersion = 24
       compileSdkVersion = 35
       targetSdkVersion = 35
@@ -52,17 +52,6 @@ buildscript {
 subprojects {
     // Removed forced test dependency versions - let Gradle resolve naturally
     // to avoid conflicts between main app (AppCompat 1.6.0) and test libraries
-    
-    // Fix Kotlin null-safety errors in expo-modules-core when compiled with SDK 35
-    // Expo SDK 51 has null-safety issues that surface with SDK 35
-    // TODO: Remove this workaround when upgrading to Expo SDK 52+
-    afterEvaluate { project ->
-        if (project.name == 'expo-modules-core' && project.hasProperty('android')) {
-            project.android {
-                compileSdkVersion 34
-            }
-        }
-    }
 }
 
 allprojects {

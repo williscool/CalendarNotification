@@ -5,6 +5,7 @@
     "scheme": "cnplussync",
     "version": "0.0.1",
     "platforms": ["android"],
-    "jsEngine": "hermes"
+    "jsEngine": "hermes",
+    "newArchEnabled": true
   }
 }
