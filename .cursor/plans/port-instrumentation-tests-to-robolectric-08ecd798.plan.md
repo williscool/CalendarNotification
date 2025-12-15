@@ -1,4 +1,36 @@
-<!-- 08ecd798-44b9-4ea9-bddd-c496d0f46a9d 8d948f95-1c9e-4584-955a-c9e1391c8113 -->
+---
+name: "Plan: Port Instrumentation Tests to Robolectric"
+overview: ""
+todos:
+  - id: 4ca9ab62-3f91-476d-aa0e-791e21b60575
+    content: Extend MockCalendarProvider with calendar/event creation methods
+    status: pending
+  - id: 84a83df5-ed53-403d-8e4d-08f2b3bc6dfc
+    content: Port ComponentIsolationTest (easiest - already mocked)
+    status: pending
+  - id: 51011228-2107-404a-a66d-5b7f2f6cce1c
+    content: Port CalendarProviderBasicTest
+    status: pending
+  - id: 483907bf-3049-4021-90e4-bb1586b76214
+    content: Port CalendarProviderEventTest
+    status: pending
+  - id: c6032be8-dae2-4f78-b696-37bab2edc24a
+    content: Port CalendarProviderReminderTest
+    status: pending
+  - id: 77207cfd-7faa-45af-acb6-43ebb040a57c
+    content: Port CalendarBackupRestoreTest
+    status: pending
+  - id: 4659fb72-b7d0-4f82-a872-b48ab5e2af46
+    content: Port SimpleCalendarMonitoringTest
+    status: pending
+  - id: 72b8ce3a-4c96-403a-a748-f9a14a3e46bc
+    content: Port FixturedCalendarMonitorServiceTest
+    status: pending
+  - id: e20ca439-bf5b-480a-8a9a-e65b58fd0a36
+    content: Port CalendarTestFixtureExampleTest
+    status: pending
+---
+
 # Plan: Port Instrumentation Tests to Robolectric
 
 ## Test Files to Port (8 files, ~41 tests)
@@ -112,15 +144,3 @@ All in `android/app/src/test/java/com/github/quarck/calnotify/`:
 - No separate fixture classes (extend MockCalendarProvider instead)
 - No ContentProvider implementations
 - Just stub CalendarProvider methods as needed per test
-
-### To-dos
-
-- [ ] Extend MockCalendarProvider with calendar/event creation methods
-- [ ] Port ComponentIsolationTest (easiest - already mocked)
-- [ ] Port CalendarProviderBasicTest
-- [ ] Port CalendarProviderEventTest
-- [ ] Port CalendarProviderReminderTest
-- [ ] Port CalendarBackupRestoreTest
-- [ ] Port SimpleCalendarMonitoringTest
-- [ ] Port FixturedCalendarMonitorServiceTest
-- [ ] Port CalendarTestFixtureExampleTest

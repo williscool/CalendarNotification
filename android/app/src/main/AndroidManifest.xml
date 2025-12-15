@@ -19,6 +19,12 @@
     <!-- TODO: figure out how to only enable these for dev build -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 12+ (API 31) - Required for exact alarms in calendar/alarm apps (auto-granted) -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    
+    <!-- Android 13+ (API 33) - Required for posting notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
 
     <application
         android:name=".GlobalState"
@@ -34,7 +40,8 @@
             android:name=".ui.MainActivity"
             android:label="@string/main_activity_title"
             android:theme="@style/AppTheme.NoActionBar"
-			android:launchMode="singleTask">
+            android:launchMode="singleTask"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -75,7 +82,8 @@
             android:name=".prefs.CalendarsActivity"
             android:label="@string/title_calendars_activity"
             android:parentActivityName=".ui.SettingsActivity"
-            android:theme="@style/AppTheme.NoActionBar">
+            android:theme="@style/AppTheme.NoActionBar"
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.prefs.CalendarsActivity" />
 
@@ -87,7 +95,8 @@
             android:name=".prefs.CarModeActivity"
             android:label="@string/title_car_mode_activity"
             android:parentActivityName=".ui.SettingsActivity"
-            android:theme="@style/AppTheme.NoActionBar">
+            android:theme="@style/AppTheme.NoActionBar"
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.prefs.CarModeActivity" />
 
@@ -128,7 +137,7 @@
             android:theme="@style/AppTheme.NoActionBar"
             android:parentActivityName=".ui.MainActivity"
             android:label="@string/create_event"
-            >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -154,13 +163,15 @@
                 android:resource="@xml/filepaths" />
         </provider>
 
-        <service android:name=".calendarmonitor.CalendarMonitorService" />
+        <service android:name=".calendarmonitor.CalendarMonitorService" android:exported="false" />
 
-        <service android:name=".notification.NotificationActionDismissService" />
-        <service android:name=".notification.NotificationActionSnoozeService" />
-        <service android:name=".notification.NotificationActionMuteToggleService" />
+        <service android:name=".notification.NotificationActionDismissService" android:exported="false" />
+        <service android:name=".notification.NotificationActionSnoozeService" android:exported="false" />
+        <service android:name=".notification.NotificationActionMuteToggleService" android:exported="false" />
 
-        <receiver android:name=".broadcastreceivers.AppUpdatedBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.AppUpdatedBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
@@ -181,7 +192,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.EventReminderBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.EventReminderBroadcastReceiver"
+            android:exported="true">
             <intent-filter android:priority="2147483647">
                 <action android:name="android.intent.action.EVENT_REMINDER" />
 
@@ -205,7 +218,9 @@
                 <data android:mimeType="vnd.android.cursor.item/calendar_alert_time" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.CalendarChangedBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.CalendarChangedBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.PROVIDER_CHANGED" />
 
@@ -213,27 +228,32 @@
                 <data android:host="com.android.calendar" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.SnoozeAlarmBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.ReminderAlarmBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.ManualEventAlarmBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.SnoozeExactAlarmBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.ReminderExactAlarmBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.ManualEventExactAlarmBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.ManualEventAlarmPeriodicRescanBroadcastReceiver" />
-        <receiver android:name=".broadcastreceivers.TimeSetBroadcastReceiver">
+        <receiver android:name=".broadcastreceivers.SnoozeAlarmBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".broadcastreceivers.ReminderAlarmBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".broadcastreceivers.ManualEventAlarmBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".broadcastreceivers.SnoozeExactAlarmBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".broadcastreceivers.ReminderExactAlarmBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".broadcastreceivers.ManualEventExactAlarmBroadcastReceiver" android:exported="false" />
+        <receiver android:name=".broadcastreceivers.ManualEventAlarmPeriodicRescanBroadcastReceiver" android:exported="false" />
+        <receiver 
+            android:name=".broadcastreceivers.TimeSetBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".broadcastreceivers.RemoteCommandBroadcastReceiver"
-            tools:ignore="ExportedReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.RemoteCommandBroadcastReceiver"
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.remote_mute_all" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".broadcastreceivers.RescheduleConfirmationsBroadcastReceiver">
+        <receiver 
+            android:name=".broadcastreceivers.RescheduleConfirmationsBroadcastReceiver"
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.github.quarck.calnotify.RESCHEDULE_CONFIRMATIONS_RECEIVED" />
             </intent-filter>

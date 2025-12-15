@@ -1,4 +1,21 @@
-<!-- 01f42113-b6cb-4093-a74c-e9b9720b7bce 0b6df41c-ac56-4fa6-9fd2-1b1be58ee17f -->
+---
+name: PowerSync Upload Retry and Debug View Implementation
+overview: ""
+todos:
+  - id: e797f5b4-1d69-4577-9cce-df8bbfb069ab
+    content: Add exponential backoff retry logic and failed operation storage to Connector.ts
+    status: pending
+  - id: e01b9f80-b15d-4cf9-b140-b482b91c32dd
+    content: Create SyncDebugContext for log capture and failed operation tracking
+    status: pending
+  - id: 97b8d865-4f96-4d5f-983d-9ac3687ca4fc
+    content: Create SyncDebug.tsx screen to display logs and failed operations
+    status: pending
+  - id: 49306217-03fa-4c8a-b880-a3081dbe3b43
+    content: Add SyncDebug route to App/index.tsx and link from Settings.tsx
+    status: pending
+---
+
 # PowerSync Upload Retry and Debug View Implementation
 
 ## Summary
@@ -61,10 +78,3 @@ Enhance `uploadData` with robust retry logic (exponential backoff) for transient
 - Using js-logger (already a dependency) rather than adding new logging lib
 - Failed operations stored locally - user can inspect and decide to discard
 - Keeping implementation minimal - no over-engineering
-
-### To-dos
-
-- [ ] Add exponential backoff retry logic and failed operation storage to Connector.ts
-- [ ] Create SyncDebugContext for log capture and failed operation tracking
-- [ ] Create SyncDebug.tsx screen to display logs and failed operations
-- [ ] Add SyncDebug route to App/index.tsx and link from Settings.tsx

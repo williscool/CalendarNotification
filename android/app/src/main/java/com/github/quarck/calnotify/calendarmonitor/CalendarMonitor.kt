@@ -38,6 +38,7 @@ import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.utils.alarmManager
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.detailed
+import com.github.quarck.calnotify.utils.pendingIntentFlagCompat
 import com.github.quarck.calnotify.utils.setExactAndAlarm
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
@@ -396,7 +397,8 @@ open class CalendarMonitor(
         DevLog.debug(LOG_TAG, "schedulePeriodicRescanAlarm, interval: $interval");
 
         val intent = Intent(context, ManualEventAlarmPeriodicRescanBroadcastReceiver::class.java);
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, 
+                pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT))
 
         context.alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, next, interval, pendingIntent)
     }

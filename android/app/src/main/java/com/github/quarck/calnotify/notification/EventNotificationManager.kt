@@ -30,6 +30,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.text.format.DateUtils
 import com.github.quarck.calnotify.*
+import com.github.quarck.calnotify.notification.NotificationChannels
+import com.github.quarck.calnotify.utils.pendingIntentFlagCompat
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -485,7 +487,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         // now build actual notification and notify
         val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(context, MAIN_ACTIVITY_EVERYTHING_COLLAPSED_CODE, intent, 0)
+        val pendingIntent = PendingIntent.getActivity(context, MAIN_ACTIVITY_EVERYTHING_COLLAPSED_CODE, intent, 
+                pendingIntentFlagCompat(0))
 
         val numEvents = events.size
 
@@ -510,8 +513,11 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
+        // Use alarm channel if there are alarms, otherwise default
+        val channelId = if (hasAlarms) NotificationChannels.CHANNEL_ID_ALARM else NotificationChannels.CHANNEL_ID_DEFAULT
+        
         val builder =
-                NotificationCompat.Builder(context)
+                NotificationCompat.Builder(context, channelId)
                         .setContentTitle(title)
                         .setContentText(text)
                         .setSmallIcon(com.github.quarck.calnotify.R.drawable.stat_notify_calendar_multiple)
@@ -648,19 +654,16 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         val snoozePresets = settings.snoozePresets
 
-        if (isMarshmallowOrAbove) {
-            if (notificationsSettings.useBundledNotifications) {
-                postGroupNotification(
-                        context,
-                        notificationsSettingsQuiet,
-                        snoozePresets,
-                        summaryNotificationIsOngoing,
-                        numTotalEvents
-                )
-            }
-            else {
-                removeNotification(context, Consts.NOTIFICATION_ID_BUNDLED_GROUP)
-            }
+        if (notificationsSettings.useBundledNotifications) {
+            postGroupNotification(
+                    context,
+                    notificationsSettingsQuiet,
+                    snoozePresets,
+                    summaryNotificationIsOngoing,
+                    numTotalEvents
+            )
+        } else {
+            removeNotification(context, Consts.NOTIFICATION_ID_BUNDLED_GROUP)
         }
 
         var currentTime = clock.currentTimeMillis()
@@ -955,7 +958,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         val intent = snoozeIntent(ctx, event.eventId, event.instanceStartTime, event.notificationId)
         val id = event.notificationId * EVENT_CODES_TOTAL + EVENT_CODE_SNOOOZE_OFFSET
-        val pendingIntent: PendingIntent? = PendingIntent.getActivity(ctx, id, intent, PendingIntent.FLAG_NO_CREATE)
+        val pendingIntent: PendingIntent? = PendingIntent.getActivity(ctx, id, intent, 
+                pendingIntentFlagCompat(PendingIntent.FLAG_NO_CREATE))
         return pendingIntent != null
     }
 
@@ -970,11 +974,12 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         val intent = Intent(ctx, MainActivity::class.java)
 
-        val pendingIntent = PendingIntent.getActivity(ctx, MAIN_ACTIVITY_GROUP_NOTIFICATION_CODE, intent, 0)
+        val pendingIntent = PendingIntent.getActivity(ctx, MAIN_ACTIVITY_GROUP_NOTIFICATION_CODE, intent, 
+                pendingIntentFlagCompat(0))
 
         val text = ctx.resources.getString(R.string.N_calendar_events).format(numTotalEvents)
 
-        val groupBuilder = NotificationCompat.Builder(ctx)
+        val groupBuilder = NotificationCompat.Builder(ctx, NotificationChannels.CHANNEL_ID_DEFAULT)
                 .setContentTitle(ctx.resources.getString(R.string.calendar))
                 .setContentText(text)
                 .setSubText(text)
@@ -1056,7 +1061,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .addNextIntentWithParentStack(calendarIntent)
                         .getPendingIntent(
                                 event.notificationId * EVENT_CODES_TOTAL + EVENT_CODE_OPEN_OFFSET,
-                                PendingIntent.FLAG_UPDATE_CURRENT)
+                                pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT))
 
         val snoozeActivityIntent =
                 pendingActivityIntent(ctx,
@@ -1099,7 +1104,14 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         else if (event.isMuted)
             iconId = R.drawable.stat_notify_calendar_muted
 
-        val builder = NotificationCompat.Builder(ctx)
+        // Select appropriate channel based on event type
+        val channelId = NotificationChannels.getChannelId(
+            isAlarm = event.isAlarm || forceAlarmStream,
+            isMuted = event.isMuted,
+            isReminder = isReminder
+        )
+
+        val builder = NotificationCompat.Builder(ctx, channelId)
                 .setContentTitle(title)
                 .setContentText(notificationTextString)
                 .setSmallIcon(iconId)
@@ -1388,7 +1400,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
     }
 
     private fun pendingServiceIntent(ctx: Context, intent: Intent, id: Int): PendingIntent
-            = PendingIntent.getService(ctx, id, intent, PendingIntent.FLAG_CANCEL_CURRENT)
+            = PendingIntent.getService(ctx, id, intent, pendingIntentFlagCompat(PendingIntent.FLAG_CANCEL_CURRENT))
 
     private fun pendingActivityIntent(ctx: Context, intent: Intent, id: Int): PendingIntent {
 
@@ -1402,7 +1414,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         return pendingIntent */
 
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        return PendingIntent.getActivity(ctx, id, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        return PendingIntent.getActivity(ctx, id, intent, pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT))
 
     }
 
@@ -1436,7 +1448,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         DevLog.debug(LOG_TAG, "Posting collapsed view notification for ${events.size} requests")
 
         val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(context, MAIN_ACTIVITY_NUM_NOTIFICATIONS_COLLAPSED_CODE, intent, 0)
+        val pendingIntent = PendingIntent.getActivity(context, MAIN_ACTIVITY_NUM_NOTIFICATIONS_COLLAPSED_CODE, intent, 
+                pendingIntentFlagCompat(0))
 
         val numEvents = events.size
 
@@ -1462,7 +1475,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .toString()
 
         val builder =
-                NotificationCompat.Builder(context)
+                NotificationCompat.Builder(context, NotificationChannels.CHANNEL_ID_DEFAULT)
                         .setContentTitle(title)
                         .setContentText(text)
                         .setSmallIcon(com.github.quarck.calnotify.R.drawable.stat_notify_calendar_multiple)
@@ -1507,7 +1520,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         val appPendingIntent = pendingActivityIntent(context,
                 Intent(context, MainActivity::class.java), notificationId)
 
-        val builder = NotificationCompat.Builder(context)
+        val builder = NotificationCompat.Builder(context, NotificationChannels.CHANNEL_ID_DEFAULT)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setSmallIcon(R.drawable.stat_notify_calendar)

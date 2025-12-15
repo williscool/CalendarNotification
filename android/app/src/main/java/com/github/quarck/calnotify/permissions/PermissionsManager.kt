@@ -24,10 +24,16 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 object PermissionsManager {
+    
+    const val PERMISSION_REQUEST_CALENDAR = 0
+    const val PERMISSION_REQUEST_LOCATION = 1
+    const val PERMISSION_REQUEST_NOTIFICATIONS = 2
+    
     private fun Context.hasPermission(perm: String) =
             ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED
 
@@ -42,6 +48,19 @@ object PermissionsManager {
 
     fun hasCoarseLocationNoCache(context: Context)
             = context.hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+    /**
+     * Check if we have notification permission.
+     * On Android 13+ (API 33), POST_NOTIFICATIONS is required.
+     * On older versions, permission is implicitly granted.
+     */
+    fun hasNotificationPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.hasPermission(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            true // Permission not required on older versions
+        }
+    }
 
     private var hasWriteCalendarCached: Boolean = false
     private var hasReadCalendarCached: Boolean = false
@@ -75,11 +94,37 @@ object PermissionsManager {
     fun shouldShowLocationRationale(activity: Activity) =
             activity.shouldShowRationale(Manifest.permission.ACCESS_COARSE_LOCATION)
 
+    /**
+     * Check if we should show rationale for notification permission.
+     * Only applicable on Android 13+ (API 33).
+     */
+    fun shouldShowNotificationRationale(activity: Activity): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            activity.shouldShowRationale(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            false
+        }
+    }
+
     fun requestCalendarPermissions(activity: Activity) =
             ActivityCompat.requestPermissions(activity,
-                    arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), 0)
+                    arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), 
+                    PERMISSION_REQUEST_CALENDAR)
 
     fun requestLocationPermissions(activity: Activity) =
             ActivityCompat.requestPermissions(activity,
-                    arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 0)
+                    arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 
+                    PERMISSION_REQUEST_LOCATION)
+
+    /**
+     * Request notification permission (POST_NOTIFICATIONS).
+     * Only applicable on Android 13+ (API 33). No-op on older versions.
+     */
+    fun requestNotificationPermission(activity: Activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(activity,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    PERMISSION_REQUEST_NOTIFICATIONS)
+        }
+    }
 }

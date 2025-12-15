@@ -1,4 +1,15 @@
-<!-- 542703a5-dc6a-4a8e-b51d-e330661f3920 2bd0a51a-5dce-4bdb-b73d-0c42f642e6fc -->
+---
+name: Fix Notification Permission Dialog Dismissal
+overview: ""
+todos:
+  - id: b7d9debf-f1f7-4a59-99cf-f190937d1f2a
+    content: Add resourceId-based matching for permission controller buttons
+    status: pending
+  - id: 0aa2f211-35e2-4a66-835d-dea1ce8f353e
+    content: Replace text() with textContains() for better flexibility
+    status: pending
+---
+
 # Fix Notification Permission Dialog Dismissal
 
 ## Problem
@@ -65,8 +76,3 @@ if (!foundOne) {
 - Android's permission controller (the system component that shows permission dialogs) consistently uses these resourceIds across Android 13+
 - `textContains()` is more flexible than exact `text()` matching and handles edge cases
 - The existing text-based matching remains as fallback for app-specific dialogs (SDK warning, battery optimization)
-
-### To-dos
-
-- [ ] Add resourceId-based matching for permission controller buttons
-- [ ] Replace text() with textContains() for better flexibility

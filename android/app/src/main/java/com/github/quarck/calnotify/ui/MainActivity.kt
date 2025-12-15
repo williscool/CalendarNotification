@@ -19,7 +19,6 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.annotation.TargetApi
 import android.app.AlertDialog
 import android.app.SearchManager
 import android.content.BroadcastReceiver
@@ -193,7 +192,12 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         checkPermissions()
 
-        registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST));
+        // Android 13+ (API 33) requires specifying receiver export flags for runtime-registered receivers
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
+        }
 
         if (calendarRescanEnabled != settings.enableCalendarRescan) {
             calendarRescanEnabled = settings.enableCalendarRescan
@@ -256,31 +260,53 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             }
         }
         else {
-            // if we have essential permissions - now check for power manager optimisations
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !settings.doNotShowBatteryOptimisationWarning) {
-                if (!powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
+            // Check notification permission (Android 13+)
+            checkNotificationPermission()
+            
+            // Check for power manager optimisations
+            if (!settings.doNotShowBatteryOptimisationWarning &&
+                !powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
 
-                    AlertDialog.Builder(this)
-                            .setTitle(getString(R.string.battery_optimisation_title))
-                            .setMessage(getString(R.string.battery_optimisation_details))
-                            .setPositiveButton(getString(R.string.you_can_do_it)) @TargetApi(Build.VERSION_CODES.M) {
-                                _, _ ->
-
-                                val intent = Intent()
-                                        .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                                        .setData(Uri.parse("package:" + BuildConfig.APPLICATION_ID))
-                                startActivity(intent)
-                            }
-                            .setNeutralButton(getString(R.string.you_can_do_it_later)) {
-                                _, _ ->
-                            }
-                            .setNegativeButton(getString(R.string.you_cannot_do_it)) {
-                                _, _ ->
-                                settings.doNotShowBatteryOptimisationWarning = true
-                            }
-                            .create()
-                            .show()
-                }
+                AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.battery_optimisation_title))
+                        .setMessage(getString(R.string.battery_optimisation_details))
+                        .setPositiveButton(getString(R.string.you_can_do_it)) { _, _ ->
+                            val intent = Intent()
+                                    .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                    .setData(Uri.parse("package:" + BuildConfig.APPLICATION_ID))
+                            startActivity(intent)
+                        }
+                        .setNeutralButton(getString(R.string.you_can_do_it_later)) { _, _ -> }
+                        .setNegativeButton(getString(R.string.you_cannot_do_it)) { _, _ ->
+                            settings.doNotShowBatteryOptimisationWarning = true
+                        }
+                        .create()
+                        .show()
+            }
+        }
+    }
+    
+    /**
+     * Check and request notification permission on Android 13+ (API 33).
+     * This is required for the app to post notifications.
+     */
+    private fun checkNotificationPermission() {
+        if (!PermissionsManager.hasNotificationPermission(this)) {
+            if (PermissionsManager.shouldShowNotificationRationale(this)) {
+                AlertDialog.Builder(this)
+                        .setTitle(R.string.notification_permission_title)
+                        .setMessage(R.string.notification_permission_explanation)
+                        .setCancelable(false)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            PermissionsManager.requestNotificationPermission(this)
+                        }
+                        .setNegativeButton(R.string.cancel) { _, _ ->
+                            // User declined, they won't get notifications
+                        }
+                        .create()
+                        .show()
+            } else {
+                PermissionsManager.requestNotificationPermission(this)
             }
         }
     }
