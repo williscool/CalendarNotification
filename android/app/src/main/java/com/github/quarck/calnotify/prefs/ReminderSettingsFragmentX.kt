@@ -34,9 +34,11 @@ class ReminderSettingsFragmentX : PreferenceFragmentCompat() {
     private val ringtonePickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        @Suppress("DEPRECATION")
-        val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-        pendingRingtonePreference?.onRingtonePickerResult(uri)
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            @Suppress("DEPRECATION")
+            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            pendingRingtonePreference?.onRingtonePickerResult(uri)
+        }
         pendingRingtonePreference = null
     }
 
