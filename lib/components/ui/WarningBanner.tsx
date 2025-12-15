@@ -4,16 +4,23 @@ import { useTheme } from '@lib/theme/ThemeContext';
 import { getWarningVariantStyle, BannerVariant } from './variants';
 
 interface WarningBannerProps {
-  children: React.ReactNode;
+  /** Simple text message (wrapped in Text component) */
+  message?: string;
+  /** Custom content (not wrapped - use for interactive elements) */
+  children?: React.ReactNode;
   variant?: BannerVariant;
   testID?: string;
 }
 
 /**
  * A banner for displaying warning/error/info messages.
- * Replaces the warning container patterns across screens.
+ * 
+ * Two usage modes:
+ * 1. Simple: <WarningBanner message="Warning text" />
+ * 2. Custom: <WarningBanner><Text>Custom</Text><Pressable>...</Pressable></WarningBanner>
  */
 export const WarningBanner: React.FC<WarningBannerProps> = ({
+  message,
   children,
   variant = 'warning',
   testID,
@@ -33,9 +40,13 @@ export const WarningBanner: React.FC<WarningBannerProps> = ({
       alignItems="center"
       testID={testID}
     >
-      <Text color={text} fontSize="$md" textAlign="center">
-        {children}
-      </Text>
+      {message ? (
+        <Text color={text} fontSize="$md" textAlign="center">
+          {message}
+        </Text>
+      ) : (
+        children
+      )}
     </Box>
   );
 };

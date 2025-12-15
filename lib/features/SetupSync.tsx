@@ -140,23 +140,23 @@ export const SetupSync = () => {
 
       {isConnected === false && (
         <WarningBanner variant="warning">
-          ⚠️ PowerSync is not connected. Sync features are disabled.
-          {'\n'}
-          <Text
-            color={colors.primary}
-            fontWeight="$semibold"
-            underline
-            onPress={() => navigation.navigate('Settings')}
-          >
-            Go to Settings
+          <Text color={colors.warningText} fontSize="$md" textAlign="center">
+            ⚠️ PowerSync is not connected. Sync features are disabled.
+            {'\n'}
+            <Text
+              color={colors.primary}
+              fontWeight="$semibold"
+              textDecorationLine="underline"
+              onPress={() => navigation.navigate('Settings')}
+            >
+              Go to Settings
+            </Text>
           </Text>
         </WarningBanner>
       )}
 
       {isConnected === null && (
-        <WarningBanner variant="info">
-          ⏳ PowerSync is initializing... Please wait.
-        </WarningBanner>
+        <WarningBanner variant="info" message="⏳ PowerSync is initializing... Please wait." />
       )}
 
       <ActionButton
@@ -211,10 +211,7 @@ export const SetupSync = () => {
 
       {showDangerZone && isConnected !== false && (
         <>
-          <WarningBanner variant="error">
-            ⚠️ WARNING: This will dismiss potentially many events from your local device!{'\n'}
-            You can restore them from the bin.
-          </WarningBanner>
+          <WarningBanner variant="error" message="⚠️ WARNING: This will dismiss potentially many events from your local device! You can restore them from the bin." />
 
           <ActionButton
             onPress={async () => {
@@ -227,10 +224,7 @@ export const SetupSync = () => {
             Send Reschedule Confirmations
           </ActionButton>
 
-          <WarningBanner variant="error">
-            ⚠️ WARNING: This will only delete events from the remote PowerSync database.{'\n'}
-            Your local device events will remain unchanged.
-          </WarningBanner>
+          <WarningBanner variant="error" message="⚠️ WARNING: This will only delete events from the remote PowerSync database. Your local device events will remain unchanged." />
 
           <ActionButton
             onPress={async () => {

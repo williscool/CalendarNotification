@@ -79,73 +79,73 @@ export default function Settings() {
     }
   };
 
-  const SettingRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <Box
-      py="$3"
-      borderBottomWidth={1}
-      borderBottomColor={colors.borderLight}
-      flexDirection={isSmallScreen ? 'column' : 'row'}
-      alignItems={isSmallScreen ? 'flex-start' : 'center'}
-      justifyContent="space-between"
-    >
-      <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-        {label}
-      </Text>
-      <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-        {children}
-      </Box>
-    </Box>
-  );
+  // Row styling - inlined to avoid component recreation on render
+  const rowStyle = {
+    py: '$3' as const,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    flexDirection: (isSmallScreen ? 'column' : 'row') as 'column' | 'row',
+    alignItems: (isSmallScreen ? 'flex-start' : 'center') as 'flex-start' | 'center',
+    justifyContent: 'space-between' as const,
+  };
 
   return (
     <ScrollView flex={1} bg={colors.background}>
       {isDirty && (
-        <WarningBanner variant="warning">
-          You have unsaved changes
-        </WarningBanner>
+        <WarningBanner variant="warning" message="You have unsaved changes" />
       )}
 
       <Section title="Sync Settings">
-        <SettingRow label="Enable Sync">
-          <Switch
-            value={tempSettings.syncEnabled}
-            onToggle={handleSyncToggle}
-            isDisabled={!areAllSettingsValid(tempSettings)}
-          />
-        </SettingRow>
+        <Box {...rowStyle}>
+          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
+            Enable Sync
+          </Text>
+          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
+            <Switch
+              value={tempSettings.syncEnabled}
+              onValueChange={handleSyncToggle}
+              isDisabled={!areAllSettingsValid(tempSettings)}
+            />
+          </Box>
+        </Box>
 
         {tempSettings.syncEnabled && (
-          <SettingRow label="Sync Type">
-            <VStack space="xs" alignItems={isSmallScreen ? 'flex-start' : 'flex-end'}>
-              <HStack space="sm">
-                <Pressable
-                  onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
-                  px="$3"
-                  py="$1.5"
-                  borderRadius="$full"
-                  bg={tempSettings.syncType === 'unidirectional' ? colors.primary : colors.borderLight}
-                >
-                  <Text color={tempSettings.syncType === 'unidirectional' ? '#fff' : colors.textMuted} fontSize="$sm">
-                    Unidirectional
-                  </Text>
-                </Pressable>
-                <Pressable
-                  px="$3"
-                  py="$1.5"
-                  borderRadius="$full"
-                  bg={colors.border}
-                  opacity={0.6}
-                >
-                  <Text color={colors.textLight} fontSize="$sm">
-                    Bidirectional
-                  </Text>
-                </Pressable>
-              </HStack>
-              <Text fontSize="$xs" color={colors.textMuted} fontStyle="italic">
-                Bidirectional sync coming soon
-              </Text>
-            </VStack>
-          </SettingRow>
+          <Box {...rowStyle}>
+            <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
+              Sync Type
+            </Text>
+            <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
+              <VStack space="xs" alignItems={isSmallScreen ? 'flex-start' : 'flex-end'}>
+                <HStack space="sm">
+                  <Pressable
+                    onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
+                    px="$3"
+                    py="$1.5"
+                    borderRadius="$full"
+                    bg={tempSettings.syncType === 'unidirectional' ? colors.primary : colors.borderLight}
+                  >
+                    <Text color={tempSettings.syncType === 'unidirectional' ? '#fff' : colors.textMuted} fontSize="$sm">
+                      Unidirectional
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    px="$3"
+                    py="$1.5"
+                    borderRadius="$full"
+                    bg={colors.border}
+                    opacity={0.6}
+                  >
+                    <Text color={colors.textLight} fontSize="$sm">
+                      Bidirectional
+                    </Text>
+                  </Pressable>
+                </HStack>
+                <Text fontSize="$xs" color={colors.textMuted} fontStyle="italic">
+                  Bidirectional sync coming soon
+                </Text>
+              </VStack>
+            </Box>
+          </Box>
         )}
       </Section>
 
@@ -180,51 +180,71 @@ export default function Settings() {
       </Section>
 
       <Section title="Supabase Settings">
-        <SettingRow label="Supabase URL">
-          <Input variant="outline" size="md" borderColor={colors.border} borderRadius="$lg">
-            <InputField
-              value={tempSettings.supabaseUrl}
-              onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
-              placeholder="https://your-project.supabase.co"
-              placeholderTextColor={colors.textLight}
-              color={colors.text}
-            />
-          </Input>
-        </SettingRow>
+        <Box {...rowStyle}>
+          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
+            Supabase URL
+          </Text>
+          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
+            <Input variant="outline" size="md" borderColor={colors.border} borderRadius="$lg">
+              <InputField
+                value={tempSettings.supabaseUrl}
+                onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
+                placeholder="https://your-project.supabase.co"
+                placeholderTextColor={colors.textLight}
+                color={colors.text}
+              />
+            </Input>
+          </Box>
+        </Box>
 
-        <SettingRow label="Supabase Anon Key">
-          <SecureInput
-            value={tempSettings.supabaseAnonKey}
-            onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
-            placeholder="your-supabase-anon-key"
-            isVisible={showSupabaseKey}
-            onVisibilityChange={setShowSupabaseKey}
-          />
-        </SettingRow>
+        <Box {...rowStyle}>
+          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
+            Supabase Anon Key
+          </Text>
+          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
+            <SecureInput
+              value={tempSettings.supabaseAnonKey}
+              onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
+              placeholder="your-supabase-anon-key"
+              isVisible={showSupabaseKey}
+              onVisibilityChange={setShowSupabaseKey}
+            />
+          </Box>
+        </Box>
       </Section>
 
       <Section title="PowerSync Settings">
-        <SettingRow label="PowerSync URL">
-          <Input variant="outline" size="md" borderColor={colors.border} borderRadius="$lg">
-            <InputField
-              value={tempSettings.powersyncUrl}
-              onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
-              placeholder="https://your-project.powersync.journeyapps.com"
-              placeholderTextColor={colors.textLight}
-              color={colors.text}
-            />
-          </Input>
-        </SettingRow>
+        <Box {...rowStyle}>
+          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
+            PowerSync URL
+          </Text>
+          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
+            <Input variant="outline" size="md" borderColor={colors.border} borderRadius="$lg">
+              <InputField
+                value={tempSettings.powersyncUrl}
+                onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
+                placeholder="https://your-project.powersync.journeyapps.com"
+                placeholderTextColor={colors.textLight}
+                color={colors.text}
+              />
+            </Input>
+          </Box>
+        </Box>
 
-        <SettingRow label="PowerSync Token">
-          <SecureInput
-            value={tempSettings.powersyncToken}
-            onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
-            placeholder="your-powersync-token"
-            isVisible={showPowerSyncToken}
-            onVisibilityChange={setShowPowerSyncToken}
-          />
-        </SettingRow>
+        <Box {...rowStyle}>
+          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
+            PowerSync Token
+          </Text>
+          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
+            <SecureInput
+              value={tempSettings.powersyncToken}
+              onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
+              placeholder="your-powersync-token"
+              isVisible={showPowerSyncToken}
+              onVisibilityChange={setShowPowerSyncToken}
+            />
+          </Box>
+        </Box>
       </Section>
 
       {!areAllSettingsValid(tempSettings) && (
