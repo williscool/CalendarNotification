@@ -79,8 +79,8 @@ android {
     minSdk 24
     //noinspection ExpiredTargetSdkVersion
     targetSdkVersion 25
-    versionCode 4000025
-    versionName "7.3.0"
+    versionCode 4000026
+    versionName "7.3.1"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
