@@ -78,8 +78,8 @@ android {
     minSdkVersion 24
     minSdk 24
     targetSdkVersion 35
-    versionCode 4000027
-    versionName "7.4.0"
+    versionCode 4000028
+    versionName "8.0.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
