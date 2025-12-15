@@ -19,15 +19,38 @@
 
 package com.github.quarck.calnotify.prefs
 
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 
 class ReminderSettingsFragmentX : PreferenceFragmentCompat() {
 
+    private var pendingRingtonePreference: RingtonePreferenceX? = null
+
+    private val ringtonePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        @Suppress("DEPRECATION")
+        val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        pendingRingtonePreference?.onRingtonePickerResult(uri)
+        pendingRingtonePreference = null
+    }
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.reminder_preferences_x, rootKey)
+    }
+
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        if (preference is RingtonePreferenceX) {
+            pendingRingtonePreference = preference
+            ringtonePickerLauncher.launch(preference.createRingtonePickerIntent())
+            return true
+        }
+        return super.onPreferenceTreeClick(preference)
     }
 
     override fun onDisplayPreferenceDialog(preference: Preference) {

@@ -29,7 +29,7 @@
         android:defaultValue="false"
         android:dependency="enable_reminding_key" />
 
-    <com.takisoft.preferencex.RingtonePreference
+    <com.github.quarck.calnotify.prefs.RingtonePreferenceX
         android:key="reminder_pref_key_ringtone"
         android:summary="@string/ringtone_selection_summary"
         android:title="@string/ringtone_selection"

@@ -248,7 +248,6 @@ dependencies {
     
     // AndroidX Preference (for modern settings UI with DayNight support)
     implementation "androidx.preference:preference-ktx:1.2.1"
-    implementation "com.takisoft.preferencex:preferencex-ringtone:1.1.0"
     
     // React Native
     implementation "com.facebook.react:react-android"
