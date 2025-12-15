@@ -84,8 +84,8 @@ android {
     // See: docs/dev_todo/target_sdk_upgrade.md (to be created)
     //noinspection ExpiredTargetSdkVersion
     targetSdkVersion 25
-    versionCode 4000026
-    versionName "7.3.1"
+    versionCode 4000027
+    versionName "7.4.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
 
