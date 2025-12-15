@@ -6,6 +6,10 @@ import React from 'react';
 import { AppRegistry, useColorScheme } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { enableScreens } from 'react-native-screens';
+
+// Enable native screens for performance
+enableScreens();
 import { TouchableOpacity, BackHandler, Text } from 'react-native';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
