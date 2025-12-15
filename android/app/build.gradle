@@ -336,37 +336,6 @@ react {
   entryFile = layout.projectDirectory.file("../../index.tsx").asFile
 }
 
-// Debug task to print Node version
-task printNodeVersion {
-  doLast {
-    def nodeVersionOutput = new ByteArrayOutputStream()
-    def nodeWhichOutput = new ByteArrayOutputStream()
-    
-    exec {
-      commandLine 'cmd', '/c', 'node', '--version'
-      standardOutput = nodeVersionOutput
-      ignoreExitValue = true
-    }
-    
-    exec {
-      commandLine 'cmd', '/c', 'where', 'node'
-      standardOutput = nodeWhichOutput
-      ignoreExitValue = true
-    }
-    
-    println "========================================"
-    println "NODE VERSION: ${nodeVersionOutput.toString().trim()}"
-    println "NODE PATH: ${nodeWhichOutput.toString().trim()}"
-    println "========================================"
-  }
-}
-
-// Make bundle tasks depend on printNodeVersion
-afterEvaluate {
-  tasks.matching { it.name.contains('createBundle') && it.name.contains('JsAndAssets') }.configureEach {
-    dependsOn printNodeVersion
-  }
-}
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
 
