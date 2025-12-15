@@ -4,7 +4,7 @@ overview: Update the app from targetSdkVersion 25 (Android 7.1) to 35 (Android 1
 todos:
   - id: notification-channels
     content: "Phase 1: Create NotificationChannels.kt and update all Builder calls"
-    status: pending
+    status: in_progress
   - id: pendingintent-flags
     content: "Phase 2: Add FLAG_IMMUTABLE to all PendingIntent usages"
     status: pending
