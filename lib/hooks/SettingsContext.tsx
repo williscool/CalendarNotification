@@ -40,12 +40,24 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loadSettings = async () => {
     try {
+      // DEBUG: Temporarily clear storage to test env loading (remove after testing)
+      await AsyncStorage.removeItem(SETTINGS_STORAGE_KEY);
+      
       const storedSettingsStr = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+      console.log('[SettingsContext] Stored settings:', storedSettingsStr ? 'FOUND' : 'NOT FOUND');
+      
       if (storedSettingsStr) {
         const parsedSettings = JSON.parse(storedSettingsStr);
+        console.log('[SettingsContext] Using stored settings');
         setSettings(parsedSettings);
       } else {
         // Initialize with current ConfigObj values
+        console.log('[SettingsContext] Initializing from ConfigObj:', {
+          supabaseUrl: ConfigObj.supabase.url ? 'SET' : 'EMPTY',
+          supabaseAnonKey: ConfigObj.supabase.anonKey ? 'SET' : 'EMPTY',
+          powersyncUrl: ConfigObj.powersync.url ? 'SET' : 'EMPTY',
+          powersyncToken: ConfigObj.powersync.token ? 'SET' : 'EMPTY',
+        });
         const currentSettings: Settings = {
           syncEnabled: ConfigObj.sync.enabled,
           syncType: ConfigObj.sync.type as SyncType,
