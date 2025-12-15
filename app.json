@@ -2,7 +2,6 @@
   "expo": {
     "name": "CNPlusSync",
     "slug": "cnplussync",
-    "scheme": "cnplussync",
     "version": "0.0.1",
     "platforms": ["android"],
     "jsEngine": "hermes",
