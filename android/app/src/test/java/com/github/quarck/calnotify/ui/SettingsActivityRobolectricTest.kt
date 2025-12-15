@@ -89,9 +89,26 @@ class SettingsActivityRobolectricTest {
     }
     
     // === Fragment Navigation Tests ===
-    // Note: NotificationSettingsFragmentX and ReminderSettingsFragmentX use RingtonePreference
-    // which isn't supported in Robolectric (requires system ringtone services).
-    // These are tested via instrumentation tests instead.
+    
+    @Test
+    fun navigating_to_notification_settings_loads_correct_fragment() {
+        val scenario = fixture.launchSettingsActivity()
+        
+        scenario.onActivity { activity: SettingsActivityX ->
+            activity.supportFragmentManager.beginTransaction()
+                .replace(R.id.settings_container, NotificationSettingsFragmentX())
+                .addToBackStack(null)
+                .commit()
+            
+            activity.supportFragmentManager.executePendingTransactions()
+            
+            val fragment = activity.supportFragmentManager.findFragmentById(R.id.settings_container)
+            assertNotNull("Should have a fragment", fragment)
+            assertTrue("Should be NotificationSettingsFragmentX", fragment is NotificationSettingsFragmentX)
+        }
+        
+        scenario.close()
+    }
     
     @Test
     fun navigating_to_snooze_settings_loads_correct_fragment() {
@@ -107,6 +124,25 @@ class SettingsActivityRobolectricTest {
             
             val fragment = activity.supportFragmentManager.findFragmentById(R.id.settings_container)
             assertTrue("Should be SnoozeSettingsFragmentX", fragment is SnoozeSettingsFragmentX)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun navigating_to_reminder_settings_loads_correct_fragment() {
+        val scenario = fixture.launchSettingsActivity()
+        
+        scenario.onActivity { activity: SettingsActivityX ->
+            activity.supportFragmentManager.beginTransaction()
+                .replace(R.id.settings_container, ReminderSettingsFragmentX())
+                .addToBackStack(null)
+                .commit()
+            
+            activity.supportFragmentManager.executePendingTransactions()
+            
+            val fragment = activity.supportFragmentManager.findFragmentById(R.id.settings_container)
+            assertTrue("Should be ReminderSettingsFragmentX", fragment is ReminderSettingsFragmentX)
         }
         
         scenario.close()
