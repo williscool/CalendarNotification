@@ -19,7 +19,6 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.annotation.TargetApi
 import android.app.AlertDialog
 import android.app.SearchManager
 import android.content.BroadcastReceiver
@@ -264,31 +263,25 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             // Check notification permission (Android 13+)
             checkNotificationPermission()
             
-            // if we have essential permissions - now check for power manager optimisations
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !settings.doNotShowBatteryOptimisationWarning) {
-                if (!powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
+            // Check for power manager optimisations
+            if (!settings.doNotShowBatteryOptimisationWarning &&
+                !powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
 
-                    AlertDialog.Builder(this)
-                            .setTitle(getString(R.string.battery_optimisation_title))
-                            .setMessage(getString(R.string.battery_optimisation_details))
-                            .setPositiveButton(getString(R.string.you_can_do_it)) @TargetApi(Build.VERSION_CODES.M) {
-                                _, _ ->
-
-                                val intent = Intent()
-                                        .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                                        .setData(Uri.parse("package:" + BuildConfig.APPLICATION_ID))
-                                startActivity(intent)
-                            }
-                            .setNeutralButton(getString(R.string.you_can_do_it_later)) {
-                                _, _ ->
-                            }
-                            .setNegativeButton(getString(R.string.you_cannot_do_it)) {
-                                _, _ ->
-                                settings.doNotShowBatteryOptimisationWarning = true
-                            }
-                            .create()
-                            .show()
-                }
+                AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.battery_optimisation_title))
+                        .setMessage(getString(R.string.battery_optimisation_details))
+                        .setPositiveButton(getString(R.string.you_can_do_it)) { _, _ ->
+                            val intent = Intent()
+                                    .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                    .setData(Uri.parse("package:" + BuildConfig.APPLICATION_ID))
+                            startActivity(intent)
+                        }
+                        .setNeutralButton(getString(R.string.you_can_do_it_later)) { _, _ -> }
+                        .setNegativeButton(getString(R.string.you_cannot_do_it)) { _, _ ->
+                            settings.doNotShowBatteryOptimisationWarning = true
+                        }
+                        .create()
+                        .show()
             }
         }
     }

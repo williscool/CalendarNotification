@@ -73,14 +73,8 @@ fun wakeLocked(pm: PowerManager, timeout: Long, levelAndFlags: Int, tag: String,
 fun partialWakeLocked(ctx: Context, timeout: Long, tag: String, fn: () -> Unit) =
         wakeLocked(ctx.powerManager, timeout, PowerManager.PARTIAL_WAKE_LOCK, tag, fn)
 
-val isMarshmallowOrAbove: Boolean
-    get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
-
-val isLollipopOrAbove: Boolean
-    get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP
-
-val isKitkatOrAbove: Boolean
-    get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT
+// Removed: isMarshmallowOrAbove, isLollipopOrAbove, isKitkatOrAbove
+// minSdk 24 (Nougat) > all of these, so they were always true
 
 /**
  * Returns PendingIntent flags with FLAG_IMMUTABLE added for Android 12+ (API 31+).
@@ -94,12 +88,11 @@ fun pendingIntentFlagCompat(baseFlags: Int): Int {
     }
 }
 
-@SuppressLint("NewApi")
 fun AlarmManager.setExactAndAlarm(
         context: Context,
-        useSetAlarmClock: Boolean, // settings: Settings,
+        useSetAlarmClock: Boolean,
         triggerAtMillis: Long,
-        roughIntentClass: Class<*>, // ignored on KitKat and below
+        roughIntentClass: Class<*>,
         exactIntentClass: Class<*>,
         alarmInfoIntent: Class<*>
 ) {
@@ -107,56 +100,26 @@ fun AlarmManager.setExactAndAlarm(
 
     val piFlags = pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT)
     
-    if (isMarshmallowOrAbove) {
-        // setExactAndAllowWhileIdle supposed to work during idle / doze standby, but it is very non-precise
-        // so set it as a "first thing", followed by more precise alarm
-        val intent = Intent(context, roughIntentClass);
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
-        setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis + Consts.ALARM_THRESHOLD / 3, pendingIntent);
+    // setExactAndAllowWhileIdle works during idle/doze standby, but is imprecise
+    // so set it as a "first thing", followed by more precise alarm
+    val intent = Intent(context, roughIntentClass)
+    val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
+    setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis + Consts.ALARM_THRESHOLD / 3, pendingIntent)
 
+    // Add more precise alarm: setAlarmClock is very precise but shows UI,
+    // setExact is more precise than setExactAndAllowWhileIdle but can't fire during doze
+    val intentExact = Intent(context, exactIntentClass)
+    val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, piFlags)
 
-        // add more precise alarm, depending on the setting it is a setAlarmClock or "setExact"
-        // setAlarmClock is very precise, but it shows UI indicating that alarm is pending
-        // on the other hand setExact is more precise than setExactAndAllowWhileIdle, but it can't
-        // fire during doze / standby
-
-        val intentExact = Intent(context, exactIntentClass);
-        val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, piFlags)
-
-        //if (settings.useSetAlarmClock) {
-        if (useSetAlarmClock) {
-
-            val intentInfo = Intent(context, alarmInfoIntent);
-            val pendingIntentInfo = PendingIntent.getActivity(context, 0, intentInfo, piFlags)
-
-            val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerAtMillis, pendingIntentInfo)
-
-            setAlarmClock(
-                    alarmClockInfo,
-                    pendingIntentExact)
-
-            DevLog.info(LOG_TAG, "alarm scheduled for $triggerAtMillis using setExactAndAllowWhileIdle(T+8s) + setAlarmClock(T+0)")
-        }
-        else {
-            setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntentExact);
-
-            DevLog.info(LOG_TAG, "alarm scheduled for $triggerAtMillis using setExactAndAllowWhileIdle(T+8s) + setExact(T+0)")
-        }
-    }
-    else {
-        val intent = Intent(context, exactIntentClass);
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
-
-        if (isKitkatOrAbove) {
-            // KitKat way
-            setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
-            DevLog.info(LOG_TAG, "alarm scheduled for $triggerAtMillis using setExact(T+0)")
-        }
-        else {
-            // Ancient way
-            set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
-            DevLog.info(LOG_TAG, "alarm scheduled for $triggerAtMillis using set(T+0)")
-        }
+    if (useSetAlarmClock) {
+        val intentInfo = Intent(context, alarmInfoIntent)
+        val pendingIntentInfo = PendingIntent.getActivity(context, 0, intentInfo, piFlags)
+        val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerAtMillis, pendingIntentInfo)
+        setAlarmClock(alarmClockInfo, pendingIntentExact)
+        DevLog.info(LOG_TAG, "alarm scheduled for $triggerAtMillis using setExactAndAllowWhileIdle(T+8s) + setAlarmClock(T+0)")
+    } else {
+        setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntentExact)
+        DevLog.info(LOG_TAG, "alarm scheduled for $triggerAtMillis using setExactAndAllowWhileIdle(T+8s) + setExact(T+0)")
     }
 }
 
@@ -166,52 +129,28 @@ fun AlarmManager.cancelExactAndAlarm(
         exactIntentClass: Class<*>
 ) {
     val LOG_TAG = "AlarmManager.cancelExactAndAlarm"
-    // reverse of the prev guy
 
     val piFlags = pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT)
 
-    val intent = Intent(context, roughIntentClass);
+    val intent = Intent(context, roughIntentClass)
     val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
-    cancel(pendingIntent);
+    cancel(pendingIntent)
 
-    if (isMarshmallowOrAbove) {
-        val intentExact = Intent(context, exactIntentClass);
-        val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, piFlags)
-        cancel(pendingIntentExact)
-    }
+    val intentExact = Intent(context, exactIntentClass)
+    val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, piFlags)
+    cancel(pendingIntentExact)
 
     DevLog.info(LOG_TAG, "Cancelled alarm")
 }
 
-@Suppress("DEPRECATION")
+// TimePicker extensions - minSdk 24 >= M, so we always use the modern API
 var TimePicker.hourCompat: Int
-    get() {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            this.hour
-        else
-            this.currentHour
-    }
-    set(value) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            this.hour = value
-        else
-            this.currentHour = value
-    }
+    get() = this.hour
+    set(value) { this.hour = value }
 
-@Suppress("DEPRECATION")
 var TimePicker.minuteCompat: Int
-    get() {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            this.minute
-        else
-            this.currentMinute
-    }
-    set(value) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            this.minute = value
-        else
-            this.currentMinute = value
-    }
+    get() = this.minute
+    set(value) { this.minute = value }
 
 
 val Exception.detailed: String
