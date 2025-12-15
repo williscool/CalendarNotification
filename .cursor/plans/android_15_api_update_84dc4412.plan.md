@@ -4,30 +4,30 @@ overview: Update the app from targetSdkVersion 25 (Android 7.1) to 35 (Android 1
 todos:
   - id: notification-channels
     content: "Phase 1: Create NotificationChannels.kt and update all Builder calls"
-    status: in_progress
+    status: completed
   - id: pendingintent-flags
     content: "Phase 2: Add FLAG_IMMUTABLE to all PendingIntent usages"
-    status: pending
+    status: completed
     dependencies:
       - notification-channels
   - id: manifest-exports
     content: "Phase 3a: Add android:exported to all receivers in manifest"
-    status: pending
+    status: completed
     dependencies:
       - pendingintent-flags
   - id: manifest-permissions
     content: "Phase 3b: Add POST_NOTIFICATIONS and USE_EXACT_ALARM permissions"
-    status: pending
+    status: completed
     dependencies:
       - manifest-exports
   - id: runtime-permissions
     content: "Phase 4: Add runtime permission request for notifications"
-    status: pending
+    status: completed
     dependencies:
       - manifest-permissions
   - id: sdk-bump
     content: "Phase 5: Bump targetSdkVersion 25 -> 35 and compileSdk 34 -> 35"
-    status: pending
+    status: completed
     dependencies:
       - runtime-permissions
 ---

@@ -423,6 +423,10 @@
     <string name="battery_optimisation_title">Battery optimisation</string>
     <string name="battery_optimisation_details">It is recommended to disable battery optimisations for this app to ensure correct operation (Android battery optimisation can put app into deep sleep, resulting missed calendar notifications)</string>
     <string name="you_can_do_it">DO IT</string>
+    
+    <!-- Notification permission (Android 13+) -->
+    <string name="notification_permission_title">Notification Permission</string>
+    <string name="notification_permission_explanation">This app needs permission to show notifications for your calendar events. Without this permission, you won\'t receive any calendar reminders.</string>
     <string name="you_can_do_it_later">LATER</string>
     <string name="you_cannot_do_it">DISMISS</string>
 

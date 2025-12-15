@@ -256,6 +256,9 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             }
         }
         else {
+            // Check notification permission (Android 13+)
+            checkNotificationPermission()
+            
             // if we have essential permissions - now check for power manager optimisations
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !settings.doNotShowBatteryOptimisationWarning) {
                 if (!powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
@@ -281,6 +284,31 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                             .create()
                             .show()
                 }
+            }
+        }
+    }
+    
+    /**
+     * Check and request notification permission on Android 13+ (API 33).
+     * This is required for the app to post notifications.
+     */
+    private fun checkNotificationPermission() {
+        if (!PermissionsManager.hasNotificationPermission(this)) {
+            if (PermissionsManager.shouldShowNotificationRationale(this)) {
+                AlertDialog.Builder(this)
+                        .setTitle(R.string.notification_permission_title)
+                        .setMessage(R.string.notification_permission_explanation)
+                        .setCancelable(false)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            PermissionsManager.requestNotificationPermission(this)
+                        }
+                        .setNegativeButton(R.string.cancel) { _, _ ->
+                            // User declined, they won't get notifications
+                        }
+                        .create()
+                        .show()
+            } else {
+                PermissionsManager.requestNotificationPermission(this)
             }
         }
     }

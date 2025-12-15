@@ -21,6 +21,7 @@ package com.github.quarck.calnotify
 import android.app.Application;
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
+import com.github.quarck.calnotify.notification.NotificationChannels
 
 // This storage is wiped every time app is restarted. Only keep variables
 // that are instance-specific here
@@ -32,6 +33,8 @@ class GlobalState : Application() {
         super.onCreate()
         // Always follow system theme
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        // Create notification channels (required for Android 8+, no-op on older versions)
+        NotificationChannels.createChannels(this)
     }
 }
 

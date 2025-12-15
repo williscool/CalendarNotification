@@ -82,6 +82,18 @@ val isLollipopOrAbove: Boolean
 val isKitkatOrAbove: Boolean
     get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT
 
+/**
+ * Returns PendingIntent flags with FLAG_IMMUTABLE added for Android 12+ (API 31+).
+ * PendingIntents must specify mutability on Android 12 and above.
+ */
+fun pendingIntentFlagCompat(baseFlags: Int): Int {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        baseFlags or PendingIntent.FLAG_IMMUTABLE
+    } else {
+        baseFlags
+    }
+}
+
 @SuppressLint("NewApi")
 fun AlarmManager.setExactAndAlarm(
         context: Context,
@@ -93,11 +105,13 @@ fun AlarmManager.setExactAndAlarm(
 ) {
     val LOG_TAG = "AlarmManager.setExactAndAlarm"
 
+    val piFlags = pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT)
+    
     if (isMarshmallowOrAbove) {
         // setExactAndAllowWhileIdle supposed to work during idle / doze standby, but it is very non-precise
         // so set it as a "first thing", followed by more precise alarm
         val intent = Intent(context, roughIntentClass);
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
         setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis + Consts.ALARM_THRESHOLD / 3, pendingIntent);
 
 
@@ -107,13 +121,13 @@ fun AlarmManager.setExactAndAlarm(
         // fire during doze / standby
 
         val intentExact = Intent(context, exactIntentClass);
-        val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, piFlags)
 
         //if (settings.useSetAlarmClock) {
         if (useSetAlarmClock) {
 
             val intentInfo = Intent(context, alarmInfoIntent);
-            val pendingIntentInfo = PendingIntent.getActivity(context, 0, intentInfo, PendingIntent.FLAG_UPDATE_CURRENT)
+            val pendingIntentInfo = PendingIntent.getActivity(context, 0, intentInfo, piFlags)
 
             val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerAtMillis, pendingIntentInfo)
 
@@ -131,7 +145,7 @@ fun AlarmManager.setExactAndAlarm(
     }
     else {
         val intent = Intent(context, exactIntentClass);
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
 
         if (isKitkatOrAbove) {
             // KitKat way
@@ -154,13 +168,15 @@ fun AlarmManager.cancelExactAndAlarm(
     val LOG_TAG = "AlarmManager.cancelExactAndAlarm"
     // reverse of the prev guy
 
+    val piFlags = pendingIntentFlagCompat(PendingIntent.FLAG_UPDATE_CURRENT)
+
     val intent = Intent(context, roughIntentClass);
-    val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+    val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, piFlags)
     cancel(pendingIntent);
 
     if (isMarshmallowOrAbove) {
         val intentExact = Intent(context, exactIntentClass);
-        val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntentExact = PendingIntent.getBroadcast(context, 0, intentExact, piFlags)
         cancel(pendingIntentExact)
     }
 
