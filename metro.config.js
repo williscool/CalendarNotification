@@ -1,5 +1,4 @@
-const {getDefaultConfig} = require('expo/metro-config');
-const {mergeConfig} = require('@react-native/metro-config');
+const { getDefaultConfig } = require('expo/metro-config');
 
 /**
  * Metro configuration
@@ -9,10 +8,13 @@ const {mergeConfig} = require('@react-native/metro-config');
  *
  * @type {import('metro-config').MetroConfig}
  */
-const config = {
-	transformer: {
+const config = getDefaultConfig(__dirname);
+
+config.transformer = {
+  ...config.transformer,
 	  getTransformOptions: async () => ({
 		transform: {
+      experimentalImportSupport: false,
 		  inlineRequires: {
 			blockList: {
 			  [require.resolve('@powersync/react-native')]: true,
@@ -20,7 +22,11 @@ const config = {
 		  }
 		}
 	  })
-	}
+};
+
+config.resolver = {
+  ...config.resolver,
+  sourceExts: [...config.resolver.sourceExts, 'mjs'],
   };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = config;

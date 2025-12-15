@@ -1,19 +1,116 @@
-import "react-native-devsettings";
-// Initialize environment variables
+// Entry point for React Native
+import 'react-native-devsettings';
 import './lib/env';
 
-import { AppRegistry } from 'react-native';
-import Constants from 'expo-constants';
-import { PI, MyModuleView, setValueAsync } from './modules/my-module';
-import { App } from './App';
+import React from 'react';
+import { AppRegistry, useColorScheme } from 'react-native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { enableScreens } from 'react-native-screens';
 
-console.log(Constants.systemFonts);
-console.log(PI);
-console.log(MyModuleView);
-console.log(setValueAsync);
+// Enable native screens for performance
+enableScreens();
+import { TouchableOpacity, BackHandler, Text } from 'react-native';
+import { GluestackUIProvider } from '@gluestack-ui/themed';
+import { config } from '@gluestack-ui/config';
+import { PowerSyncContext } from '@powersync/react';
+import { db as psDb } from './lib/powersync';
+import { setupPowerSyncLogCapture } from './lib/powersync/Connector';
+import { SettingsProvider } from './lib/hooks/SettingsContext';
+import { SyncDebugProvider } from './lib/hooks/SyncDebugContext';
+import { ThemeProvider } from './lib/theme/ThemeContext';
+import { getColors } from './lib/theme/colors';
+import Logger from 'js-logger';
 
-AppRegistry.registerComponent(
-  'CNPlusSync',
-  () => App,
-);
+// Screens
+import HomeScreen from './app/index';
+import SettingsScreen from './app/settings';
+import SyncDebugScreen from './app/sync-debug';
 
+// Initialize logger
+Logger.useDefaults();
+Logger.setLevel(Logger.DEBUG);
+setupPowerSyncLogCapture();
+
+const Stack = createNativeStackNavigator();
+
+function App() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = getColors(isDark);
+
+  // Custom navigation theme
+  const navigationTheme = isDark ? {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.backgroundWhite,
+      text: colors.text,
+      border: colors.border,
+    },
+  } : {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.backgroundWhite,
+      text: colors.text,
+      border: colors.border,
+    },
+  };
+
+  return (
+    <ThemeProvider>
+      <GluestackUIProvider config={config} colorMode={isDark ? 'dark' : 'light'}>
+        <SettingsProvider>
+          <SyncDebugProvider>
+            <PowerSyncContext.Provider value={psDb}>
+              <NavigationContainer theme={navigationTheme}>
+                <Stack.Navigator
+                  screenOptions={{
+                    headerStyle: { backgroundColor: colors.backgroundWhite },
+                    headerTintColor: colors.primary,
+                    headerTitleStyle: { color: colors.text },
+                  }}
+                >
+                  <Stack.Screen
+                    name="Home"
+                    component={HomeScreen}
+                    options={({ navigation }) => ({
+                      title: 'Sync Info',
+                      headerLeft: () => (
+                        <TouchableOpacity onPress={() => BackHandler.exitApp()}>
+                          <Text style={{ marginRight: 20, color: colors.primary, fontSize: 24 }}>←</Text>
+                        </TouchableOpacity>
+                      ),
+                      headerRight: () => (
+                        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+                          <Text style={{ color: colors.primary, fontSize: 24 }}>⋮</Text>
+                        </TouchableOpacity>
+                      ),
+                    })}
+                  />
+                  <Stack.Screen
+                    name="Settings"
+                    component={SettingsScreen}
+                    options={{ title: 'Sync Settings' }}
+                  />
+                  <Stack.Screen
+                    name="SyncDebug"
+                    component={SyncDebugScreen}
+                    options={{ title: 'Sync Debug' }}
+                  />
+                </Stack.Navigator>
+              </NavigationContainer>
+            </PowerSyncContext.Provider>
+          </SyncDebugProvider>
+        </SettingsProvider>
+      </GluestackUIProvider>
+    </ThemeProvider>
+  );
+}
+
+AppRegistry.registerComponent('CNPlusSync', () => App);

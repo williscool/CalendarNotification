@@ -13,13 +13,27 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@lib/*": ["lib/*"],
+      "@lib/*": [
+        "lib/*"
+      ]
     },
     "esModuleInterop": true
   },
-  "include": ["src/**/*", "test/**/*", "index.tsx", "lib/**/*", "scripts/**/*.ts"],
-  "exclude": ["node_modules", "build"],
-  "typeRoots": ["./node_modules/@types"],
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "index.tsx",
+    "lib/**/*",
+    "scripts/**/*.ts",
+    "nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build"
+  ],
+  "typeRoots": [
+    "./node_modules/@types"
+  ],
   "ts-node": {
     "transpileOnly": true,
     "files": true,

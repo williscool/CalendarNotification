@@ -11,7 +11,7 @@ module.exports = function (api) {
 					root: ['./'],
 					alias: {
 						'@': './src',
-						'@lib': './lib', // Maps `@lib` to the `lib` directory
+						'@lib': './lib',
 					},
 					extensions: [
 						'.ios.ts',
