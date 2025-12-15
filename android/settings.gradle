@@ -1,9 +1,16 @@
 pluginManagement {
-    includeBuild('../node_modules/@react-native/gradle-plugin')
     repositories {
         google()
         mavenCentral()
         gradlePluginPortal()
+    }
+}
+
+// Redirect classpath dependency to the local composite build
+includeBuild('../node_modules/@react-native/gradle-plugin') {
+    dependencySubstitution {
+        substitute(module('com.facebook.react:react-native-gradle-plugin'))
+            .using(project(':react-native-gradle-plugin'))
     }
 }
 
