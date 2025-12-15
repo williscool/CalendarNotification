@@ -52,6 +52,17 @@ buildscript {
 subprojects {
     // Removed forced test dependency versions - let Gradle resolve naturally
     // to avoid conflicts between main app (AppCompat 1.6.0) and test libraries
+    
+    // Fix Kotlin null-safety errors in expo-modules-core when compiled with SDK 35
+    // Expo SDK 51 has null-safety issues that surface with SDK 35
+    // TODO: Remove this workaround when upgrading to Expo SDK 52+
+    afterEvaluate { project ->
+        if (project.name == 'expo-modules-core' && project.hasProperty('android')) {
+            project.android {
+                compileSdkVersion 34
+            }
+        }
+    }
 }
 
 allprojects {
