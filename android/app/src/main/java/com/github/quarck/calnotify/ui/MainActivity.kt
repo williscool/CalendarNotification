@@ -193,7 +193,12 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         checkPermissions()
 
-        registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST));
+        // Android 13+ (API 33) requires specifying receiver export flags for runtime-registered receivers
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
+        }
 
         if (calendarRescanEnabled != settings.enableCalendarRescan) {
             calendarRescanEnabled = settings.enableCalendarRescan
