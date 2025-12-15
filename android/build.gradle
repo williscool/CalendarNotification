@@ -24,10 +24,13 @@ buildscript {
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
+      // Note: These are used by React Native dependencies, NOT the main app.
+      // The app's targetSdkVersion is intentionally pinned at 25 in app/build.gradle
+      // until the target SDK upgrade work is completed.
       minSdk = 24 // https://github.com/software-mansion/react-native-screens/pull/2251#ref-issue-2457327086
       minSdkVersion = 24
       compileSdkVersion = 34
-      targetSdkVersion = 34
+      targetSdkVersion = 34  // For RN deps only; app uses 25
       
       // Supported architectures
       supportedArchs = ['arm64-v8a', 'x86_64']

@@ -77,6 +77,11 @@ android {
     applicationId "com.github.quarck.calnotify"
     minSdkVersion 24
     minSdk 24
+    // TODO: targetSdkVersion 25 is outdated (Android 7.1). Upgrading to 34 requires:
+    // - SDK 26+: Notification channels, background limits, foreground service types
+    // - SDK 31+: SCHEDULE_EXACT_ALARM permission for calendar alarms
+    // - SDK 33+: POST_NOTIFICATIONS runtime permission
+    // See: docs/dev_todo/target_sdk_upgrade.md (to be created)
     //noinspection ExpiredTargetSdkVersion
     targetSdkVersion 25
     versionCode 4000026
