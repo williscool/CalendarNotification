@@ -1,5 +1,6 @@
 import React from 'react';
-import { Button, ButtonText } from '@gluestack-ui/themed';
+import { Pressable } from 'react-native';
+import { Box, Text } from '@gluestack-ui/themed';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { getVariantStyle, ButtonVariant } from './variants';
 
@@ -13,7 +14,7 @@ interface ActionButtonProps {
 
 /**
  * A styled button with variant support.
- * Replaces the multiple button style patterns across screens.
+ * Uses RN Pressable instead of Gluestack Button to avoid text rendering issues.
  */
 export const ActionButton: React.FC<ActionButtonProps> = ({
   onPress,
@@ -26,20 +27,27 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   const { bg, textColor } = getVariantStyle(variant, disabled, colors);
 
   return (
-    <Button
+    <Pressable
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
-      bg={bg}
-      p="$4"
-      borderRadius="$lg"
-      mx="$4"
-      mt="$4"
-      opacity={disabled ? 0.7 : 1}
       testID={testID}
+      style={({ pressed }) => ({
+        opacity: disabled ? 0.7 : pressed ? 0.8 : 1,
+      })}
     >
-      <ButtonText color={textColor} fontWeight="$semibold" fontSize="$md">
-        {children}
-      </ButtonText>
-    </Button>
+      <Box
+        bg={bg}
+        p="$4"
+        borderRadius="$lg"
+        mx="$4"
+        mt="$4"
+        alignItems="center"
+        justifyContent="center"
+      >
+        <Text color={textColor} fontWeight="$semibold" fontSize="$md">
+          {children}
+        </Text>
+      </Box>
+    </Pressable>
   );
 };

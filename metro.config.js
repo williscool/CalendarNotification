@@ -12,21 +12,21 @@ const config = getDefaultConfig(__dirname);
 
 config.transformer = {
   ...config.transformer,
-  getTransformOptions: async () => ({
-    transform: {
+	  getTransformOptions: async () => ({
+		transform: {
       experimentalImportSupport: false,
-      inlineRequires: {
-        blockList: {
-          [require.resolve('@powersync/react-native')]: true,
-        }
-      }
-    }
-  })
+		  inlineRequires: {
+			blockList: {
+			  [require.resolve('@powersync/react-native')]: true,
+			}
+		  }
+		}
+	  })
 };
 
 config.resolver = {
   ...config.resolver,
   sourceExts: [...config.resolver.sourceExts, 'mjs'],
-};
+  };
 
 module.exports = config;
