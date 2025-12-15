@@ -8,15 +8,19 @@ interface SecureInputProps {
   onChangeText: (text: string) => void;
   placeholder?: string;
   testID?: string;
-  /** Optional: control visibility externally */
+  /** Optional: control visibility externally (requires onVisibilityChange) */
   isVisible?: boolean;
-  /** Optional: callback when visibility changes */
+  /** Optional: callback when visibility changes (required if isVisible is provided) */
   onVisibilityChange?: (visible: boolean) => void;
 }
 
 /**
  * A password input with visibility toggle.
  * Replaces the SecureInput pattern in Settings screen.
+ * 
+ * Can be used in two modes:
+ * 1. Uncontrolled: Don't pass isVisible/onVisibilityChange - component manages its own state
+ * 2. Controlled: Pass BOTH isVisible AND onVisibilityChange - parent manages state
  */
 export const SecureInput: React.FC<SecureInputProps> = ({
   value,
@@ -29,17 +33,17 @@ export const SecureInput: React.FC<SecureInputProps> = ({
   const { colors } = useTheme();
   const [internalVisible, setInternalVisible] = useState(false);
   
-  // Use external control if provided, otherwise use internal state
-  const isControlled = externalVisible !== undefined;
+  // Only controlled if BOTH props are provided
+  const isControlled = externalVisible !== undefined && onVisibilityChange !== undefined;
   const showPassword = isControlled ? externalVisible : internalVisible;
 
   const toggleVisibility = useCallback(() => {
-    if (isControlled && onVisibilityChange) {
+    if (isControlled) {
       onVisibilityChange(!showPassword);
     } else {
-      setInternalVisible(!internalVisible);
+      setInternalVisible(prev => !prev);
     }
-  }, [isControlled, onVisibilityChange, showPassword, internalVisible]);
+  }, [isControlled, onVisibilityChange, showPassword]);
 
   return (
     <Input
