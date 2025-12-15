@@ -1111,7 +1111,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/runtime@npm:^7.12.5, @babel/runtime@npm:^7.20.0, @babel/runtime@npm:^7.25.0, @babel/runtime@npm:^7.6.2, @babel/runtime@npm:^7.8.7":
+"@babel/runtime@npm:^7.12.5, @babel/runtime@npm:^7.18.6, @babel/runtime@npm:^7.20.0, @babel/runtime@npm:^7.25.0, @babel/runtime@npm:^7.6.2, @babel/runtime@npm:^7.8.7":
   version: 7.28.4
   resolution: "@babel/runtime@npm:7.28.4"
   checksum: 934b0a0460f7d06637d93fcd1a44ac49adc33518d17253b5a0b55ff4cb90a45d8fe78bf034b448911dbec7aff2a90b918697559f78d21c99ff8dbadae9565b55
@@ -4738,6 +4738,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native/normalize-colors@npm:^0.74.1":
+  version: 0.74.89
+  resolution: "@react-native/normalize-colors@npm:0.74.89"
+  checksum: df62772f029dd132d3061a8ee7f90b6aaf5c525bb7e33c22908249daffa42995cddd91adc790ec9ce701636c14eeafc1809a9d0d879e3f8c71c9f340145abfce
+  languageName: node
+  linkType: hard
+
 "@react-native/virtualized-lists@npm:0.76.9":
   version: 0.76.9
   resolution: "@react-native/virtualized-lists@npm:0.76.9"
@@ -6703,6 +6710,7 @@ __metadata:
     react-native-screens: ~4.4.0
     react-native-svg: 15.8.0
     react-native-url-polyfill: ^2.0.0
+    react-native-web: ~0.19.13
     regenerator-runtime: ^0.14.0
     rn-game-over: ^1.1.0
     semantic-release: ^24.1.1
@@ -10265,7 +10273,7 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
-"fbjs@npm:^3.0.0":
+"fbjs@npm:^3.0.0, fbjs@npm:^3.0.4":
   version: 3.0.5
   resolution: "fbjs@npm:3.0.5"
   dependencies:
@@ -13586,6 +13594,13 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
+"memoize-one@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "memoize-one@npm:6.0.0"
+  checksum: f185ea69f7cceae5d1cb596266dcffccf545e8e7b4106ec6aa93b71ab9d16460dd118ac8b12982c55f6d6322fcc1485de139df07eacffaae94888b9b3ad7675f
+  languageName: node
+  linkType: hard
+
 "memoizee@npm:^0.4.15":
   version: 0.4.17
   resolution: "memoizee@npm:0.4.17"
@@ -15571,6 +15586,13 @@ eslint-plugin-prettier@latest:
   languageName: node
   linkType: hard
 
+"postcss-value-parser@npm:^4.2.0":
+  version: 4.2.0
+  resolution: "postcss-value-parser@npm:4.2.0"
+  checksum: 819ffab0c9d51cf0acbabf8996dffbfafbafa57afc0e4c98db88b67f2094cb44488758f06e5da95d7036f19556a4a732525e84289a425f4f6fd8e412a9d7442f
+  languageName: node
+  linkType: hard
+
 "postcss@npm:~8.4.32":
   version: 8.4.49
   resolution: "postcss@npm:8.4.49"
@@ -16028,6 +16050,25 @@ eslint-plugin-prettier@latest:
   peerDependencies:
     react-native: "*"
   checksum: 1a2e1030a62fd093764b5330ce0ff34d72246e581dd2892cddc347d8621931aeb2c9ea3e054960484a1259230e8461e569e1890f1ff452d3c5c0adef70190fc3
+  languageName: node
+  linkType: hard
+
+"react-native-web@npm:~0.19.13":
+  version: 0.19.13
+  resolution: "react-native-web@npm:0.19.13"
+  dependencies:
+    "@babel/runtime": ^7.18.6
+    "@react-native/normalize-colors": ^0.74.1
+    fbjs: ^3.0.4
+    inline-style-prefixer: ^6.0.1
+    memoize-one: ^6.0.0
+    nullthrows: ^1.1.1
+    postcss-value-parser: ^4.2.0
+    styleq: ^0.1.3
+  peerDependencies:
+    react: ^18.0.0
+    react-dom: ^18.0.0
+  checksum: 15077f88204cb980203b8e3784c092c8c25c972bf281db43fd4ccc9696b603380a49f5289fb9a742daddd8e7599baab5798a1f1c857bdd634add827bc39fd8d8
   languageName: node
   linkType: hard
 
@@ -17584,6 +17625,13 @@ eslint-plugin-prettier@latest:
   version: 0.4.1
   resolution: "structured-headers@npm:0.4.1"
   checksum: 2f3073b2c8b4f2515367a1647ba0b6764ce6d35b3943605940de41077c2afd2513257f4bf6fbfd67a3455f25a3e844905da6fddde6b6ad7974256495311a25a3
+  languageName: node
+  linkType: hard
+
+"styleq@npm:^0.1.3":
+  version: 0.1.3
+  resolution: "styleq@npm:0.1.3"
+  checksum: 14a8d23abd914166a9b4bd04ed753bd91363f0e029ee4a94ec2c7dc37d3213fe01fceee22dc655288da3ae89f5dc01cec42d5e2b58478b0dea33bf5bdf509be1
   languageName: node
   linkType: hard
 
