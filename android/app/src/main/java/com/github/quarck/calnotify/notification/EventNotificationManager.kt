@@ -654,19 +654,16 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         val snoozePresets = settings.snoozePresets
 
-        if (isMarshmallowOrAbove) {
-            if (notificationsSettings.useBundledNotifications) {
-                postGroupNotification(
-                        context,
-                        notificationsSettingsQuiet,
-                        snoozePresets,
-                        summaryNotificationIsOngoing,
-                        numTotalEvents
-                )
-            }
-            else {
-                removeNotification(context, Consts.NOTIFICATION_ID_BUNDLED_GROUP)
-            }
+        if (notificationsSettings.useBundledNotifications) {
+            postGroupNotification(
+                    context,
+                    notificationsSettingsQuiet,
+                    snoozePresets,
+                    summaryNotificationIsOngoing,
+                    numTotalEvents
+            )
+        } else {
+            removeNotification(context, Consts.NOTIFICATION_ID_BUNDLED_GROUP)
         }
 
         var currentTime = clock.currentTimeMillis()
