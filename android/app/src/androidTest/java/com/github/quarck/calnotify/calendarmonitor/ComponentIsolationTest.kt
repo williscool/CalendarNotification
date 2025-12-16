@@ -207,6 +207,7 @@ class ComponentIsolationTest {
             // Mock CalendarMonitor to prevent automatic event scanning
             mockkObject(ApplicationController)
             every { ApplicationController.CalendarMonitor.onRescanFromService(any()) } just Runs
+            every { ApplicationController.CalendarMonitor.launchRescanService(any(), any(), any(), any(), any()) } just Runs
             
             DevLog.info(LOG_TAG, "Created MockApplicationComponents instance, now calling setup()")
             applicationComponents.setup()
