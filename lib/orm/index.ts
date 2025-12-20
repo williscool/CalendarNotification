@@ -28,8 +28,16 @@ export async function psInsertDbTable(
     const fullTableEventsKeys = Object.keys(fullTableEvents[0]);
     
     // Convert data to array format for batch insert
+    // PowerSync requires 'id' to be text, so convert any non-string id to string
     const fullTableEventsArray = fullTableEvents.map(event => 
-      fullTableEventsKeys.map(key => event[key])
+      fullTableEventsKeys.map(key => {
+        const value = event[key];
+        // Convert id to string if it's not already (PowerSync requires text id)
+        if (key === 'id' && value !== null && typeof value !== 'string') {
+          return String(value);
+        }
+        return value;
+      })
     );
 
     // Construct the insert query
