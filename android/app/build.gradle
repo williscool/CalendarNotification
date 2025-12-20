@@ -84,6 +84,9 @@ android {
     versionName "8.0.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+    // React Native New Architecture flags
+    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", project.hasProperty("newArchEnabled") ? project.property("newArchEnabled") : "false"
+    buildConfigField "boolean", "IS_HERMES_ENABLED", project.hasProperty("hermesEnabled") ? project.property("hermesEnabled") : "true"
 
     // Enhanced test instrumentation with JaCoCo and Ultron/Allure
     testInstrumentationRunner "com.atiurin.ultron.allure.UltronAllureTestRunner"
