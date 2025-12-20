@@ -26,3 +26,25 @@ This project uses a dual-filesystem setup for development:
 - Git operations and file system operations are faster on the Linux side
 - Windows Android Studio builds must use the Windows-synced location
 - File system permission issues may occur when accessing Windows files from Linux and vice versus (hence keeping them separate)
+
+## Windows Long Path Issue (New Architecture)
+
+React Native's New Architecture codegen creates very long file paths that can exceed Windows' 260-character limit. The long project path (`unison-with-dropbox-symlinked-to-linux`) makes this worse.
+
+**Workaround**: Use `subst` to create a short drive letter alias:
+
+```cmd
+subst X: "C:\Users\william\unison-with-dropbox-symlinked-to-linux\CalendarNotification"
+```
+
+Then build from `X:\android` instead. This shortens paths significantly and avoids the ninja build errors like:
+```
+ninja: error: Stat(...): Filename longer than 260 characters
+```
+
+**Important**: The `subst` drive is only visible at the same elevation level where it was created. If you run `subst` from a non-Admin command prompt, you must use non-Admin Explorer/terminals to see the `X:` drive. Running as Admin won't see it (and vice versa).
+
+To remove the substitution later:
+```cmd
+subst X: /d
+```

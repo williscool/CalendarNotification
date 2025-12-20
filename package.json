@@ -23,7 +23,7 @@
     "@gluestack-ui/config": "^1.1.20",
     "@gluestack-ui/themed": "^1.1.73",
     "@jest/globals": "^29.6.4",
-    "@op-engineering/op-sqlite": "^11.4.8",
+    "@op-engineering/op-sqlite": "^15.1.14",
     "@powersync/op-sqlite": "^0.4.0",
     "@powersync/react-native": "1.18.1",
     "@react-native-async-storage/async-storage": "1.23.1",

@@ -1,4 +1,6 @@
 pluginManagement {
+    // React Native Gradle Plugin for RN 0.76+
+    includeBuild("../node_modules/@react-native/gradle-plugin")
     repositories {
         google()
         mavenCentral()
@@ -6,20 +8,24 @@ pluginManagement {
     }
 }
 
-// Redirect classpath dependency to the local composite build
-includeBuild('../node_modules/@react-native/gradle-plugin') {
-    dependencySubstitution {
-        substitute(module('com.facebook.react:react-native-gradle-plugin'))
-            .using(project(':react-native-gradle-plugin'))
-    }
+plugins {
+    id("com.facebook.react.settings")
+    id("com.facebook.react.rootproject") apply false
+    id("com.facebook.react") apply false
 }
 
-include ':app'
-apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
+// RN 0.76+ autolinking - configure the extension
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand()
+}
 
-// Use static path resolution instead of Node.js execution
+rootProject.name = 'CalendarNotification'
+include ':app'
+
+// Expo autolinking
 apply from: file("../node_modules/expo/scripts/autolinking.gradle")
 useExpoModules()
+
 
 // Ensure proper module resolution
 dependencyResolutionManagement {
