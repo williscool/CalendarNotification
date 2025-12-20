@@ -135,11 +135,6 @@ runs:
     # Note: JS Bundle is an exception - we need to save it immediately if generated
     # This is because it's used by subsequent steps and we can't wait until the end of the job
 
-    - name: Setup react-native-safe-area-context mock
-      if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
-      run: node scripts/setup_safe_area_mock.js
-      shell: bash
-
     - name: Set up JDK 21
       uses: actions/setup-java@v3
       with:
