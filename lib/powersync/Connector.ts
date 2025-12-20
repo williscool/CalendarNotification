@@ -58,7 +58,7 @@ export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
   return () => syncLogListeners.delete(listener);
 };
 
-const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
+export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
   const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data };
   syncLogListeners.forEach(listener => listener(entry));
   
@@ -263,10 +263,16 @@ export class Connector implements PowerSyncBackendConnector {
     }
 
     async fetchCredentials() {
-        return {
+        emitSyncLog('debug', 'fetchCredentials called', {
+            endpoint: this.settings.powersyncUrl,
+            tokenLength: this.settings.powersyncToken?.length || 0,
+        });
+        const credentials = {
             endpoint: this.settings.powersyncUrl,
             token: this.settings.powersyncToken  // TODO: programattically generate token from user id (i.e. email or phone number) + random secret
         };
+        emitSyncLog('debug', 'Returning credentials');
+        return credentials;
     }
 
     private async executeOperation(op: CrudEntry): Promise<PostgrestSingleResponse<null> | null> {
