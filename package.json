@@ -5,7 +5,6 @@
   "main": "index.tsx",
   "scripts": {
     "start": "yarn react-native start",
-    "postinstall": "node scripts/setup_safe_area_mock.js",
     "build:crsqlite:arm64": "cd scripts && ./build_crsqlite_arm64.sh",
     "bundle:android": "node scripts/bundle_android.js",
     "android:build:debug": "yarn bundle:android --dev=true && cd android && ./gradlew assembleDebug",
