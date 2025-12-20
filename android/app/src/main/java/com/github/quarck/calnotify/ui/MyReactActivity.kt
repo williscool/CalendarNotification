@@ -10,6 +10,7 @@ import com.facebook.react.ReactRootView
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler
 import com.facebook.soloader.SoLoader
+import com.facebook.react.soloader.OpenSourceMergedSoMapping
 
 
 
@@ -18,7 +19,7 @@ class MyReactActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
     private lateinit var reactInstanceManager: ReactInstanceManager
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null) // null is required for react-native-screens https://github.com/software-mansion/react-native-screens
-        SoLoader.init(this, false)
+        SoLoader.init(this, OpenSourceMergedSoMapping)
         reactRootView = ReactRootView(this)
         val packages: List<ReactPackage> = PackageList(application).packages
         // Packages that cannot be autolinked yet can be added manually here, for example:
