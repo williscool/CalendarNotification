@@ -220,6 +220,11 @@ android {
   }
 }
 
+// React Native configuration for RN 0.76+
+react {
+    // Autolinking - adds dependencies for all autolinked libraries
+    autolinkLibrariesWithApp()
+}
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -253,6 +258,9 @@ dependencies {
     // React Native
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"
+    
+    // Local Expo module (for direct Kotlin imports of JsRescheduleConfirmationObject)
+    implementation project(':my-module')
 
     // SQLite
     implementation('com.github.requery:sqlite-android:3.45.0') {
