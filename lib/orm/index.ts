@@ -1,6 +1,12 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
+/** SQLite primitive value types */
+type SqliteValue = string | number | null | Uint8Array;
+
+/** A row from a SQLite query result */
+type SqliteRow = Record<string, SqliteValue>;
+
 /**
  * Inserts data from a regular SQLite table into a PowerSync table
  * @param dbName The name of the regular SQLite database
@@ -11,27 +17,27 @@ export async function psInsertDbTable(
   dbName: string, 
   tableName: string,
   psDb: AbstractPowerSyncDatabase
-) {
+): Promise<void> {
   const regDb = open({ name: dbName });
 
   try {
     // Get all data from the regular SQLite table
     const fullTableResult = await regDb.execute(`SELECT * FROM ${tableName}`);
-    const fullTableEvents = fullTableResult?.rows || [];
+    const rows: SqliteRow[] = fullTableResult?.rows || [];
     
-    if (fullTableEvents.length === 0) {
+    if (rows.length === 0) {
       console.log(`No data found in table ${tableName}`);
       return;
     }
 
     // Extract column names from the first row
-    const fullTableEventsKeys = Object.keys(fullTableEvents[0]);
+    const columnNames = Object.keys(rows[0]);
     
     // Convert data to array format for batch insert
     // PowerSync requires 'id' to be text, so convert any non-string id to string
-    const fullTableEventsArray = fullTableEvents.map(event => 
-      fullTableEventsKeys.map(key => {
-        const value = event[key];
+    const valuesArray: SqliteValue[][] = rows.map((row: SqliteRow) => 
+      columnNames.map((key: string): SqliteValue => {
+        const value = row[key];
         // Convert id to string if it's not already (PowerSync requires text id)
         if (key === 'id' && value !== null && typeof value !== 'string') {
           return String(value);
@@ -41,13 +47,11 @@ export async function psInsertDbTable(
     );
 
     // Construct the insert query
-    const powerSyncInsertQuery = `INSERT OR REPLACE INTO ${tableName} (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`;
+    const insertQuery = `INSERT OR REPLACE INTO ${tableName} (${columnNames.join(', ')}) VALUES (${columnNames.map(() => '?').join(', ')})`;
 
     // Execute the batch insert
-    const powerSyncInsertResult = await psDb.executeBatch(powerSyncInsertQuery, fullTableEventsArray);
-    console.log(`Successfully inserted ${fullTableEventsArray.length} rows into ${tableName}`);
-    
-    return powerSyncInsertResult;
+    await psDb.executeBatch(insertQuery, valuesArray);
+    console.log(`Successfully inserted ${valuesArray.length} rows into ${tableName}`);
   } catch (error) {
     console.error(`Failed to insert data from ${tableName}:`, error);
     throw error;
