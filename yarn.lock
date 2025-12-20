@@ -3647,13 +3647,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@op-engineering/op-sqlite@npm:^11.4.8":
-  version: 11.4.9
-  resolution: "@op-engineering/op-sqlite@npm:11.4.9"
+"@op-engineering/op-sqlite@npm:^15.1.14":
+  version: 15.1.14
+  resolution: "@op-engineering/op-sqlite@npm:15.1.14"
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 5266d9a9ed028d0867c3fb6e99562251c1228cc633452ed99ae67fc763842f96fa78ed243039c3ce92b1eea983bbb990d4d0bef733204e81238475489b20cdab
+  checksum: e257515f0983313efd505180ef6dbc3535077a7d98ae3a183f849d27f48dc53873ebe94008372048d29664b436c8505881e5eddd523118ab60977c0bcf43cc43
   languageName: node
   linkType: hard
 
@@ -6655,7 +6655,7 @@ __metadata:
     "@gluestack-ui/config": ^1.1.20
     "@gluestack-ui/themed": ^1.1.73
     "@jest/globals": ^29.6.4
-    "@op-engineering/op-sqlite": ^11.4.8
+    "@op-engineering/op-sqlite": ^15.1.14
     "@powersync/op-sqlite": ^0.4.0
     "@powersync/react-native": 1.18.1
     "@react-native-async-storage/async-storage": 1.23.1
