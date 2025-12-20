@@ -1,5 +1,5 @@
 pluginManagement {
-    // React Native Gradle Plugin for RN 0.76+
+    // React Native Gradle Plugin for RN 0.79+
     includeBuild("../node_modules/@react-native/gradle-plugin")
     repositories {
         google()
@@ -12,6 +12,13 @@ plugins {
     id("com.facebook.react.settings")
     id("com.facebook.react.rootproject") apply false
     id("com.facebook.react") apply false
+}
+
+// Dependency substitution for expo-module-gradle-plugin to resolve react-native-gradle-plugin
+includeBuild("../node_modules/@react-native/gradle-plugin") {
+    dependencySubstitution {
+        substitute(module("com.facebook.react:react-native-gradle-plugin")).using(project(":react-native-gradle-plugin"))
+    }
 }
 
 // RN 0.76+ autolinking - configure the extension
