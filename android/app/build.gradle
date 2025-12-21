@@ -372,7 +372,7 @@ afterEvaluate {
 
 // Configure JaCoCo properly
 jacoco {
-    toolVersion = "0.8.12"
+    toolVersion = "0.8.14"
 }
 
 // Configure all tests to use JaCoCo instrumentation

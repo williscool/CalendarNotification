@@ -12,14 +12,15 @@ buildscript {
       android_core_version = '1.6.0'
       androidCoreVersion = '1.6.0'
 
-      gradleVersion = '8.14'
-      gradle_version = '8.14'
+      gradleVersion = '8.13'
+      gradle_version = '8.13'
 
       // WARNING the android gradle plugin VERIONS != TO GRADLE PLUGIN VERSION
       // https://developer.android.com/build/releases/gradle-plugin
 
-      androidGradlePluginVersion = '8.10.0'
-      android_gradle_plugin_version = '8.10.0'
+      // Using 8.7.3 for JaCoCo compatibility with Gradle 8.13
+      androidGradlePluginVersion = '"8.13.2'
+      android_gradle_plugin_version = '"8.13.2'
 
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
