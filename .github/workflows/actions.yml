@@ -441,6 +441,10 @@ jobs:
         BUILD_ARCH: ${{ matrix.arch }}
 
     # Run the unit tests
+    # Note: We cannot skip preBuild tasks with New Architecture enabled because
+    # React Native Codegen generates required native specs during preBuild.
+    # The -Pandroid.externalNativeBuild.skip=true flag still speeds up builds
+    # by skipping native C++ compilation which is not needed for unit tests.
     - name: Run Unit Tests
       run: |
         cd android && \
@@ -450,8 +454,7 @@ jobs:
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
         --continue \
-        -Pandroid.externalNativeBuild.skip=true \
-        -x preBuild -x preDebugBuild -x preReleaseBuild
+        -Pandroid.externalNativeBuild.skip=true
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
