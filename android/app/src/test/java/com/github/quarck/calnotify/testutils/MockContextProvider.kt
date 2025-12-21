@@ -5,10 +5,11 @@ import android.app.AlarmManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
+import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.logs.DevLog
 import io.mockk.*
-import org.robolectric.shadows.ShadowApplication
+import org.robolectric.Shadows.shadowOf
 
 /**
  * Provides context-related mock functionality for tests
@@ -62,8 +63,9 @@ class MockContextProvider(
         
         // Grant calendar permissions for Robolectric tests
         try {
-            val application = ShadowApplication.getInstance()
-            application.grantPermissions(
+            val app = ApplicationProvider.getApplicationContext<Application>()
+            val shadowApp = shadowOf(app)
+            shadowApp.grantPermissions(
                 Manifest.permission.READ_CALENDAR,
                 Manifest.permission.WRITE_CALENDAR,
                 Manifest.permission.WAKE_LOCK,

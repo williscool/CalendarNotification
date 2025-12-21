@@ -58,16 +58,32 @@ class GlobalState : Application(), ReactApplication {
 
     override fun onCreate() {
         super.onCreate()
-        // Initialize SoLoader with merged SO mapping for RN 0.76+
-        SoLoader.init(this, OpenSourceMergedSoMapping)
-        // Load New Architecture if enabled
-        if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
-            load()
+        // Skip React Native initialization in Robolectric tests
+        if (!isRunningInRobolectric()) {
+            // Initialize SoLoader with merged SO mapping for RN 0.76+
+            SoLoader.init(this, OpenSourceMergedSoMapping)
+            // Load New Architecture if enabled
+            if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
+                load()
+            }
         }
         // Always follow system theme
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         // Create notification channels (required for Android 8+, no-op on older versions)
         NotificationChannels.createChannels(this)
+    }
+
+    /**
+     * Detects if we're running in a Robolectric test environment.
+     * SoLoader and React Native native code don't work in Robolectric.
+     */
+    private fun isRunningInRobolectric(): Boolean {
+        return try {
+            Class.forName("org.robolectric.Robolectric")
+            true
+        } catch (e: ClassNotFoundException) {
+            false
+        }
     }
 }
 
