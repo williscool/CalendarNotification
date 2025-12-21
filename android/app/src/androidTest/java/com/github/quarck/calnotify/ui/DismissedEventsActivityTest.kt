@@ -31,7 +31,8 @@ class DismissedEventsActivityTest : BaseUltronTest() {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // Enable waitForAsyncTasks to sync Espresso with background data loading (reloadData)
+        fixture.setup(waitForAsyncTasks = true)
     }
     
     @After
@@ -104,7 +105,7 @@ class DismissedEventsActivityTest : BaseUltronTest() {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Wait for recycler to be ready
+        // Verify recycler is ready (IdlingResource syncs with reloadData automatically)
         withId(R.id.list_events).isDisplayed()
         
         withText("Important Dismissed Event").isDisplayed()
@@ -120,7 +121,7 @@ class DismissedEventsActivityTest : BaseUltronTest() {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Wait for recycler to be ready
+        // Verify recycler is ready (IdlingResource syncs with reloadData automatically)
         withId(R.id.list_events).isDisplayed()
         
         // Click on the event
@@ -143,7 +144,7 @@ class DismissedEventsActivityTest : BaseUltronTest() {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Wait for recycler to be ready
+        // Verify recycler is ready (IdlingResource syncs with reloadData automatically)
         withId(R.id.list_events).isDisplayed()
         
         // Click on the event
@@ -215,7 +216,7 @@ class DismissedEventsActivityTest : BaseUltronTest() {
         
         val scenario = fixture.launchDismissedEventsActivity()
         
-        // Wait for recycler to be ready
+        // Verify recycler is ready (IdlingResource syncs with reloadData automatically)
         withId(R.id.list_events).isDisplayed()
         
         // All events should be visible

@@ -36,7 +36,8 @@ class MainActivityTest : BaseUltronTest() {
         // Prevent calendar reloads that would clear test events from EventsStorage
         // This is a lightweight mock that just stops ApplicationController.onMainActivityResumed
         // from triggering background calendar scans
-        fixture.setup(preventCalendarReload = true)
+        // Enable waitForAsyncTasks to sync Espresso with background data loading (reloadData)
+        fixture.setup(preventCalendarReload = true, waitForAsyncTasks = true)
     }
     
     @After
@@ -168,7 +169,7 @@ class MainActivityTest : BaseUltronTest() {
         
         val scenario = fixture.launchMainActivity()
         
-        // Wait for events to load - reloadData() runs in background thread
+        // Verify events are loaded (IdlingResource syncs with reloadData automatically)
         withText("Event 1").isDisplayed()
         
         // Snooze All appears in toolbar as icon (showAsAction="ifRoom"), not in overflow menu
@@ -184,7 +185,7 @@ class MainActivityTest : BaseUltronTest() {
         
         val scenario = fixture.launchMainActivity()
         
-        // Wait for events to load
+        // Verify events are loaded (IdlingResource syncs with reloadData automatically)
         withText("Event 1").isDisplayed()
         
         // Dismiss all is in overflow menu (showAsAction="never")
