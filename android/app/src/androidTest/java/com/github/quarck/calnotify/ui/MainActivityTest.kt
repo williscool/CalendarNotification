@@ -214,9 +214,7 @@ class MainActivityTest : BaseUltronTest() {
     
     @Test
     fun event_card_is_clickable() {
-        // ApplicationController is already mocked by fixture.setup(preventCalendarReload = true)
-        // Adding this mock early: ApplicationController.dismissEvent is accessed when clicking
-        mockkObject(ApplicationController)
+        fixture.mockApplicationController()
         every { 
             ApplicationController.dismissEvent(
                 any(), any<EventDismissType>(), any(), any(), any(), any()
