@@ -53,17 +53,6 @@ plugins {
   id("com.facebook.react.rootproject")
 }
 
-// Configure projects loaded callback to apply react plugin before build scripts run
-gradle.projectsLoaded {
-    rootProject.subprojects { subproject ->
-        // Apply react plugin to all subprojects before their build.gradle is evaluated
-        // This is needed for libraries that use the react {} extension block (RN 0.76+)
-        subproject.beforeEvaluate { proj ->
-            proj.apply plugin: 'com.facebook.react'
-        }
-    }
-}
-
 allprojects {
     repositories {
         google()

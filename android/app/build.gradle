@@ -224,10 +224,7 @@ android {
 }
 
 // React Native configuration for RN 0.76+
-react {
-    // Autolinking - adds dependencies for all autolinked libraries
-    autolinkLibrariesWithApp()
-}
+// NOTE: All react {} configuration is consolidated at the bottom of this file
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -341,6 +338,8 @@ dependencies {
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
   entryFile = layout.projectDirectory.file("../../index.tsx").asFile
+  // Autolinking - adds dependencies for all autolinked libraries
+  autolinkLibrariesWithApp()
 }
 
 
