@@ -1,5 +1,6 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
+import { emitSyncLog } from '../powersync/Connector';
 
 /** SQLite primitive value types */
 type SqliteValue = string | number | null | Uint8Array;
@@ -26,7 +27,7 @@ export async function psInsertDbTable(
     const rows: SqliteRow[] = fullTableResult?.rows || [];
     
     if (rows.length === 0) {
-      console.log(`No data found in table ${tableName}`);
+      emitSyncLog('info', `No data found in table ${tableName}`);
       return;
     }
 
@@ -47,13 +48,13 @@ export async function psInsertDbTable(
     );
 
     // Construct the insert query
-    const insertQuery = `INSERT OR REPLACE INTO ${tableName} (${columnNames.join(', ')}) VALUES (${columnNames.map(() => '?').join(', ')})`;
+    const powerSyncInsertQuery = `INSERT OR REPLACE INTO ${tableName} (${columnNames.join(', ')}) VALUES (${columnNames.map(() => '?').join(', ')})`;
 
     // Execute the batch insert
-    await psDb.executeBatch(insertQuery, valuesArray);
-    console.log(`Successfully inserted ${valuesArray.length} rows into ${tableName}`);
+    const result = await psDb.executeBatch(powerSyncInsertQuery, valuesArray);
+    emitSyncLog('info', `Successfully inserted ${result.rowsAffected} rows into ${tableName}`);
   } catch (error) {
-    console.error(`Failed to insert data from ${tableName}:`, error);
+    emitSyncLog('error', `Failed to insert data from ${tableName}`, { error: String(error) });
     throw error;
   }
 } 
@@ -70,10 +71,10 @@ export async function psClearTable(
 ) {
   try {
     const deleteResult = await psDb.execute(`DELETE FROM ${tableName}`);
-    console.log(`Successfully cleared all records from PowerSync table ${tableName}`);
+    emitSyncLog('info', `Successfully cleared all records from PowerSync table ${tableName}`);
     return deleteResult;
   } catch (error) {
-    console.error(`Failed to clear PowerSync table ${tableName}:`, error);
+    emitSyncLog('error', `Failed to clear PowerSync table ${tableName}`, { error: String(error) });
     throw error;
   }
 }
