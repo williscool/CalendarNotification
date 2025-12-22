@@ -16,6 +16,15 @@ import { ActionButton, WarningBanner } from '@lib/components/ui';
 import { emitSyncLog } from '@lib/logging/syncLog';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
+import type { Settings } from '@lib/hooks/SettingsContext';
+
+/** Check if all required sync credentials are configured */
+export const isSettingsConfigured = (settings: Settings): boolean => Boolean(
+  settings.supabaseUrl &&
+  settings.supabaseAnonKey &&
+  settings.powersyncUrl &&
+  settings.powersyncToken
+);
 
 export const SetupSync = () => {
   const navigation = useNavigation<AppNavigationProp>();
@@ -26,12 +35,7 @@ export const SetupSync = () => {
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
-  const isConfigured = Boolean(
-    settings.supabaseUrl &&
-    settings.supabaseAnonKey &&
-    settings.powersyncUrl &&
-    settings.powersyncToken
-  );
+  const isConfigured = isSettingsConfigured(settings);
 
   const numEventsToDisplay = 3;
 
