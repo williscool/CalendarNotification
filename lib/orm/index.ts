@@ -1,6 +1,6 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
-import { emitSyncLog } from '../powersync/Connector';
+import { emitSyncLog } from '../logging/syncLog';
 
 /** SQLite primitive value types */
 type SqliteValue = string | number | null | Uint8Array;

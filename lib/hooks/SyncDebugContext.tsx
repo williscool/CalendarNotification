@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { subscribeSyncLogs, SyncLogEntry } from '../logging/syncLog';
 import { 
-  subscribeSyncLogs, 
   getFailedOperations, 
   removeFailedOperation as removeFailedOp,
   clearFailedOperations as clearFailedOps,
   setLogFilterLevel as setFilterLevel,
   getLogFilterLevel,
-  SyncLogEntry,
   FailedOperation,
   LogFilterLevel,
 } from '../powersync/Connector';

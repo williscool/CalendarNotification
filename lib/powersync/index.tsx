@@ -1,6 +1,7 @@
 import { OPSqliteOpenFactory } from '@powersync/op-sqlite';
 import { PowerSyncDatabase } from '@powersync/react-native';
-import { Connector, emitSyncLog } from './Connector';
+import { Connector } from './Connector';
+import { emitSyncLog } from '../logging/syncLog';
 import { AppSchema } from './Schema';
 import { Settings } from '../hooks/SettingsContext';
 

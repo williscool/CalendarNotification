@@ -5,7 +5,7 @@ import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase
 import { Settings } from '../hooks/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logger from 'js-logger';
-import { formatError } from '../logging/errors';
+import { SyncLogEntry, emitSyncLog, emitCapturedLog } from '../logging/syncLog';
 
 const log = Logger.get('PowerSync');
 
@@ -43,41 +43,9 @@ export interface FailedOperation {
   timestamp: number;
 }
 
-export interface SyncLogEntry {
-  timestamp: number;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  data?: Record<string, unknown>;
-}
-
-// Global event emitter for sync logs - allows SyncDebugContext to subscribe
-type SyncLogListener = (entry: SyncLogEntry) => void;
-const syncLogListeners: Set<SyncLogListener> = new Set();
-
-export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
-  syncLogListeners.add(listener);
-  return () => syncLogListeners.delete(listener);
-};
-
-export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
-  // Auto-format any Error values in data
-  const formattedData = data ? Object.fromEntries(
-    Object.entries(data).map(([key, value]) => 
-      [key, value instanceof Error ? formatError(value) : value]
-    )
-  ) : undefined;
-  
-  const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data: formattedData };
-  syncLogListeners.forEach(listener => listener(entry));
-  
-  // Also log to js-logger
-  switch (level) {
-    case 'error': log.error(message, formattedData); break;
-    case 'warn': log.warn(message, formattedData); break;
-    case 'info': log.info(message, formattedData); break;
-    case 'debug': log.debug(message, formattedData); break;
-  }
-};
+// Re-export for backwards compatibility
+export type { SyncLogEntry } from '../logging/syncLog';
+export { emitSyncLog, subscribeSyncLogs } from '../logging/syncLog';
 
 // Log filter levels
 export type LogFilterLevel = 'info' | 'debug' | 'firehose';
@@ -152,48 +120,10 @@ export const setupPowerSyncLogCapture = () => {
     // Always call default handler for console output
     defaultHandler(messages, context);
 
-    // Guard against undefined/null messages
-    if (!messages) return;
-
     // Check if this log should be captured based on filter level
     const loggerName = context?.name || '';
     if (shouldCaptureLog(loggerName)) {
-      // Convert js-logger level to our level
-      let level: SyncLogEntry['level'] = 'debug';
-      const contextLevel = context?.level;
-      if (contextLevel === Logger.ERROR) level = 'error';
-      else if (contextLevel === Logger.WARN) level = 'warn';
-      else if (contextLevel === Logger.INFO) level = 'info';
-      else if (contextLevel === Logger.DEBUG) level = 'debug';
-
-      // Format the message - handle both array and non-array messages
-      const prefix = loggerName ? `[${loggerName}] ` : '';
-      let messageText: string;
-      try {
-        const msgArray = Array.isArray(messages) ? messages : [messages];
-        messageText = msgArray.map(m => {
-          if (m === undefined) return 'undefined';
-          if (m === null) return 'null';
-          if (typeof m === 'object') {
-            try {
-              return JSON.stringify(m);
-            } catch {
-              return String(m);
-            }
-          }
-          return String(m);
-        }).join(' ');
-      } catch {
-        messageText = String(messages);
-      }
-
-      // Emit to our subscribers (without re-logging to avoid loops)
-      const entry: SyncLogEntry = { 
-        timestamp: Date.now(), 
-        level, 
-        message: `${prefix}${messageText}` 
-      };
-      syncLogListeners.forEach(listener => listener(entry));
+      emitCapturedLog(messages, loggerName, context?.level);
     }
   });
 };

@@ -1,15 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { subscribeSyncLogs, SyncLogEntry } from '../logging/syncLog';
 import {
   Connector,
-  subscribeSyncLogs,
   getFailedOperations,
   saveFailedOperation,
   removeFailedOperation,
   clearFailedOperations,
   setLogFilterLevel,
   getLogFilterLevel,
-  SyncLogEntry,
   FailedOperation,
   LogFilterLevel,
 } from './Connector';
