@@ -2,13 +2,14 @@
  * SetupSync UI rendering tests.
  * Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
  * 
- * Tests the 4 onboarding flow states:
- * | State           | isConfigured | isConnected | Expected UI                                          |
- * |-----------------|--------------|-------------|------------------------------------------------------|
- * | No config       | `false`      | -           | Setup guide + GitHub link + Settings button          |
- * | Initializing    | `true`       | `null`      | Main screen + "initializing" banner + disabled btns  |
- * | Not connected   | `true`       | `false`     | Main screen + warning banner + disabled buttons      |
- * | Connected       | `true`       | `true`      | Full UI with enabled buttons                         |
+ * Tests the 5 onboarding flow states:
+ * | State           | isConfigured | syncEnabled | isConnected | Expected UI                                          |
+ * |-----------------|--------------|-------------|-------------|------------------------------------------------------|
+ * | No config       | `false`      | -           | -           | Setup guide + GitHub link + Settings button          |
+ * | Sync disabled   | `true`       | `false`     | `false`     | Main screen + warning banner + disabled buttons      |
+ * | Initializing    | `true`       | `true`      | `null`      | Main screen + "initializing" banner + disabled btns  |
+ * | Not connected   | `true`       | `true`      | `false`     | Main screen + warning banner + disabled buttons      |
+ * | Connected       | `true`       | `true`      | `true`      | Full UI with enabled buttons                         |
  */
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
@@ -161,6 +162,43 @@ describe('SetupSync UI States', () => {
     it('does not render main sync UI', () => {
       renderWithContext(<SetupSync />);
       expect(screen.queryByText(/PowerSync Status:/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('State: Sync disabled (isConfigured=true, syncEnabled=false)', () => {
+    beforeEach(() => {
+      // Configure with credentials but syncEnabled=false
+      testState.settings = {
+        syncEnabled: false,
+        syncType: 'unidirectional',
+        supabaseUrl: 'https://example.supabase.co',
+        supabaseAnonKey: 'anon-key-123',
+        powersyncUrl: 'https://example.powersync.com',
+        powersyncToken: 'token123',
+      };
+      configurePowerSyncStatus(null);
+    });
+
+    it('renders main sync screen', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.getByText(/PowerSync Status:/)).toBeInTheDocument();
+    });
+
+    it('renders warning banner (not initializing)', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.getByText(/PowerSync is not connected/)).toBeInTheDocument();
+    });
+
+    it('does not render initializing banner', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.queryByText(/PowerSync is initializing/)).not.toBeInTheDocument();
+    });
+
+    it('renders sync button as disabled', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+      const syncButton = screen.getByText('Sync Events Local To PowerSync Now');
+      const button = syncButton.closest('button');
+      expect(button).toBeDisabled();
     });
   });
 

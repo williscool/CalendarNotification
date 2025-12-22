@@ -52,6 +52,12 @@ export const SetupSync = () => {
   const providerDb = useContext(PowerSyncContext);
 
   useEffect(() => {
+    // If sync is disabled, treat as "not connected" state
+    if (!settings.syncEnabled) {
+      setIsConnected(false);
+      return;
+    }
+
     (async () => {
       if (settings.syncEnabled && settings.syncType === 'bidirectional') {
         await installCrsqliteOnTable('Events', 'eventsV9');

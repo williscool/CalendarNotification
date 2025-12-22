@@ -4,12 +4,13 @@
  * 
  * ## Onboarding Flow States
  * 
- * | State           | isConfigured | isConnected | Expected UI                                          |
- * |-----------------|--------------|-------------|------------------------------------------------------|
- * | No config       | `false`      | -           | Setup guide + GitHub link + Settings button          |
- * | Initializing    | `true`       | `null`      | Main screen + "initializing" banner + disabled btns  |
- * | Not connected   | `true`       | `false`     | Main screen + warning banner + disabled buttons      |
- * | Connected       | `true`       | `true`      | Full UI with enabled buttons                         |
+ * | State           | isConfigured | syncEnabled | isConnected | Expected UI                                          |
+ * |-----------------|--------------|-------------|-------------|------------------------------------------------------|
+ * | No config       | `false`      | -           | -           | Setup guide + GitHub link + Settings button          |
+ * | Sync disabled   | `true`       | `false`     | `false`     | Main screen + warning banner + disabled buttons      |
+ * | Initializing    | `true`       | `true`      | `null`      | Main screen + "initializing" banner + disabled btns  |
+ * | Not connected   | `true`       | `true`      | `false`     | Main screen + warning banner + disabled buttons      |
+ * | Connected       | `true`       | `true`      | `true`      | Full UI with enabled buttons                         |
  * 
  * Note: UI rendering tests are in SetupSync.ui.test.tsx
  */
