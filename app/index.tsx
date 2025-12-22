@@ -55,14 +55,50 @@ const LoadingScreen = () => {
   );
 };
 
+const SyncErrorScreen = ({ error, onRetry }: { error: Error; onRetry: () => void }) => {
+  const navigation = useNavigation<AppNavigationProp>();
+  const { colors } = useTheme();
+
+  return (
+    <Center flex={1} p="$5" bg={colors.backgroundWhite}>
+      <VStack space="md" alignItems="center">
+        <Text fontSize="$xl" textAlign="center" color={colors.danger}>
+          Sync Failed
+        </Text>
+        <Text fontSize="$md" textAlign="center" color={colors.textMuted} mb="$2">
+          {error.message}
+        </Text>
+        <Button onPress={onRetry} bg={colors.primary} borderRadius="$lg" px="$5" py="$3">
+          <ButtonText fontWeight="$semibold">Retry</ButtonText>
+        </Button>
+        <Button
+          onPress={() => navigation.navigate('Settings')}
+          variant="outline"
+          borderRadius="$lg"
+          px="$5"
+          py="$3"
+        >
+          <ButtonText color={colors.primary}>Check Settings</ButtonText>
+        </Button>
+      </VStack>
+    </Center>
+  );
+};
+
 export default function HomeScreen() {
   const { settings } = useSettings();
   const [isReady, setIsReady] = useState(false);
+  const [syncError, setSyncError] = useState<Error | null>(null);
 
   useEffect(() => {
     const init = async () => {
+      setSyncError(null);
       if (settings.syncEnabled) {
-        await setupPowerSync(settings);
+        try {
+          await setupPowerSync(settings);
+        } catch (e) {
+          setSyncError(e instanceof Error ? e : new Error(String(e)));
+        }
       }
       setIsReady(true);
     };
@@ -71,6 +107,10 @@ export default function HomeScreen() {
 
   if (!isReady) {
     return <LoadingScreen />;
+  }
+
+  if (syncError) {
+    return <SyncErrorScreen error={syncError} onRetry={() => setIsReady(false)} />;
   }
 
   return settings.syncEnabled ? <SetupSync /> : <InitialSetupScreen />;
