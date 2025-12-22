@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Box, Text, Button, ButtonText, Center, VStack, Pressable } from '@gluestack-ui/themed';
+import { Text, Button, ButtonText, Center, VStack, Pressable } from '@gluestack-ui/themed';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { setupPowerSync } from '@lib/powersync';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { SetupSync } from '@lib/features/SetupSync';
+import { SyncErrorScreen } from '@lib/features/SyncErrorScreen';
 
 const InitialSetupScreen = () => {
   const navigation = useNavigation<AppNavigationProp>();
@@ -58,19 +59,31 @@ const LoadingScreen = () => {
 export default function HomeScreen() {
   const { settings } = useSettings();
   const [isReady, setIsReady] = useState(false);
+  const [syncError, setSyncError] = useState<Error | null>(null);
+
+  const initSync = useCallback(async () => {
+    setIsReady(false);
+    setSyncError(null);
+    if (settings.syncEnabled) {
+      try {
+        await setupPowerSync(settings);
+      } catch (e) {
+        setSyncError(e instanceof Error ? e : new Error(String(e)));
+      }
+    }
+    setIsReady(true);
+  }, [settings]);
 
   useEffect(() => {
-    const init = async () => {
-      if (settings.syncEnabled) {
-        await setupPowerSync(settings);
-      }
-      setIsReady(true);
-    };
-    init();
-  }, [settings.syncEnabled, settings]);
+    initSync();
+  }, [initSync]);
 
   if (!isReady) {
     return <LoadingScreen />;
+  }
+
+  if (syncError) {
+    return <SyncErrorScreen error={syncError} onRetry={initSync} />;
   }
 
   return settings.syncEnabled ? <SetupSync /> : <InitialSetupScreen />;

@@ -1,8 +1,10 @@
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply plugin: 'kotlinx-serialization'
-apply plugin: "com.facebook.react"
-apply plugin: 'jacoco'
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'kotlinx-serialization'
+    id 'jacoco'
+    id 'com.facebook.react'
+}
 
 //
 // SDK-level codes / values cheat sheet:
@@ -82,6 +84,9 @@ android {
     versionName "8.0.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+    // React Native New Architecture flags
+    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", project.hasProperty("newArchEnabled") ? project.property("newArchEnabled") : "false"
+    buildConfigField "boolean", "IS_HERMES_ENABLED", project.hasProperty("hermesEnabled") ? project.property("hermesEnabled") : "true"
 
     // Enhanced test instrumentation with JaCoCo and Ultron/Allure
     testInstrumentationRunner "com.atiurin.ultron.allure.UltronAllureTestRunner"
@@ -218,6 +223,8 @@ android {
   }
 }
 
+// React Native configuration for RN 0.76+
+// NOTE: All react {} configuration is consolidated at the bottom of this file
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -251,6 +258,9 @@ dependencies {
     // React Native
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"
+    
+    // Local Expo module (for direct Kotlin imports of JsRescheduleConfirmationObject)
+    implementation project(':my-module')
 
     // SQLite
     implementation('com.github.requery:sqlite-android:3.45.0') {
@@ -265,7 +275,7 @@ dependencies {
   // Unit test dependencies
     testImplementation 'junit:junit:4.13.2'
     // Add Robolectric dependency
-    testImplementation 'org.robolectric:robolectric:4.14'
+    testImplementation 'org.robolectric:robolectric:4.16'
     // Mockito for unit tests
     testImplementation 'org.mockito:mockito-core:5.16.1'
     testImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
@@ -328,10 +338,37 @@ dependencies {
 // https://reactnative.dev/docs/react-native-gradle-plugin
 react {
   entryFile = layout.projectDirectory.file("../../index.tsx").asFile
+  // Autolinking - adds dependencies for all autolinked libraries
+  autolinkLibrariesWithApp()
 }
 
-
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
+// Fix task dependency for RN 0.76+ autolinking (Gradle 8.7 strict validation)
+// Must declare both dependsOn AND input directory for Gradle to accept the dependency
+afterEvaluate {
+  def autolinkTask = tasks.findByName('generateAutolinkingPackageList')
+  if (autolinkTask != null) {
+    def autolinkingDir = file("${buildDir}/generated/autolinking/src/main/java")
+    
+    // Wire Kotlin compile tasks
+    tasks.matching { it.name.matches('compile.*Kotlin') }.configureEach { task ->
+      task.dependsOn(autolinkTask)
+      // Declare the directory as an input so Gradle knows about the dependency
+      task.inputs.dir(autolinkingDir)
+        .withPropertyName('autolinkingSources')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional()
+    }
+    
+    // Wire Java compile tasks too
+    tasks.matching { it.name.matches('compile.*JavaWithJavac') }.configureEach { task ->
+      task.dependsOn(autolinkTask)
+      task.inputs.dir(autolinkingDir)
+        .withPropertyName('autolinkingSources')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional()
+    }
+  }
+}
 
 // Configure JaCoCo properly
 jacoco {

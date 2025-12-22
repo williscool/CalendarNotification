@@ -1,5 +1,12 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
+import { emitSyncLog } from '../powersync/Connector';
+
+/** SQLite primitive value types */
+type SqliteValue = string | number | null | Uint8Array;
+
+/** A row from a SQLite query result */
+type SqliteRow = Record<string, SqliteValue>;
 
 /**
  * Inserts data from a regular SQLite table into a PowerSync table
@@ -11,37 +18,43 @@ export async function psInsertDbTable(
   dbName: string, 
   tableName: string,
   psDb: AbstractPowerSyncDatabase
-) {
+): Promise<void> {
   const regDb = open({ name: dbName });
 
   try {
     // Get all data from the regular SQLite table
     const fullTableResult = await regDb.execute(`SELECT * FROM ${tableName}`);
-    const fullTableEvents = fullTableResult?.rows || [];
+    const rows: SqliteRow[] = fullTableResult?.rows || [];
     
-    if (fullTableEvents.length === 0) {
-      console.log(`No data found in table ${tableName}`);
+    if (rows.length === 0) {
+      emitSyncLog('info', `No data found in table ${tableName}`);
       return;
     }
 
     // Extract column names from the first row
-    const fullTableEventsKeys = Object.keys(fullTableEvents[0]);
+    const columnNames = Object.keys(rows[0]);
     
     // Convert data to array format for batch insert
-    const fullTableEventsArray = fullTableEvents.map(event => 
-      fullTableEventsKeys.map(key => event[key])
+    // PowerSync requires 'id' to be text, so convert any non-string id to string
+    const valuesArray: SqliteValue[][] = rows.map((row: SqliteRow) => 
+      columnNames.map((key: string): SqliteValue => {
+        const value = row[key];
+        // Convert id to string if it's not already (PowerSync requires text id)
+        if (key === 'id' && value !== null && typeof value !== 'string') {
+          return String(value);
+        }
+        return value;
+      })
     );
 
     // Construct the insert query
-    const powerSyncInsertQuery = `INSERT OR REPLACE INTO ${tableName} (${fullTableEventsKeys.join(', ')}) VALUES (${fullTableEventsKeys.map(() => '?').join(', ')})`;
+    const powerSyncInsertQuery = `INSERT OR REPLACE INTO ${tableName} (${columnNames.join(', ')}) VALUES (${columnNames.map(() => '?').join(', ')})`;
 
     // Execute the batch insert
-    const powerSyncInsertResult = await psDb.executeBatch(powerSyncInsertQuery, fullTableEventsArray);
-    console.log(`Successfully inserted ${fullTableEventsArray.length} rows into ${tableName}`);
-    
-    return powerSyncInsertResult;
+    const result = await psDb.executeBatch(powerSyncInsertQuery, valuesArray);
+    emitSyncLog('info', `Successfully inserted ${result.rowsAffected} rows into ${tableName}`);
   } catch (error) {
-    console.error(`Failed to insert data from ${tableName}:`, error);
+    emitSyncLog('error', `Failed to insert data from ${tableName}`, { error: String(error) });
     throw error;
   }
 } 
@@ -58,10 +71,10 @@ export async function psClearTable(
 ) {
   try {
     const deleteResult = await psDb.execute(`DELETE FROM ${tableName}`);
-    console.log(`Successfully cleared all records from PowerSync table ${tableName}`);
+    emitSyncLog('info', `Successfully cleared all records from PowerSync table ${tableName}`);
     return deleteResult;
   } catch (error) {
-    console.error(`Failed to clear PowerSync table ${tableName}:`, error);
+    emitSyncLog('error', `Failed to clear PowerSync table ${tableName}`, { error: String(error) });
     throw error;
   }
 }
