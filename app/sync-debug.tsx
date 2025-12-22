@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useCallback, memo } from 'react';
+import React, { useContext, useEffect, useState, useCallback, memo, useMemo } from 'react';
 import { FlatList, RefreshControl } from 'react-native';
 import { Box, Text, HStack, VStack, Pressable, Badge, BadgeText } from '@gluestack-ui/themed';
 import { PowerSyncContext } from "@powersync/react";
@@ -7,6 +7,18 @@ import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Co
 import { Section, ActionButton } from '@lib/components/ui';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { ThemeColors } from '@lib/theme/colors';
+
+// Filter logs based on display level preference
+const filterLogsByLevel = (logs: SyncLogEntry[], filterLevel: LogFilterLevel): SyncLogEntry[] => {
+  if (filterLevel === 'firehose') return logs; // Show everything
+  
+  // For 'info' and 'debug', filter by log level (not logger name anymore)
+  const allowedLevels: Set<SyncLogEntry['level']> = filterLevel === 'info'
+    ? new Set(['error', 'warn', 'info'])
+    : new Set(['error', 'warn', 'info', 'debug']);
+  
+  return logs.filter(log => allowedLevels.has(log.level));
+};
 
 const formatTimestamp = (ts: number): string => {
   const date = new Date(ts);
@@ -65,9 +77,9 @@ const LogFilterToggle: React.FC<{
   colors: ThemeColors;
 }> = ({ value, onChange, colors }) => {
   const levels: { key: LogFilterLevel; label: string; description: string }[] = [
-    { key: 'info', label: 'Info', description: 'PowerSync only' },
-    { key: 'debug', label: 'Debug', description: '+ Supabase & sync' },
-    { key: 'firehose', label: 'Firehose', description: 'Everything' },
+    { key: 'info', label: 'Info', description: 'Errors, warnings & info' },
+    { key: 'debug', label: 'Debug', description: '+ debug messages' },
+    { key: 'firehose', label: 'Firehose', description: 'Everything (all levels)' },
   ];
 
   return (
@@ -160,6 +172,12 @@ export default function SyncDebug() {
   const [syncStatus, setSyncStatus] = useState<string>('{}');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Filter logs for display based on current filter level
+  const filteredLogs = useMemo(
+    () => filterLogsByLevel(logs, logFilterLevel),
+    [logs, logFilterLevel]
+  );
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (providerDb) {
@@ -229,16 +247,23 @@ export default function SyncDebug() {
         borderTopRightRadius="$lg"
       >
         <HStack justifyContent="space-between" alignItems="center" mb="$2">
-          <Text fontSize="$lg" fontWeight="$bold" color={colors.text}>
-            Sync Logs ({logs.length})
-          </Text>
+          <VStack>
+            <Text fontSize="$lg" fontWeight="$bold" color={colors.text}>
+              Sync Logs ({filteredLogs.length})
+            </Text>
+            {filteredLogs.length !== logs.length && (
+              <Text fontSize="$2xs" color={colors.textLight}>
+                {logs.length} total, filtered by level
+              </Text>
+            )}
+          </VStack>
           <Pressable onPress={clearLogs} bg={colors.danger} px="$3" py="$1.5" borderRadius="$md">
             <Text color="#fff" fontSize="$xs" fontWeight="$semibold">Clear</Text>
           </Pressable>
         </HStack>
       </Box>
     </>
-  ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, clearLogs, colors]);
+  ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, filteredLogs.length, clearLogs, colors]);
 
   const ListEmpty = useCallback(() => (
     <Box bg={colors.backgroundWhite} mx="$4" pb="$4" borderBottomLeftRadius="$lg" borderBottomRightRadius="$lg">
@@ -251,7 +276,7 @@ export default function SyncDebug() {
   return (
     <FlatList
       style={{ flex: 1, backgroundColor: colors.background }}
-      data={logs}
+      data={filteredLogs}
       renderItem={renderLogItem}
       keyExtractor={keyExtractor}
       ListHeaderComponent={ListHeader}
@@ -263,7 +288,6 @@ export default function SyncDebug() {
       maxToRenderPerBatch={20}
       windowSize={10}
       initialNumToRender={15}
-      getItemLayout={undefined}
       contentContainerStyle={{ paddingBottom: 20 }}
     />
   );
