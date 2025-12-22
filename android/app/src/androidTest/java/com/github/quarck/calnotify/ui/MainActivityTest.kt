@@ -36,7 +36,8 @@ class MainActivityTest : BaseUltronTest() {
         // Prevent calendar reloads that would clear test events from EventsStorage
         // This is a lightweight mock that just stops ApplicationController.onMainActivityResumed
         // from triggering background calendar scans
-        fixture.setup(preventCalendarReload = true)
+        // Grant permissions to avoid permission dialogs (faster tests)
+        fixture.setup(preventCalendarReload = true, grantPermissions = true)
     }
     
     @After

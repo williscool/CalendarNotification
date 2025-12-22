@@ -60,25 +60,25 @@ class UITestFixture {
      * @param preventCalendarReload If true, mocks ApplicationController to prevent calendar reloads
      *                              that would clear test events from EventsStorage. Lightweight alternative
      *                              to full MockCalendarProvider setup.
-     * @param grantCalendarPermissions If true, grants calendar permissions programmatically.
-     *                                 Set to false to test permission dialogs (e.g., MainActivityTest).
+     * @param grantPermissions If true, grants runtime permissions (calendar, notifications) programmatically.
+     *                         This speeds up tests by avoiding permission dialogs.
      */
     fun setup(
         waitForAsyncTasks: Boolean = false, 
         preventCalendarReload: Boolean = false,
-        grantCalendarPermissions: Boolean = false
+        grantPermissions: Boolean = false
     ) {
-        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantCalendarPermissions=$grantCalendarPermissions)")
+        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantPermissions=$grantPermissions)")
         
         // Reset dialog flag so each test can handle dialogs if they appear
         startupDialogsDismissed = false
         
         clearAllEvents()
         
-        // Grant calendar permissions programmatically if requested
-        // Only use this for tests that need permissions but shouldn't test the permission dialog flow
-        if (grantCalendarPermissions) {
-            grantCalendarPermissions()
+        // Grant runtime permissions programmatically if requested
+        // This speeds up tests by avoiding permission dialogs
+        if (grantPermissions) {
+            grantPermissions()
         }
         
         // Prevent calendar reload if needed - this stops CalendarReloadManager from clearing test events
@@ -97,10 +97,11 @@ class UITestFixture {
     }
     
     /**
-     * Grants calendar permissions programmatically for UI tests.
+     * Grants runtime permissions programmatically for UI tests.
      * This ensures tests work in isolation without requiring permission dialogs.
+     * Grants: READ_CALENDAR, WRITE_CALENDAR, POST_NOTIFICATIONS (API 33+)
      */
-    private fun grantCalendarPermissions() {
+    private fun grantPermissions() {
         try {
             val instrumentation = InstrumentationRegistry.getInstrumentation()
             val packageName = instrumentation.targetContext.packageName
@@ -124,9 +125,9 @@ class UITestFixture {
                 )
             }
             
-            DevLog.info(LOG_TAG, "Granted calendar permissions to $packageName")
+            DevLog.info(LOG_TAG, "Granted runtime permissions to $packageName")
         } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "Failed to grant calendar permissions: ${e.message}")
+            DevLog.error(LOG_TAG, "Failed to grant runtime permissions: ${e.message}")
             // Don't throw - some test environments might not support this
         }
     }
@@ -582,10 +583,10 @@ class UITestFixture {
     companion object {
         private const val LOG_TAG = "UITestFixture"
         
-        // Dialog dismissal timing constants
-        private const val FIRST_DIALOG_TIMEOUT_MS = 500L      // First dialog might take time to appear
-        private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 200L // Chained dialogs appear quickly
-        private const val DIALOG_DISMISS_ANIMATION_MS = 150L
+        // Dialog dismissal timing constants (kept short since permissions are usually granted upfront)
+        private const val FIRST_DIALOG_TIMEOUT_MS = 300L      // First dialog wait
+        private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
+        private const val DIALOG_DISMISS_ANIMATION_MS = 100L
         private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs
         private const val MAX_DIALOG_DISMISSAL_ATTEMPTS = 5
         

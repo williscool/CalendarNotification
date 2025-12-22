@@ -34,7 +34,7 @@ class ViewEventActivityTest : BaseUltronTest() {
         fixture = UITestFixture.create()
         // Grant permissions programmatically so ViewEventActivity doesn't finish() immediately
         // This allows the test to work in isolation while other tests can still test permission dialogs
-        fixture.setup(grantCalendarPermissions = true)
+        fixture.setup(grantPermissions = true)
     }
     
     @After
