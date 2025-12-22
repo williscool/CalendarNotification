@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
@@ -115,6 +116,14 @@ class UITestFixture {
                 Manifest.permission.WRITE_CALENDAR
             )
             
+            // Grant notification permission on Android 13+ (API 33)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                uiAutomation.grantRuntimePermission(
+                    packageName,
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
+            }
+            
             DevLog.info(LOG_TAG, "Granted calendar permissions to $packageName")
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Failed to grant calendar permissions: ${e.message}")
@@ -149,14 +158,32 @@ class UITestFixture {
     /**
      * Dismisses system dialogs that appear during app startup and steal window focus.
      * Handles: targetSdk warning, notification permission, battery optimization, background running.
+     * 
+     * Call this after launching an activity. For robust handling, call dismissDialogsIfPresent()
+     * before making UI assertions if dialogs might appear asynchronously.
      */
-    private fun dismissTargetSdkWarningDialog() {
+    private fun dismissStartupDialogs() {
         // Quick exit if we've already dismissed dialogs in a previous test
         if (startupDialogsDismissed) {
             DevLog.info(LOG_TAG, "Startup dialogs already dismissed, skipping check")
             return
         }
         
+        dismissDialogsIfPresent()
+        startupDialogsDismissed = true
+    }
+    
+    /**
+     * Dismisses any dialogs that are currently visible.
+     * Can be called multiple times - useful when dialogs appear asynchronously.
+     * 
+     * This handles:
+     * - Battery optimization dialogs (DO IT / LATER / DISMISS)
+     * - Notification permission rationale (OK / CANCEL)
+     * - System permission dialogs (Allow / Don't allow)
+     * - targetSdk warning dialogs (OK)
+     */
+    fun dismissDialogsIfPresent() {
         val configurator = Configurator.getInstance()
         val originalIdleTimeout = configurator.waitForIdleTimeout
         
@@ -167,20 +194,26 @@ class UITestFixture {
             configurator.waitForIdleTimeout = 0  // Skip idle detection entirely
             
             // Buttons to check and click (in any order since dialogs can appear in different sequences)
-            // Use textContains() instead of exact text match for flexibility
             val buttonsToTry = listOf(
-                "OK",                  // targetSdk warning
-                "Allow",               // Notification & background permissions  
-                "ALLOW",               // Uppercase variant
-                "DISMISS",             // Battery optimization (skip it)
-                "Dismiss",             // Lowercase variant
-                "LATER",               // Battery optimization alternative
+                // Notification permission rationale dialog (app-level AlertDialog)
+                "OK",                  // Positive button
+                "CANCEL",              // Negative button (uppercase as shown in UI)
+                "Cancel",              // Negative button (mixed case from strings.xml)
+                // Battery optimization dialog
+                "DO IT",               // Positive - opens battery settings
+                "LATER",               // Neutral - dismisses dialog
                 "Later",               // Lowercase variant
-                "Don't allow"          // Permission denial fallback
+                "DISMISS",             // Negative - dismisses and remembers choice
+                "Dismiss",             // Lowercase variant
+                // System permission dialogs
+                "Allow",               // Grant permission
+                "ALLOW",               // Uppercase variant
+                "Don't allow",         // Deny permission
+                "Deny"                 // Alternative deny text
             )
             
             var totalDismissed = 0
-            val maxDialogs = 3  // Handle up to 3 chained dialogs
+            val maxDialogs = 5  // Handle up to 5 chained dialogs
             
             // Known resourceIds for Android 13+ permission dialogs
             val permissionResourceIds = listOf(
@@ -188,16 +221,15 @@ class UITestFixture {
                 "com.android.permissioncontroller:id/permission_deny_button"
             )
             
-            // Check for dialogs up to 3 times (notification, battery, background)
+            // Check for dialogs multiple times to handle chained dialogs
             for (attempt in 1..maxDialogs) {
                 var foundOne = false
                 
-                // Brief wait only on first attempt to let dialog appear
-                if (attempt == 1) {
-                    Thread.sleep(FIRST_DIALOG_TIMEOUT_MS)
-                }
+                // Wait for dialog to appear - longer on first attempt
+                val waitTime = if (attempt == 1) FIRST_DIALOG_TIMEOUT_MS else SUBSEQUENT_DIALOG_TIMEOUT_MS
+                Thread.sleep(waitTime)
                 
-                // First, try known resourceIds for permission dialogs (Android 13+)
+                // First, try known resourceIds for system permission dialogs (Android 13+)
                 for (resourceId in permissionResourceIds) {
                     val button = device.findObject(UiSelector().resourceId(resourceId))
                     if (button.exists()) {
@@ -232,12 +264,8 @@ class UITestFixture {
             }
             
             if (totalDismissed > 0) {
-                DevLog.info(LOG_TAG, "Dismissed $totalDismissed system dialog(s)")
-            } else {
-                DevLog.info(LOG_TAG, "No system dialogs found")
+                DevLog.info(LOG_TAG, "Dismissed $totalDismissed dialog(s)")
             }
-            
-            startupDialogsDismissed = true
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
         } finally {
@@ -437,7 +465,7 @@ class UITestFixture {
         scenario.onActivity { activity ->
             DevLog.info(LOG_TAG, "MainActivity is ready: ${activity.javaClass.simpleName}")
         }
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         return scenario
     }
     
@@ -455,7 +483,7 @@ class UITestFixture {
         scenario.onActivity { activity ->
             DevLog.info(LOG_TAG, "SnoozeAllActivity is ready: ${activity.javaClass.simpleName}")
         }
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         return scenario
     }
     
@@ -472,7 +500,7 @@ class UITestFixture {
         scenario.onActivity { activity ->
             DevLog.info(LOG_TAG, "SnoozeAllActivity is ready: ${activity.javaClass.simpleName}")
         }
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         return scenario
     }
     
@@ -490,7 +518,7 @@ class UITestFixture {
         scenario.onActivity { activity ->
             DevLog.info(LOG_TAG, "ViewEventActivity is ready: ${activity.javaClass.simpleName}")
         }
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         return scenario
     }
     
@@ -506,7 +534,7 @@ class UITestFixture {
             DevLog.info(LOG_TAG, "DismissedEventsActivity is ready: ${activity.javaClass.simpleName}")
         }
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         
         return scenario
     }
@@ -523,7 +551,7 @@ class UITestFixture {
             DevLog.info(LOG_TAG, "SettingsActivityX is ready: ${activity.javaClass.simpleName}")
         }
         // Dismiss warning dialog AFTER activity launch (it appears during onCreate)
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         
         return scenario
     }
@@ -538,7 +566,7 @@ class UITestFixture {
         scenario.onActivity { activity ->
             DevLog.info(LOG_TAG, "SnoozeAllActivity is ready: ${activity.javaClass.simpleName}")
         }
-        dismissTargetSdkWarningDialog()
+        dismissStartupDialogs()
         return scenario
     }
     
@@ -555,9 +583,9 @@ class UITestFixture {
         private const val LOG_TAG = "UITestFixture"
         
         // Dialog dismissal timing constants
-        private const val FIRST_DIALOG_TIMEOUT_MS = 200L      // First dialog might take time to appear
-        private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
-        private const val DIALOG_DISMISS_ANIMATION_MS = 100L
+        private const val FIRST_DIALOG_TIMEOUT_MS = 500L      // First dialog might take time to appear
+        private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 200L // Chained dialogs appear quickly
+        private const val DIALOG_DISMISS_ANIMATION_MS = 150L
         private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs
         private const val MAX_DIALOG_DISMISSAL_ATTEMPTS = 5
         
