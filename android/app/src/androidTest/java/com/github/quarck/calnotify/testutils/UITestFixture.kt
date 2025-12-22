@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
@@ -114,6 +115,14 @@ class UITestFixture {
                 packageName,
                 Manifest.permission.WRITE_CALENDAR
             )
+            
+            // Grant notification permission on Android 13+ (API 33)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                uiAutomation.grantRuntimePermission(
+                    packageName,
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
+            }
             
             DevLog.info(LOG_TAG, "Granted calendar permissions to $packageName")
         } catch (e: Exception) {
