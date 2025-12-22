@@ -538,15 +538,14 @@ describe('Error Classification', () => {
   });
 });
 
-describe('Log Filter Level', () => {
+describe('Log Filter Level (UI display preference)', () => {
   beforeEach(() => {
-    // Reset to default
     setLogFilterLevel('info');
   });
 
   describe('getLogFilterLevel', () => {
     it('should return default filter level as info', () => {
-      setLogFilterLevel('info'); // Reset
+      setLogFilterLevel('info');
       expect(getLogFilterLevel()).toBe('info');
     });
   });

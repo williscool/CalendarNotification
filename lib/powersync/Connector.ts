@@ -47,38 +47,9 @@ export interface FailedOperation {
 export type { SyncLogEntry } from '../logging/syncLog';
 export { emitSyncLog, subscribeSyncLogs } from '../logging/syncLog';
 
-// Log filter levels
+// Log filter levels - used by UI to filter what's displayed (not what's captured)
 export type LogFilterLevel = 'info' | 'debug' | 'firehose';
 
-// PowerSync SDK log prefixes (info level - sane defaults)
-const INFO_PREFIXES = [
-  'PowerSyncStream',
-  'SqliteBucketStorage', 
-  'PowerSync',
-  'AbstractPowerSyncDatabase',
-  'PowerSyncBackendConnector',
-];
-
-// Extended prefixes (debug level - more verbose)
-const DEBUG_PREFIXES = [
-  ...INFO_PREFIXES,
-  // Supabase
-  'Supabase',
-  'Postgrest',
-  'GoTrue',
-  'Realtime',
-  // General sync patterns
-  'sync',
-  'Sync',
-  'upload',
-  'Upload',
-  'download',
-  'Download',
-  'fetch',
-  'Fetch',
-];
-
-// Current filter level - can be changed at runtime
 let currentLogFilterLevel: LogFilterLevel = 'info';
 
 export const setLogFilterLevel = (level: LogFilterLevel) => {
@@ -89,42 +60,19 @@ export const getLogFilterLevel = (): LogFilterLevel => {
   return currentLogFilterLevel;
 };
 
-// Check if a log should be captured based on current filter level
-const shouldCaptureLog = (loggerName: string): boolean => {
-  if (currentLogFilterLevel === 'firehose') {
-    return true; // Capture everything
-  }
-  
-  const prefixes = currentLogFilterLevel === 'debug' ? DEBUG_PREFIXES : INFO_PREFIXES;
-  
-  // Always capture logs with empty logger name (generic logs)
-  if (loggerName === '') return true;
-  
-  return prefixes.some(prefix => 
-    loggerName.toLowerCase().includes(prefix.toLowerCase())
-  );
-};
-
-// Setup js-logger handler to capture PowerSync SDK logs
+// Setup js-logger handler to capture all logs
 let loggerHandlerInstalled = false;
 
 export const setupPowerSyncLogCapture = () => {
   if (loggerHandlerInstalled) return;
   loggerHandlerInstalled = true;
 
-  // Get the default handler
   const defaultHandler = Logger.createDefaultHandler();
 
-  // Install custom handler that intercepts logs based on filter level
+  // Capture ALL logs - filtering happens at display time in the UI
   Logger.setHandler((messages, context) => {
-    // Always call default handler for console output
     defaultHandler(messages, context);
-
-    // Check if this log should be captured based on filter level
-    const loggerName = context?.name || '';
-    if (shouldCaptureLog(loggerName)) {
-      emitCapturedLog(messages, loggerName, context?.level);
-    }
+    emitCapturedLog(messages, context?.name || '', context?.level);
   });
 };
 
