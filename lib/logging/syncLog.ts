@@ -5,6 +5,8 @@
 
 import { formatError } from './errors';
 
+const LOG_PREFIX = 'CNPlusSync';
+
 export interface SyncLogEntry {
   id: string;
   timestamp: number;
@@ -32,6 +34,15 @@ export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?
       [key, value instanceof Error ? formatError(value) : value]
     )
   ) : undefined;
+  
+  // Also output to console for developer visibility
+  const consoleMsg = data ? `${message} ${JSON.stringify(formattedData)}` : message;
+  switch (level) {
+    case 'error': console.error(`[${LOG_PREFIX}] ${consoleMsg}`); break;
+    case 'warn': console.warn(`[${LOG_PREFIX}] ${consoleMsg}`); break;
+    case 'info': console.info(`[${LOG_PREFIX}] ${consoleMsg}`); break;
+    case 'debug': console.debug(`[${LOG_PREFIX}] ${consoleMsg}`); break;
+  }
   
   const entry: SyncLogEntry = { id: generateLogId(), timestamp: Date.now(), level, message, data: formattedData };
   syncLogListeners.forEach(listener => listener(entry));

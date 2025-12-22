@@ -87,8 +87,12 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const migrated = parsed.map(entry => 
             entry.id ? entry : { ...entry, id: `legacy-${entry.timestamp}-${++migrationCounter}` }
           );
-          logsRef.current = migrated;
-          setLogsVersion(v => v + 1);  // Trigger re-render with loaded logs
+          // Merge with any logs that arrived during loading (race condition fix)
+          // New logs are prepended, so they should stay at the front
+          const existingIds = new Set(logsRef.current.map(e => e.id));
+          const uniqueLoaded = migrated.filter(e => !existingIds.has(e.id));
+          logsRef.current = [...logsRef.current, ...uniqueLoaded].slice(0, MAX_LOG_ENTRIES_MEMORY);
+          setLogsVersion(v => v + 1);  // Trigger re-render with merged logs
         }
       } catch (e) {
         emitSyncLog('warn', 'Failed to load sync logs from storage', { error: e });
