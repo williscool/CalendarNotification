@@ -66,7 +66,7 @@ jobs:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 30
+    timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
     outputs:
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
 
@@ -511,7 +511,7 @@ jobs:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 30
+    timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
 
     steps:
     - uses: actions/checkout@v3
@@ -715,7 +715,7 @@ jobs:
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
       NUM_SHARDS: 4
-    timeout-minutes: 15  # Further reduced with 8 shards
+    timeout-minutes: 35  # Increased for cache rebuilds after dependency updates
 
     steps:
     - uses: actions/checkout@v3
