@@ -80,34 +80,47 @@ describe('SetupSync', () => {
       // When !isConfigured, SetupSync renders setup guide with GitHub link
     });
 
-    it('configured + isConnected=null → shows initializing with disabled buttons', () => {
+    it('configured + syncEnabled=false → shows not connected (sync disabled)', () => {
+      const settings = createCompleteSettings({ syncEnabled: false });
+      const isConfigured = isSettingsConfigured(settings);
+      
+      expect(isConfigured).toBe(true);
+      expect(settings.syncEnabled).toBe(false);
+      // When isConfigured but syncEnabled=false, useEffect sets isConnected=false
+      // Shows warning banner + disabled buttons (same as "not connected")
+    });
+
+    it('configured + syncEnabled=true + isConnected=null → shows initializing', () => {
       const settings = createCompleteSettings();
       const isConfigured = isSettingsConfigured(settings);
       const isConnected: boolean | null = null;
       
       expect(isConfigured).toBe(true);
+      expect(settings.syncEnabled).toBe(true);
       expect(isConnected).toBeNull();
-      // When isConfigured && isConnected === null, shows "initializing" banner + buttons disabled
+      // When isConfigured && syncEnabled && isConnected === null, shows "initializing" banner + buttons disabled
     });
 
-    it('configured + isConnected=false → shows not connected warning', () => {
+    it('configured + syncEnabled=true + isConnected=false → shows not connected warning', () => {
       const settings = createCompleteSettings();
       const isConfigured = isSettingsConfigured(settings);
       const isConnected = false;
       
       expect(isConfigured).toBe(true);
+      expect(settings.syncEnabled).toBe(true);
       expect(isConnected).toBe(false);
-      // When isConfigured && !isConnected, shows warning + disabled buttons
+      // When isConfigured && syncEnabled && !isConnected, shows warning + disabled buttons
     });
 
-    it('configured + isConnected=true → enables full functionality', () => {
+    it('configured + syncEnabled=true + isConnected=true → enables full functionality', () => {
       const settings = createCompleteSettings();
       const isConfigured = isSettingsConfigured(settings);
       const isConnected = true;
       
       expect(isConfigured).toBe(true);
+      expect(settings.syncEnabled).toBe(true);
       expect(isConnected).toBe(true);
-      // When isConfigured && isConnected, all buttons enabled
+      // When isConfigured && syncEnabled && isConnected, all buttons enabled
     });
   });
 });
