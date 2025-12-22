@@ -25,11 +25,11 @@ buildscript {
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
-      // SDK versions - aligned with Expo SDK 53 requirements
+      // SDK versions - aligned with Expo SDK 54 requirements
       minSdk = 24
       minSdkVersion = 24
-      compileSdkVersion = 35
-      targetSdkVersion = 35
+      compileSdkVersion = 36
+      targetSdkVersion = 36
       
       // Supported architectures
       supportedArchs = ['arm64-v8a', 'x86_64']
