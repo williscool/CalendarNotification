@@ -77,6 +77,18 @@ allprojects {
     }
 }
 
+// Apply packagingOptions to all Android library subprojects to handle duplicate native libs
+subprojects {
+    plugins.withId("com.android.library") {
+        android {
+            packagingOptions {
+                pickFirst '**/libc++_shared.so'
+                pickFirst '**/*.so'
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
