@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { subscribeSyncLogs, SyncLogEntry } from '../logging/syncLog';
+import { subscribeSyncLogs, SyncLogEntry, emitSyncLog } from '../logging/syncLog';
 import { 
   getFailedOperations, 
   removeFailedOperation as removeFailedOp,
@@ -64,8 +64,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Only persist the most recent entries to storage
         const toStore = logsToSave.slice(0, MAX_LOG_ENTRIES_STORAGE);
         await AsyncStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(toStore));
-      } catch {
-        // Ignore storage errors
+      } catch (e) {
+        emitSyncLog('warn', 'Failed to save sync logs to storage', { error: e });
       }
     }, SAVE_DEBOUNCE_MS);
   }, []);
@@ -85,8 +85,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           logsRef.current = parsed;
           setLogsVersion(v => v + 1);  // Trigger re-render with loaded logs
         }
-      } catch {
-        // Ignore load errors
+      } catch (e) {
+        emitSyncLog('warn', 'Failed to load sync logs from storage', { error: e });
       }
       isLoadedRef.current = true;
     };
@@ -136,8 +136,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLogsVersion(v => v + 1);  // Trigger re-render with empty logs
     try {
       await AsyncStorage.removeItem(LOGS_STORAGE_KEY);
-    } catch {
-      // Ignore errors
+    } catch (e) {
+      emitSyncLog('warn', 'Failed to clear sync logs from storage', { error: e });
     }
   }, []);
 
