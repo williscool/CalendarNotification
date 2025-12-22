@@ -208,6 +208,13 @@ runs:
         cat gradle-tasks.txt
       shell: bash
 
+    # Run codegen for all React Native libraries (required for New Architecture)
+    - name: Generate React Native Codegen
+      run: |
+        cd android && \
+        ./gradlew generateCodegenSchemaFromJavaScript generateCodegenArtifactsFromSchema --parallel --max-workers=4
+      shell: bash
+
     # Cache React Native specific files
     - name: Restore Cache React Native files
       uses: actions/cache/restore@v4
