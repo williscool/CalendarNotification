@@ -59,18 +59,51 @@ runs:
       run: echo "GRADLE_MAX_WORKERS=${{ inputs.gradle_max_workers }}" >> $GITHUB_ENV
       shell: bash
 
-    # Free Disk Space for emulator setup
+    # Free Disk Space - run for all jobs to prevent out-of-space errors
     - name: Free Disk Space
-      if: inputs.run_emulator_setup == 'true'
       uses: endersonmenezes/free-disk-space@v3
       with:
-        remove_android: false        # Keep Android SDK for emulator
+        remove_android: false        # Keep Android SDK
         remove_dotnet: true          # Remove .NET (~3GB)
         remove_haskell: true         # Remove Haskell (~5GB)
         remove_tool_cache: false     # Keep tool cache
-        remove_swap: false           # Keep swap for emulator
+        remove_swap: false           # Keep swap
         remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox"
         remove_folders: "/usr/share/swift /usr/share/miniconda /usr/local/share/powershell"
+
+    # Early cleanup of old Gradle caches BEFORE restoring (prevents accumulation)
+    - name: Pre-cleanup old Gradle caches
+      shell: bash
+      run: |
+        echo "Pre-cleanup: Checking for old Gradle caches..."
+        # Extract current Gradle version from wrapper properties
+        CURRENT_GRADLE=$(grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties | sed 's/.*gradle-\([0-9.]*\)-.*/\1/' || echo "")
+        echo "Current Gradle version: ${CURRENT_GRADLE:-unknown}"
+        
+        # Aggressively clean old version caches
+        if [[ -d ~/.gradle/caches ]]; then
+          for dir in ~/.gradle/caches/8.*; do
+            if [[ -d "$dir" && -n "$CURRENT_GRADLE" && "$dir" != *"$CURRENT_GRADLE"* ]]; then
+              echo "Removing old cache: $dir"
+              rm -rf "$dir"
+            fi
+          done
+          # Always remove transforms cache - it's huge and regenerates
+          rm -rf ~/.gradle/caches/transforms-* 2>/dev/null || true
+        fi
+        
+        # Clean old wrapper distributions
+        if [[ -d ~/.gradle/wrapper/dists ]]; then
+          for dir in ~/.gradle/wrapper/dists/gradle-*; do
+            if [[ -d "$dir" && -n "$CURRENT_GRADLE" && "$dir" != *"$CURRENT_GRADLE"* ]]; then
+              echo "Removing old wrapper: $dir"
+              rm -rf "$dir"
+            fi
+          done
+        fi
+        
+        echo "Pre-cleanup complete. Disk space:"
+        df -h / | tail -1
 
     - name: Use Node.js ${{ inputs.node_version }}
       uses: actions/setup-node@v3
@@ -170,34 +203,6 @@ runs:
           notifications
           jdks
           wrapper
-
-    # Clean up old Gradle version caches to prevent disk space issues
-    - name: Clean old Gradle caches
-      shell: bash
-      run: |
-        echo "Cleaning old Gradle version caches..."
-        # Extract current Gradle version from wrapper properties
-        CURRENT_GRADLE=$(grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties | sed 's/.*gradle-\([0-9.]*\)-.*/\1/')
-        echo "Current Gradle version: $CURRENT_GRADLE"
-        
-        # Remove old version-specific caches (keep only current version)
-        for dir in ~/.gradle/caches/8.*; do
-          if [[ -d "$dir" && "$dir" != *"$CURRENT_GRADLE"* ]]; then
-            echo "Removing old cache: $dir"
-            rm -rf "$dir"
-          fi
-        done
-        
-        # Remove transforms cache if it exists and is large (>2GB) - it regenerates
-        if [[ -d ~/.gradle/caches/transforms-4 ]]; then
-          size=$(du -sm ~/.gradle/caches/transforms-4 2>/dev/null | cut -f1)
-          if [[ "$size" -gt 2000 ]]; then
-            echo "Removing large transforms cache (${size}MB)"
-            rm -rf ~/.gradle/caches/transforms-4
-          fi
-        fi
-        echo "Gradle cache cleanup complete"
-        df -h / | tail -1
 
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
