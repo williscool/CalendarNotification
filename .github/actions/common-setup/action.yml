@@ -142,6 +142,7 @@ runs:
         distribution: 'temurin'
 
     # Cache Gradle files
+    # Note: Cache key includes gradle-wrapper.properties hash to invalidate on Gradle version changes
     - name: Restore Cache Gradle files
       uses: actions/cache/restore@v4
       id: gradle-cache-restore
@@ -152,10 +153,9 @@ runs:
           android/.gradle
           android/build-cache
         key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        # Removed broad fallback patterns to prevent accumulating old Gradle version caches
         restore-keys: |
-          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
-          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-
-          ${{ runner.os }}-gradle-
+          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/gradle-wrapper.properties') }}-
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4.0.0
@@ -170,6 +170,34 @@ runs:
           notifications
           jdks
           wrapper
+
+    # Clean up old Gradle version caches to prevent disk space issues
+    - name: Clean old Gradle caches
+      shell: bash
+      run: |
+        echo "Cleaning old Gradle version caches..."
+        # Extract current Gradle version from wrapper properties
+        CURRENT_GRADLE=$(grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties | sed 's/.*gradle-\([0-9.]*\)-.*/\1/')
+        echo "Current Gradle version: $CURRENT_GRADLE"
+        
+        # Remove old version-specific caches (keep only current version)
+        for dir in ~/.gradle/caches/8.*; do
+          if [[ -d "$dir" && "$dir" != *"$CURRENT_GRADLE"* ]]; then
+            echo "Removing old cache: $dir"
+            rm -rf "$dir"
+          fi
+        done
+        
+        # Remove transforms cache if it exists and is large (>2GB) - it regenerates
+        if [[ -d ~/.gradle/caches/transforms-4 ]]; then
+          size=$(du -sm ~/.gradle/caches/transforms-4 2>/dev/null | cut -f1)
+          if [[ "$size" -gt 2000 ]]; then
+            echo "Removing large transforms cache (${size}MB)"
+            rm -rf ~/.gradle/caches/transforms-4
+          fi
+        fi
+        echo "Gradle cache cleanup complete"
+        df -h / | tail -1
 
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
