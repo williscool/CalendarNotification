@@ -1,18 +1,38 @@
-// TODO: move to app settings
+// @ts-ignore - @env is provided by react-native-dotenv
+import {
+	EXPO_PUBLIC_SUPABASE_URL,
+	EXPO_PUBLIC_SUPABASE_ANON_KEY,
+	EXPO_PUBLIC_SUPABASE_BUCKET,
+	EXPO_PUBLIC_POWERSYNC_URL,
+	EXPO_PUBLIC_POWERSYNC_TOKEN,
+	EXPO_PUBLIC_SYNC_ENABLED,
+	EXPO_PUBLIC_SYNC_TYPE,
+} from '@env';
+
 type SyncType = 'unidirectional' | 'bidirectional' | 'none';
+
+// Debug: log env vars at module load time
+if (__DEV__) {
+	console.log('[ConfigObj] Loading env vars:', {
+		SUPABASE_URL: EXPO_PUBLIC_SUPABASE_URL ? 'SET' : 'EMPTY',
+		SUPABASE_ANON_KEY: EXPO_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'EMPTY',
+		POWERSYNC_URL: EXPO_PUBLIC_POWERSYNC_URL ? 'SET' : 'EMPTY',
+		POWERSYNC_TOKEN: EXPO_PUBLIC_POWERSYNC_TOKEN ? 'SET' : 'EMPTY',
+	});
+}
 
 export const ConfigObj = {
 	supabase:{
-		url: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-		anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-		bucket: process.env.EXPO_PUBLIC_SUPABASE_BUCKET || '',
+		url: EXPO_PUBLIC_SUPABASE_URL || '',
+		anonKey: EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+		bucket: EXPO_PUBLIC_SUPABASE_BUCKET || '',
 	},
 	powersync:{
-		url: process.env.EXPO_PUBLIC_POWERSYNC_URL || '',
-		token: process.env.EXPO_PUBLIC_POWERSYNC_TOKEN || ''
+		url: EXPO_PUBLIC_POWERSYNC_URL || '',
+		token: EXPO_PUBLIC_POWERSYNC_TOKEN || ''
 	},
 	sync: {
-		enabled: process.env.EXPO_PUBLIC_SYNC_ENABLED !== 'false',
-		type: (process.env.EXPO_PUBLIC_SYNC_TYPE || 'unidirectional') as SyncType,
+		enabled: EXPO_PUBLIC_SYNC_ENABLED !== 'false',
+		type: (EXPO_PUBLIC_SYNC_TYPE || 'unidirectional') as SyncType,
 	}
 };

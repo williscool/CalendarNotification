@@ -6869,6 +6869,7 @@ __metadata:
     react-dom: 18.2.0
     react-native: 0.74.5
     react-native-devsettings: ^1.0.5
+    react-native-dotenv: ^3.4.11
     react-native-safe-area-context: 4.10.5
     react-native-screens: 4.9.1
     react-native-svg: 15.2.0
@@ -16810,6 +16811,17 @@ eslint-plugin-prettier@latest:
   version: 1.0.5
   resolution: "react-native-devsettings@npm:1.0.5"
   checksum: a59be2a07a94d16e8cd6443636ef44ebad15a8ddf6dcb742b737949c9029a9ff295894198e81a5ffd89f5714708be4b02b54b544566656e466e87982ffc89166
+  languageName: node
+  linkType: hard
+
+"react-native-dotenv@npm:^3.4.11":
+  version: 3.4.11
+  resolution: "react-native-dotenv@npm:3.4.11"
+  dependencies:
+    dotenv: ^16.4.5
+  peerDependencies:
+    "@babel/runtime": ^7.20.6
+  checksum: 3ebac2c2ed79dd7e4920fd3fc2da9187413b7190231618e4858b46c47833677838b96d531afe7bd5c4b0a60454dba40cb8708722210df5d522e30aefbf41da05
   languageName: node
   linkType: hard
 
