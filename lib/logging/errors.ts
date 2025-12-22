@@ -10,16 +10,24 @@ export interface ErrorInfo {
   cause?: string;
 }
 
-/** Extracts useful information from an unknown caught value, recursively handling cause chain */
-export function formatError(e: unknown): ErrorInfo {
+const MAX_CAUSE_DEPTH = 5;
+
+/** Extracts useful information from an unknown caught value, with circular reference protection */
+export function formatError(e: unknown, seen = new WeakSet<object>(), depth = 0): ErrorInfo {
   if (!(e instanceof Error)) {
     return { message: String(e) };
   }
   
+  // Circular reference and depth protection
+  if (seen.has(e) || depth >= MAX_CAUSE_DEPTH) {
+    return { message: e.message, stack: e.stack };
+  }
+  seen.add(e);
+  
   // Handle cause chain (ES2022+ feature, check via 'in' operator)
   let causeStr: string | undefined;
   if ('cause' in e && e.cause) {
-    const causeInfo = formatError(e.cause);
+    const causeInfo = formatError(e.cause, seen, depth + 1);
     causeStr = causeInfo.stack || causeInfo.message;
   }
   

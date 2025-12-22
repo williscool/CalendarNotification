@@ -27,6 +27,15 @@ export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
   return () => syncLogListeners.delete(listener);
 };
 
+/** Safely stringify data for console output */
+const safeStringify = (data: unknown): string => {
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return '[unserializable data]';
+  }
+};
+
 export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
   // Auto-format any Error values in data
   const formattedData = data ? Object.fromEntries(
@@ -36,7 +45,7 @@ export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?
   ) : undefined;
   
   // Also output to console for developer visibility
-  const consoleMsg = data ? `${message} ${JSON.stringify(formattedData)}` : message;
+  const consoleMsg = formattedData ? `${message} ${safeStringify(formattedData)}` : message;
   switch (level) {
     case 'error': console.error(`[${LOG_PREFIX}] ${consoleMsg}`); break;
     case 'warn': console.warn(`[${LOG_PREFIX}] ${consoleMsg}`); break;
