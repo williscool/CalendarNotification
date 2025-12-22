@@ -109,7 +109,7 @@ jobs:
                   --dry-run \
                   --info \
                   --console=verbose \
-                  --parallel --max-workers=4 --build-cache
+                  --parallel --max-workers=$MAX_WORKERS --build-cache
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
@@ -130,7 +130,7 @@ jobs:
                   ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
                   ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
                   ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
-        --parallel --max-workers=4 --build-cache
+        --parallel --max-workers=$MAX_WORKERS --build-cache
 
       env:
         # Explicitly set BUILD_ARCH for Gradle process
@@ -461,7 +461,7 @@ jobs:
       if: always()
       run: |
         cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace \
+        ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace \
         -Pandroid.externalNativeBuild.skip=true
 
     # Debug: List coverage report files
@@ -649,7 +649,7 @@ jobs:
   #     if: always()
   #     run: |
   #       cd android && \
-  #       ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+  #       ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace
 
   #   # Publish integration test results
   #   - name: Publish Integration Test Results
@@ -917,7 +917,7 @@ jobs:
 
       - name: Generate Merged JaCoCo Report
         run: |
-          cd android && ./gradlew jacocoAndroidTestReport --parallel --max-workers=4 --build-cache --info --stacktrace
+          cd android && ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace
 
       - name: Upload Merged Coverage Report
         if: always()

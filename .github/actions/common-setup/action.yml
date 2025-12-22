@@ -54,9 +54,13 @@ outputs:
 runs:
   using: "composite"
   steps:
-    # Set CPU count for Gradle
+    # Set CPU count for Gradle - use nproc to detect actual CPUs, fallback to input
     - name: Set CPU count
-      run: echo "GRADLE_MAX_WORKERS=${{ inputs.gradle_max_workers }}" >> $GITHUB_ENV
+      run: |
+        CPU_COUNT=$(nproc 2>/dev/null || echo "${{ inputs.gradle_max_workers }}")
+        echo "MAX_WORKERS=${CPU_COUNT}" >> $GITHUB_ENV
+        echo "GRADLE_MAX_WORKERS=${CPU_COUNT}" >> $GITHUB_ENV
+        echo "Detected ${CPU_COUNT} CPUs for parallel builds"
       shell: bash
 
     # Free Disk Space - run for all jobs to prevent out-of-space errors
@@ -245,7 +249,7 @@ runs:
     - name: Generate React Native Codegen
       run: |
         cd android && \
-        ./gradlew generateCodegenSchemaFromJavaScript generateCodegenArtifactsFromSchema --parallel --max-workers=4
+        ./gradlew generateCodegenSchemaFromJavaScript generateCodegenArtifactsFromSchema --parallel --max-workers=$MAX_WORKERS
       shell: bash
 
     # Cache React Native specific files
