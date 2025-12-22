@@ -342,6 +342,16 @@ react {
   autolinkLibrariesWithApp()
 }
 
+// Fix task dependency for RN 0.76+ autolinking
+// Ensures generateAutolinkingPackageList runs before Kotlin compilation
+afterEvaluate {
+  tasks.matching { it.name.contains('compileKotlin') || it.name.contains('CompileKotlin') }.configureEach { task ->
+    def autolinkTask = tasks.findByName('generateAutolinkingPackageList')
+    if (autolinkTask != null) {
+      task.dependsOn(autolinkTask)
+    }
+  }
+}
 
 // Configure JaCoCo properly
 jacoco {
