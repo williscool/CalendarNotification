@@ -16,6 +16,15 @@ import { ActionButton, WarningBanner } from '@lib/components/ui';
 import { emitSyncLog } from '@lib/logging/syncLog';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
+import type { Settings } from '@lib/hooks/SettingsContext';
+
+/** Check if all required sync credentials are configured */
+export const isSettingsConfigured = (settings: Settings): boolean => Boolean(
+  settings.supabaseUrl &&
+  settings.supabaseAnonKey &&
+  settings.powersyncUrl &&
+  settings.powersyncToken
+);
 
 export const SetupSync = () => {
   const navigation = useNavigation<AppNavigationProp>();
@@ -26,12 +35,7 @@ export const SetupSync = () => {
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
-  const isConfigured = Boolean(
-    settings.supabaseUrl &&
-    settings.supabaseAnonKey &&
-    settings.powersyncUrl &&
-    settings.powersyncToken
-  );
+  const isConfigured = isSettingsConfigured(settings);
 
   const numEventsToDisplay = 3;
 
@@ -48,6 +52,12 @@ export const SetupSync = () => {
   const providerDb = useContext(PowerSyncContext);
 
   useEffect(() => {
+    // If sync is disabled, treat as "not connected" state
+    if (!settings.syncEnabled) {
+      setIsConnected(false);
+      return;
+    }
+
     (async () => {
       if (settings.syncEnabled && settings.syncType === 'bidirectional') {
         await installCrsqliteOnTable('Events', 'eventsV9');
@@ -196,7 +206,7 @@ export const SetupSync = () => {
       <ActionButton
         onPress={handleSync}
         variant="success"
-        disabled={isConnected === false}
+        disabled={!isConnected}
       >
         Sync Events Local To PowerSync Now
       </ActionButton>
@@ -204,7 +214,7 @@ export const SetupSync = () => {
       <ActionButton
         onPress={() => setShowDangerZone(!showDangerZone)}
         variant={showDangerZone ? 'danger' : 'primary'}
-        disabled={isConnected === false}
+        disabled={!isConnected}
       >
         {showDangerZone ? '🔒 Hide Danger Zone' : '⚠️ Show Danger Zone'}
       </ActionButton>
