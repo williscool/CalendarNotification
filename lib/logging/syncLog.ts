@@ -6,6 +6,7 @@
 import { formatError } from './errors';
 
 export interface SyncLogEntry {
+  id: string;
   timestamp: number;
   level: 'info' | 'warn' | 'error' | 'debug';
   message: string;
@@ -14,6 +15,10 @@ export interface SyncLogEntry {
 
 type SyncLogListener = (entry: SyncLogEntry) => void;
 const syncLogListeners: Set<SyncLogListener> = new Set();
+
+// Counter for unique IDs (combined with timestamp for uniqueness)
+let logIdCounter = 0;
+const generateLogId = (): string => `${Date.now()}-${++logIdCounter}`;
 
 export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
   syncLogListeners.add(listener);
@@ -28,13 +33,14 @@ export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?
     )
   ) : undefined;
   
-  const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data: formattedData };
+  const entry: SyncLogEntry = { id: generateLogId(), timestamp: Date.now(), level, message, data: formattedData };
   syncLogListeners.forEach(listener => listener(entry));
 };
 
 /** Emits directly to listeners without formatting (for internal use by log capture) */
-export const emitSyncLogEntry = (entry: SyncLogEntry) => {
-  syncLogListeners.forEach(listener => listener(entry));
+export const emitSyncLogEntry = (entry: Omit<SyncLogEntry, 'id'>) => {
+  const entryWithId: SyncLogEntry = { ...entry, id: generateLogId() };
+  syncLogListeners.forEach(listener => listener(entryWithId));
 };
 
 /** Formats an array of log message parts into a string */

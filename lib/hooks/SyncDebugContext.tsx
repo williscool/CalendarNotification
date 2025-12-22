@@ -19,6 +19,7 @@ const UI_UPDATE_BATCH_MS = 100;  // Batch UI updates to prevent stuttering
 
 interface SyncDebugContextType {
   logs: SyncLogEntry[];
+  logsVersion: number;  // For FlatList extraData - triggers re-render when bumped
   failedOperations: FailedOperation[];
   logFilterLevel: LogFilterLevel;
   setLogFilterLevel: (level: LogFilterLevel) => void;
@@ -31,7 +32,8 @@ interface SyncDebugContextType {
 const SyncDebugContext = createContext<SyncDebugContextType | undefined>(undefined);
 
 export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [logs, setLogs] = useState<SyncLogEntry[]>([]);
+  // Use version counter instead of logs in state - avoids creating new array on every update
+  const [logsVersion, setLogsVersion] = useState(0);
   const [failedOperations, setFailedOperations] = useState<FailedOperation[]>([]);
   const [logFilterLevel, setLogFilterLevelState] = useState<LogFilterLevel>(getLogFilterLevel());
   const logsRef = useRef<SyncLogEntry[]>([]);
@@ -47,7 +49,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     uiUpdateTimeoutRef.current = setTimeout(() => {
       pendingUiUpdateRef.current = false;
-      setLogs([...logsRef.current]);
+      // Bump version to trigger re-render, FlatList reads from ref
+      setLogsVersion(v => v + 1);
     }, UI_UPDATE_BATCH_MS);
   }, []);
 
@@ -80,7 +83,7 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (stored) {
           const parsed = JSON.parse(stored) as SyncLogEntry[];
           logsRef.current = parsed;
-          setLogs(parsed);
+          setLogsVersion(v => v + 1);  // Trigger re-render with loaded logs
         }
       } catch {
         // Ignore load errors
@@ -130,7 +133,7 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const clearLogs = useCallback(async () => {
     logsRef.current = [];
-    setLogs([]);
+    setLogsVersion(v => v + 1);  // Trigger re-render with empty logs
     try {
       await AsyncStorage.removeItem(LOGS_STORAGE_KEY);
     } catch {
@@ -155,7 +158,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   return (
     <SyncDebugContext.Provider value={{ 
-      logs, 
+      logs: logsRef.current,  // Read directly from ref
+      logsVersion,  // Pass to FlatList extraData for re-render trigger
       failedOperations,
       logFilterLevel,
       setLogFilterLevel,

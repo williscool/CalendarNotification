@@ -168,14 +168,15 @@ const FailedOperationView: React.FC<{
 export default function SyncDebug() {
   const { colors } = useTheme();
   const providerDb = useContext(PowerSyncContext);
-  const { logs, failedOperations, logFilterLevel, setLogFilterLevel, clearLogs, refreshFailedOperations, removeFailedOperation, clearFailedOperations } = useSyncDebug();
+  const { logs, logsVersion, failedOperations, logFilterLevel, setLogFilterLevel, clearLogs, refreshFailedOperations, removeFailedOperation, clearFailedOperations } = useSyncDebug();
   const [syncStatus, setSyncStatus] = useState<string>('{}');
   const [refreshing, setRefreshing] = useState(false);
 
   // Filter logs for display based on current filter level
+  // Include logsVersion in deps to recalculate when logs update
   const filteredLogs = useMemo(
     () => filterLogsByLevel(logs, logFilterLevel),
-    [logs, logFilterLevel]
+    [logs, logFilterLevel, logsVersion]
   );
 
   useEffect(() => {
@@ -197,8 +198,7 @@ export default function SyncDebug() {
     <LogEntryView entry={item} colors={colors} />
   ), [colors]);
 
-  const keyExtractor = useCallback((item: SyncLogEntry, index: number) =>
-    `${item.timestamp}-${index}`, []);
+  const keyExtractor = useCallback((item: SyncLogEntry) => item.id, []);
 
   const ListHeader = useCallback(() => (
     <>
@@ -277,6 +277,7 @@ export default function SyncDebug() {
     <FlatList
       style={{ flex: 1, backgroundColor: colors.background }}
       data={filteredLogs}
+      extraData={logsVersion}  // Triggers re-render when logs update
       renderItem={renderLogItem}
       keyExtractor={keyExtractor}
       ListHeaderComponent={ListHeader}

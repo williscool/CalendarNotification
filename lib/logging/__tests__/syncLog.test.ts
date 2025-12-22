@@ -13,7 +13,7 @@ import {
 } from '../syncLog';
 
 describe('subscribeSyncLogs', () => {
-  it('should subscribe and receive log entries', () => {
+  it('should subscribe and receive log entries with generated id', () => {
     const listener = jest.fn();
     const unsubscribe = subscribeSyncLogs(listener);
 
@@ -24,12 +24,10 @@ describe('subscribeSyncLogs', () => {
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener).toHaveBeenCalledWith(
-      expect.objectContaining({
-        level: 'info',
-        message: 'test message',
-      })
-    );
+    const entry = listener.mock.calls[0][0] as SyncLogEntry;
+    expect(entry.id).toBeDefined();
+    expect(entry.level).toBe('info');
+    expect(entry.message).toBe('test message');
 
     unsubscribe();
   });
@@ -66,22 +64,34 @@ describe('subscribeSyncLogs', () => {
     unsub1();
     unsub2();
   });
+
+  it('should generate unique ids for each entry', () => {
+    const listener = jest.fn();
+    const unsubscribe = subscribeSyncLogs(listener);
+
+    emitSyncLogEntry({ timestamp: Date.now(), level: 'info', message: 'first' });
+    emitSyncLogEntry({ timestamp: Date.now(), level: 'info', message: 'second' });
+
+    const id1 = (listener.mock.calls[0][0] as SyncLogEntry).id;
+    const id2 = (listener.mock.calls[1][0] as SyncLogEntry).id;
+    expect(id1).not.toBe(id2);
+
+    unsubscribe();
+  });
 });
 
 describe('emitSyncLog', () => {
-  it('should emit log entry with correct level and message', () => {
+  it('should emit log entry with id, level and message', () => {
     const listener = jest.fn();
     const unsubscribe = subscribeSyncLogs(listener);
 
     emitSyncLog('error', 'something failed', { code: 500 });
 
-    expect(listener).toHaveBeenCalledWith(
-      expect.objectContaining({
-        level: 'error',
-        message: 'something failed',
-        data: { code: 500 },
-      })
-    );
+    const entry = listener.mock.calls[0][0] as SyncLogEntry;
+    expect(entry.id).toBeDefined();
+    expect(entry.level).toBe('error');
+    expect(entry.message).toBe('something failed');
+    expect(entry.data).toEqual({ code: 500 });
 
     unsubscribe();
   });
