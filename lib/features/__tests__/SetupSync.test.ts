@@ -1,5 +1,5 @@
 /**
- * SetupSync onboarding flow tests
+ * SetupSync onboarding flow tests - Logic validation
  * Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
  * 
  * ## Onboarding Flow States
@@ -7,10 +7,11 @@
  * | State           | isConfigured | isConnected | Expected UI                                          |
  * |-----------------|--------------|-------------|------------------------------------------------------|
  * | No config       | `false`      | -           | Setup guide + GitHub link + Settings button          |
- * | Initializing    | `true`       | `null`      | Main screen + "initializing" banner                  |
- * | Not connected   | `true`       | `false`     | Main screen + warning banner + Settings link + disabled buttons |
+ * | Initializing    | `true`       | `null`      | Main screen + "initializing" banner + disabled btns  |
+ * | Not connected   | `true`       | `false`     | Main screen + warning banner + disabled buttons      |
  * | Connected       | `true`       | `true`      | Full UI with enabled buttons                         |
  * 
+ * Note: UI rendering tests are in SetupSync.ui.test.tsx
  */
 
 import type { Settings } from '@lib/hooks/SettingsContext';
@@ -78,14 +79,14 @@ describe('SetupSync', () => {
       // When !isConfigured, SetupSync renders setup guide with GitHub link
     });
 
-    it('configured + isConnected=null → shows initializing', () => {
+    it('configured + isConnected=null → shows initializing with disabled buttons', () => {
       const settings = createCompleteSettings();
       const isConfigured = isSettingsConfigured(settings);
       const isConnected: boolean | null = null;
       
       expect(isConfigured).toBe(true);
       expect(isConnected).toBeNull();
-      // When isConfigured && isConnected === null, shows "initializing" banner
+      // When isConfigured && isConnected === null, shows "initializing" banner + buttons disabled
     });
 
     it('configured + isConnected=false → shows not connected warning', () => {

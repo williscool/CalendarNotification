@@ -200,7 +200,7 @@ export const SetupSync = () => {
       <ActionButton
         onPress={handleSync}
         variant="success"
-        disabled={isConnected === false}
+        disabled={!isConnected}
       >
         Sync Events Local To PowerSync Now
       </ActionButton>
@@ -208,7 +208,7 @@ export const SetupSync = () => {
       <ActionButton
         onPress={() => setShowDangerZone(!showDangerZone)}
         variant={showDangerZone ? 'danger' : 'primary'}
-        disabled={isConnected === false}
+        disabled={!isConnected}
       >
         {showDangerZone ? '🔒 Hide Danger Zone' : '⚠️ Show Danger Zone'}
       </ActionButton>
