@@ -41,7 +41,8 @@ export const setupPowerSync = async (settings: Settings): Promise<void> => {
   // Add status listener to debug connection issues
   statusListenerDisposer = db.registerListener({
     statusChanged: (status) => {
-      emitSyncLog('debug', 'PowerSync status changed', status as unknown as Record<string, unknown>);
+      if (!status) return;
+      emitSyncLog('debug', 'PowerSync status changed', { status });
       if (status.dataFlowStatus?.downloadError) {
         emitSyncLog('error', 'Download error detected', { error: status.dataFlowStatus.downloadError });
       }
@@ -53,8 +54,8 @@ export const setupPowerSync = async (settings: Settings): Promise<void> => {
     await db.connect(connector);
     emitSyncLog('info', 'db.connect() completed successfully');
   } catch (e) {
-    emitSyncLog('error', 'Error in db.connect()', { error: String(e) });
-    throw e; // Propagate error to caller
+    emitSyncLog('error', 'Error in db.connect()', { error: e });
+    throw e;
   }
 
   try {
@@ -62,8 +63,8 @@ export const setupPowerSync = async (settings: Settings): Promise<void> => {
     await db.init();
     emitSyncLog('info', 'db.init() completed successfully');
   } catch (e) {
-    emitSyncLog('error', 'Error in db.init()', { error: String(e) });
-    throw e; // Propagate error to caller
+    emitSyncLog('error', 'Error in db.init()', { error: e });
+    throw e;
   }
 };
 

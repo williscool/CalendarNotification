@@ -59,7 +59,7 @@ const LoadingScreen = () => {
 export default function HomeScreen() {
   const { settings } = useSettings();
   const [isReady, setIsReady] = useState(false);
-  const [syncError, setSyncError] = useState<Error | null>(null);
+  const [syncError, setSyncError] = useState<unknown>(null);
 
   const initSync = useCallback(async () => {
     setIsReady(false);
@@ -68,7 +68,7 @@ export default function HomeScreen() {
       try {
         await setupPowerSync(settings);
       } catch (e) {
-        setSyncError(e instanceof Error ? e : new Error(String(e)));
+        setSyncError(e);
       }
     }
     setIsReady(true);

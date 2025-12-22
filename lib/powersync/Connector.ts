@@ -5,6 +5,7 @@ import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase
 import { Settings } from '../hooks/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logger from 'js-logger';
+import { formatError } from '../logging/errors';
 
 const log = Logger.get('PowerSync');
 
@@ -59,15 +60,22 @@ export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
 };
 
 export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
-  const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data };
+  // Auto-format any Error values in data
+  const formattedData = data ? Object.fromEntries(
+    Object.entries(data).map(([key, value]) => 
+      [key, value instanceof Error ? formatError(value) : value]
+    )
+  ) : undefined;
+  
+  const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data: formattedData };
   syncLogListeners.forEach(listener => listener(entry));
   
   // Also log to js-logger
   switch (level) {
-    case 'error': log.error(message, data); break;
-    case 'warn': log.warn(message, data); break;
-    case 'info': log.info(message, data); break;
-    case 'debug': log.debug(message, data); break;
+    case 'error': log.error(message, formattedData); break;
+    case 'warn': log.warn(message, formattedData); break;
+    case 'info': log.info(message, formattedData); break;
+    case 'debug': log.debug(message, formattedData); break;
   }
 };
 
@@ -207,7 +215,7 @@ export const saveFailedOperation = async (op: FailedOperation): Promise<void> =>
     await AsyncStorage.setItem(FAILED_OPS_STORAGE_KEY, JSON.stringify(updated));
     emitSyncLog('warn', 'Failed operation saved for review', { table: op.table, op: op.op, id: op.recordId });
   } catch (e) {
-    emitSyncLog('error', 'Failed to save failed operation', { error: String(e) });
+    emitSyncLog('error', 'Failed to save failed operation', { error: e });
   }
 };
 

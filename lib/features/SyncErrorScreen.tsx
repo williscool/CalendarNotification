@@ -5,9 +5,14 @@ import type { AppNavigationProp } from '@lib/navigation/types';
 import { useTheme } from '@lib/theme/ThemeContext';
 
 interface SyncErrorScreenProps {
-  error: Error;
+  error: unknown;
   onRetry: () => void;
 }
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return String(error);
+};
 
 export const SyncErrorScreen = ({ error, onRetry }: SyncErrorScreenProps) => {
   const navigation = useNavigation<AppNavigationProp>();
@@ -20,7 +25,7 @@ export const SyncErrorScreen = ({ error, onRetry }: SyncErrorScreenProps) => {
           Sync Failed
         </Text>
         <Text fontSize="$md" textAlign="center" color={colors.textMuted} mb="$2" testID="error-message">
-          {error.message}
+          {getErrorMessage(error)}
         </Text>
         <Button onPress={onRetry} bg={colors.primary} borderRadius="$lg" px="$5" py="$3" testID="retry-button">
           <ButtonText fontWeight="$semibold">Retry</ButtonText>
