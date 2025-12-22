@@ -110,9 +110,17 @@ const renderWithContext = (ui: React.ReactElement) => render(ui, { wrapper: Test
 // Helper to render and advance timers so the status interval fires
 const renderAndWaitForStatus = async (ui: React.ReactElement) => {
   const result = renderWithContext(ui);
+  // Flush pending promises from useEffect async operations
+  await act(async () => {
+    await Promise.resolve();
+  });
   // Advance timer to trigger the status interval (1000ms in SetupSync)
   await act(async () => {
     jest.advanceTimersByTime(1100);
+  });
+  // Flush any remaining state updates
+  await act(async () => {
+    await Promise.resolve();
   });
   return result;
 };

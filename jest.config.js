@@ -7,6 +7,7 @@ module.exports = {
     '^@lib/(.*)$': '<rootDir>/lib/$1',
     '^react-native$': 'react-native-web',
     '^@expo/vector-icons$': '<rootDir>/lib/features/__tests__/__mocks__/vectorIcons.ts',
+    '^@env$': '<rootDir>/lib/features/__tests__/__mocks__/env.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

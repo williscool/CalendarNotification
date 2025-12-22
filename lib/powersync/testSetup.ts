@@ -1,3 +1,6 @@
+// Define React Native globals
+(global as any).__DEV__ = true;
+
 // Mock react-native-url-polyfill
 jest.mock('react-native-url-polyfill/auto', () => ({}));
 

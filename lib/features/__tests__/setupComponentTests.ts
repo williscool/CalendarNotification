@@ -50,7 +50,7 @@ const filterGluestackProps = (props: any) => {
     testID, bg, p, m, mx, my, mt, mb, ml, mr, px, py, pt, pb, pl, pr,
     flex, alignItems, justifyContent, borderRadius, borderWidth, borderColor,
     space, fontSize, fontWeight, textAlign, color, underline, selectable,
-    contentContainerStyle, ...rest 
+    contentContainerStyle, textDecorationLine, ...rest 
   } = props;
   return { 'data-testid': testID, ...rest };
 };
