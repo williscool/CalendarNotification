@@ -342,13 +342,30 @@ react {
   autolinkLibrariesWithApp()
 }
 
-// Fix task dependency for RN 0.76+ autolinking
-// Ensures generateAutolinkingPackageList runs before Kotlin compilation
+// Fix task dependency for RN 0.76+ autolinking (Gradle 8.7 strict validation)
+// Must declare both dependsOn AND input directory for Gradle to accept the dependency
 afterEvaluate {
-  tasks.matching { it.name.contains('compileKotlin') || it.name.contains('CompileKotlin') }.configureEach { task ->
-    def autolinkTask = tasks.findByName('generateAutolinkingPackageList')
-    if (autolinkTask != null) {
+  def autolinkTask = tasks.findByName('generateAutolinkingPackageList')
+  if (autolinkTask != null) {
+    def autolinkingDir = file("${buildDir}/generated/autolinking/src/main/java")
+    
+    // Wire Kotlin compile tasks
+    tasks.matching { it.name.matches('compile.*Kotlin') }.configureEach { task ->
       task.dependsOn(autolinkTask)
+      // Declare the directory as an input so Gradle knows about the dependency
+      task.inputs.dir(autolinkingDir)
+        .withPropertyName('autolinkingSources')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional()
+    }
+    
+    // Wire Java compile tasks too
+    tasks.matching { it.name.matches('compile.*JavaWithJavac') }.configureEach { task ->
+      task.dependsOn(autolinkTask)
+      task.inputs.dir(autolinkingDir)
+        .withPropertyName('autolinkingSources')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional()
     }
   }
 }

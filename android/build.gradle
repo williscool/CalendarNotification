@@ -12,14 +12,14 @@ buildscript {
       android_core_version = '1.6.0'
       androidCoreVersion = '1.6.0'
 
-      gradleVersion = '8.7'
-      gradle_version = '8.7'
+      gradleVersion = '8.9'
+      gradle_version = '8.9'
 
       // WARNING the android gradle plugin VERIONS != TO GRADLE PLUGIN VERSION
       // https://developer.android.com/build/releases/gradle-plugin
 
-      androidGradlePluginVersion = '8.4.0'
-      android_gradle_plugin_version = '8.4.0'
+      androidGradlePluginVersion = '8.7.3'
+      android_gradle_plugin_version = '8.7.3'
 
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
