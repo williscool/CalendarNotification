@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConfigObj } from '../config';
+import { emitSyncLog } from '../logging/syncLog';
 
 type SyncType = 'unidirectional' | 'bidirectional' | 'none';
 
@@ -73,7 +74,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(currentSettings));
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
+      emitSyncLog('error', 'Error loading settings', { error });
     }
   };
 
@@ -82,7 +83,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
       setSettings(newSettings);
     } catch (error) {
-      console.error('Error saving settings:', error);
+      emitSyncLog('error', 'Error saving settings', { error });
     }
   };
 

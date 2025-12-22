@@ -81,7 +81,8 @@ export const getFailedOperations = async (): Promise<FailedOperation[]> => {
   try {
     const stored = await AsyncStorage.getItem(FAILED_OPS_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
-  } catch {
+  } catch (e) {
+    emitSyncLog('warn', 'Failed to load failed operations from storage', { error: e });
     return [];
   }
 };
@@ -102,16 +103,16 @@ export const removeFailedOperation = async (id: string): Promise<void> => {
     const existing = await getFailedOperations();
     const updated = existing.filter(op => op.id !== id);
     await AsyncStorage.setItem(FAILED_OPS_STORAGE_KEY, JSON.stringify(updated));
-  } catch {
-    // Ignore errors
+  } catch (e) {
+    emitSyncLog('warn', 'Failed to remove failed operation from storage', { error: e, id });
   }
 };
 
 export const clearFailedOperations = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(FAILED_OPS_STORAGE_KEY);
-  } catch {
-    // Ignore errors
+  } catch (e) {
+    emitSyncLog('warn', 'Failed to clear failed operations from storage', { error: e });
   }
 };
 

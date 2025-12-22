@@ -1,4 +1,5 @@
 import { open } from '@op-engineering/op-sqlite';
+import { emitSyncLog } from '../logging/syncLog';
 
 
 export const installCrsqliteOnTable = async (databaseName: string, tableName: string) => {
@@ -8,7 +9,7 @@ export const installCrsqliteOnTable = async (databaseName: string, tableName: st
   
     // Check if table exists before creating temp table
     const tableExists = await db.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`);
-    console.log('tableExists', tableExists?.rows);
+    emitSyncLog('debug', 'crsqlite table check', { tableName, exists: tableExists?.rows?.length > 0 });
 
     if (tableExists?.rows?.length > 0) {
         // Unique index on 2 columns gets error below
@@ -17,14 +18,14 @@ export const installCrsqliteOnTable = async (databaseName: string, tableName: st
         await db.execute(`CREATE TABLE IF NOT EXISTS ${tableName}_temp AS SELECT * FROM ${tableName}`);
 
         const result = await db.execute(`select id, Count(*) from ${tableName}_temp group by id`);
-        console.log("num events in temp table:", result?.rows?.length);
+        emitSyncLog('debug', 'crsqlite temp table created', { tableName, numEvents: result?.rows?.length });
 
         // Get schema for table
         const tableSchema = await db.execute(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`);
 
         const originalSchema = tableSchema?.rows?.[0]?.sql as string;
 
-        console.log(`original ${tableName} schema:`, originalSchema);
+        emitSyncLog('debug', 'crsqlite original schema', { tableName, schema: originalSchema });
 
         const newSchemaStatementLines = originalSchema.split(',')
 
@@ -32,14 +33,12 @@ export const installCrsqliteOnTable = async (databaseName: string, tableName: st
         
         newSchemaStatementLines[idIndex] = "id INT NOT NULL PRIMARY KEY"
         
-        console.log('idIndex', idIndex);
-
-        console.log('newSchemaStatementLines', newSchemaStatementLines.length, newSchemaStatementLines);
+        emitSyncLog('debug', 'crsqlite schema modification', { idIndex, numLines: newSchemaStatementLines.length });
 
         const newSchema = newSchemaStatementLines.join(',')
         .replace(", PRIMARY KEY (id, istart)", "")
 
-        console.log('new Crsql compatible schema:', newSchema);
+        emitSyncLog('debug', 'crsqlite new schema', { tableName, schema: newSchema });
         
         // Drop table with old schema
         await db.execute(`DROP TABLE IF EXISTS ${tableName}`);
@@ -50,7 +49,7 @@ export const installCrsqliteOnTable = async (databaseName: string, tableName: st
         try {
           await db.execute(`INSERT OR REPLACE INTO ${tableName} SELECT * FROM ${tableName}_temp`);
         } catch (error) {
-          console.error('Failed to insert/update data from temp table:', error);
+          emitSyncLog('error', 'crsqlite failed to insert/update data from temp table', { error });
         }
     } 
     
@@ -61,6 +60,6 @@ export const installCrsqliteOnTable = async (databaseName: string, tableName: st
     await db.execute(`SELECT crsql_as_crr('${tableName}')`);
     await db.execute("SELECT crsql_finalize();")
   } catch (error) {
-    console.error('Failed to load crsqlite extension:', error);
+    emitSyncLog('error', 'crsqlite extension load failed', { error });
   }
 }; 

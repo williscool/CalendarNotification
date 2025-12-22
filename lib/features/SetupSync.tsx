@@ -13,6 +13,7 @@ import { useSettings } from '@lib/hooks/SettingsContext';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner } from '@lib/components/ui';
+import { emitSyncLog } from '@lib/logging/syncLog';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 
@@ -66,8 +67,7 @@ export const SetupSync = () => {
     })();
 
     addChangeListener((value) => {
-      console.log(hello());
-      console.log('value changed', value);
+      emitSyncLog('debug', 'Native module change event', { hello: hello(), value });
     });
 
     const statusInterval = setInterval(() => {
@@ -94,7 +94,7 @@ export const SetupSync = () => {
         setSqliteEvents(result.rows || []);
       }
     } catch (error) {
-      console.error('Failed to sync data:', error);
+      emitSyncLog('error', 'Failed to sync data', { error });
     }
   };
 
@@ -231,7 +231,7 @@ export const SetupSync = () => {
               try {
                 await psClearTable('eventsV9', providerDb);
               } catch (error) {
-                console.error('Failed to clear PowerSync events:', error);
+                emitSyncLog('error', 'Failed to clear PowerSync events', { error });
               }
             }}
             variant="danger"
