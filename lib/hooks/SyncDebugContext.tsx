@@ -77,12 +77,17 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Load persisted logs on mount
   useEffect(() => {
+    let migrationCounter = 0;
     const loadLogs = async () => {
       try {
         const stored = await AsyncStorage.getItem(LOGS_STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored) as SyncLogEntry[];
-          logsRef.current = parsed;
+          // Migrate legacy entries that don't have an id field
+          const migrated = parsed.map(entry => 
+            entry.id ? entry : { ...entry, id: `legacy-${entry.timestamp}-${++migrationCounter}` }
+          );
+          logsRef.current = migrated;
           setLogsVersion(v => v + 1);  // Trigger re-render with loaded logs
         }
       } catch (e) {
