@@ -1,15 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { subscribeSyncLogs, SyncLogEntry } from '../logging/syncLog';
 import {
   Connector,
-  subscribeSyncLogs,
   getFailedOperations,
   saveFailedOperation,
   removeFailedOperation,
   clearFailedOperations,
   setLogFilterLevel,
   getLogFilterLevel,
-  SyncLogEntry,
   FailedOperation,
   LogFilterLevel,
 } from './Connector';
@@ -539,15 +538,14 @@ describe('Error Classification', () => {
   });
 });
 
-describe('Log Filter Level', () => {
+describe('Log Filter Level (UI display preference)', () => {
   beforeEach(() => {
-    // Reset to default
     setLogFilterLevel('info');
   });
 
   describe('getLogFilterLevel', () => {
     it('should return default filter level as info', () => {
-      setLogFilterLevel('info'); // Reset
+      setLogFilterLevel('info');
       expect(getLogFilterLevel()).toBe('info');
     });
   });

@@ -1,6 +1,6 @@
 import { open } from '@op-engineering/op-sqlite';
 import { AbstractPowerSyncDatabase } from '@powersync/react-native';
-import { emitSyncLog } from '../powersync/Connector';
+import { emitSyncLog } from '../logging/syncLog';
 
 /** SQLite primitive value types */
 type SqliteValue = string | number | null | Uint8Array;
@@ -54,7 +54,7 @@ export async function psInsertDbTable(
     const result = await psDb.executeBatch(powerSyncInsertQuery, valuesArray);
     emitSyncLog('info', `Successfully inserted ${result.rowsAffected} rows into ${tableName}`);
   } catch (error) {
-    emitSyncLog('error', `Failed to insert data from ${tableName}`, { error: String(error) });
+    emitSyncLog('error', `Failed to insert data from ${tableName}`, { error });
     throw error;
   }
 } 
@@ -74,7 +74,7 @@ export async function psClearTable(
     emitSyncLog('info', `Successfully cleared all records from PowerSync table ${tableName}`);
     return deleteResult;
   } catch (error) {
-    emitSyncLog('error', `Failed to clear PowerSync table ${tableName}`, { error: String(error) });
+    emitSyncLog('error', `Failed to clear PowerSync table ${tableName}`, { error });
     throw error;
   }
 }

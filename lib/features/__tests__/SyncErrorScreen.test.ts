@@ -7,10 +7,14 @@
  */
 
 describe('SyncErrorScreen interface', () => {
-  it('requires error prop of type Error', () => {
-    const error = new Error('Connection failed');
+  it('accepts error prop of type unknown (Error)', () => {
+    const error: unknown = new Error('Connection failed');
     expect(error).toBeInstanceOf(Error);
-    expect(error.message).toBe('Connection failed');
+  });
+
+  it('accepts error prop of type unknown (string)', () => {
+    const error: unknown = 'Something went wrong';
+    expect(typeof error).toBe('string');
   });
 
   it('requires onRetry callback prop', () => {

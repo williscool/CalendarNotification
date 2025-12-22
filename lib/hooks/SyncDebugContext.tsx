@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { subscribeSyncLogs, SyncLogEntry, emitSyncLog } from '../logging/syncLog';
 import { 
-  subscribeSyncLogs, 
   getFailedOperations, 
   removeFailedOperation as removeFailedOp,
   clearFailedOperations as clearFailedOps,
   setLogFilterLevel as setFilterLevel,
   getLogFilterLevel,
-  SyncLogEntry,
   FailedOperation,
   LogFilterLevel,
 } from '../powersync/Connector';
@@ -16,9 +15,11 @@ const MAX_LOG_ENTRIES_MEMORY = 2000;  // Keep more in memory for current session
 const MAX_LOG_ENTRIES_STORAGE = 500;  // Persist fewer to avoid storage bloat
 const LOGS_STORAGE_KEY = '@powersync_debug_logs';
 const SAVE_DEBOUNCE_MS = 2000;  // Debounce saves to avoid excessive writes
+const UI_UPDATE_BATCH_MS = 100;  // Batch UI updates to prevent stuttering
 
 interface SyncDebugContextType {
   logs: SyncLogEntry[];
+  logsVersion: number;  // For FlatList extraData - triggers re-render when bumped
   failedOperations: FailedOperation[];
   logFilterLevel: LogFilterLevel;
   setLogFilterLevel: (level: LogFilterLevel) => void;
@@ -31,12 +32,27 @@ interface SyncDebugContextType {
 const SyncDebugContext = createContext<SyncDebugContextType | undefined>(undefined);
 
 export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [logs, setLogs] = useState<SyncLogEntry[]>([]);
+  // Use version counter instead of logs in state - avoids creating new array on every update
+  const [logsVersion, setLogsVersion] = useState(0);
   const [failedOperations, setFailedOperations] = useState<FailedOperation[]>([]);
   const [logFilterLevel, setLogFilterLevelState] = useState<LogFilterLevel>(getLogFilterLevel());
   const logsRef = useRef<SyncLogEntry[]>([]);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const uiUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isLoadedRef = useRef(false);
+  const pendingUiUpdateRef = useRef(false);
+
+  // Batch UI updates to prevent stuttering with high log volume
+  const scheduleUiUpdate = useCallback(() => {
+    if (pendingUiUpdateRef.current) return; // Already scheduled
+    pendingUiUpdateRef.current = true;
+    
+    uiUpdateTimeoutRef.current = setTimeout(() => {
+      pendingUiUpdateRef.current = false;
+      // Bump version to trigger re-render, FlatList reads from ref
+      setLogsVersion(v => v + 1);
+    }, UI_UPDATE_BATCH_MS);
+  }, []);
 
   // Debounced save to AsyncStorage
   const scheduleSave = useCallback((logsToSave: SyncLogEntry[]) => {
@@ -48,8 +64,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Only persist the most recent entries to storage
         const toStore = logsToSave.slice(0, MAX_LOG_ENTRIES_STORAGE);
         await AsyncStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(toStore));
-      } catch {
-        // Ignore storage errors
+      } catch (e) {
+        emitSyncLog('warn', 'Failed to save sync logs to storage', { error: e });
       }
     }, SAVE_DEBOUNCE_MS);
   }, []);
@@ -61,25 +77,37 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Load persisted logs on mount
   useEffect(() => {
+    let migrationCounter = 0;
     const loadLogs = async () => {
       try {
         const stored = await AsyncStorage.getItem(LOGS_STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored) as SyncLogEntry[];
-          logsRef.current = parsed;
-          setLogs(parsed);
+          // Migrate legacy entries that don't have an id field
+          const migrated = parsed.map(entry => 
+            entry.id ? entry : { ...entry, id: `legacy-${entry.timestamp}-${++migrationCounter}` }
+          );
+          // Merge with any logs that arrived during loading (race condition fix)
+          // New logs are prepended, so they should stay at the front
+          const existingIds = new Set(logsRef.current.map(e => e.id));
+          const uniqueLoaded = migrated.filter(e => !existingIds.has(e.id));
+          logsRef.current = [...logsRef.current, ...uniqueLoaded].slice(0, MAX_LOG_ENTRIES_MEMORY);
+          setLogsVersion(v => v + 1);  // Trigger re-render with merged logs
         }
-      } catch {
-        // Ignore load errors
+      } catch (e) {
+        emitSyncLog('warn', 'Failed to load sync logs from storage', { error: e });
       }
       isLoadedRef.current = true;
     };
     loadLogs();
 
-    // Cleanup save timeout on unmount
+    // Cleanup timeouts on unmount
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+      }
+      if (uiUpdateTimeoutRef.current) {
+        clearTimeout(uiUpdateTimeoutRef.current);
       }
     };
   }, []);
@@ -90,7 +118,9 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Use ref to avoid stale closure issues
       const newLogs = [entry, ...logsRef.current].slice(0, MAX_LOG_ENTRIES_MEMORY);
       logsRef.current = newLogs;
-      setLogs(newLogs);
+      
+      // Batch UI updates to prevent stuttering
+      scheduleUiUpdate();
       
       // Schedule save to storage (only after initial load)
       if (isLoadedRef.current) {
@@ -99,7 +129,7 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     return () => unsubscribe();
-  }, [scheduleSave]);
+  }, [scheduleSave, scheduleUiUpdate]);
 
   // Load failed operations on mount
   useEffect(() => {
@@ -112,11 +142,11 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const clearLogs = useCallback(async () => {
     logsRef.current = [];
-    setLogs([]);
+    setLogsVersion(v => v + 1);  // Trigger re-render with empty logs
     try {
       await AsyncStorage.removeItem(LOGS_STORAGE_KEY);
-    } catch {
-      // Ignore errors
+    } catch (e) {
+      emitSyncLog('warn', 'Failed to clear sync logs from storage', { error: e });
     }
   }, []);
 
@@ -137,7 +167,8 @@ export const SyncDebugProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   return (
     <SyncDebugContext.Provider value={{ 
-      logs, 
+      logs: logsRef.current,  // Read directly from ref
+      logsVersion,  // Pass to FlatList extraData for re-render trigger
       failedOperations,
       logFilterLevel,
       setLogFilterLevel,

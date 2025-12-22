@@ -5,6 +5,7 @@ import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase
 import { Settings } from '../hooks/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logger from 'js-logger';
+import { SyncLogEntry, emitSyncLog, emitCapturedLog } from '../logging/syncLog';
 
 const log = Logger.get('PowerSync');
 
@@ -42,67 +43,13 @@ export interface FailedOperation {
   timestamp: number;
 }
 
-export interface SyncLogEntry {
-  timestamp: number;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  data?: Record<string, unknown>;
-}
+// Re-export for backwards compatibility
+export type { SyncLogEntry } from '../logging/syncLog';
+export { emitSyncLog, subscribeSyncLogs } from '../logging/syncLog';
 
-// Global event emitter for sync logs - allows SyncDebugContext to subscribe
-type SyncLogListener = (entry: SyncLogEntry) => void;
-const syncLogListeners: Set<SyncLogListener> = new Set();
-
-export const subscribeSyncLogs = (listener: SyncLogListener): (() => void) => {
-  syncLogListeners.add(listener);
-  return () => syncLogListeners.delete(listener);
-};
-
-export const emitSyncLog = (level: SyncLogEntry['level'], message: string, data?: Record<string, unknown>) => {
-  const entry: SyncLogEntry = { timestamp: Date.now(), level, message, data };
-  syncLogListeners.forEach(listener => listener(entry));
-  
-  // Also log to js-logger
-  switch (level) {
-    case 'error': log.error(message, data); break;
-    case 'warn': log.warn(message, data); break;
-    case 'info': log.info(message, data); break;
-    case 'debug': log.debug(message, data); break;
-  }
-};
-
-// Log filter levels
+// Log filter levels - used by UI to filter what's displayed (not what's captured)
 export type LogFilterLevel = 'info' | 'debug' | 'firehose';
 
-// PowerSync SDK log prefixes (info level - sane defaults)
-const INFO_PREFIXES = [
-  'PowerSyncStream',
-  'SqliteBucketStorage', 
-  'PowerSync',
-  'AbstractPowerSyncDatabase',
-  'PowerSyncBackendConnector',
-];
-
-// Extended prefixes (debug level - more verbose)
-const DEBUG_PREFIXES = [
-  ...INFO_PREFIXES,
-  // Supabase
-  'Supabase',
-  'Postgrest',
-  'GoTrue',
-  'Realtime',
-  // General sync patterns
-  'sync',
-  'Sync',
-  'upload',
-  'Upload',
-  'download',
-  'Download',
-  'fetch',
-  'Fetch',
-];
-
-// Current filter level - can be changed at runtime
 let currentLogFilterLevel: LogFilterLevel = 'info';
 
 export const setLogFilterLevel = (level: LogFilterLevel) => {
@@ -113,80 +60,19 @@ export const getLogFilterLevel = (): LogFilterLevel => {
   return currentLogFilterLevel;
 };
 
-// Check if a log should be captured based on current filter level
-const shouldCaptureLog = (loggerName: string): boolean => {
-  if (currentLogFilterLevel === 'firehose') {
-    return true; // Capture everything
-  }
-  
-  const prefixes = currentLogFilterLevel === 'debug' ? DEBUG_PREFIXES : INFO_PREFIXES;
-  
-  // Always capture logs with empty logger name (generic logs)
-  if (loggerName === '') return true;
-  
-  return prefixes.some(prefix => 
-    loggerName.toLowerCase().includes(prefix.toLowerCase())
-  );
-};
-
-// Setup js-logger handler to capture PowerSync SDK logs
+// Setup js-logger handler to capture all logs
 let loggerHandlerInstalled = false;
 
 export const setupPowerSyncLogCapture = () => {
   if (loggerHandlerInstalled) return;
   loggerHandlerInstalled = true;
 
-  // Get the default handler
   const defaultHandler = Logger.createDefaultHandler();
 
-  // Install custom handler that intercepts logs based on filter level
+  // Capture ALL logs - filtering happens at display time in the UI
   Logger.setHandler((messages, context) => {
-    // Always call default handler for console output
     defaultHandler(messages, context);
-
-    // Guard against undefined/null messages
-    if (!messages) return;
-
-    // Check if this log should be captured based on filter level
-    const loggerName = context?.name || '';
-    if (shouldCaptureLog(loggerName)) {
-      // Convert js-logger level to our level
-      let level: SyncLogEntry['level'] = 'debug';
-      const contextLevel = context?.level;
-      if (contextLevel === Logger.ERROR) level = 'error';
-      else if (contextLevel === Logger.WARN) level = 'warn';
-      else if (contextLevel === Logger.INFO) level = 'info';
-      else if (contextLevel === Logger.DEBUG) level = 'debug';
-
-      // Format the message - handle both array and non-array messages
-      const prefix = loggerName ? `[${loggerName}] ` : '';
-      let messageText: string;
-      try {
-        const msgArray = Array.isArray(messages) ? messages : [messages];
-        messageText = msgArray.map(m => {
-          if (m === undefined) return 'undefined';
-          if (m === null) return 'null';
-          if (typeof m === 'object') {
-            try {
-              return JSON.stringify(m);
-            } catch {
-              return String(m);
-            }
-          }
-          return String(m);
-        }).join(' ');
-      } catch {
-        messageText = String(messages);
-      }
-
-      // Emit to our subscribers (without re-logging to avoid loops)
-      const entry: SyncLogEntry = { 
-        timestamp: Date.now(), 
-        level, 
-        message: `${prefix}${messageText}` 
-      };
-      syncLogListeners.forEach(listener => listener(entry));
-    }
+    emitCapturedLog(messages, context?.name || '', context?.level);
   });
 };
 
@@ -195,7 +81,8 @@ export const getFailedOperations = async (): Promise<FailedOperation[]> => {
   try {
     const stored = await AsyncStorage.getItem(FAILED_OPS_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
-  } catch {
+  } catch (e) {
+    emitSyncLog('warn', 'Failed to load failed operations from storage', { error: e });
     return [];
   }
 };
@@ -207,7 +94,7 @@ export const saveFailedOperation = async (op: FailedOperation): Promise<void> =>
     await AsyncStorage.setItem(FAILED_OPS_STORAGE_KEY, JSON.stringify(updated));
     emitSyncLog('warn', 'Failed operation saved for review', { table: op.table, op: op.op, id: op.recordId });
   } catch (e) {
-    emitSyncLog('error', 'Failed to save failed operation', { error: String(e) });
+    emitSyncLog('error', 'Failed to save failed operation', { error: e });
   }
 };
 
@@ -216,16 +103,16 @@ export const removeFailedOperation = async (id: string): Promise<void> => {
     const existing = await getFailedOperations();
     const updated = existing.filter(op => op.id !== id);
     await AsyncStorage.setItem(FAILED_OPS_STORAGE_KEY, JSON.stringify(updated));
-  } catch {
-    // Ignore errors
+  } catch (e) {
+    emitSyncLog('warn', 'Failed to remove failed operation from storage', { error: e, id });
   }
 };
 
 export const clearFailedOperations = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(FAILED_OPS_STORAGE_KEY);
-  } catch {
-    // Ignore errors
+  } catch (e) {
+    emitSyncLog('warn', 'Failed to clear failed operations from storage', { error: e });
   }
 };
 
