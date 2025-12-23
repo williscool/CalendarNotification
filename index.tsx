@@ -35,12 +35,12 @@ setupPowerSyncLogCapture();
 
 const Stack = createNativeStackNavigator();
 
-function BackButton({ onPress, color }: { onPress: () => void; color: string }) {
+function BackButton({ onPress, color, hasRightHeader }: { onPress: () => void; color: string; hasRightHeader?: boolean }) {
   return (
     <TouchableOpacity 
       onPress={onPress}
       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-      style={{ padding: 8 }}
+      style={{ padding: 8, marginLeft: hasRightHeader ? 8 : -8 }}
     >
       <Ionicons name="arrow-back" size={24} color={color} />
     </TouchableOpacity>
@@ -87,6 +87,7 @@ function App() {
                     headerStyle: { backgroundColor: colors.backgroundWhite },
                     headerTintColor: colors.primary,
                     headerTitleStyle: { color: colors.text },
+                    headerBackVisible: false,
                   }}
                 >
                   <Stack.Screen
@@ -95,7 +96,7 @@ function App() {
                     options={({ navigation }) => ({
                       title: 'Sync Info',
                       headerLeft: () => (
-                        <BackButton onPress={() => BackHandler.exitApp()} color={colors.primary} />
+                        <BackButton onPress={() => BackHandler.exitApp()} color={colors.primary} hasRightHeader />
                       ),
                       headerRight: () => (
                         <TouchableOpacity 
