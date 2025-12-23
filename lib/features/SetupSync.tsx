@@ -80,7 +80,7 @@ export const SetupSync = () => {
       emitSyncLog('debug', 'Native module change event', { hello: hello(), value });
     });
 
-    // Track previous status to avoid unnecessary re-renders
+    // Track previous values to avoid unnecessary re-renders for expensive updates
     let prevStatus = '';
     let prevConnected: boolean | null = null;
     
@@ -88,11 +88,13 @@ export const SetupSync = () => {
       if (providerDb) {
         const newStatus = JSON.stringify(providerDb.currentStatus);
         
-        // Only update state if values actually changed
+        // Always update timestamp to show system is actively polling
+        setLastUpdate(new Date().toLocaleTimeString());
+        
+        // Only update dbStatus if it actually changed (avoid expensive re-render)
         if (newStatus !== prevStatus) {
           prevStatus = newStatus;
           setDbStatus(newStatus);
-          setLastUpdate(new Date().toLocaleTimeString());
         }
 
         if (providerDb.currentStatus && providerDb.currentStatus.hasSynced !== undefined) {
