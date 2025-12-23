@@ -33,7 +33,7 @@ def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("
 def isCIBuild = isCiBuild || isGitHubActions
 
 android {
-  compileSdkVersion 35
+  compileSdkVersion rootProject.ext.compileSdkVersion
 
   // compileKotlin {
   //     kotlinOptions.allWarningsAsErrors = false
@@ -77,9 +77,9 @@ android {
 
   defaultConfig {
     applicationId "com.github.quarck.calnotify"
-    minSdkVersion 24
-    minSdk 24
-    targetSdkVersion 35
+    minSdkVersion rootProject.ext.minSdkVersion
+    minSdk rootProject.ext.minSdk
+    targetSdkVersion rootProject.ext.targetSdkVersion
     versionCode 4000033
     versionName "8.2.1"
 
