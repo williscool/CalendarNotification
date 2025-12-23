@@ -6,7 +6,7 @@ import { AppSchema } from './Schema';
 import { Settings } from '../hooks/SettingsContext';
 
 const factory = new OPSqliteOpenFactory({
-  dbFilename: 'powerSyncEvents.db',
+    dbFilename: 'powerSyncEvents.db',
 });
 
 /**

@@ -3,8 +3,8 @@
 buildscript {
 
     ext {
-      kotlin_version = '1.9.25'
-      kotlinVersion = '1.9.25'
+      kotlin_version = '2.0.21'
+      kotlinVersion = '2.0.21'
 
       // App versions (from master - known working for builds)
       androidx_lib_version = '1.6.0'
@@ -12,19 +12,20 @@ buildscript {
       android_core_version = '1.6.0'
       androidCoreVersion = '1.6.0'
 
-      gradleVersion = '8.9'
-      gradle_version = '8.9'
+      gradleVersion = '8.13'
+      gradle_version = '8.13'
 
       // WARNING the android gradle plugin VERIONS != TO GRADLE PLUGIN VERSION
       // https://developer.android.com/build/releases/gradle-plugin
 
-      androidGradlePluginVersion = '8.7.3'
-      android_gradle_plugin_version = '8.7.3'
+      // Using 8.7.3 for JaCoCo compatibility with Gradle 8.13
+      androidGradlePluginVersion = '8.13.2'
+      android_gradle_plugin_version = '8.13.2'
 
       // WARNING: WE BUILT CR-SQLITE WITH THIS VERSION OF NDK
       // IF YOU CHANGE THIS, YOU NEED TO REBUILD CR-SQLITE
       ndkVersion = '26.1.10909125'
-      // SDK versions - aligned with Expo SDK 52 requirements
+      // SDK versions - aligned with Expo SDK 53 requirements
       minSdk = 24
       minSdkVersion = 24
       compileSdkVersion = 35
@@ -72,6 +73,18 @@ allprojects {
             cacheDynamicVersionsFor 10 * 60, 'seconds'
             // Cache changing modules for 10 minutes
             cacheChangingModulesFor 10 * 60, 'seconds'
+        }
+    }
+}
+
+// Apply packagingOptions to all Android library subprojects to handle duplicate native libs
+subprojects {
+    plugins.withId("com.android.library") {
+        android {
+            packagingOptions {
+                pickFirst '**/libc++_shared.so'
+                pickFirst '**/*.so'
+            }
         }
     }
 }
