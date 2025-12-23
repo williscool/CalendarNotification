@@ -80,13 +80,27 @@ export const SetupSync = () => {
       emitSyncLog('debug', 'Native module change event', { hello: hello(), value });
     });
 
+    // Track previous status to avoid unnecessary re-renders
+    let prevStatus = '';
+    let prevConnected: boolean | null = null;
+    
     const statusInterval = setInterval(() => {
       if (providerDb) {
-        setDbStatus(JSON.stringify(providerDb.currentStatus));
-        setLastUpdate(new Date().toLocaleTimeString());
+        const newStatus = JSON.stringify(providerDb.currentStatus);
+        
+        // Only update state if values actually changed
+        if (newStatus !== prevStatus) {
+          prevStatus = newStatus;
+          setDbStatus(newStatus);
+          setLastUpdate(new Date().toLocaleTimeString());
+        }
 
         if (providerDb.currentStatus && providerDb.currentStatus.hasSynced !== undefined) {
-          setIsConnected(providerDb.currentStatus.connected);
+          const newConnected = providerDb.currentStatus.connected;
+          if (newConnected !== prevConnected) {
+            prevConnected = newConnected;
+            setIsConnected(newConnected);
+          }
         }
       }
     }, 1000);

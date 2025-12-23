@@ -82,12 +82,20 @@ function App() {
                     options={({ navigation }) => ({
                       title: 'Sync Info',
                       headerLeft: () => (
-                        <TouchableOpacity onPress={() => BackHandler.exitApp()}>
-                          <Text style={{ marginRight: 20, color: colors.primary, fontSize: 24 }}>←</Text>
+                        <TouchableOpacity 
+                          onPress={() => BackHandler.exitApp()}
+                          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                          style={{ padding: 8, marginLeft: 8 }}
+                        >
+                          <Text style={{ color: colors.primary, fontSize: 24 }}>←</Text>
                         </TouchableOpacity>
                       ),
                       headerRight: () => (
-                        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+                        <TouchableOpacity 
+                          onPress={() => navigation.navigate('Settings')}
+                          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                          style={{ padding: 8, marginRight: 8 }}
+                        >
                           <Text style={{ color: colors.primary, fontSize: 24 }}>⋮</Text>
                         </TouchableOpacity>
                       ),
