@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Heading } from '@gluestack-ui/themed';
+import { View, Text } from 'react-native';
 import { useTheme } from '@lib/theme/ThemeContext';
 
 interface SectionProps {
@@ -10,26 +10,26 @@ interface SectionProps {
 
 /**
  * A card-like container with optional title.
- * Replaces the repeated styles.section pattern across screens.
+ * Uses NativeWind for styling.
  */
 export const Section: React.FC<SectionProps> = ({ title, children, testID }) => {
   const { colors } = useTheme();
   
   return (
-    <Box
-      bg={colors.backgroundWhite}
-      p="$4"
-      mb="$4"
-      mx="$4"
-      borderRadius="$lg"
+    <View
+      className="p-4 mb-4 mx-4 rounded-lg"
+      style={{ backgroundColor: colors.backgroundWhite }}
       testID={testID}
     >
       {title && (
-        <Heading size="md" mb="$4" color={colors.text}>
+        <Text
+          className="text-lg font-medium mb-4"
+          style={{ color: colors.text }}
+        >
           {title}
-        </Heading>
+        </Text>
       )}
       {children}
-    </Box>
+    </View>
   );
 };

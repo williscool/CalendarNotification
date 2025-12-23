@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 
 /**
  * Metro configuration
@@ -29,4 +30,4 @@ config.resolver = {
   sourceExts: [...config.resolver.sourceExts, 'mjs'],
   };
 
-module.exports = config;
+module.exports = withNativeWind(config, { input: './global.css' });

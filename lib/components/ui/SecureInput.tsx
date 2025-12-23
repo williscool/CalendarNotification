@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Input, InputField, InputSlot, Pressable } from '@gluestack-ui/themed';
+import { View, TextInput, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@lib/theme/ThemeContext';
 
@@ -16,7 +16,7 @@ interface SecureInputProps {
 
 /**
  * A password input with visibility toggle.
- * Replaces the SecureInput pattern in Settings screen.
+ * Uses NativeWind for styling.
  * 
  * Can be used in two modes:
  * 1. Uncontrolled: Don't pass isVisible/onVisibilityChange - component manages its own state
@@ -46,33 +46,37 @@ export const SecureInput: React.FC<SecureInputProps> = ({
   }, [isControlled, onVisibilityChange, showPassword]);
 
   return (
-    <Input
-      variant="outline"
-      size="md"
-      borderColor={colors.border}
-      borderRadius="$lg"
-      flex={1}
+    <View
+      className="flex-row flex-1 items-center rounded-lg px-3"
+      style={{ 
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.backgroundWhite,
+      }}
       testID={testID}
     >
-      <InputField
+      <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.textLight}
         secureTextEntry={!showPassword}
-        color={colors.text}
+        className="flex-1 py-3"
+        style={{ color: colors.text }}
         testID={testID ? `${testID}-field` : undefined}
       />
-      <InputSlot pr="$3">
-        <Pressable onPress={toggleVisibility} testID={testID ? `${testID}-toggle` : undefined}>
-          <Ionicons
-            name={showPassword ? "eye-off" : "eye"}
-            size={24}
-            color={colors.textMuted}
-          />
-        </Pressable>
-      </InputSlot>
-    </Input>
+      <Pressable 
+        onPress={toggleVisibility} 
+        testID={testID ? `${testID}-toggle` : undefined}
+        className="pl-2"
+      >
+        <Ionicons
+          name={showPassword ? "eye-off" : "eye"}
+          size={24}
+          color={colors.textMuted}
+        />
+      </Pressable>
+    </View>
   );
 };
 

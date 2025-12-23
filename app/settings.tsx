@@ -1,19 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { View, Text, Switch, ScrollView, TextInput, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
-import {
-  Box,
-  Text,
-  Switch,
-  ScrollView,
-  Input,
-  InputField,
-  HStack,
-  VStack,
-  Pressable,
-} from '@gluestack-ui/themed';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { Section, ActionButton, SecureInput, WarningBanner } from '@lib/components/ui';
@@ -81,196 +70,186 @@ export default function Settings() {
     }
   };
 
-  // Row styling - inlined to avoid component recreation on render
-  const rowStyle = {
-    py: '$3' as const,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    flexDirection: (isSmallScreen ? 'column' : 'row') as 'column' | 'row',
-    alignItems: (isSmallScreen ? 'flex-start' : 'center') as 'flex-start' | 'center',
-    justifyContent: 'space-between' as const,
-  };
+  const rowClassName = isSmallScreen 
+    ? "py-3 border-b flex-col items-start" 
+    : "py-3 border-b flex-row items-center justify-between";
 
   return (
-    <Box flex={1} bg={colors.background}>
-      <ScrollView flex={1} contentContainerStyle={{ paddingTop: 16, paddingBottom: Math.max(insets.bottom, 16) }}>
+    <View className="flex-1" style={{ backgroundColor: colors.background }}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: Math.max(insets.bottom, 16) }}>
         {isDirty && (
           <WarningBanner variant="warning" message="You have unsaved changes" />
         )}
 
         <Section title="Sync Settings">
-        <Box {...rowStyle}>
-          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-            Enable Sync
-          </Text>
-          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-            <Switch
-              value={tempSettings.syncEnabled}
-              onValueChange={handleSyncToggle}
-              isDisabled={!areAllSettingsValid(tempSettings)}
-            />
-          </Box>
-        </Box>
-
-        {tempSettings.syncEnabled && (
-          <Box {...rowStyle}>
-            <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-              Sync Type
+          <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+            <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
+              Enable Sync
             </Text>
-            <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-              <VStack space="xs" alignItems={isSmallScreen ? 'flex-start' : 'flex-end'}>
-                <HStack space="sm">
+            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+              <Switch
+                value={tempSettings.syncEnabled}
+                onValueChange={handleSyncToggle}
+                disabled={!areAllSettingsValid(tempSettings)}
+              />
+            </View>
+          </View>
+
+          {tempSettings.syncEnabled && (
+            <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+              <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
+                Sync Type
+              </Text>
+              <View className={`${isSmallScreen ? 'w-full items-start' : 'flex-2 items-end'}`}>
+                <View className="flex-row gap-2">
                   <Pressable
                     onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
-                    px="$3"
-                    py="$1.5"
-                    borderRadius="$full"
-                    bg={tempSettings.syncType === 'unidirectional' ? colors.primary : colors.borderLight}
+                    className="px-3 py-1.5 rounded-full"
+                    style={{ backgroundColor: tempSettings.syncType === 'unidirectional' ? colors.primary : colors.borderLight }}
                   >
-                    <Text color={tempSettings.syncType === 'unidirectional' ? '#fff' : colors.textMuted} fontSize="$sm">
+                    <Text className="text-sm" style={{ color: tempSettings.syncType === 'unidirectional' ? '#fff' : colors.textMuted }}>
                       Unidirectional
                     </Text>
                   </Pressable>
                   <Pressable
-                    px="$3"
-                    py="$1.5"
-                    borderRadius="$full"
-                    bg={colors.border}
-                    opacity={0.6}
+                    className="px-3 py-1.5 rounded-full opacity-60"
+                    style={{ backgroundColor: colors.border }}
                   >
-                    <Text color={colors.textLight} fontSize="$sm">
+                    <Text className="text-sm" style={{ color: colors.textLight }}>
                       Bidirectional
                     </Text>
                   </Pressable>
-                </HStack>
-                <Text fontSize="$xs" color={colors.textMuted} fontStyle="italic">
+                </View>
+                <Text className="text-xs italic mt-1" style={{ color: colors.textMuted }}>
                   Bidirectional sync coming soon
                 </Text>
-              </VStack>
-            </Box>
-          </Box>
-        )}
-      </Section>
+              </View>
+            </View>
+          )}
+        </Section>
 
-      <Pressable
-        onPress={() => navigation.navigate('SyncDebug')}
-        bg={colors.backgroundMuted}
-        p="$3.5"
-        borderRadius="$lg"
-        mx="$4"
-        borderWidth={1}
-        borderColor={colors.border}
-        flexDirection="row"
-        alignItems="center"
-        justifyContent="center"
-      >
-        <Text color={colors.textMuted} mr="$2">🐛</Text>
-        <Text color={colors.textMuted} fontSize="$sm" fontWeight="$medium">
-          View Sync Debug Logs
-        </Text>
-      </Pressable>
-
-      <Section title="Current Settings Output">
-        <Box bg={colors.backgroundMuted} p="$4" borderRadius="$lg">
-          <Text fontSize="$sm" color={colors.text} fontFamily="monospace">
-            {JSON.stringify({
-              ...tempSettings,
-              supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
-              powersyncToken: showPowerSyncToken ? tempSettings.powersyncToken : '[Hidden Reveal Below]'
-            }, null, 2)}
+        <Pressable
+          onPress={() => navigation.navigate('SyncDebug')}
+          className="p-3.5 rounded-lg mx-4 flex-row items-center justify-center"
+          style={{ 
+            backgroundColor: colors.backgroundMuted,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text className="mr-2" style={{ color: colors.textMuted }}>🐛</Text>
+          <Text className="text-sm font-medium" style={{ color: colors.textMuted }}>
+            View Sync Debug Logs
           </Text>
-        </Box>
-      </Section>
+        </Pressable>
 
-      <Section title="Supabase Settings">
-        <Box {...rowStyle}>
-          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-            Supabase URL
-          </Text>
-          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-            <Input variant="outline" size="md" borderColor={colors.border} borderRadius="$lg">
-              <InputField
+        <Section title="Current Settings Output">
+          <View className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundMuted }}>
+            <Text className="text-sm font-mono" style={{ color: colors.text }}>
+              {JSON.stringify({
+                ...tempSettings,
+                supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
+                powersyncToken: showPowerSyncToken ? tempSettings.powersyncToken : '[Hidden Reveal Below]'
+              }, null, 2)}
+            </Text>
+          </View>
+        </Section>
+
+        <Section title="Supabase Settings">
+          <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+            <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
+              Supabase URL
+            </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+              <TextInput
                 value={tempSettings.supabaseUrl}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
                 placeholder="https://your-project.supabase.co"
                 placeholderTextColor={colors.textLight}
-                color={colors.text}
+                className="px-3 py-3 rounded-lg"
+                style={{ 
+                  color: colors.text,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.backgroundWhite,
+                }}
               />
-            </Input>
-          </Box>
-        </Box>
+            </View>
+          </View>
 
-        <Box {...rowStyle}>
-          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-            Supabase Anon Key
-          </Text>
-          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-            <SecureInput
-              value={tempSettings.supabaseAnonKey}
-              onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
-              placeholder="your-supabase-anon-key"
-              isVisible={showSupabaseKey}
-              onVisibilityChange={setShowSupabaseKey}
-            />
-          </Box>
-        </Box>
-      </Section>
+          <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+            <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
+              Supabase Anon Key
+            </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+              <SecureInput
+                value={tempSettings.supabaseAnonKey}
+                onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
+                placeholder="your-supabase-anon-key"
+                isVisible={showSupabaseKey}
+                onVisibilityChange={setShowSupabaseKey}
+              />
+            </View>
+          </View>
+        </Section>
 
-      <Section title="PowerSync Settings">
-        <Box {...rowStyle}>
-          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-            PowerSync URL
-          </Text>
-          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-            <Input variant="outline" size="md" borderColor={colors.border} borderRadius="$lg">
-              <InputField
+        <Section title="PowerSync Settings">
+          <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+            <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
+              PowerSync URL
+            </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+              <TextInput
                 value={tempSettings.powersyncUrl}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
                 placeholder="https://your-project.powersync.journeyapps.com"
                 placeholderTextColor={colors.textLight}
-                color={colors.text}
+                className="px-3 py-3 rounded-lg"
+                style={{ 
+                  color: colors.text,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.backgroundWhite,
+                }}
               />
-            </Input>
-          </Box>
-        </Box>
+            </View>
+          </View>
 
-        <Box {...rowStyle}>
-          <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
-            PowerSync Token
-          </Text>
-          <Box flex={isSmallScreen ? 1 : 2} width={isSmallScreen ? '100%' : 'auto'}>
-            <SecureInput
-              value={tempSettings.powersyncToken}
-              onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
-              placeholder="your-powersync-token"
-              isVisible={showPowerSyncToken}
-              onVisibilityChange={setShowPowerSyncToken}
-            />
-          </Box>
-        </Box>
-      </Section>
+          <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+            <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
+              PowerSync Token
+            </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+              <SecureInput
+                value={tempSettings.powersyncToken}
+                onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
+                placeholder="your-powersync-token"
+                isVisible={showPowerSyncToken}
+                onVisibilityChange={setShowPowerSyncToken}
+              />
+            </View>
+          </View>
+        </Section>
 
         {!areAllSettingsValid(tempSettings) && (
-          <Text color={colors.danger} textAlign="center" mx="$4" fontStyle="italic">
+          <Text className="text-center mx-4 italic" style={{ color: colors.danger }}>
             Please fill in all settings to enable sync
           </Text>
         )}
 
         {/* Spacer for fixed footer */}
-        <Box h={100} />
+        <View className="h-24" />
       </ScrollView>
 
       {/* Fixed footer - Save button always visible */}
-      <Box 
-        position="absolute" 
-        bottom={0} 
-        left={0} 
-        right={0}
-        bg={colors.background} 
-        pt="$2" 
-        borderTopWidth={1} 
-        borderTopColor={colors.borderLight}
-        style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+      <View 
+        className="absolute bottom-0 left-0 right-0 pt-2"
+        style={{ 
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: colors.borderLight,
+          paddingBottom: Math.max(insets.bottom, 16) + 16,
+        }}
       >
         <ActionButton
           onPress={handleSave}
@@ -279,7 +258,7 @@ export default function Settings() {
         >
           {isDirty ? 'Save Changes*' : 'Save Changes'}
         </ActionButton>
-      </Box>
-    </Box>
+      </View>
+    </View>
   );
 }
