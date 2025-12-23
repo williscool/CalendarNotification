@@ -3,14 +3,15 @@ import 'react-native-devsettings';
 import './lib/env';
 
 import React from 'react';
-import { AppRegistry, useColorScheme } from 'react-native';
+import { AppRegistry, useColorScheme, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
 
 // Enable native screens for performance
 enableScreens();
-import { TouchableOpacity, BackHandler, Text } from 'react-native';
+import { TouchableOpacity, BackHandler } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
 import { PowerSyncContext } from '@powersync/react';
@@ -33,6 +34,18 @@ Logger.setLevel(Logger.DEBUG);
 setupPowerSyncLogCapture();
 
 const Stack = createNativeStackNavigator();
+
+function BackButton({ onPress, color, hasRightHeader }: { onPress: () => void; color: string; hasRightHeader?: boolean }) {
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+      style={{ padding: 8, marginLeft: hasRightHeader ? 8 : -8 }}
+    >
+      <Ionicons name="arrow-back" size={24} color={color} />
+    </TouchableOpacity>
+  );
+}
 
 function App() {
   const colorScheme = useColorScheme();
@@ -74,6 +87,7 @@ function App() {
                     headerStyle: { backgroundColor: colors.backgroundWhite },
                     headerTintColor: colors.primary,
                     headerTitleStyle: { color: colors.text },
+                    headerBackVisible: false,
                   }}
                 >
                   <Stack.Screen
@@ -82,13 +96,15 @@ function App() {
                     options={({ navigation }) => ({
                       title: 'Sync Info',
                       headerLeft: () => (
-                        <TouchableOpacity onPress={() => BackHandler.exitApp()}>
-                          <Text style={{ marginRight: 20, color: colors.primary, fontSize: 24 }}>←</Text>
-                        </TouchableOpacity>
+                        <BackButton onPress={() => BackHandler.exitApp()} color={colors.primary} hasRightHeader />
                       ),
                       headerRight: () => (
-                        <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-                          <Text style={{ color: colors.primary, fontSize: 24 }}>⋮</Text>
+                        <TouchableOpacity 
+                          onPress={() => navigation.navigate('Settings')}
+                          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                          style={{ padding: 8, marginRight: 4 }}
+                        >
+                          <Text style={{ fontSize: 24, color: colors.primary }}>⋮</Text>
                         </TouchableOpacity>
                       ),
                     })}
@@ -96,12 +112,22 @@ function App() {
                   <Stack.Screen
                     name="Settings"
                     component={SettingsScreen}
-                    options={{ title: 'Sync Settings' }}
+                    options={({ navigation }) => ({
+                      title: 'Sync Settings',
+                      headerLeft: () => (
+                        <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
+                      ),
+                    })}
                   />
                   <Stack.Screen
                     name="SyncDebug"
                     component={SyncDebugScreen}
-                    options={{ title: 'Sync Debug' }}
+                    options={({ navigation }) => ({
+                      title: 'Sync Debug',
+                      headerLeft: () => (
+                        <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
+                      ),
+                    })}
                   />
                 </Stack.Navigator>
               </NavigationContainer>

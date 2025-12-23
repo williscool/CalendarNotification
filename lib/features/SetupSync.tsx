@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, memo } from 'react';
 import { Linking } from 'react-native';
 import { Box, Text, Button, ButtonText, ScrollView, VStack, Center, Pressable } from '@gluestack-ui/themed';
 import { hello, sendRescheduleConfirmations, addChangeListener } from '../../modules/my-module';
@@ -17,6 +17,24 @@ import { emitSyncLog } from '@lib/logging/syncLog';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 import type { Settings } from '@lib/hooks/SettingsContext';
+
+/** Isolated component for polling timestamp - re-renders every second without affecting parent */
+const PollingTimestamp = memo(({ color }: { color: string }) => {
+  const [time, setTime] = useState(new Date().toLocaleTimeString());
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <Text fontSize="$xl" textAlign="center" m="$2.5" color={color}>
+      Last Updated: {time}
+    </Text>
+  );
+});
 
 /** Check if all required sync credentials are configured */
 export const isSettingsConfigured = (settings: Settings): boolean => Boolean(
@@ -47,7 +65,6 @@ export const SetupSync = () => {
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
-  const [lastUpdate, setLastUpdate] = useState<string>('');
   const regDb = open({ name: 'Events' });
   const providerDb = useContext(PowerSyncContext);
 
@@ -80,13 +97,26 @@ export const SetupSync = () => {
       emitSyncLog('debug', 'Native module change event', { hello: hello(), value });
     });
 
+    // Track previous values to avoid unnecessary re-renders for expensive updates
+    let prevStatus = '';
+    let prevConnected: boolean | null = null;
+    
     const statusInterval = setInterval(() => {
       if (providerDb) {
-        setDbStatus(JSON.stringify(providerDb.currentStatus));
-        setLastUpdate(new Date().toLocaleTimeString());
+        const newStatus = JSON.stringify(providerDb.currentStatus);
+        
+        // Only update dbStatus if it actually changed (avoid expensive re-render)
+        if (newStatus !== prevStatus) {
+          prevStatus = newStatus;
+          setDbStatus(newStatus);
+        }
 
         if (providerDb.currentStatus && providerDb.currentStatus.hasSynced !== undefined) {
-          setIsConnected(providerDb.currentStatus.connected);
+          const newConnected = providerDb.currentStatus.connected;
+          if (newConnected !== prevConnected) {
+            prevConnected = newConnected;
+            setIsConnected(newConnected);
+          }
         }
       }
     }, 1000);
@@ -144,9 +174,7 @@ export const SetupSync = () => {
       <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
         PowerSync Status: {dbStatus}
       </Text>
-      <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text}>
-        Last Updated: {lastUpdate}
-      </Text>
+      <PollingTimestamp color={colors.text} />
 
       {isConnected === false && (
         <WarningBanner variant="warning">

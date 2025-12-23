@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import {
@@ -26,6 +27,7 @@ export default function Settings() {
   const [showSupabaseKey, setShowSupabaseKey] = useState(false);
   const [showPowerSyncToken, setShowPowerSyncToken] = useState(false);
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isSmallScreen = width < 450;
 
   useEffect(() => {
@@ -90,12 +92,13 @@ export default function Settings() {
   };
 
   return (
-    <ScrollView flex={1} bg={colors.background}>
-      {isDirty && (
-        <WarningBanner variant="warning" message="You have unsaved changes" />
-      )}
+    <Box flex={1} bg={colors.background}>
+      <ScrollView flex={1} contentContainerStyle={{ paddingTop: 16, paddingBottom: Math.max(insets.bottom, 16) }}>
+        {isDirty && (
+          <WarningBanner variant="warning" message="You have unsaved changes" />
+        )}
 
-      <Section title="Sync Settings">
+        <Section title="Sync Settings">
         <Box {...rowStyle}>
           <Text fontSize="$md" color={colors.text} mb={isSmallScreen ? '$2' : '$0'} flex={isSmallScreen ? 0 : 1}>
             Enable Sync
@@ -247,21 +250,36 @@ export default function Settings() {
         </Box>
       </Section>
 
-      {!areAllSettingsValid(tempSettings) && (
-        <Text color={colors.danger} textAlign="center" mx="$4" fontStyle="italic">
-          Please fill in all settings to enable sync
-        </Text>
-      )}
+        {!areAllSettingsValid(tempSettings) && (
+          <Text color={colors.danger} textAlign="center" mx="$4" fontStyle="italic">
+            Please fill in all settings to enable sync
+          </Text>
+        )}
 
-      <ActionButton
-        onPress={handleSave}
-        variant={isDirty ? 'success' : 'primary'}
-        disabled={!isDirty || !areAllSettingsValid(tempSettings)}
+        {/* Spacer for fixed footer */}
+        <Box h={100} />
+      </ScrollView>
+
+      {/* Fixed footer - Save button always visible */}
+      <Box 
+        position="absolute" 
+        bottom={0} 
+        left={0} 
+        right={0}
+        bg={colors.background} 
+        pt="$2" 
+        borderTopWidth={1} 
+        borderTopColor={colors.borderLight}
+        style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
       >
-        {isDirty ? 'Save Changes*' : 'Save Changes'}
-      </ActionButton>
-
-      <Box h="$4" />
-    </ScrollView>
+        <ActionButton
+          onPress={handleSave}
+          variant={isDirty ? 'success' : 'primary'}
+          disabled={!isDirty || !areAllSettingsValid(tempSettings)}
+        >
+          {isDirty ? 'Save Changes*' : 'Save Changes'}
+        </ActionButton>
+      </Box>
+    </Box>
   );
 }
