@@ -80,8 +80,8 @@ android {
     minSdkVersion 24
     minSdk 24
     targetSdkVersion 35
-    versionCode 4000032
-    versionName "8.2.0"
+    versionCode 4000033
+    versionName "8.2.1"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
     // React Native New Architecture flags
