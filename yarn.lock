@@ -4325,14 +4325,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@react-native-async-storage/async-storage@npm:1.23.1":
-  version: 1.23.1
-  resolution: "@react-native-async-storage/async-storage@npm:1.23.1"
+"@react-native-async-storage/async-storage@npm:2.2.0":
+  version: 2.2.0
+  resolution: "@react-native-async-storage/async-storage@npm:2.2.0"
   dependencies:
     merge-options: ^3.0.4
   peerDependencies:
-    react-native: ^0.0.0-0 || >=0.60 <1.0
-  checksum: 7096546ed4a5faf1f6e0425e2e15713575f1a7493a04524da386ff35c3844b57b8fd20544fad4157b4a61e048b10235f2f06124f262da5b327edc74fbc31e02b
+    react-native: ^0.0.0-0 || >=0.65 <1.0
+  checksum: efbb9c801fb7eecfad1568d6a5e9d247db420b8ba8f1789d5b783e679432567a53cf54c7e7b5e6f315276f33d1df297253549e0cefef2e683539df346d2a1f2d
   languageName: node
   linkType: hard
 
@@ -6699,7 +6699,7 @@ __metadata:
     "@op-engineering/op-sqlite": ^15.1.14
     "@powersync/op-sqlite": ^0.7.17
     "@powersync/react-native": 1.28.0
-    "@react-native-async-storage/async-storage": 1.23.1
+    "@react-native-async-storage/async-storage": 2.2.0
     "@react-native-community/cli": ^19.0.0
     "@react-native-community/cli-platform-android": ^19.0.0
     "@react-native/js-polyfills": ^0.81.0
@@ -6736,7 +6736,7 @@ __metadata:
     execa: ^9.5.2
     expo: ~54.0.0
     expo-application: ~7.0.0
-    expo-status-bar: ~2.2.0
+    expo-status-bar: ~3.0.9
     gts: ^5.0.0
     husky: ^9.1.6
     jest: ^29.6.2
@@ -6751,9 +6751,9 @@ __metadata:
     react-native: 0.81.5
     react-native-devsettings: ^1.0.5
     react-native-dotenv: ^3.4.11
-    react-native-safe-area-context: 5.4.0
-    react-native-screens: ~4.19.0
-    react-native-svg: ^15.15.1
+    react-native-safe-area-context: ~5.6.0
+    react-native-screens: ~4.16.0
+    react-native-svg: 15.15.1
     react-native-url-polyfill: ^2.0.0
     react-native-web: ~0.21.0
     regenerator-runtime: ^0.14.0
@@ -10050,16 +10050,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"expo-status-bar@npm:~2.2.0":
-  version: 2.2.3
-  resolution: "expo-status-bar@npm:2.2.3"
+"expo-status-bar@npm:~3.0.9":
+  version: 3.0.9
+  resolution: "expo-status-bar@npm:3.0.9"
   dependencies:
-    react-native-edge-to-edge: 1.6.0
-    react-native-is-edge-to-edge: ^1.1.6
+    react-native-is-edge-to-edge: ^1.2.1
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 37e8a111037a3dc94ada9c0549e1b7bae0d6dcef48392edf7a559f64d5db78560e11165f5a8d5fe3a15e6d0bd3895b782443e7bb3018eb2798a11b509f3acf97
+  checksum: 35a780c4e0d5d9ec4c056320f02d92b27e91b1f89f970d90a6c938838a84f40917c7cf1230057eb235e1eab6a16de2711eaf5be09a169044ed8b306e9f0824bc
   languageName: node
   linkType: hard
 
@@ -16106,17 +16105,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-edge-to-edge@npm:1.6.0":
-  version: 1.6.0
-  resolution: "react-native-edge-to-edge@npm:1.6.0"
-  peerDependencies:
-    react: "*"
-    react-native: "*"
-  checksum: 624893661f8708b6924faafb0586edc1f42b3741930866efd2dd263c9592e5abc8a4615d7a3ee41e8aa4da9486bda56c84385bc35a168269f22ec0a8432aa5de
-  languageName: node
-  linkType: hard
-
-"react-native-is-edge-to-edge@npm:^1.1.6":
+"react-native-is-edge-to-edge@npm:^1.2.1":
   version: 1.2.1
   resolution: "react-native-is-edge-to-edge@npm:1.2.1"
   peerDependencies:
@@ -16126,30 +16115,31 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-safe-area-context@npm:5.4.0":
-  version: 5.4.0
-  resolution: "react-native-safe-area-context@npm:5.4.0"
+"react-native-safe-area-context@npm:~5.6.0":
+  version: 5.6.2
+  resolution: "react-native-safe-area-context@npm:5.6.2"
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 7d7f9a8278048650fd207d436798bd062d6f78d771cb0665b92aef69dba870251339e6812e1d669fd1958345288bd0f9ac98fbfe353c13958d18b58dc946c341
+  checksum: 7b15cdd07df4f3650cf443fb322ee2d51b3ab45c652789cbea4cb48a8e6fd2b66e2be01e9f63e614ceaf28d9d228af681ca8857b2ed8dabe48f23964076d40c3
   languageName: node
   linkType: hard
 
-"react-native-screens@npm:~4.19.0":
-  version: 4.19.0
-  resolution: "react-native-screens@npm:4.19.0"
+"react-native-screens@npm:~4.16.0":
+  version: 4.16.0
+  resolution: "react-native-screens@npm:4.16.0"
   dependencies:
     react-freeze: ^1.0.0
+    react-native-is-edge-to-edge: ^1.2.1
     warn-once: ^0.1.0
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: a9c02936d9e699acd1801bd58d6a3a4353b05f52cddefa453428b57d531af74d920f40cfa2b92595ed471001dc5bbd6f8f41580895aa5eb8247a44b5e593e125
+  checksum: 71bebbead1d8f886b80b70cf9d69b0179e035fb425fae84fbcbb2930167220cb90c2ee70b26d3fd94f940fa3e6ce325b0ec2e283d039d5abb29bf6898c58e485
   languageName: node
   linkType: hard
 
-"react-native-svg@npm:^15.15.1":
+"react-native-svg@npm:15.15.1":
   version: 15.15.1
   resolution: "react-native-svg@npm:15.15.1"
   dependencies:
