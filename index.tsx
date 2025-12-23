@@ -3,14 +3,15 @@ import 'react-native-devsettings';
 import './lib/env';
 
 import React from 'react';
-import { AppRegistry, useColorScheme } from 'react-native';
+import { AppRegistry, useColorScheme, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
 
 // Enable native screens for performance
 enableScreens();
-import { TouchableOpacity, BackHandler, Text } from 'react-native';
+import { TouchableOpacity, BackHandler } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import { config } from '@gluestack-ui/config';
 import { PowerSyncContext } from '@powersync/react';
@@ -85,18 +86,18 @@ function App() {
                         <TouchableOpacity 
                           onPress={() => BackHandler.exitApp()}
                           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                          style={{ padding: 8, marginLeft: 8 }}
+                          style={{ padding: 8, marginLeft: 4 }}
                         >
-                          <Text style={{ color: colors.primary, fontSize: 24 }}>←</Text>
+                          <Ionicons name="arrow-back" size={24} color={colors.primary} />
                         </TouchableOpacity>
                       ),
                       headerRight: () => (
                         <TouchableOpacity 
                           onPress={() => navigation.navigate('Settings')}
                           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                          style={{ padding: 8, marginRight: 8 }}
+                          style={{ padding: 8, marginRight: 4 }}
                         >
-                          <Text style={{ color: colors.primary, fontSize: 24 }}>⋮</Text>
+                          <Text style={{ fontSize: 24, color: colors.primary }}>⋮</Text>
                         </TouchableOpacity>
                       ),
                     })}
