@@ -67,8 +67,9 @@ class GlobalState : Application(), ReactApplication {
                 load()
             }
         }
-        // Always follow system theme
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        // Apply saved theme preference (defaults to follow system if not set)
+        val settings = Settings(this)
+        AppCompatDelegate.setDefaultNightMode(settings.themeMode)
         // Create notification channels (required for Android 8+, no-op on older versions)
         NotificationChannels.createChannels(this)
     }
