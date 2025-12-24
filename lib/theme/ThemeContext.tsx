@@ -35,7 +35,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [systemColorScheme]);
 
-  // Load theme on mount
+  // Load theme on mount and when system color scheme changes
+  // (loadTheme depends on systemColorScheme, so this effect covers both cases)
   useEffect(() => {
     loadTheme();
   }, [loadTheme]);
@@ -51,11 +52,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
   }, [loadTheme]);
-
-  // Also update when system color scheme changes (for "follow system" mode)
-  useEffect(() => {
-    loadTheme();
-  }, [systemColorScheme, loadTheme]);
 
   const isDark = colorScheme === 'dark';
   
