@@ -5,6 +5,8 @@ module.exports = {
   testMatch: ['**/*.test.ts', '**/*.test.tsx', '**/*.ui.test.tsx'],
   moduleNameMapper: {
     '^@lib/(.*)$': '<rootDir>/lib/$1',
+    '^@/components/ui$': '<rootDir>/lib/features/__tests__/__mocks__/gluestackUI.tsx',
+    '^@/(.*)$': '<rootDir>/$1',
     '^react-native$': 'react-native-web',
     '^@expo/vector-icons$': '<rootDir>/lib/features/__tests__/__mocks__/vectorIcons.ts',
     '^@env$': '<rootDir>/lib/features/__tests__/__mocks__/env.ts',

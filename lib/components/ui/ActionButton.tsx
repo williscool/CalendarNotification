@@ -33,6 +33,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
+      aria-disabled={disabled}
       style={({ pressed }) => ({
         opacity: disabled ? 0.7 : pressed ? 0.8 : 1,
       })}
