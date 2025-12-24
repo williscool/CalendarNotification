@@ -199,9 +199,10 @@ type IAlertIconProps = React.ComponentPropsWithoutRef<typeof UIAlert.Icon> &
 const AlertIcon = React.forwardRef<
   React.ComponentRef<typeof UIAlert.Icon>,
   IAlertIconProps
->(function AlertIcon({ className, size = 'md', ...props }, ref) {
+>(function AlertIcon({ className, size, ...props }, ref) {
   const { action: parentAction } = useStyleContext(SCOPE);
 
+  // If size is a number, pass it directly to the icon
   if (typeof size === 'number') {
     return (
       <UIAlert.Icon
@@ -211,7 +212,10 @@ const AlertIcon = React.forwardRef<
         size={size}
       />
     );
-  } else if (
+  }
+  
+  // If custom height/width provided without size, use those dimensions
+  if (
     (props.height !== undefined || props.width !== undefined) &&
     size === undefined
   ) {
@@ -223,13 +227,15 @@ const AlertIcon = React.forwardRef<
       />
     );
   }
+  
+  // Default to 'md' size with variant styling
   return (
     <UIAlert.Icon
       className={alertIconStyle({
         parentVariants: {
           action: parentAction,
         },
-        size,
+        size: size ?? 'md',
         class: className,
       })}
       {...props}
