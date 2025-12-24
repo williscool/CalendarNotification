@@ -61,6 +61,7 @@ export const SecureInput: React.FC<SecureInputProps> = ({
         placeholder={placeholder}
         placeholderTextColor={colors.textLight}
         secureTextEntry={!showPassword}
+        selectTextOnFocus={true}
         className="flex-1 py-3"
         style={{ color: colors.text }}
         testID={testID ? `${testID}-field` : undefined}

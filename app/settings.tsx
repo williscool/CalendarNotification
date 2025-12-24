@@ -140,7 +140,7 @@ export default function Settings() {
 
       <Section title="Current Settings Output">
           <View className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundMuted }}>
-            <Text className="text-sm font-mono" style={{ color: colors.text }}>
+            <Text className="text-sm font-mono" style={{ color: colors.text }} selectable>
             {JSON.stringify({
               ...tempSettings,
               supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
