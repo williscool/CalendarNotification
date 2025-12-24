@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, AlertText } from '@/components/ui';
+import { Alert, AlertText, VStack } from '@/components/ui';
 
 // Map our variant names to Gluestack Alert action prop
 type BannerVariant = 'warning' | 'error' | 'info';
@@ -24,7 +24,7 @@ interface WarningBannerProps {
  * 
  * Two usage modes:
  * 1. Simple: <WarningBanner message="Warning text" />
- * 2. Custom: <WarningBanner><AlertText>Custom</AlertText></WarningBanner>
+ * 2. Custom: <WarningBanner><VStack>...</VStack></WarningBanner> (auto-wrapped in VStack)
  */
 export const WarningBanner: React.FC<WarningBannerProps> = ({
   message,
@@ -42,7 +42,8 @@ export const WarningBanner: React.FC<WarningBannerProps> = ({
       {message ? (
         <AlertText className="text-center">{message}</AlertText>
       ) : (
-        children
+        // Wrap children in VStack since Alert has flex-row layout
+        <VStack className="items-center">{children}</VStack>
       )}
     </Alert>
   );
