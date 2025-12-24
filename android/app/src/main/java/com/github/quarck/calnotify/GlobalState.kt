@@ -33,6 +33,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.github.quarck.calnotify.notification.NotificationChannels
+import com.github.quarck.calnotify.react.ThemePackage
 
 // This storage is wiped every time app is restarted. Only keep variables
 // that are instance-specific here
@@ -43,7 +44,7 @@ class GlobalState : Application(), ReactApplication {
     override val reactNativeHost: ReactNativeHost =
         object : DefaultReactNativeHost(this) {
             override fun getPackages(): List<ReactPackage> =
-                PackageList(this@GlobalState).packages
+                PackageList(this@GlobalState).packages + listOf(ThemePackage())
 
             override fun getJSMainModuleName(): String = "index"
 
