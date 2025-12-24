@@ -48,3 +48,28 @@ To remove the substitution later:
 ```cmd
 subst X: /d
 ```
+
+## NativeWind ESM Issue (Metro on Windows)
+
+NativeWind v4 has a known issue where Metro cannot load the config on Windows due to ESM path handling. This causes errors like:
+```
+Error [ERR_UNSUPPORTED_ESM_URL_SCHEME]: Only URLs with a scheme in: file, data, and node are supported by the default ESM loader. On Windows, absolute paths must be valid file:// URLs. Received protocol 'c:'
+```
+
+**Workaround**: Pre-bundle on WSL, then build on Windows.
+
+1. **Pre-bundle on WSL** (when JS/CSS changes):
+   ```bash
+   cd /home/william/not_connected_to_windows/CalendarNotification
+   yarn bundle:android --dev=true
+   ```
+
+2. **Build on Windows** (uses pre-built bundle):
+   ```powershell
+   cd X:\android
+   .\gradlew assembleDebug
+   ```
+
+The `scripts/bundle_or_skip.js` wrapper automatically detects and copies the pre-built bundle, skipping Metro on Windows. This is configured via `cliFile` in `android/app/build.gradle`.
+
+See: https://github.com/nativewind/nativewind/issues/1667

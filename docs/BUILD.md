@@ -31,9 +31,28 @@ sdk use java 21.0.6-tem
 # Install dependencies
 yarn 
 
-# Start Metro bundler
+# Start Metro bundler (run from WSL)
 yarn start
 ```
+
+### NativeWind + Windows Build Workflow
+
+NativeWind has a known issue with Windows ESM paths that prevents Metro from running on Windows. The workaround is to pre-bundle on WSL, then build on Windows.
+
+**One-time (or when JS/CSS changes):**
+```bash
+# On WSL
+yarn bundle:android --dev=true
+```
+
+**Then on Windows (as many times as needed):**
+```powershell
+cd X:\android  # or C:\dev\CN\android
+.\gradlew assembleDebug   # Uses pre-built bundle
+.\gradlew installDebug    # Install to device
+```
+
+The `bundle_or_skip.js` script automatically detects and copies the pre-built bundle, skipping Metro entirely on Windows. See [NativeWind #1667](https://github.com/nativewind/nativewind/issues/1667) for the upstream issue.
 
 ### Running on Emulator
 
@@ -99,12 +118,22 @@ New-NetFirewallRule -DisplayName 'WSL Web Server' -Direction Inbound -Protocol T
 
 ### Local Release Build
 
-1. Build the bundle:
+1. Build the bundle (from WSL):
 ```bash
-yarn react-native bundle --platform android --dev false --entry-file index.tsx --bundle-output android/app/src/main/assets/index.android.bundle  --assets-dest android/app/src/main/res/
+# For release (production mode)
+yarn bundle:android
+
+# For debug (development mode with source maps)
+yarn bundle:android --dev=true
 ```
 
-2. Follow Android Studio instructions for release build configuration
+2. Build the APK (can be done from Windows):
+```powershell
+cd X:\android
+.\gradlew assembleRelease
+```
+
+3. Follow Android Studio instructions for signing configuration
 
 ### CI Release Build
 
