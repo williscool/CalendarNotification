@@ -16,8 +16,127 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-// Args: ['bundle', '--platform', 'android', '--bundle-output', '/path/to/bundle', ...]
-const args = process.argv.slice(2);
+/**
+ * Parse supported architectures from build.gradle content
+ * Looks for: supportedArchs = ['arm64-v8a', 'x86_64']
+ * @param {string} content - The content of build.gradle
+ * @returns {string[]|null} Array of architectures or null if not found
+ */
+function parseArchsFromGradle(content) {
+  const match = content.match(/supportedArchs\s*=\s*\[([^\]]+)\]/);
+  if (match) {
+    const archsStr = match[1];
+    const archs = archsStr.split(',').map(s => s.trim().replace(/['"]/g, ''));
+    if (archs.length > 0) {
+      return archs;
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse build types from app/build.gradle content
+ * Parses buildTypes { debug { ... } release { ... } customDebugType { ... } }
+ * @param {string} content - The content of app/build.gradle
+ * @returns {string[]|null} Array of build types or null if not found
+ */
+function parseBuildTypesFromGradle(content) {
+  // Find buildTypes block and extract type names
+  // Match lines like: "  debug {" or "  customDebugType {"
+  const buildTypesMatch = content.match(/buildTypes\s*\{([\s\S]*?)\n\s{2}\}/);
+  if (buildTypesMatch) {
+    const block = buildTypesMatch[1];
+    // Match build type names (word followed by { at start of line with indentation)
+    const typeMatches = block.matchAll(/^\s{4}(\w+)\s*\{/gm);
+    const types = [...typeMatches].map(m => m[1]);
+    if (types.length > 0) {
+      return types;
+    }
+  }
+  return null;
+}
+
+/**
+ * Generate all variant names from architectures and build types
+ * @param {string[]} archs - Array of architecture names (e.g., ['arm64-v8a', 'x86_64'])
+ * @param {string[]} buildTypes - Array of build type names (e.g., ['debug', 'release'])
+ * @returns {string[]} Array of variant names (e.g., ['arm64v8aDebug', 'x8664Release'])
+ */
+function generateVariantNames(archs, buildTypes) {
+  const variants = [];
+  for (const arch of archs) {
+    // Convert arch to variant format: 'arm64-v8a' -> 'arm64v8a', 'x86_64' -> 'x8664'
+    const archVariant = arch.replace(/-/g, '').replace(/_/g, '');
+    for (const buildType of buildTypes) {
+      // Capitalize first letter of build type for variant name
+      const capitalizedBuildType = buildType.charAt(0).toUpperCase() + buildType.slice(1);
+      variants.push(archVariant + capitalizedBuildType);
+    }
+  }
+  return variants;
+}
+
+/**
+ * Extract variant name from Gradle bundle output path
+ * @param {string} bundlePath - The bundle output path from Gradle
+ * @returns {string|null} The variant name or null if not found
+ */
+function extractVariantFromPath(bundlePath) {
+  const match = bundlePath.match(/createBundle([A-Za-z0-9]+)JsAndAssets/);
+  if (match) {
+    // Convert to lowercase first character (Arm64v8aDebug -> arm64v8aDebug)
+    return match[1].charAt(0).toLowerCase() + match[1].slice(1);
+  }
+  return null;
+}
+
+const DEFAULT_ARCHS = ['arm64-v8a', 'x86_64'];
+const DEFAULT_BUILD_TYPES = ['debug', 'release'];
+
+/**
+ * Read supported architectures from android/build.gradle
+ */
+function getSupportedArchs() {
+  try {
+    const buildGradlePath = path.join(__dirname, '../android/build.gradle');
+    const content = fs.readFileSync(buildGradlePath, 'utf8');
+    return parseArchsFromGradle(content) || DEFAULT_ARCHS;
+  } catch (e) {
+    return DEFAULT_ARCHS;
+  }
+}
+
+/**
+ * Read build types from android/app/build.gradle
+ */
+function getBuildTypes() {
+  try {
+    const appBuildGradlePath = path.join(__dirname, '../android/app/build.gradle');
+    const content = fs.readFileSync(appBuildGradlePath, 'utf8');
+    return parseBuildTypesFromGradle(content) || DEFAULT_BUILD_TYPES;
+  } catch (e) {
+    return DEFAULT_BUILD_TYPES;
+  }
+}
+
+// Export functions for testing
+module.exports = {
+  parseArchsFromGradle,
+  parseBuildTypesFromGradle,
+  generateVariantNames,
+  extractVariantFromPath,
+  DEFAULT_ARCHS,
+  DEFAULT_BUILD_TYPES,
+};
+
+// Only run main logic when executed directly (not when imported for testing)
+if (require.main === module) {
+  main();
+}
+
+function main() {
+  // Args: ['bundle', '--platform', 'android', '--bundle-output', '/path/to/bundle', ...]
+  const args = process.argv.slice(2);
 
 console.log('[bundle_or_skip] Called with args:', args.slice(0, 6).join(' '), '...');
 
@@ -77,21 +196,46 @@ if (fs.existsSync(preBuiltBundle)) {
     
     // Also create the packager source map that compose-source-maps.js expects
     // Path: build/intermediates/sourcemaps/react/{variant}/index.android.bundle.packager.map
-    // Extract variant from bundle output path (e.g., createBundleX8664DebugJsAndAssets -> x8664Debug)
+    // Extract variant from bundle output path (e.g., createBundleArm64v8aDebugJsAndAssets -> arm64v8aDebug)
     const bundlePathMatch = gradleBundlePath.match(/createBundle([A-Za-z0-9]+)JsAndAssets/);
-    let variant = bundlePathMatch ? bundlePathMatch[1] : null;
+    let detectedVariant = bundlePathMatch ? bundlePathMatch[1] : null;
     
-    // Convert to lowercase first character (X8664Debug -> x8664Debug)
-    if (variant) {
-      variant = variant.charAt(0).toLowerCase() + variant.slice(1);
-      console.log('[bundle_or_skip] Detected variant:', variant);
+    // Convert to lowercase first character (Arm64v8aDebug -> arm64v8aDebug)
+    if (detectedVariant) {
+      detectedVariant = detectedVariant.charAt(0).toLowerCase() + detectedVariant.slice(1);
+      console.log('[bundle_or_skip] Detected variant:', detectedVariant);
     }
     
     const packagerSourceMapDir = path.join(__dirname, '../android/app/build/intermediates/sourcemaps/react');
     
-    // Create source map for the specific variant from path, plus common fallbacks
-    const variants = variant ? [variant] : ['x8664Debug', 'arm64V8aDebug', 'debug'];
-    for (const v of variants) {
+    // Get all supported architectures and build types to create source maps for all variants
+    // Read from android/build.gradle and android/app/build.gradle
+    const supportedArchs = getSupportedArchs();
+    const buildTypes = getBuildTypes();
+    console.log('[bundle_or_skip] Supported archs:', supportedArchs.join(', '));
+    console.log('[bundle_or_skip] Build types:', buildTypes.join(', '));
+    
+    // Generate all possible variant names
+    const allVariants = new Set();
+    if (detectedVariant) {
+      allVariants.add(detectedVariant);
+    }
+    // Add arch+buildType combinations
+    // Variant format: {arch}{BuildType} where arch has no separators
+    // e.g., arm64-v8a + debug -> arm64v8aDebug, x86_64 + customDebugType -> x8664CustomDebugType
+    for (const arch of supportedArchs) {
+      // Convert arch to variant format: 'arm64-v8a' -> 'arm64v8a', 'x86_64' -> 'x8664'
+      const archVariant = arch.replace(/-/g, '').replace(/_/g, '');
+      for (const buildType of buildTypes) {
+        // Capitalize first letter of build type for variant name
+        const capitalizedBuildType = buildType.charAt(0).toUpperCase() + buildType.slice(1);
+        allVariants.add(archVariant + capitalizedBuildType);
+      }
+    }
+    
+    console.log('[bundle_or_skip] Creating source maps for variants:', Array.from(allVariants).join(', '));
+    
+    for (const v of allVariants) {
       const variantDir = path.join(packagerSourceMapDir, v);
       if (!fs.existsSync(variantDir)) {
         fs.mkdirSync(variantDir, { recursive: true });
@@ -135,10 +279,10 @@ try {
   const cmd = `node "${cliPath}" ${args.join(' ')}`;
   execSync(cmd, { stdio: 'inherit', cwd: path.join(__dirname, '..') });
 } catch (error) {
-  console.error('\n[bundle_or_skip] ✗ Bundling failed!');
-  console.error('[bundle_or_skip] On Windows with NativeWind, you must pre-bundle on WSL/Linux:');
-  console.error('[bundle_or_skip]   cd /path/to/project && yarn bundle:android --dev=true');
-  console.error('[bundle_or_skip] Then retry the Windows build.');
-  process.exit(1);
+    console.error('\n[bundle_or_skip] ✗ Bundling failed!');
+    console.error('[bundle_or_skip] On Windows with NativeWind, you must pre-bundle on WSL/Linux:');
+    console.error('[bundle_or_skip]   cd /path/to/project && yarn bundle:android --dev=true');
+    console.error('[bundle_or_skip] Then retry the Windows build.');
+    process.exit(1);
+  }
 }
-
