@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, Pressable } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { Section, ActionButton, SecureInput, WarningBanner } from '@lib/components/ui';
-import { Box, Text, Switch, Input, InputField } from '@/components/ui';
+import { VStack, HStack, Box, Text, Switch, Input, InputField, Button, ButtonText, Card, Divider, Link, LinkText } from '@/components/ui';
 
 export default function Settings() {
   const navigation = useNavigation<AppNavigationProp>();
@@ -69,18 +69,15 @@ export default function Settings() {
     }
   };
 
-  // Stacked layout: label on top, input below
-  const rowClassName = "py-3 border-b";
-
   return (
-    <Box className="flex-1" style={{ backgroundColor: colors.background }}>
+    <VStack className="flex-1" style={{ backgroundColor: colors.background }}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 16, paddingBottom: Math.max(insets.bottom, 16) }}>
         {isDirty && (
           <WarningBanner variant="warning" message="You have unsaved changes" />
         )}
 
         <Section title="Sync Settings">
-          <Box className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+          <VStack className="py-3">
             <Text className="text-base mb-2" style={{ color: colors.text }}>
               Enable Sync
             </Text>
@@ -89,55 +86,56 @@ export default function Settings() {
               onValueChange={handleSyncToggle}
               disabled={!areAllSettingsValid(tempSettings)}
             />
-          </Box>
+            <Divider className="mt-3" />
+          </VStack>
 
           {tempSettings.syncEnabled && (
-            <Box className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
+            <VStack className="py-3">
               <Text className="text-base mb-2" style={{ color: colors.text }}>
                 Sync Type
               </Text>
-              <Box className="w-full">
-                <Box className="flex-row gap-2">
-                  <Pressable
-                    onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
-                    className="px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: tempSettings.syncType === 'unidirectional' ? colors.primary : colors.borderLight }}
-                  >
-                    <Text className="text-sm" style={{ color: tempSettings.syncType === 'unidirectional' ? '#fff' : colors.textMuted }}>
-                      Unidirectional
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    className="px-3 py-1.5 rounded-full opacity-60"
-                    style={{ backgroundColor: colors.border }}
-                  >
-                    <Text className="text-sm" style={{ color: colors.textLight }}>
-                      Bidirectional
-                    </Text>
-                  </Pressable>
-                </Box>
-                <Text className="text-xs italic mt-1" style={{ color: colors.textMuted }}>
-                  Bidirectional sync coming soon
-                </Text>
-              </Box>
-            </Box>
+              <HStack space="sm">
+                <Button
+                  onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
+                  action={tempSettings.syncType === 'unidirectional' ? 'primary' : 'secondary'}
+                  variant={tempSettings.syncType === 'unidirectional' ? 'solid' : 'outline'}
+                  size="sm"
+                  className="rounded-full"
+                >
+                  <ButtonText>Unidirectional</ButtonText>
+                </Button>
+                <Button
+                  disabled
+                  action="secondary"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full opacity-60"
+                >
+                  <ButtonText>Bidirectional</ButtonText>
+                </Button>
+              </HStack>
+              <Text className="text-xs italic mt-1" style={{ color: colors.textMuted }}>
+                Bidirectional sync coming soon
+              </Text>
+              <Divider className="mt-3" />
+            </VStack>
           )}
         </Section>
 
-        <Pressable
-          onPress={() => navigation.navigate('SyncDebug')}
-          className="p-3.5 rounded-lg mx-4 flex-row items-center justify-center"
-          style={{ 
-            backgroundColor: colors.backgroundMuted,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
+        <Card
+          variant="outline"
+          className="mx-4 p-3.5"
+          style={{ backgroundColor: colors.backgroundMuted }}
         >
-          <Text className="mr-2" style={{ color: colors.textMuted }}>🐛</Text>
-          <Text className="text-sm font-medium" style={{ color: colors.textMuted }}>
-            View Sync Debug Logs
-          </Text>
-        </Pressable>
+          <Link onPress={() => navigation.navigate('SyncDebug')} className="justify-center">
+            <HStack space="sm" className="items-center justify-center">
+              <Text style={{ color: colors.textMuted }}>🐛</Text>
+              <LinkText className="font-medium" style={{ color: colors.textMuted }}>
+                View Sync Debug Logs
+              </LinkText>
+            </HStack>
+          </Link>
+        </Card>
 
         <Section title="Current Settings Output">
           <Box className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundMuted }}>
@@ -152,11 +150,11 @@ export default function Settings() {
         </Section>
 
         <Section title="Supabase Settings">
-          <Box className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
-            <Text className="text-base mb-2" style={{ color: colors.text }}>
-              Supabase URL
-            </Text>
-            <Box className="w-full">
+          <VStack space="sm">
+            <VStack className="py-2">
+              <Text className="text-base mb-2" style={{ color: colors.text }}>
+                Supabase URL
+              </Text>
               <Input
                 variant="outline"
                 size="md"
@@ -165,20 +163,20 @@ export default function Settings() {
               >
                 <InputField
                   value={tempSettings.supabaseUrl}
-                  onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
+                  onChangeText={(text: string) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
                   placeholder="https://your-project.supabase.co"
                   placeholderTextColor={colors.textLight}
                   style={{ color: colors.text }}
                 />
               </Input>
-            </Box>
-          </Box>
+            </VStack>
 
-          <Box className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
-            <Text className="text-base mb-2" style={{ color: colors.text }}>
-              Supabase Anon Key
-            </Text>
-            <Box className="w-full">
+            <Divider />
+
+            <VStack className="py-2">
+              <Text className="text-base mb-2" style={{ color: colors.text }}>
+                Supabase Anon Key
+              </Text>
               <SecureInput
                 value={tempSettings.supabaseAnonKey}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
@@ -186,16 +184,16 @@ export default function Settings() {
                 isVisible={showSupabaseKey}
                 onVisibilityChange={setShowSupabaseKey}
               />
-            </Box>
-          </Box>
+            </VStack>
+          </VStack>
         </Section>
 
         <Section title="PowerSync Settings">
-          <Box className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
-            <Text className="text-base mb-2" style={{ color: colors.text }}>
-              PowerSync URL
-            </Text>
-            <Box className="w-full">
+          <VStack space="sm">
+            <VStack className="py-2">
+              <Text className="text-base mb-2" style={{ color: colors.text }}>
+                PowerSync URL
+              </Text>
               <Input
                 variant="outline"
                 size="md"
@@ -204,20 +202,20 @@ export default function Settings() {
               >
                 <InputField
                   value={tempSettings.powersyncUrl}
-                  onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
+                  onChangeText={(text: string) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
                   placeholder="https://your-project.powersync.journeyapps.com"
                   placeholderTextColor={colors.textLight}
                   style={{ color: colors.text }}
                 />
               </Input>
-            </Box>
-          </Box>
+            </VStack>
 
-          <Box className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
-            <Text className="text-base mb-2" style={{ color: colors.text }}>
-              PowerSync Token
-            </Text>
-            <Box className="w-full">
+            <Divider />
+
+            <VStack className="py-2">
+              <Text className="text-base mb-2" style={{ color: colors.text }}>
+                PowerSync Token
+              </Text>
               <SecureInput
                 value={tempSettings.powersyncToken}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
@@ -225,8 +223,8 @@ export default function Settings() {
                 isVisible={showPowerSyncToken}
                 onVisibilityChange={setShowPowerSyncToken}
               />
-            </Box>
-          </Box>
+            </VStack>
+          </VStack>
         </Section>
 
         {!areAllSettingsValid(tempSettings) && (
@@ -240,7 +238,7 @@ export default function Settings() {
       </ScrollView>
 
       {/* Fixed footer - Save button always visible */}
-      <Box 
+      <VStack 
         className="absolute bottom-0 left-0 right-0 pt-2"
         style={{ 
           backgroundColor: colors.background,
@@ -256,7 +254,7 @@ export default function Settings() {
         >
           {isDirty ? 'Save Changes*' : 'Save Changes'}
         </ActionButton>
-      </Box>
-    </Box>
+      </VStack>
+    </VStack>
   );
 }

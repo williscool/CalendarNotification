@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, memo } from 'react';
-import { Linking, ScrollView, Pressable } from 'react-native';
+import { Linking, ScrollView } from 'react-native';
 import { hello, sendRescheduleConfirmations, addChangeListener } from '../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
@@ -11,9 +11,9 @@ import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
-import { ActionButton, WarningBanner } from '@lib/components/ui';
+import { ActionButton, WarningBanner, AlertText } from '@lib/components/ui';
 import { emitSyncLog } from '@lib/logging/syncLog';
-import { Box, Text } from '@/components/ui';
+import { VStack, Card, Text, Link, LinkText, Button, ButtonText } from '@/components/ui';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 import type { Settings } from '@lib/hooks/SettingsContext';
@@ -140,34 +140,30 @@ export const SetupSync = () => {
 
   if (!isConfigured) {
     return (
-      <Box className="flex-1 p-5 justify-center items-center" style={{ backgroundColor: colors.background }}>
-        <Box className="items-center">
+      <VStack className="flex-1 p-5 justify-center items-center" style={{ backgroundColor: colors.background }}>
+        <VStack space="md" className="items-center">
           <Text className="text-xl text-center" style={{ color: colors.text }}>PowerSync not configured</Text>
-          <Text className="text-base text-center mt-3" style={{ color: colors.textMuted }}>
+          <Text className="text-base text-center" style={{ color: colors.textMuted }}>
             Please configure your sync settings to continue
           </Text>
-          <Text className="text-base text-center mt-3" style={{ color: colors.textMuted }}>
+          <Text className="text-base text-center" style={{ color: colors.textMuted }}>
             For setup instructions, please visit our
           </Text>
-          <Text
-            className="text-xl text-center mt-2 underline"
-            style={{ color: colors.primary }}
-            onPress={() => Linking.openURL(GITHUB_README_URL)}
-          >
-            GitHub README
-          </Text>
-          <Text className="text-base text-center mt-3 mb-4" style={{ color: colors.textMuted }}>
+          <Link onPress={() => Linking.openURL(GITHUB_README_URL)}>
+            <LinkText size="xl">GitHub README</LinkText>
+          </Link>
+          <Text className="text-base text-center" style={{ color: colors.textMuted }}>
             or
           </Text>
-          <Pressable 
+          <Button 
             onPress={() => navigation.navigate('Settings')}
-            className="px-6 py-3 rounded-lg"
-            style={{ backgroundColor: colors.primary }}
+            action="primary"
+            size="lg"
           >
-            <Text className="text-white font-semibold">Go to Settings</Text>
-          </Pressable>
-        </Box>
-      </Box>
+            <ButtonText>Go to Settings</ButtonText>
+          </Button>
+        </VStack>
+      </VStack>
     );
   }
 
@@ -184,17 +180,12 @@ export const SetupSync = () => {
 
       {isConnected === false && (
         <WarningBanner variant="warning">
-          <Text className="text-base text-center" style={{ color: colors.warningText }}>
+          <AlertText className="text-center">
             ⚠️ PowerSync is not connected. Sync features are disabled.
-            {'\n'}
-            <Text
-              className="font-semibold underline"
-              style={{ color: colors.primary }}
-              onPress={() => navigation.navigate('Settings')}
-            >
-              Go to Settings
-            </Text>
-          </Text>
+          </AlertText>
+          <Link onPress={() => navigation.navigate('Settings')} className="mt-1">
+            <LinkText bold>Go to Settings</LinkText>
+          </Link>
         </WarningBanner>
       )}
 
@@ -210,29 +201,28 @@ export const SetupSync = () => {
       </ActionButton>
 
       {showDebugOutput && (
-        <Box
-          className="my-2.5 p-2.5 rounded-lg mx-4"
-          style={{ 
-            backgroundColor: colors.backgroundMuted,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
+        <Card
+          variant="outline"
+          className="my-2.5 p-2.5 mx-4"
+          style={{ backgroundColor: colors.backgroundMuted }}
         >
-          <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
-            Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}
-          </Text>
-          <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
-            Sample PowerSync Remote Events: {JSON.stringify(psEvents)}
-          </Text>
-          <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
-            Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations?.slice(0, numEventsToDisplay))}
-          </Text>
-          {settings.syncEnabled && settings.syncType === 'bidirectional' && (
-            <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
-              Events V9 Temp Table: {JSON.stringify(tempTableEvents)}
+          <VStack space="sm">
+            <Text className="text-sm text-center" style={{ color: colors.text }} selectable>
+              Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}
             </Text>
-          )}
-        </Box>
+            <Text className="text-sm text-center" style={{ color: colors.text }} selectable>
+              Sample PowerSync Remote Events: {JSON.stringify(psEvents)}
+            </Text>
+            <Text className="text-sm text-center" style={{ color: colors.text }} selectable>
+              Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations?.slice(0, numEventsToDisplay))}
+            </Text>
+            {settings.syncEnabled && settings.syncType === 'bidirectional' && (
+              <Text className="text-sm text-center" style={{ color: colors.text }} selectable>
+                Events V9 Temp Table: {JSON.stringify(tempTableEvents)}
+              </Text>
+            )}
+          </VStack>
+        </Card>
       )}
 
       <ActionButton

@@ -2,7 +2,7 @@
 export { Section } from './Section';
 export { ActionButton } from './ActionButton';
 export { SecureInput, useSecureInputVisibility } from './SecureInput';
-export { WarningBanner } from './WarningBanner';
+export { WarningBanner, AlertText } from './WarningBanner';
 
 // Variant helpers (for advanced usage/testing)
 export { getVariantStyle, getWarningVariantStyle } from './variants';

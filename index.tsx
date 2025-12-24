@@ -39,7 +39,7 @@ function BackButton({ onPress, color, hasRightHeader }: { onPress: () => void; c
     <TouchableOpacity 
       onPress={onPress}
       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-      style={{ padding: 8, marginLeft: hasRightHeader ? 8 : -8 }}
+      style={{ padding: 8, marginLeft: hasRightHeader ? 8 : 0 }}
     >
       <Ionicons name="arrow-back" size={24} color={color} />
     </TouchableOpacity>
