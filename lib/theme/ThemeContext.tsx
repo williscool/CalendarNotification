@@ -2,7 +2,8 @@ import React, { createContext, useContext, useMemo, useState, useEffect, useCall
 import { NativeModules, useColorScheme, AppState, AppStateStatus } from 'react-native';
 import { getColors, ThemeColors } from './colors';
 
-const { ThemeModule } = NativeModules;
+// Safe access for Jest environment where NativeModules may be undefined
+const ThemeModule = NativeModules?.ThemeModule;
 
 interface ThemeContextValue {
   isDark: boolean;
