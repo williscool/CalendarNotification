@@ -19,7 +19,7 @@ env:
   ANDROID_TARGET: google_apis
   ANDROID_ARCH: x86_64
   ANDROID_PROFILE: Nexus 5X  # Light profile for CI stability (foldable was too resource-heavy)
-  ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
+  ANDROID_BUILD_TOOLS_VERSION: "36.0.0"
   ANDROID_EMULATOR_MEMORY: 4096  # Increased from 2048 for CI stability
 
   # Define constant for each job to use

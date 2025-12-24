@@ -158,7 +158,7 @@ runs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'app/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}', 'global.css', 'tailwind.config.js') }}
         restore-keys: |
           ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
           ${{ runner.os }}-js-bundle-
