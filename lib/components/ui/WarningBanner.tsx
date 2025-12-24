@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text } from '@gluestack-ui/themed';
+import { View, Text } from 'react-native';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { getWarningVariantStyle, BannerVariant } from './variants';
 
@@ -14,6 +14,7 @@ interface WarningBannerProps {
 
 /**
  * A banner for displaying warning/error/info messages.
+ * Uses NativeWind for styling.
  * 
  * Two usage modes:
  * 1. Simple: <WarningBanner message="Warning text" />
@@ -29,24 +30,25 @@ export const WarningBanner: React.FC<WarningBannerProps> = ({
   const { bg, border, text } = getWarningVariantStyle(variant, colors);
 
   return (
-    <Box
-      bg={bg}
-      p="$4"
-      mx="$4"
-      my="$4"
-      borderRadius="$lg"
-      borderWidth={1}
-      borderColor={border}
-      alignItems="center"
+    <View
+      className="p-4 mx-4 my-4 rounded-lg items-center"
+      style={{ 
+        backgroundColor: bg,
+        borderWidth: 1,
+        borderColor: border,
+      }}
       testID={testID}
     >
       {message ? (
-        <Text color={text} fontSize="$md" textAlign="center">
+        <Text
+          className="text-base text-center"
+          style={{ color: text }}
+        >
           {message}
         </Text>
       ) : (
         children
       )}
-    </Box>
+    </View>
   );
 };

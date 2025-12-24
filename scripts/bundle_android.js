@@ -20,6 +20,7 @@ const isDev = devArg ? devArg.split('=')[1] === 'true' : false;
 // Paths
 const ASSETS_DIR = path.join(__dirname, '../android/app/src/main/assets');
 const BUNDLE_OUTPUT = path.join(ASSETS_DIR, 'index.android.bundle');
+const SOURCEMAP_OUTPUT = BUNDLE_OUTPUT + '.map';
 const ASSETS_DEST = path.join(__dirname, '../android/app/src/main/res');
 
 // Create assets directory if it doesn't exist
@@ -28,8 +29,8 @@ if (!fs.existsSync(ASSETS_DIR)) {
   fs.mkdirSync(ASSETS_DIR, { recursive: true });
 }
 
-// Build command
-const command = `yarn react-native bundle --platform android --dev ${isDev} --entry-file index.tsx --bundle-output ${BUNDLE_OUTPUT} --assets-dest ${ASSETS_DEST}`;
+// Build command (includes source map for debugging and to satisfy Gradle's compose-source-maps)
+const command = `yarn react-native bundle --platform android --dev ${isDev} --entry-file index.tsx --bundle-output ${BUNDLE_OUTPUT} --sourcemap-output ${SOURCEMAP_OUTPUT} --assets-dest ${ASSETS_DEST}`;
 
 console.log(`Generating React Native bundle for Android (dev mode: ${isDev})...`);
 

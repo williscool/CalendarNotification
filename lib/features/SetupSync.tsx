@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState, memo } from 'react';
-import { Linking } from 'react-native';
-import { Box, Text, Button, ButtonText, ScrollView, VStack, Center, Pressable } from '@gluestack-ui/themed';
+import { Linking, View, Text, ScrollView, Pressable } from 'react-native';
 import { hello, sendRescheduleConfirmations, addChangeListener } from '../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
@@ -30,7 +29,7 @@ const PollingTimestamp = memo(({ color }: { color: string }) => {
   }, []);
   
   return (
-    <Text fontSize="$xl" textAlign="center" m="$2.5" color={color}>
+    <Text className="text-xl text-center m-2.5" style={{ color }}>
       Last Updated: {time}
     </Text>
   );
@@ -140,51 +139,56 @@ export const SetupSync = () => {
 
   if (!isConfigured) {
     return (
-      <Center flex={1} p="$5" bg={colors.background}>
-        <VStack space="md" alignItems="center">
-          <Text fontSize="$xl" textAlign="center" color={colors.text}>PowerSync not configured</Text>
-          <Text fontSize="$md" textAlign="center" color={colors.textMuted}>
+      <View className="flex-1 p-5 justify-center items-center" style={{ backgroundColor: colors.background }}>
+        <View className="items-center">
+          <Text className="text-xl text-center" style={{ color: colors.text }}>PowerSync not configured</Text>
+          <Text className="text-base text-center mt-3" style={{ color: colors.textMuted }}>
             Please configure your sync settings to continue
           </Text>
-          <Text fontSize="$md" textAlign="center" color={colors.textMuted}>
+          <Text className="text-base text-center mt-3" style={{ color: colors.textMuted }}>
             For setup instructions, please visit our
           </Text>
           <Text
-            fontSize="$xl"
-            textAlign="center"
-            color={colors.primary}
-            underline
+            className="text-xl text-center mt-2 underline"
+            style={{ color: colors.primary }}
             onPress={() => Linking.openURL(GITHUB_README_URL)}
           >
             GitHub README
           </Text>
-          <Text fontSize="$md" textAlign="center" color={colors.textMuted} mb="$4">
+          <Text className="text-base text-center mt-3 mb-4" style={{ color: colors.textMuted }}>
             or
           </Text>
-          <Button onPress={() => navigation.navigate('Settings')} bg={colors.primary}>
-            <ButtonText>Go to Settings</ButtonText>
-          </Button>
-        </VStack>
-      </Center>
+          <Pressable 
+            onPress={() => navigation.navigate('Settings')}
+            className="px-6 py-3 rounded-lg"
+            style={{ backgroundColor: colors.primary }}
+          >
+            <Text className="text-white font-semibold">Go to Settings</Text>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
   return (
-    <ScrollView flex={1} bg={colors.background} contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 10 }}>
-      <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
+    <ScrollView 
+      className="flex-1" 
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 10 }}
+    >
+      <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
         PowerSync Status: {dbStatus}
       </Text>
       <PollingTimestamp color={colors.text} />
 
       {isConnected === false && (
         <WarningBanner variant="warning">
-          <Text color={colors.warningText} fontSize="$md" textAlign="center">
+          <Text className="text-base text-center" style={{ color: colors.warningText }}>
             ⚠️ PowerSync is not connected. Sync features are disabled.
             {'\n'}
             <Text
-              color={colors.primary}
-              fontWeight="$semibold"
-              textDecorationLine="underline"
+              className="font-semibold underline"
+              style={{ color: colors.primary }}
               onPress={() => navigation.navigate('Settings')}
             >
               Go to Settings
@@ -205,30 +209,29 @@ export const SetupSync = () => {
       </ActionButton>
 
       {showDebugOutput && (
-        <Box
-          my="$2.5"
-          p="$2.5"
-          bg={colors.backgroundMuted}
-          borderRadius="$lg"
-          borderWidth={1}
-          borderColor={colors.border}
-          mx="$4"
+        <View
+          className="my-2.5 p-2.5 rounded-lg mx-4"
+          style={{ 
+            backgroundColor: colors.backgroundMuted,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
         >
-          <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
+          <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
             Sample Local SQLite Events eventsV9: {JSON.stringify(sqliteEvents)}
           </Text>
-          <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
+          <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
             Sample PowerSync Remote Events: {JSON.stringify(psEvents)}
           </Text>
-          <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
+          <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
             Sample PowerSync Remote Events reschedule_confirmations: {JSON.stringify(rawConfirmations?.slice(0, numEventsToDisplay))}
           </Text>
           {settings.syncEnabled && settings.syncType === 'bidirectional' && (
-            <Text fontSize="$xl" textAlign="center" m="$2.5" color={colors.text} selectable>
+            <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
               Events V9 Temp Table: {JSON.stringify(tempTableEvents)}
             </Text>
           )}
-        </Box>
+        </View>
       )}
 
       <ActionButton

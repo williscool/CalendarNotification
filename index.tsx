@@ -1,5 +1,6 @@
 // Entry point for React Native
 import 'react-native-devsettings';
+import './global.css';
 import './lib/env';
 
 import React from 'react';
@@ -12,8 +13,6 @@ import { enableScreens } from 'react-native-screens';
 enableScreens();
 import { TouchableOpacity, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { GluestackUIProvider } from '@gluestack-ui/themed';
-import { config } from '@gluestack-ui/config';
 import { PowerSyncContext } from '@powersync/react';
 import { db as psDb } from './lib/powersync';
 import { setupPowerSyncLogCapture } from './lib/powersync/Connector';
@@ -77,7 +76,6 @@ function App() {
 
   return (
     <ThemeProvider>
-      <GluestackUIProvider config={config} colorMode={isDark ? 'dark' : 'light'}>
         <SettingsProvider>
           <SyncDebugProvider>
             <PowerSyncContext.Provider value={psDb}>
@@ -87,7 +85,7 @@ function App() {
                     headerStyle: { backgroundColor: colors.backgroundWhite },
                     headerTintColor: colors.primary,
                     headerTitleStyle: { color: colors.text },
-                    headerBackVisible: false,
+                  headerBackVisible: false,
                   }}
                 >
                   <Stack.Screen
@@ -96,15 +94,15 @@ function App() {
                     options={({ navigation }) => ({
                       title: 'Sync Info',
                       headerLeft: () => (
-                        <BackButton onPress={() => BackHandler.exitApp()} color={colors.primary} hasRightHeader />
+                      <BackButton onPress={() => BackHandler.exitApp()} color={colors.primary} hasRightHeader />
                       ),
                       headerRight: () => (
-                        <TouchableOpacity 
-                          onPress={() => navigation.navigate('Settings')}
-                          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                          style={{ padding: 8, marginRight: 4 }}
-                        >
-                          <Text style={{ fontSize: 24, color: colors.primary }}>⋮</Text>
+                      <TouchableOpacity 
+                        onPress={() => navigation.navigate('Settings')}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 8, marginRight: 4 }}
+                      >
+                        <Text style={{ fontSize: 24, color: colors.primary }}>⋮</Text>
                         </TouchableOpacity>
                       ),
                     })}
@@ -112,29 +110,28 @@ function App() {
                   <Stack.Screen
                     name="Settings"
                     component={SettingsScreen}
-                    options={({ navigation }) => ({
-                      title: 'Sync Settings',
-                      headerLeft: () => (
-                        <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
-                      ),
-                    })}
+                  options={({ navigation }) => ({
+                    title: 'Sync Settings',
+                    headerLeft: () => (
+                      <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
+                    ),
+                  })}
                   />
                   <Stack.Screen
                     name="SyncDebug"
                     component={SyncDebugScreen}
-                    options={({ navigation }) => ({
-                      title: 'Sync Debug',
-                      headerLeft: () => (
-                        <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
-                      ),
-                    })}
+                  options={({ navigation }) => ({
+                    title: 'Sync Debug',
+                    headerLeft: () => (
+                      <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
+                    ),
+                  })}
                   />
                 </Stack.Navigator>
               </NavigationContainer>
             </PowerSyncContext.Provider>
           </SyncDebugProvider>
         </SettingsProvider>
-      </GluestackUIProvider>
     </ThemeProvider>
   );
 }

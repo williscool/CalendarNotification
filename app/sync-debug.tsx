@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { FlatList, RefreshControl } from 'react-native';
-import { Box, Text, HStack, VStack, Pressable, Badge, BadgeText } from '@gluestack-ui/themed';
+import { FlatList, RefreshControl, View, Text, Pressable } from 'react-native';
 import { PowerSyncContext } from "@powersync/react";
 import { useSyncDebug } from '@lib/hooks/SyncDebugContext';
 import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Connector';
@@ -34,41 +33,43 @@ const LogLevelBadge: React.FC<{ level: SyncLogEntry['level']; colors: ThemeColor
   };
   
   return (
-    <Badge bg={logLevelColors[level]} borderRadius="$sm" px="$1.5" py="$0.5" mr="$2">
-      <BadgeText color="#fff" fontSize="$2xs" fontWeight="$bold">
+    <View 
+      className="rounded px-1.5 py-0.5 mr-2"
+      style={{ backgroundColor: logLevelColors[level] }}
+    >
+      <Text className="text-white text-xs font-bold">
         {level.toUpperCase()}
-      </BadgeText>
-    </Badge>
+      </Text>
+    </View>
   );
 };
 
 const LogEntryView = memo<{ entry: SyncLogEntry; colors: ThemeColors }>(({ entry, colors }) => (
-  <Box
-    bg={colors.backgroundMuted}
-    p="$2.5"
-    borderRadius="$md"
-    mx="$4"
-    mt="$2"
-    borderLeftWidth={3}
-    borderLeftColor={colors.border}
+  <View
+    className="p-2.5 rounded-md mx-4 mt-2"
+    style={{ 
+      backgroundColor: colors.backgroundMuted,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.border,
+    }}
   >
-    <HStack alignItems="center" mb="$1">
+    <View className="flex-row items-center mb-1">
       <LogLevelBadge level={entry.level} colors={colors} />
-      <Text fontSize="$2xs" color={colors.textLight} fontFamily="monospace">
+      <Text className="text-xs font-mono" style={{ color: colors.textLight }}>
         {formatTimestamp(entry.timestamp)}
       </Text>
-    </HStack>
-    <Text fontSize="$sm" color={colors.text} mt="$0.5" selectable>
+    </View>
+    <Text className="text-sm mt-0.5" style={{ color: colors.text }} selectable>
       {entry.message}
     </Text>
     {entry.data && (
-      <Box bg={colors.borderLight} p="$1.5" borderRadius="$sm" mt="$1">
-        <Text fontSize="$2xs" color={colors.textMuted} fontFamily="monospace" selectable>
+      <View className="p-1.5 rounded mt-1" style={{ backgroundColor: colors.borderLight }}>
+        <Text className="text-xs font-mono" style={{ color: colors.textMuted }} selectable>
           {JSON.stringify(entry.data, null, 2)}
         </Text>
-      </Box>
+      </View>
     )}
-  </Box>
+  </View>
 ));
 
 const LogFilterToggle: React.FC<{
@@ -83,35 +84,31 @@ const LogFilterToggle: React.FC<{
   ];
 
   return (
-    <VStack alignItems="center" space="sm">
-      <Text fontSize="$sm" fontWeight="$semibold" color={colors.text}>
+    <View className="items-center gap-2">
+      <Text className="text-sm font-semibold" style={{ color: colors.text }}>
         Log Filter:
       </Text>
-      <HStack bg={colors.backgroundMuted} borderRadius="$lg" p="$1">
+      <View className="flex-row rounded-lg p-1" style={{ backgroundColor: colors.backgroundMuted }}>
         {levels.map(({ key, label }) => (
           <Pressable
             key={key}
             onPress={() => onChange(key)}
-            px="$4"
-            py="$2"
-            borderRadius="$md"
-            mx="$0.5"
-            bg={value === key ? colors.primary : 'transparent'}
+            className="px-4 py-2 rounded-md mx-0.5"
+            style={{ backgroundColor: value === key ? colors.primary : 'transparent' }}
           >
             <Text
-              fontSize="$sm"
-              fontWeight="$medium"
-              color={value === key ? '#fff' : colors.textMuted}
+              className="text-sm font-medium"
+              style={{ color: value === key ? '#fff' : colors.textMuted }}
             >
               {label}
             </Text>
           </Pressable>
         ))}
-      </HStack>
-      <Text fontSize="$2xs" color={colors.textLight} fontStyle="italic">
+      </View>
+      <Text className="text-xs italic" style={{ color: colors.textLight }}>
         {levels.find(l => l.key === value)?.description}
       </Text>
-    </VStack>
+    </View>
   );
 };
 
@@ -120,49 +117,45 @@ const FailedOperationView: React.FC<{
   onRemove: () => void;
   colors: ThemeColors;
 }> = ({ op, onRemove, colors }) => (
-  <Box
-    bg={colors.failedOpBackground}
-    p="$3"
-    borderRadius="$md"
-    mt="$2"
-    borderLeftWidth={3}
-    borderLeftColor={colors.danger}
+  <View
+    className="p-3 rounded-md mt-2"
+    style={{ 
+      backgroundColor: colors.failedOpBackground,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.danger,
+    }}
   >
-    <HStack justifyContent="space-between" alignItems="center">
-      <Text fontSize="$sm" fontWeight="$semibold" color={colors.text}>
+    <View className="flex-row justify-between items-center">
+      <Text className="text-sm font-semibold" style={{ color: colors.text }}>
         {op.op} on {op.table}
       </Text>
-      <Text fontSize="$2xs" color={colors.textLight}>
+      <Text className="text-xs" style={{ color: colors.textLight }}>
         {formatTimestamp(op.timestamp)}
       </Text>
-    </HStack>
-    <Text fontSize="$xs" color={colors.textMuted} mt="$1" fontFamily="monospace">
+    </View>
+    <Text className="text-xs font-mono mt-1" style={{ color: colors.textMuted }}>
       ID: {op.recordId}
     </Text>
-    <Text fontSize="$xs" color={colors.danger} mt="$1">
+    <Text className="text-xs mt-1" style={{ color: colors.danger }}>
       Error: {op.error} ({op.errorCode})
     </Text>
     {op.opData && (
-      <Box bg={colors.failedOpDataBackground} p="$1.5" borderRadius="$sm" mt="$1">
-        <Text fontSize="$2xs" color={colors.textMuted} fontFamily="monospace" numberOfLines={3} selectable>
+      <View className="p-1.5 rounded mt-1" style={{ backgroundColor: colors.failedOpDataBackground }}>
+        <Text className="text-xs font-mono" style={{ color: colors.textMuted }} numberOfLines={3} selectable>
           Data: {JSON.stringify(op.opData)}
         </Text>
-      </Box>
+      </View>
     )}
     <Pressable
       onPress={onRemove}
-      bg={colors.warning}
-      px="$3"
-      py="$1.5"
-      borderRadius="$md"
-      alignSelf="flex-end"
-      mt="$2"
+      className="px-3 py-1.5 rounded-md self-end mt-2"
+      style={{ backgroundColor: colors.warning }}
     >
-      <Text color="#fff" fontSize="$xs" fontWeight="$semibold">
+      <Text className="text-white text-xs font-semibold">
         Discard
       </Text>
     </Pressable>
-  </Box>
+  </View>
 );
 
 export default function SyncDebug() {
@@ -203,11 +196,11 @@ export default function SyncDebug() {
   const ListHeader = useCallback(() => (
     <>
       <Section title="PowerSync Status">
-        <Box bg={colors.backgroundMuted} p="$3" borderRadius="$md" mt="$2">
-          <Text fontFamily="monospace" fontSize="$xs" color={colors.text} selectable>
+        <View className="p-3 rounded-md mt-2" style={{ backgroundColor: colors.backgroundMuted }}>
+          <Text className="font-mono text-xs" style={{ color: colors.text }} selectable>
             {syncStatus}
           </Text>
-        </Box>
+        </View>
       </Section>
 
       <Section>
@@ -216,15 +209,19 @@ export default function SyncDebug() {
 
       {failedOperations.length > 0 && (
         <Section>
-          <HStack justifyContent="space-between" alignItems="center" mb="$2">
-            <Text fontSize="$lg" fontWeight="$bold" color={colors.text}>
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-lg font-bold" style={{ color: colors.text }}>
               Failed Operations ({failedOperations.length})
             </Text>
-            <Pressable onPress={clearFailedOperations} bg={colors.danger} px="$3" py="$1.5" borderRadius="$md">
-              <Text color="#fff" fontSize="$xs" fontWeight="$semibold">Clear All</Text>
+            <Pressable 
+              onPress={clearFailedOperations} 
+              className="px-3 py-1.5 rounded-md"
+              style={{ backgroundColor: colors.danger }}
+            >
+              <Text className="text-white text-xs font-semibold">Clear All</Text>
             </Pressable>
-          </HStack>
-          <Text fontSize="$xs" color={colors.textMuted} fontStyle="italic" mb="$3">
+          </View>
+          <Text className="text-xs italic mb-3" style={{ color: colors.textMuted }}>
             These operations failed with unrecoverable errors. Review and discard when ready.
           </Text>
           {failedOperations.map((op) => (
@@ -238,39 +235,39 @@ export default function SyncDebug() {
         </Section>
       )}
 
-      <Box
-        bg={colors.backgroundWhite}
-        p="$4"
-        pb="$2"
-        mx="$4"
-        borderTopLeftRadius="$lg"
-        borderTopRightRadius="$lg"
+      <View
+        className="p-4 pb-2 mx-4 rounded-t-lg"
+        style={{ backgroundColor: colors.backgroundWhite }}
       >
-        <HStack justifyContent="space-between" alignItems="center" mb="$2">
-          <VStack>
-            <Text fontSize="$lg" fontWeight="$bold" color={colors.text}>
+        <View className="flex-row justify-between items-center mb-2">
+          <View>
+            <Text className="text-lg font-bold" style={{ color: colors.text }}>
               Sync Logs ({filteredLogs.length})
             </Text>
             {filteredLogs.length !== logs.length && (
-              <Text fontSize="$2xs" color={colors.textLight}>
+              <Text className="text-xs" style={{ color: colors.textLight }}>
                 {logs.length} total, filtered by level
               </Text>
             )}
-          </VStack>
-          <Pressable onPress={clearLogs} bg={colors.danger} px="$3" py="$1.5" borderRadius="$md">
-            <Text color="#fff" fontSize="$xs" fontWeight="$semibold">Clear</Text>
+          </View>
+          <Pressable 
+            onPress={clearLogs} 
+            className="px-3 py-1.5 rounded-md"
+            style={{ backgroundColor: colors.danger }}
+          >
+            <Text className="text-white text-xs font-semibold">Clear</Text>
           </Pressable>
-        </HStack>
-      </Box>
+        </View>
+      </View>
     </>
   ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, filteredLogs.length, clearLogs, colors]);
 
   const ListEmpty = useCallback(() => (
-    <Box bg={colors.backgroundWhite} mx="$4" pb="$4" borderBottomLeftRadius="$lg" borderBottomRightRadius="$lg">
-      <Text color={colors.textLight} fontStyle="italic" textAlign="center" py="$5">
+    <View className="mx-4 pb-4 rounded-b-lg" style={{ backgroundColor: colors.backgroundWhite }}>
+      <Text className="italic text-center py-5" style={{ color: colors.textLight }}>
         No logs yet. Sync activity will appear here.
       </Text>
-    </Box>
+    </View>
   ), [colors]);
 
   return (

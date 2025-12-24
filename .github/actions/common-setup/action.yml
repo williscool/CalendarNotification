@@ -140,6 +140,26 @@ runs:
         YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz
         HUSKY: '0'
 
+    # Clean stale native build artifacts from node_modules
+    # This prevents "duplicate class" errors when dependencies change
+    # (e.g., react-native-worklets removed since reanimated includes it)
+    - name: Clean stale node_modules build artifacts
+      shell: bash
+      run: |
+        echo "Cleaning stale native build artifacts from node_modules..."
+        # Remove android build directories from all node_modules packages
+        # These get recreated during build but can cause conflicts if cached
+        find node_modules -path "*/android/build" -type d -prune 2>/dev/null | while read dir; do
+          echo "Removing: $dir"
+          rm -rf "$dir"
+        done
+        # Also clean any .transforms directories
+        find node_modules -name ".transforms" -type d -prune 2>/dev/null | while read dir; do
+          echo "Removing: $dir"
+          rm -rf "$dir"
+        done
+        echo "Cleanup complete"
+
     - name: Restore yarn install state
       id: yarn-install-state-cache-restore
       uses: actions/cache/restore@v4
@@ -158,7 +178,7 @@ runs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'app/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}', 'global.css', 'tailwind.config.js') }}
         restore-keys: |
           ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
           ${{ runner.os }}-js-bundle-

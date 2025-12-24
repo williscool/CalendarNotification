@@ -23,6 +23,7 @@
     "src/**/*",
     "test/**/*",
     "index.tsx",
+    "app/**/*",
     "lib/**/*",
     "scripts/**/*.ts",
     "nativewind-env.d.ts"

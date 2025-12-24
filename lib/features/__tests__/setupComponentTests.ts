@@ -44,39 +44,50 @@ jest.mock('@powersync/react', () => ({
   PowerSyncContext: React.createContext(null),
 }));
 
-// Filter out Gluestack-specific style props that React DOM doesn't understand
-const filterGluestackProps = (props: any) => {
-  const { 
-    testID, bg, p, m, mx, my, mt, mb, ml, mr, px, py, pt, pb, pl, pr,
-    flex, alignItems, justifyContent, borderRadius, borderWidth, borderColor,
-    space, fontSize, fontWeight, textAlign, color, underline, selectable,
-    contentContainerStyle, textDecorationLine, ...rest 
-  } = props;
-  return { 'data-testid': testID, ...rest };
+// Helper to filter out NativeWind className and convert style objects properly
+const filterProps = (props: any) => {
+  const { testID, className, style, ...rest } = props;
+  // Only pass style if it's an object, not a string
+  const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+  return { 'data-testid': testID, style: safeStyle, ...rest };
 };
 
-// Mock Gluestack UI - provide simple div-based components for testing
-jest.mock('@gluestack-ui/themed', () => ({
-  Box: ({ children, ...props }: any) => React.createElement('div', filterGluestackProps(props), children),
-  Text: ({ children, onPress, ...props }: any) => {
-    const filtered = filterGluestackProps(props);
-    return onPress 
-      ? React.createElement('span', { ...filtered, onClick: onPress, role: 'button' }, children)
-      : React.createElement('span', filtered, children);
-  },
-  Button: ({ children, onPress, ...props }: any) => React.createElement('button', { onClick: onPress, ...filterGluestackProps(props) }, children),
-  ButtonText: ({ children, ...props }: any) => React.createElement('span', filterGluestackProps(props), children),
-  ScrollView: ({ children, ...props }: any) => React.createElement('div', filterGluestackProps(props), children),
-  VStack: ({ children, ...props }: any) => React.createElement('div', filterGluestackProps(props), children),
-  Center: ({ children, ...props }: any) => React.createElement('div', filterGluestackProps(props), children),
-  Pressable: ({ children, onPress, disabled, ...props }: any) => React.createElement('button', { onClick: disabled ? undefined : onPress, disabled, ...filterGluestackProps(props) }, children),
-}));
-
-// Mock react-native Linking and components
+// Mock react-native components with NativeWind className filtering
 jest.mock('react-native', () => ({
   Linking: { openURL: jest.fn() },
   useColorScheme: jest.fn(() => 'light'),
-  Pressable: ({ children, onPress, disabled, testID, style, ...props }: any) => 
-    React.createElement('button', { onClick: disabled ? undefined : onPress, disabled, 'data-testid': testID }, children),
+  View: ({ children, testID, className, style, ...props }: any) => {
+    const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+    return React.createElement('div', { 'data-testid': testID, style: safeStyle, ...props }, children);
+  },
+  Text: ({ children, onPress, testID, className, style, selectable, ...props }: any) => {
+    const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+    return onPress 
+      ? React.createElement('span', { 'data-testid': testID, onClick: onPress, role: 'button', style: safeStyle, ...props }, children)
+      : React.createElement('span', { 'data-testid': testID, style: safeStyle, ...props }, children);
+  },
+  ScrollView: ({ children, testID, className, style, contentContainerStyle, ...props }: any) => {
+    const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+    return React.createElement('div', { 'data-testid': testID, style: safeStyle, ...props }, children);
+  },
+  Pressable: ({ children, onPress, disabled, testID, className, style, ...props }: any) => {
+    const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+    return React.createElement('button', { onClick: disabled ? undefined : onPress, disabled, 'data-testid': testID, style: safeStyle, ...props }, children);
+  },
+  TextInput: ({ testID, className, style, ...props }: any) => {
+    const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+    return React.createElement('input', { 'data-testid': testID, style: safeStyle, ...props });
+  },
+  Switch: ({ value, onValueChange, disabled, testID, ...props }: any) => 
+    React.createElement('input', { type: 'checkbox', checked: value, onChange: (e: any) => onValueChange?.(e.target.checked), disabled, 'data-testid': testID, ...props }),
+  useWindowDimensions: () => ({ width: 800, height: 600 }),
+  FlatList: ({ data, renderItem, ListHeaderComponent, ListEmptyComponent, keyExtractor, style, ...props }: any) => {
+    const header = ListHeaderComponent ? (typeof ListHeaderComponent === 'function' ? ListHeaderComponent() : ListHeaderComponent) : null;
+    const empty = (!data || data.length === 0) && ListEmptyComponent ? (typeof ListEmptyComponent === 'function' ? ListEmptyComponent() : ListEmptyComponent) : null;
+    const items = data?.map((item: any, index: number) => renderItem({ item, index })) || [];
+    const safeStyle = typeof style === 'object' && style !== null ? style : undefined;
+    return React.createElement('div', { style: safeStyle, ...props }, header, empty || items);
+  },
+  RefreshControl: () => null,
 }));
 
