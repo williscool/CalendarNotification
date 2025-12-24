@@ -20,6 +20,7 @@ import { SettingsProvider } from './lib/hooks/SettingsContext';
 import { SyncDebugProvider } from './lib/hooks/SyncDebugContext';
 import { ThemeProvider } from './lib/theme/ThemeContext';
 import { getColors } from './lib/theme/colors';
+import { GluestackUIProvider } from './components/ui/gluestack-ui-provider';
 import Logger from 'js-logger';
 
 // Screens
@@ -76,6 +77,7 @@ function App() {
 
   return (
     <ThemeProvider>
+      <GluestackUIProvider mode={isDark ? 'dark' : 'light'}>
         <SettingsProvider>
           <SyncDebugProvider>
             <PowerSyncContext.Provider value={psDb}>
@@ -132,6 +134,7 @@ function App() {
             </PowerSyncContext.Provider>
           </SyncDebugProvider>
         </SettingsProvider>
+      </GluestackUIProvider>
     </ThemeProvider>
   );
 }

@@ -196,9 +196,8 @@ describe('SetupSync UI States', () => {
 
     it('renders sync button as disabled', async () => {
       await renderAndWaitForStatus(<SetupSync />);
-      const syncButton = screen.getByText('Sync Events Local To PowerSync Now');
-      const button = syncButton.closest('button');
-      expect(button).toBeDisabled();
+      const button = screen.getByTestId('sync-button');
+      expect(button).toHaveAttribute('aria-disabled', 'true');
     });
   });
 
@@ -225,10 +224,8 @@ describe('SetupSync UI States', () => {
 
     it('renders sync button as disabled', async () => {
       await renderAndWaitForStatus(<SetupSync />);
-      const syncButton = screen.getByText('Sync Events Local To PowerSync Now');
-      // Find the button element (parent of the text)
-      const button = syncButton.closest('button');
-      expect(button).toBeDisabled();
+      const button = screen.getByTestId('sync-button');
+      expect(button).toHaveAttribute('aria-disabled', 'true');
     });
   });
 
@@ -261,9 +258,8 @@ describe('SetupSync UI States', () => {
 
     it('renders sync button as disabled', async () => {
       await renderAndWaitForStatus(<SetupSync />);
-      const syncButton = screen.getByText('Sync Events Local To PowerSync Now');
-      const button = syncButton.closest('button');
-      expect(button).toBeDisabled();
+      const button = screen.getByTestId('sync-button');
+      expect(button).toHaveAttribute('aria-disabled', 'true');
     });
   });
 
@@ -290,16 +286,14 @@ describe('SetupSync UI States', () => {
 
     it('renders sync button as enabled', async () => {
       await renderAndWaitForStatus(<SetupSync />);
-      const syncButton = screen.getByText('Sync Events Local To PowerSync Now');
-      const button = syncButton.closest('button');
-      expect(button).not.toBeDisabled();
+      const button = screen.getByTestId('sync-button');
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
     });
 
     it('renders danger zone button as enabled', async () => {
       await renderAndWaitForStatus(<SetupSync />);
-      const dangerButton = screen.getByText(/Show Danger Zone/);
-      const button = dangerButton.closest('button');
-      expect(button).not.toBeDisabled();
+      const button = screen.getByTestId('danger-zone-button');
+      expect(button).not.toHaveAttribute('aria-disabled', 'true');
     });
   });
 });

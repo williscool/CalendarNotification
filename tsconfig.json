@@ -15,6 +15,12 @@
     "paths": {
       "@lib/*": [
         "lib/*"
+      ],
+      "@/*": [
+        "./*"
+      ],
+      "tailwind.config": [
+        "./tailwind.config.js"
       ]
     },
     "esModuleInterop": true

@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, memo } from 'react';
-import { Linking, View, Text, ScrollView, Pressable } from 'react-native';
+import { Linking, ScrollView, Pressable } from 'react-native';
 import { hello, sendRescheduleConfirmations, addChangeListener } from '../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
@@ -13,6 +13,7 @@ import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner } from '@lib/components/ui';
 import { emitSyncLog } from '@lib/logging/syncLog';
+import { Box, Text } from '@/components/ui';
 
 import type { RawRescheduleConfirmation } from '../../modules/my-module';
 import type { Settings } from '@lib/hooks/SettingsContext';
@@ -139,8 +140,8 @@ export const SetupSync = () => {
 
   if (!isConfigured) {
     return (
-      <View className="flex-1 p-5 justify-center items-center" style={{ backgroundColor: colors.background }}>
-        <View className="items-center">
+      <Box className="flex-1 p-5 justify-center items-center" style={{ backgroundColor: colors.background }}>
+        <Box className="items-center">
           <Text className="text-xl text-center" style={{ color: colors.text }}>PowerSync not configured</Text>
           <Text className="text-base text-center mt-3" style={{ color: colors.textMuted }}>
             Please configure your sync settings to continue
@@ -165,8 +166,8 @@ export const SetupSync = () => {
           >
             <Text className="text-white font-semibold">Go to Settings</Text>
           </Pressable>
-        </View>
-      </View>
+        </Box>
+      </Box>
     );
   }
 
@@ -209,7 +210,7 @@ export const SetupSync = () => {
       </ActionButton>
 
       {showDebugOutput && (
-        <View
+        <Box
           className="my-2.5 p-2.5 rounded-lg mx-4"
           style={{ 
             backgroundColor: colors.backgroundMuted,
@@ -231,13 +232,14 @@ export const SetupSync = () => {
               Events V9 Temp Table: {JSON.stringify(tempTableEvents)}
             </Text>
           )}
-        </View>
+        </Box>
       )}
 
       <ActionButton
         onPress={handleSync}
         variant="success"
         disabled={!isConnected}
+        testID="sync-button"
       >
         Sync Events Local To PowerSync Now
       </ActionButton>
@@ -246,6 +248,7 @@ export const SetupSync = () => {
         onPress={() => setShowDangerZone(!showDangerZone)}
         variant={showDangerZone ? 'danger' : 'primary'}
         disabled={!isConnected}
+        testID="danger-zone-button"
       >
         {showDangerZone ? '🔒 Hide Danger Zone' : '⚠️ Show Danger Zone'}
       </ActionButton>

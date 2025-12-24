@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, View, Text } from 'react-native';
+import { Pressable } from 'react-native';
+import { Box, Text } from '@/components/ui';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { getVariantStyle, ButtonVariant } from './variants';
 
@@ -13,7 +14,7 @@ interface ActionButtonProps {
 
 /**
  * A styled button with variant support.
- * Uses NativeWind for styling.
+ * Uses Gluestack UI Box and Text with custom variant colors.
  */
 export const ActionButton: React.FC<ActionButtonProps> = ({
   onPress,
@@ -30,11 +31,13 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       testID={testID}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
       style={({ pressed }) => ({
         opacity: disabled ? 0.7 : pressed ? 0.8 : 1,
       })}
     >
-      <View
+      <Box
         className="p-4 rounded-lg mx-4 mt-4 items-center justify-center"
         style={{ backgroundColor: bg }}
       >
@@ -44,7 +47,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         >
           {children}
         </Text>
-      </View>
+      </Box>
     </Pressable>
   );
 };

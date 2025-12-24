@@ -1,11 +1,12 @@
 import React, { useContext, useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { FlatList, RefreshControl, View, Text, Pressable } from 'react-native';
+import { FlatList, RefreshControl, Pressable } from 'react-native';
 import { PowerSyncContext } from "@powersync/react";
 import { useSyncDebug } from '@lib/hooks/SyncDebugContext';
 import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Connector';
-import { Section, ActionButton } from '@lib/components/ui';
+import { Section } from '@lib/components/ui';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { ThemeColors } from '@lib/theme/colors';
+import { Box, Text } from '@/components/ui';
 
 // Filter logs based on display level preference
 const filterLogsByLevel = (logs: SyncLogEntry[], filterLevel: LogFilterLevel): SyncLogEntry[] => {
@@ -33,19 +34,19 @@ const LogLevelBadge: React.FC<{ level: SyncLogEntry['level']; colors: ThemeColor
   };
   
   return (
-    <View 
+    <Box 
       className="rounded px-1.5 py-0.5 mr-2"
       style={{ backgroundColor: logLevelColors[level] }}
     >
       <Text className="text-white text-xs font-bold">
         {level.toUpperCase()}
       </Text>
-    </View>
+    </Box>
   );
 };
 
 const LogEntryView = memo<{ entry: SyncLogEntry; colors: ThemeColors }>(({ entry, colors }) => (
-  <View
+  <Box
     className="p-2.5 rounded-md mx-4 mt-2"
     style={{ 
       backgroundColor: colors.backgroundMuted,
@@ -53,23 +54,23 @@ const LogEntryView = memo<{ entry: SyncLogEntry; colors: ThemeColors }>(({ entry
       borderLeftColor: colors.border,
     }}
   >
-    <View className="flex-row items-center mb-1">
+    <Box className="flex-row items-center mb-1">
       <LogLevelBadge level={entry.level} colors={colors} />
       <Text className="text-xs font-mono" style={{ color: colors.textLight }}>
         {formatTimestamp(entry.timestamp)}
       </Text>
-    </View>
+    </Box>
     <Text className="text-sm mt-0.5" style={{ color: colors.text }} selectable>
       {entry.message}
     </Text>
     {entry.data && (
-      <View className="p-1.5 rounded mt-1" style={{ backgroundColor: colors.borderLight }}>
+      <Box className="p-1.5 rounded mt-1" style={{ backgroundColor: colors.borderLight }}>
         <Text className="text-xs font-mono" style={{ color: colors.textMuted }} selectable>
           {JSON.stringify(entry.data, null, 2)}
         </Text>
-      </View>
+      </Box>
     )}
-  </View>
+  </Box>
 ));
 
 const LogFilterToggle: React.FC<{
@@ -84,11 +85,11 @@ const LogFilterToggle: React.FC<{
   ];
 
   return (
-    <View className="items-center gap-2">
+    <Box className="items-center gap-2">
       <Text className="text-sm font-semibold" style={{ color: colors.text }}>
         Log Filter:
       </Text>
-      <View className="flex-row rounded-lg p-1" style={{ backgroundColor: colors.backgroundMuted }}>
+      <Box className="flex-row rounded-lg p-1" style={{ backgroundColor: colors.backgroundMuted }}>
         {levels.map(({ key, label }) => (
           <Pressable
             key={key}
@@ -104,11 +105,11 @@ const LogFilterToggle: React.FC<{
             </Text>
           </Pressable>
         ))}
-      </View>
+      </Box>
       <Text className="text-xs italic" style={{ color: colors.textLight }}>
         {levels.find(l => l.key === value)?.description}
       </Text>
-    </View>
+    </Box>
   );
 };
 
@@ -117,7 +118,7 @@ const FailedOperationView: React.FC<{
   onRemove: () => void;
   colors: ThemeColors;
 }> = ({ op, onRemove, colors }) => (
-  <View
+  <Box
     className="p-3 rounded-md mt-2"
     style={{ 
       backgroundColor: colors.failedOpBackground,
@@ -125,14 +126,14 @@ const FailedOperationView: React.FC<{
       borderLeftColor: colors.danger,
     }}
   >
-    <View className="flex-row justify-between items-center">
+    <Box className="flex-row justify-between items-center">
       <Text className="text-sm font-semibold" style={{ color: colors.text }}>
         {op.op} on {op.table}
       </Text>
       <Text className="text-xs" style={{ color: colors.textLight }}>
         {formatTimestamp(op.timestamp)}
       </Text>
-    </View>
+    </Box>
     <Text className="text-xs font-mono mt-1" style={{ color: colors.textMuted }}>
       ID: {op.recordId}
     </Text>
@@ -140,11 +141,11 @@ const FailedOperationView: React.FC<{
       Error: {op.error} ({op.errorCode})
     </Text>
     {op.opData && (
-      <View className="p-1.5 rounded mt-1" style={{ backgroundColor: colors.failedOpDataBackground }}>
+      <Box className="p-1.5 rounded mt-1" style={{ backgroundColor: colors.failedOpDataBackground }}>
         <Text className="text-xs font-mono" style={{ color: colors.textMuted }} numberOfLines={3} selectable>
           Data: {JSON.stringify(op.opData)}
         </Text>
-      </View>
+      </Box>
     )}
     <Pressable
       onPress={onRemove}
@@ -155,7 +156,7 @@ const FailedOperationView: React.FC<{
         Discard
       </Text>
     </Pressable>
-  </View>
+  </Box>
 );
 
 export default function SyncDebug() {
@@ -196,11 +197,11 @@ export default function SyncDebug() {
   const ListHeader = useCallback(() => (
     <>
       <Section title="PowerSync Status">
-        <View className="p-3 rounded-md mt-2" style={{ backgroundColor: colors.backgroundMuted }}>
+        <Box className="p-3 rounded-md mt-2" style={{ backgroundColor: colors.backgroundMuted }}>
           <Text className="font-mono text-xs" style={{ color: colors.text }} selectable>
             {syncStatus}
           </Text>
-        </View>
+        </Box>
       </Section>
 
       <Section>
@@ -209,7 +210,7 @@ export default function SyncDebug() {
 
       {failedOperations.length > 0 && (
         <Section>
-          <View className="flex-row justify-between items-center mb-2">
+          <Box className="flex-row justify-between items-center mb-2">
             <Text className="text-lg font-bold" style={{ color: colors.text }}>
               Failed Operations ({failedOperations.length})
             </Text>
@@ -220,7 +221,7 @@ export default function SyncDebug() {
             >
               <Text className="text-white text-xs font-semibold">Clear All</Text>
             </Pressable>
-          </View>
+          </Box>
           <Text className="text-xs italic mb-3" style={{ color: colors.textMuted }}>
             These operations failed with unrecoverable errors. Review and discard when ready.
           </Text>
@@ -235,12 +236,12 @@ export default function SyncDebug() {
         </Section>
       )}
 
-      <View
+      <Box
         className="p-4 pb-2 mx-4 rounded-t-lg"
         style={{ backgroundColor: colors.backgroundWhite }}
       >
-        <View className="flex-row justify-between items-center mb-2">
-          <View>
+        <Box className="flex-row justify-between items-center mb-2">
+          <Box>
             <Text className="text-lg font-bold" style={{ color: colors.text }}>
               Sync Logs ({filteredLogs.length})
             </Text>
@@ -249,7 +250,7 @@ export default function SyncDebug() {
                 {logs.length} total, filtered by level
               </Text>
             )}
-          </View>
+          </Box>
           <Pressable 
             onPress={clearLogs} 
             className="px-3 py-1.5 rounded-md"
@@ -257,17 +258,17 @@ export default function SyncDebug() {
           >
             <Text className="text-white text-xs font-semibold">Clear</Text>
           </Pressable>
-        </View>
-      </View>
+        </Box>
+      </Box>
     </>
   ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, filteredLogs.length, clearLogs, colors]);
 
   const ListEmpty = useCallback(() => (
-    <View className="mx-4 pb-4 rounded-b-lg" style={{ backgroundColor: colors.backgroundWhite }}>
+    <Box className="mx-4 pb-4 rounded-b-lg" style={{ backgroundColor: colors.backgroundWhite }}>
       <Text className="italic text-center py-5" style={{ color: colors.textLight }}>
         No logs yet. Sync activity will appear here.
       </Text>
-    </View>
+    </Box>
   ), [colors]);
 
   return (
