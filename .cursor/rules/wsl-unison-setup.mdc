@@ -10,44 +10,72 @@ This project uses a dual-filesystem setup for development:
 - **Linux/WSL location** (primary development location):
   `/home/william/not_connected_to_windows/CalendarNotification`
 
-- **Windows location** (accessible via WSL at `/mnt/c`):
-  `/mnt/c/Users/william/unison-with-dropbox-symlinked-to-linux/CalendarNotification`
+- **Windows location** (for Android builds - use short path!):
+  - **Short path**: `C:\dev\CN` or `/mnt/c/dev/CN` — BUILD FROM HERE
+  - **Junction for backwards compat**: `C:\Users\william\unison-with-dropbox-symlinked-to-linux\CalendarNotification` → `C:\dev\CN`
 
 ## Sync Strategy
 
-- **Unison** is used to sync files between the Linux and Windows filesystems
-- Most files are synced, but **`node_modules` is NOT synced** due to size
-- `node_modules` is installed separately on each side of the sync
+- **Unison** syncs files between Linux and Windows using profile `non_windows_cnplus.prf`
+- Syncs directly: `/mnt/c/dev/CN` ↔ `/home/william/not_connected_to_windows/CalendarNotification`
+- **`node_modules` is NOT synced** — install separately on each side
+- Run with: `unison non_windows_cnplus`
+
+### ⚠️ CRITICAL: Never sync through the junction!
+
+Unison must point to the **real short path** (`/mnt/c/dev/CN`), NOT the junction path. If you sync through the junction, Unison will replace your Linux directory with a symlink to `/mnt/c/...`, completely defeating the fast-filesystem setup and potentially destroying data.
 
 ## Implications
 
 - When referencing paths, prefer the Linux location (`/home/william/not_connected_to_windows/CalendarNotification`)
-- If `node_modules` appears missing or incomplete, it may need to be installed separately on that side
+- If `node_modules` appears missing or incomplete, run `npm install` on that side
 - Git operations and file system operations are faster on the Linux side
-- Windows Android Studio builds must use the Windows-synced location
-- File system permission issues may occur when accessing Windows files from Linux and vice versus (hence keeping them separate)
+- **Windows Android builds**: Use `C:\dev\CN\android` (short path) to avoid 260-char path limit
+- File system permission issues may occur when accessing Windows files from Linux and vice versa (hence keeping them separate)
 
 ## Windows Long Path Issue (New Architecture)
 
 React Native's New Architecture codegen creates very long file paths that can exceed Windows' 260-character limit. The long project path (`unison-with-dropbox-symlinked-to-linux`) makes this worse.
 
-**Workaround**: Use `subst` to create a short drive letter alias:
+### What Doesn't Work
 
-```cmd
-subst X: "C:\Users\william\unison-with-dropbox-symlinked-to-linux\CalendarNotification"
+- **`subst` drive letter**: Node/Gradle can't properly resolve modules through virtual drives
+- **Junction pointing TO long path**: Build tools "see through" junctions and resolve to the real (long) path
+
+### Solution: Short Path + Junction (December 2024)
+
+Real files live at a short Windows path. Junction at old path provides backwards compatibility:
+
+```
+Real files:     C:\dev\CN  ←── BUILD FROM HERE + UNISON SYNCS HERE
+                   ↑
+         ┌─────────┴─────────┐
+         │                   │
+Junction from old path   Direct access
+(backwards compat only - DO NOT sync through this!)
 ```
 
-Then build from `X:\android` instead. This shortens paths significantly and avoids the ninja build errors like:
-```
-ninja: error: Stat(...): Filename longer than 260 characters
+**Setup (one-time)**:
+```powershell
+# Move files to short path
+Move-Item "C:\Users\william\unison-with-dropbox-symlinked-to-linux\CalendarNotification" "C:\dev\CN"
+
+# Create junction at old location → short path
+cmd /c mklink /J "C:\Users\william\unison-with-dropbox-symlinked-to-linux\CalendarNotification" "C:\dev\CN"
 ```
 
-**Important**: The `subst` drive is only visible at the same elevation level where it was created. If you run `subst` from a non-Admin command prompt, you must use non-Admin Explorer/terminals to see the `X:` drive. Running as Admin won't see it (and vice versa).
-
-To remove the substitution later:
-```cmd
-subst X: /d
+**Build from short path**:
+```powershell
+cd C:\dev\CN\android
+.\gradlew assembleDebug
 ```
+
+### Separate Issue: React Native 0.81.5 C++ Bug
+
+After fixing paths, you may hit `std::format` compilation errors — this is an RN/NDK bug, not a path issue.
+**Quick fix**: Set `newArchEnabled=false` in `android/gradle.properties`
+
+See full docs: `linuxshared_folder_usage_docs/windows_short_path_for_android_builds.md`
 
 ## NativeWind ESM Issue (Metro on Windows)
 
@@ -66,7 +94,7 @@ Error [ERR_UNSUPPORTED_ESM_URL_SCHEME]: Only URLs with a scheme in: file, data, 
 
 2. **Build on Windows** (uses pre-built bundle):
    ```powershell
-   cd X:\android
+   cd C:\dev\CN\android
    .\gradlew assembleDebug
    ```
 
