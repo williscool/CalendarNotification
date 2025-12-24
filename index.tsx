@@ -77,7 +77,7 @@ function App() {
 
   return (
     <ThemeProvider>
-      <GluestackUIProvider mode={isDark ? 'dark' : 'light'}>
+      <GluestackUIProvider mode="system">
         <SettingsProvider>
           <SyncDebugProvider>
             <PowerSyncContext.Provider value={psDb}>

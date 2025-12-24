@@ -54,6 +54,8 @@ export const SecureInput: React.FC<SecureInputProps> = ({
       style={{ 
         borderColor: colors.border,
         backgroundColor: colors.backgroundWhite,
+        flexDirection: 'row',
+        alignItems: 'center',
       }}
       testID={testID}
     >
@@ -64,10 +66,10 @@ export const SecureInput: React.FC<SecureInputProps> = ({
         placeholderTextColor={colors.textLight}
         secureTextEntry={!showPassword}
         selectTextOnFocus={true}
-        style={{ color: colors.text }}
+        style={{ color: colors.text, flex: 1 }}
         testID={testID ? `${testID}-field` : undefined}
       />
-      <InputSlot className="pr-3">
+      <InputSlot style={{ paddingRight: 12 }}>
         <Pressable 
           onPress={toggleVisibility} 
           testID={testID ? `${testID}-toggle` : undefined}
