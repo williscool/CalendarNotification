@@ -223,5 +223,5 @@ fastlane/screenshots
 fastlane/test_output
 fastlane/readme.md
 
-# react navigation
-android/app/src/main/res/drawable-*/node_modules_reactnavigation_elements_lib_commonjs*
+# react node_modules stuff
+android/app/src/main/res/drawable-*/node_modules_*

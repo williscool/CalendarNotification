@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 1. List of modules (pipe-separated for grep -E)
-MODULES="@op-engineering/op-sqlite|react-native-screens|expo-modules-core"
+MODULES="@op-engineering/op-sqlite|react-native-screens|expo-modules-core|react-native-reanimated"
 
 # 2. Find matching CMakeLists.txt files and store in an array variable
 mapfile -t TARGET_FILES < <(

@@ -340,6 +340,12 @@ react {
   entryFile = layout.projectDirectory.file("../../index.tsx").asFile
   // Autolinking - adds dependencies for all autolinked libraries
   autolinkLibrariesWithApp()
+  
+  // Use wrapper script that skips Metro if bundle already exists
+  // This works around NativeWind Windows ESM issues
+  // Pre-bundle on WSL: yarn bundle:android --dev=true
+  // Then Windows builds will use the existing bundle
+  cliFile = layout.projectDirectory.file("../../scripts/bundle_or_skip.js").asFile
 }
 
 // Fix task dependency for RN 0.76+ autolinking (Gradle 8.7 strict validation)

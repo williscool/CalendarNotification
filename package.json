@@ -48,11 +48,13 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-devsettings": "^1.0.5",
+    "react-native-reanimated": "^3.17.0",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.15.1",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.21.0",
+    "react-native-worklets": "^0.7.1",
     "swc-node": "^1.0.0",
     "tailwindcss": "^3.4.0",
     "typed-emitter": "^2.1.0"
