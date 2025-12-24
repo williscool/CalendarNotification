@@ -47,7 +47,7 @@ export const SecureInput: React.FC<SecureInputProps> = ({
 
   return (
     <View
-      className="flex-row flex-1 items-center rounded-lg px-3"
+      className="flex-row items-center rounded-lg px-3"
       style={{ 
         borderWidth: 1,
         borderColor: colors.border,

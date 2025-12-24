@@ -76,62 +76,62 @@ function App() {
 
   return (
     <ThemeProvider>
-      <SettingsProvider>
-        <SyncDebugProvider>
-          <PowerSyncContext.Provider value={psDb}>
-            <NavigationContainer theme={navigationTheme}>
-              <Stack.Navigator
-                screenOptions={{
-                  headerStyle: { backgroundColor: colors.backgroundWhite },
-                  headerTintColor: colors.primary,
-                  headerTitleStyle: { color: colors.text },
+        <SettingsProvider>
+          <SyncDebugProvider>
+            <PowerSyncContext.Provider value={psDb}>
+              <NavigationContainer theme={navigationTheme}>
+                <Stack.Navigator
+                  screenOptions={{
+                    headerStyle: { backgroundColor: colors.backgroundWhite },
+                    headerTintColor: colors.primary,
+                    headerTitleStyle: { color: colors.text },
                   headerBackVisible: false,
-                }}
-              >
-                <Stack.Screen
-                  name="Home"
-                  component={HomeScreen}
-                  options={({ navigation }) => ({
-                    title: 'Sync Info',
-                    headerLeft: () => (
+                  }}
+                >
+                  <Stack.Screen
+                    name="Home"
+                    component={HomeScreen}
+                    options={({ navigation }) => ({
+                      title: 'Sync Info',
+                      headerLeft: () => (
                       <BackButton onPress={() => BackHandler.exitApp()} color={colors.primary} hasRightHeader />
-                    ),
-                    headerRight: () => (
+                      ),
+                      headerRight: () => (
                       <TouchableOpacity 
                         onPress={() => navigation.navigate('Settings')}
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         style={{ padding: 8, marginRight: 4 }}
                       >
                         <Text style={{ fontSize: 24, color: colors.primary }}>⋮</Text>
-                      </TouchableOpacity>
-                    ),
-                  })}
-                />
-                <Stack.Screen
-                  name="Settings"
-                  component={SettingsScreen}
+                        </TouchableOpacity>
+                      ),
+                    })}
+                  />
+                  <Stack.Screen
+                    name="Settings"
+                    component={SettingsScreen}
                   options={({ navigation }) => ({
                     title: 'Sync Settings',
                     headerLeft: () => (
                       <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
                     ),
                   })}
-                />
-                <Stack.Screen
-                  name="SyncDebug"
-                  component={SyncDebugScreen}
+                  />
+                  <Stack.Screen
+                    name="SyncDebug"
+                    component={SyncDebugScreen}
                   options={({ navigation }) => ({
                     title: 'Sync Debug',
                     headerLeft: () => (
                       <BackButton onPress={() => navigation.goBack()} color={colors.primary} />
                     ),
                   })}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
-          </PowerSyncContext.Provider>
-        </SyncDebugProvider>
-      </SettingsProvider>
+                  />
+                </Stack.Navigator>
+              </NavigationContainer>
+            </PowerSyncContext.Provider>
+          </SyncDebugProvider>
+        </SettingsProvider>
     </ThemeProvider>
   );
 }

@@ -84,23 +84,21 @@ export default function Settings() {
         <Section title="Sync Settings">
           <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
             <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
-              Enable Sync
-            </Text>
-            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
-              <Switch
-                value={tempSettings.syncEnabled}
-                onValueChange={handleSyncToggle}
-                disabled={!areAllSettingsValid(tempSettings)}
-              />
-            </View>
+            Enable Sync
+          </Text>
+            <Switch
+            value={tempSettings.syncEnabled}
+            onValueChange={handleSyncToggle}
+            disabled={!areAllSettingsValid(tempSettings)}
+          />
           </View>
 
-          {tempSettings.syncEnabled && (
+        {tempSettings.syncEnabled && (
             <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
               <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
-                Sync Type
-              </Text>
-              <View className={`${isSmallScreen ? 'w-full items-start' : 'flex-2 items-end'}`}>
+              Sync Type
+            </Text>
+              <View className={`${isSmallScreen ? 'w-full items-start' : 'flex-1 items-end'}`}>
                 <View className="flex-row gap-2">
                   <Pressable
                     onPress={() => handleSettingChange({ ...tempSettings, syncType: 'unidirectional' })}
@@ -125,11 +123,11 @@ export default function Settings() {
                 </Text>
               </View>
             </View>
-          )}
-        </Section>
+        )}
+      </Section>
 
-        <Pressable
-          onPress={() => navigation.navigate('SyncDebug')}
+      <Pressable
+        onPress={() => navigation.navigate('SyncDebug')}
           className="p-3.5 rounded-lg mx-4 flex-row items-center justify-center"
           style={{ 
             backgroundColor: colors.backgroundMuted,
@@ -139,28 +137,28 @@ export default function Settings() {
         >
           <Text className="mr-2" style={{ color: colors.textMuted }}>🐛</Text>
           <Text className="text-sm font-medium" style={{ color: colors.textMuted }}>
-            View Sync Debug Logs
-          </Text>
-        </Pressable>
+          View Sync Debug Logs
+        </Text>
+      </Pressable>
 
-        <Section title="Current Settings Output">
+      <Section title="Current Settings Output">
           <View className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundMuted }}>
             <Text className="text-sm font-mono" style={{ color: colors.text }}>
-              {JSON.stringify({
-                ...tempSettings,
-                supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
-                powersyncToken: showPowerSyncToken ? tempSettings.powersyncToken : '[Hidden Reveal Below]'
-              }, null, 2)}
-            </Text>
+            {JSON.stringify({
+              ...tempSettings,
+              supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
+              powersyncToken: showPowerSyncToken ? tempSettings.powersyncToken : '[Hidden Reveal Below]'
+            }, null, 2)}
+          </Text>
           </View>
-        </Section>
+      </Section>
 
-        <Section title="Supabase Settings">
+      <Section title="Supabase Settings">
           <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
             <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
-              Supabase URL
-            </Text>
-            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+            Supabase URL
+          </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-1'}>
               <TextInput
                 value={tempSettings.supabaseUrl}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseUrl: text })}
@@ -179,26 +177,26 @@ export default function Settings() {
 
           <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
             <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
-              Supabase Anon Key
-            </Text>
-            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
-              <SecureInput
-                value={tempSettings.supabaseAnonKey}
-                onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
-                placeholder="your-supabase-anon-key"
-                isVisible={showSupabaseKey}
-                onVisibilityChange={setShowSupabaseKey}
-              />
+            Supabase Anon Key
+          </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-1'}>
+            <SecureInput
+              value={tempSettings.supabaseAnonKey}
+              onChangeText={(text) => handleSettingChange({ ...tempSettings, supabaseAnonKey: text })}
+              placeholder="your-supabase-anon-key"
+              isVisible={showSupabaseKey}
+              onVisibilityChange={setShowSupabaseKey}
+            />
             </View>
           </View>
-        </Section>
+      </Section>
 
-        <Section title="PowerSync Settings">
+      <Section title="PowerSync Settings">
           <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
             <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
-              PowerSync URL
-            </Text>
-            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
+            PowerSync URL
+          </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-1'}>
               <TextInput
                 value={tempSettings.powersyncUrl}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncUrl: text })}
@@ -217,19 +215,19 @@ export default function Settings() {
 
           <View className={rowClassName} style={{ borderBottomColor: colors.borderLight }}>
             <Text className={`text-base ${isSmallScreen ? 'mb-2' : 'flex-1'}`} style={{ color: colors.text }}>
-              PowerSync Token
-            </Text>
-            <View className={isSmallScreen ? 'w-full' : 'flex-2'}>
-              <SecureInput
-                value={tempSettings.powersyncToken}
-                onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
-                placeholder="your-powersync-token"
-                isVisible={showPowerSyncToken}
-                onVisibilityChange={setShowPowerSyncToken}
-              />
+            PowerSync Token
+          </Text>
+            <View className={isSmallScreen ? 'w-full' : 'flex-1'}>
+            <SecureInput
+              value={tempSettings.powersyncToken}
+              onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
+              placeholder="your-powersync-token"
+              isVisible={showPowerSyncToken}
+              onVisibilityChange={setShowPowerSyncToken}
+            />
             </View>
           </View>
-        </Section>
+      </Section>
 
         {!areAllSettingsValid(tempSettings) && (
           <Text className="text-center mx-4 italic" style={{ color: colors.danger }}>
