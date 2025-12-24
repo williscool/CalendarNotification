@@ -21,12 +21,15 @@ const args = process.argv.slice(2);
 
 console.log('[bundle_or_skip] Called with args:', args.slice(0, 6).join(' '), '...');
 
-// Parse --bundle-output from args (where Gradle expects the bundle)
+// Parse --bundle-output and --sourcemap-output from args
 let gradleBundlePath = null;
+let gradleSourceMapPath = null;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--bundle-output' && args[i + 1]) {
     gradleBundlePath = args[i + 1];
-    break;
+  }
+  if (args[i] === '--sourcemap-output' && args[i + 1]) {
+    gradleSourceMapPath = args[i + 1];
   }
 }
 
@@ -35,7 +38,8 @@ const preBuiltBundle = path.join(__dirname, '../android/app/src/main/assets/inde
 const preBuiltSourceMap = preBuiltBundle + '.map';
 
 console.log('[bundle_or_skip] Pre-built bundle:', preBuiltBundle);
-console.log('[bundle_or_skip] Gradle expects:', gradleBundlePath || '(default)');
+console.log('[bundle_or_skip] Gradle bundle output:', gradleBundlePath || '(default)');
+console.log('[bundle_or_skip] Gradle sourcemap output:', gradleSourceMapPath || '(default)');
 
 // Check if pre-built bundle exists
 if (fs.existsSync(preBuiltBundle)) {
@@ -64,18 +68,31 @@ if (fs.existsSync(preBuiltBundle)) {
     
     // Copy or create source map next to bundle
     const gradleSourceMap = gradleBundlePath + '.map';
+    const emptySourceMap = '{"version":3,"sources":[],"names":[],"mappings":""}';
     if (fs.existsSync(preBuiltSourceMap)) {
       fs.copyFileSync(preBuiltSourceMap, gradleSourceMap);
     } else {
-      fs.writeFileSync(gradleSourceMap, '{"version":3,"sources":[],"names":[],"mappings":""}');
+      fs.writeFileSync(gradleSourceMap, emptySourceMap);
     }
     
     // Also create the packager source map that compose-source-maps.js expects
     // Path: build/intermediates/sourcemaps/react/{variant}/index.android.bundle.packager.map
+    // Extract variant from bundle output path (e.g., createBundleX8664DebugJsAndAssets -> x8664Debug)
+    const bundlePathMatch = gradleBundlePath.match(/createBundle([A-Za-z0-9]+)JsAndAssets/);
+    let variant = bundlePathMatch ? bundlePathMatch[1] : null;
+    
+    // Convert to lowercase first character (X8664Debug -> x8664Debug)
+    if (variant) {
+      variant = variant.charAt(0).toLowerCase() + variant.slice(1);
+      console.log('[bundle_or_skip] Detected variant:', variant);
+    }
+    
     const packagerSourceMapDir = path.join(__dirname, '../android/app/build/intermediates/sourcemaps/react');
-    const variants = ['x8664Debug', 'arm64V8aDebug', 'armeabiV7aDebug', 'x86Debug', 'debug'];
-    for (const variant of variants) {
-      const variantDir = path.join(packagerSourceMapDir, variant);
+    
+    // Create source map for the specific variant from path, plus common fallbacks
+    const variants = variant ? [variant] : ['x8664Debug', 'arm64V8aDebug', 'debug'];
+    for (const v of variants) {
+      const variantDir = path.join(packagerSourceMapDir, v);
       if (!fs.existsSync(variantDir)) {
         fs.mkdirSync(variantDir, { recursive: true });
       }
@@ -83,7 +100,20 @@ if (fs.existsSync(preBuiltBundle)) {
       if (fs.existsSync(preBuiltSourceMap)) {
         fs.copyFileSync(preBuiltSourceMap, packagerMapPath);
       } else {
-        fs.writeFileSync(packagerMapPath, '{"version":3,"sources":[],"names":[],"mappings":""}');
+        fs.writeFileSync(packagerMapPath, emptySourceMap);
+      }
+    }
+    
+    // Also use Gradle's --sourcemap-output if provided
+    if (gradleSourceMapPath) {
+      const smDir = path.dirname(gradleSourceMapPath);
+      if (!fs.existsSync(smDir)) {
+        fs.mkdirSync(smDir, { recursive: true });
+      }
+      if (fs.existsSync(preBuiltSourceMap)) {
+        fs.copyFileSync(preBuiltSourceMap, gradleSourceMapPath);
+      } else {
+        fs.writeFileSync(gradleSourceMapPath, emptySourceMap);
       }
     }
     
