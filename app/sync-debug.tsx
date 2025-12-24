@@ -1,12 +1,12 @@
 import React, { useContext, useEffect, useState, useCallback, memo, useMemo } from 'react';
-import { FlatList, RefreshControl, Pressable } from 'react-native';
+import { FlatList, RefreshControl } from 'react-native';
 import { PowerSyncContext } from "@powersync/react";
 import { useSyncDebug } from '@lib/hooks/SyncDebugContext';
 import { SyncLogEntry, FailedOperation, LogFilterLevel } from '@lib/powersync/Connector';
 import { Section } from '@lib/components/ui';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { ThemeColors } from '@lib/theme/colors';
-import { Box, Text } from '@/components/ui';
+import { Box, Text, HStack, VStack, Button, ButtonText } from '@/components/ui';
 
 // Filter logs based on display level preference
 const filterLogsByLevel = (logs: SyncLogEntry[], filterLevel: LogFilterLevel): SyncLogEntry[] => {
@@ -54,12 +54,12 @@ const LogEntryView = memo<{ entry: SyncLogEntry; colors: ThemeColors }>(({ entry
       borderLeftColor: colors.border,
     }}
   >
-    <Box className="flex-row items-center mb-1">
+    <HStack className="items-center mb-1">
       <LogLevelBadge level={entry.level} colors={colors} />
       <Text className="text-xs font-mono" style={{ color: colors.textLight }}>
         {formatTimestamp(entry.timestamp)}
       </Text>
-    </Box>
+    </HStack>
     <Text className="text-sm mt-0.5" style={{ color: colors.text }} selectable>
       {entry.message}
     </Text>
@@ -85,31 +85,30 @@ const LogFilterToggle: React.FC<{
   ];
 
   return (
-    <Box className="items-center gap-2">
+    <VStack className="items-center gap-2">
       <Text className="text-sm font-semibold" style={{ color: colors.text }}>
         Log Filter:
       </Text>
-      <Box className="flex-row rounded-lg p-1" style={{ backgroundColor: colors.backgroundMuted }}>
+      <HStack className="rounded-lg p-1" style={{ backgroundColor: colors.backgroundMuted }}>
         {levels.map(({ key, label }) => (
-          <Pressable
+          <Button
             key={key}
             onPress={() => onChange(key)}
-            className="px-4 py-2 rounded-md mx-0.5"
-            style={{ backgroundColor: value === key ? colors.primary : 'transparent' }}
+            action={value === key ? 'primary' : 'secondary'}
+            variant={value === key ? 'solid' : 'link'}
+            size="sm"
+            className="mx-0.5"
           >
-            <Text
-              className="text-sm font-medium"
-              style={{ color: value === key ? '#fff' : colors.textMuted }}
-            >
+            <ButtonText style={{ color: value === key ? '#fff' : colors.textMuted }}>
               {label}
-            </Text>
-          </Pressable>
+            </ButtonText>
+          </Button>
         ))}
-      </Box>
+      </HStack>
       <Text className="text-xs italic" style={{ color: colors.textLight }}>
         {levels.find(l => l.key === value)?.description}
       </Text>
-    </Box>
+    </VStack>
   );
 };
 
@@ -126,14 +125,14 @@ const FailedOperationView: React.FC<{
       borderLeftColor: colors.danger,
     }}
   >
-    <Box className="flex-row justify-between items-center">
+    <HStack className="justify-between items-center">
       <Text className="text-sm font-semibold" style={{ color: colors.text }}>
         {op.op} on {op.table}
       </Text>
       <Text className="text-xs" style={{ color: colors.textLight }}>
         {formatTimestamp(op.timestamp)}
       </Text>
-    </Box>
+    </HStack>
     <Text className="text-xs font-mono mt-1" style={{ color: colors.textMuted }}>
       ID: {op.recordId}
     </Text>
@@ -147,15 +146,15 @@ const FailedOperationView: React.FC<{
         </Text>
       </Box>
     )}
-    <Pressable
+    <Button
       onPress={onRemove}
-      className="px-3 py-1.5 rounded-md self-end mt-2"
+      action="secondary"
+      size="xs"
+      className="self-end mt-2"
       style={{ backgroundColor: colors.warning }}
     >
-      <Text className="text-white text-xs font-semibold">
-        Discard
-      </Text>
-    </Pressable>
+      <ButtonText className="text-white font-semibold">Discard</ButtonText>
+    </Button>
   </Box>
 );
 
@@ -210,18 +209,18 @@ export default function SyncDebug() {
 
       {failedOperations.length > 0 && (
         <Section>
-          <Box className="flex-row justify-between items-center mb-2">
+          <HStack className="justify-between items-center mb-2">
             <Text className="text-lg font-bold" style={{ color: colors.text }}>
               Failed Operations ({failedOperations.length})
             </Text>
-            <Pressable 
-              onPress={clearFailedOperations} 
-              className="px-3 py-1.5 rounded-md"
-              style={{ backgroundColor: colors.danger }}
+            <Button
+              onPress={clearFailedOperations}
+              action="negative"
+              size="xs"
             >
-              <Text className="text-white text-xs font-semibold">Clear All</Text>
-            </Pressable>
-          </Box>
+              <ButtonText>Clear All</ButtonText>
+            </Button>
+          </HStack>
           <Text className="text-xs italic mb-3" style={{ color: colors.textMuted }}>
             These operations failed with unrecoverable errors. Review and discard when ready.
           </Text>
@@ -240,8 +239,8 @@ export default function SyncDebug() {
         className="p-4 pb-2 mx-4 rounded-t-lg"
         style={{ backgroundColor: colors.backgroundWhite }}
       >
-        <Box className="flex-row justify-between items-center mb-2">
-          <Box>
+        <HStack className="justify-between items-center mb-2">
+          <VStack>
             <Text className="text-lg font-bold" style={{ color: colors.text }}>
               Sync Logs ({filteredLogs.length})
             </Text>
@@ -250,15 +249,15 @@ export default function SyncDebug() {
                 {logs.length} total, filtered by level
               </Text>
             )}
-          </Box>
-          <Pressable 
-            onPress={clearLogs} 
-            className="px-3 py-1.5 rounded-md"
-            style={{ backgroundColor: colors.danger }}
+          </VStack>
+          <Button
+            onPress={clearLogs}
+            action="negative"
+            size="xs"
           >
-            <Text className="text-white text-xs font-semibold">Clear</Text>
-          </Pressable>
-        </Box>
+            <ButtonText>Clear</ButtonText>
+          </Button>
+        </HStack>
       </Box>
     </>
   ), [syncStatus, logFilterLevel, setLogFilterLevel, failedOperations, clearFailedOperations, removeFailedOperation, logs.length, filteredLogs.length, clearLogs, colors]);
