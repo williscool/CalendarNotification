@@ -19,8 +19,9 @@ The app currently uses raw SQLite with hand-written cursor parsing, ContentValue
 | **EventsStorage** | `eventsstorage/EventsStorage.kt` | Active event notifications | High - 600+ lines in impl |
 | **DismissedEventsStorage** | `dismissedeventsstorage/DismissedEventsStorage.kt` | Dismissed event history | Medium |
 | **MonitorStorage** | `monitorstorage/MonitorStorage.kt` | Calendar alert monitoring | Medium |
-| **CalendarChangeRequestsStorage** | `calendareditor/storage/` | Pending calendar edits | Low |
-| **BTCarModeStorage** | `bluetooth/BTCarModeStorage.kt` | Bluetooth car mode state | Low |
+| **CalendarChangeRequestsStorage** | `calendareditor/storage/` | Pending calendar edits | Low - **DEPRECATED** |
+
+**Note:** `BTCarModeStorage` was previously listed here but is NOT a SQLite database - it uses SharedPreferences via `PersistentStorageBase`. No Room migration needed.
 
 ## Current Pain Points
 
@@ -155,9 +156,11 @@ abstract class AppDatabase : RoomDatabase() {
 
 ### Phase 1: Add Room Alongside Existing (Low Risk)
 1. Add Room dependencies
-2. Create Entity and DAO for one storage (start with smallest: `BTCarModeStorage`)
+2. Create Entity and DAO for one storage (start with simplest SQLite: `MonitorStorage`)
 3. Run both implementations in parallel, verify data matches
 4. Switch to Room implementation
+
+**Note:** Originally suggested BTCarModeStorage but it's SharedPreferences, not SQLite. MonitorStorage is the actual simplest SQLite database (V1 only, no migration history).
 
 ### Phase 2: Migrate Critical Storage
 1. `EventsStorage` - most important, most complex
@@ -185,7 +188,7 @@ val MIGRATION_LEGACY_TO_ROOM = object : Migration(9, 10) {
 | Task | Time | Risk |
 |------|------|------|
 | Add dependencies, setup | 1-2 hours | Low |
-| BTCarModeStorage (pilot) | 2-4 hours | Low |
+| MonitorStorage (pilot) | 6-8 hours | Low |
 | EventsStorage | 8-12 hours | Medium - most complex |
 | DismissedEventsStorage | 4-6 hours | Low |
 | MonitorStorage | 4-6 hours | Low |
@@ -250,7 +253,7 @@ This is a good candidate for migration because:
 3. Type safety would catch issues at compile time
 4. Reduces maintenance burden long-term
 
-**Suggested approach:** Start with `BTCarModeStorage` as a pilot (smallest, lowest risk), then tackle `EventsStorage` once comfortable.
+**Suggested approach:** Start with `MonitorStorage` as a pilot (simplest SQLite database, V1 only), then `DismissedEventsStorage` (V1→V2), and finally `EventsStorage` (V6→V9).
 
 ## References
 

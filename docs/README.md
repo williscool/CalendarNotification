@@ -43,8 +43,7 @@ Features and changes under consideration:
 
 - [Deprecated Features Removal](dev_todo/deprecated_features.md) - QuietHours, CalendarEditor
 - [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt, Room overview
-- [Room Database Migration](dev_todo/room_database_migration.md) - SQLite → Room (preliminary research)
-- [Database Modernization Plan](dev_todo/database_modernization_plan.md) - **Detailed implementation plan** ⭐
+- [Room Database Migration](dev_todo/room_database_migration.md) - SQLite → Room
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations
 - [Event Deletion Issues](dev_todo/event_deletion_issues.md) - Cleanup mechanisms
 - [Event Restore Behavior](dev_todo/event_restore_behavior.md) - Restoration logic

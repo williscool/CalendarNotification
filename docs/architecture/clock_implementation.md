@@ -241,10 +241,7 @@ The clock refactoring has been successfully completed across the entire applicat
 7. **Notification Components**: All notification-related components use the clock interface
 8. **Test Infrastructure**: Comprehensive test support with advanced time manipulation capabilities
 
-## Future Enhancements
+## Potential Future Enhancements
 
-1. Implement a dependency injection mechanism for providing the clock to components
-2. Create a ClockProvider singleton to simplify access in components where direct injection is difficult
-3. Add more comprehensive time-based tests leveraging the new interface
-4. Consider expanding the test clock implementation with additional time manipulation features
-5. Add detailed logging for time-related operations to aid in debugging 
+1. Add more detailed logging for time-related operations to aid in debugging (some exists, could be expanded)
+2. Create a ClockProvider singleton for components where lambda injection is awkward (currently using `clockProvider` lambdas which work well)
