@@ -1,14 +1,23 @@
 package com.github.quarck.calnotify.textutils
 
 import android.content.Context
+import android.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.AttendanceStatus
+import com.github.quarck.calnotify.calendar.CalendarEventDetails
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.calendar.EventRecord
+import com.github.quarck.calnotify.calendar.EventReminderRecord
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -35,6 +44,21 @@ class EventFormatterRobolectricTest {
         context = ApplicationProvider.getApplicationContext()
         testClock = CNPlusUnitTestClock(baseTime)
         formatter = EventFormatter(context, testClock)
+    }
+
+    @After
+    fun cleanup() {
+        // Reset the displayNextAlertTime setting to default (false)
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .remove("pref_display_next_alert_time")
+            .commit()
+        // Unmock CalendarProvider if it was mocked
+        try {
+            unmockkObject(CalendarProvider)
+        } catch (e: Exception) {
+            // Ignore if not mocked
+        }
     }
 
     private fun createTestEvent(
@@ -304,6 +328,155 @@ class EventFormatterRobolectricTest {
         val result = encodedMinuteTimestamp(modulo = 60L, clock = testClock)
         assertNotNull(result)
         assertTrue("Encoded timestamp with modulo should not be empty", result.isNotEmpty())
+    }
+
+    // === Next Alert Time feature tests ===
+
+    private fun setDisplayNextAlertTimeSetting(enabled: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .putBoolean("pref_display_next_alert_time", enabled)
+            .commit()
+    }
+
+    private fun createMockEventRecord(
+        eventId: Long,
+        startTime: Long,
+        reminders: List<EventReminderRecord>
+    ): EventRecord {
+        return EventRecord(
+            calendarId = 1L,
+            eventId = eventId,
+            details = CalendarEventDetails(
+                title = "Test Event",
+                desc = "Test Description",
+                location = "",
+                timezone = "UTC",
+                startTime = startTime,
+                endTime = startTime + Consts.HOUR_IN_MILLISECONDS,
+                isAllDay = false,
+                reminders = reminders,
+                repeatingRule = "",
+                repeatingRDate = "",
+                repeatingExRule = "",
+                repeatingExRDate = "",
+                color = 0
+            ),
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None
+        )
+    }
+
+    @Test
+    fun testFormatNotificationSecondaryTextNextAlertTimeDisabled() {
+        // Ensure the setting is disabled (default)
+        setDisplayNextAlertTimeSetting(false)
+        
+        // Create a new formatter to pick up the setting
+        val testFormatter = EventFormatter(context, testClock)
+        
+        // Event starts 2 hours from now with a reminder 30 minutes before
+        val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        val event = createTestEvent(
+            eventId = 100L,
+            startTime = eventStartTime,
+            endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS
+        )
+        
+        val result = testFormatter.formatNotificationSecondaryText(event)
+        
+        // Should NOT contain "Next alert" when setting is disabled
+        assertFalse(
+            "Should NOT contain 'Next alert' when setting is disabled",
+            result.contains("Next alert", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun testFormatNotificationSecondaryTextNextAlertTimeEnabled() {
+        // Enable the setting
+        setDisplayNextAlertTimeSetting(true)
+        
+        // Event starts 2 hours from now
+        val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        val eventId = 101L
+        
+        // Create reminders: one in the future (30min before = baseTime + 1.5h)
+        val reminders = listOf(
+            EventReminderRecord.minutes(60),  // fires at baseTime + 1h (future from baseTime)
+            EventReminderRecord.minutes(30)   // fires at baseTime + 1.5h (future from baseTime)
+        )
+        
+        // Mock CalendarProvider to return our event with reminders
+        mockkObject(CalendarProvider)
+        every { CalendarProvider.getEvent(any(), eq(eventId)) } returns createMockEventRecord(
+            eventId = eventId,
+            startTime = eventStartTime,
+            reminders = reminders
+        )
+        
+        // Create the test event (EventAlertRecord)
+        val event = createTestEvent(
+            eventId = eventId,
+            startTime = eventStartTime,
+            endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS
+        )
+        
+        // Create a new formatter to pick up the setting
+        val testFormatter = EventFormatter(context, testClock)
+        
+        val result = testFormatter.formatNotificationSecondaryText(event)
+        
+        // Should contain "Next alert" when setting is enabled and there are future reminders
+        assertTrue(
+            "Should contain 'Next alert' when setting is enabled and future reminders exist. Result: $result",
+            result.contains("Next alert", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun testFormatNotificationSecondaryTextNextAlertNoFutureReminders() {
+        // Enable the setting
+        setDisplayNextAlertTimeSetting(true)
+        
+        // Event starts in 30 minutes, reminder was 15 minutes before (so already fired)
+        val eventStartTime = baseTime + 30 * Consts.MINUTE_IN_MILLISECONDS
+        val eventId = 102L
+        
+        // Reminder at 15 min before = baseTime + 15min (which is in the future from baseTime)
+        // But we need to use displayedStartTime as anchor, which is eventStartTime
+        // So reminder at eventStartTime - 15min = baseTime + 15min
+        // This is BEFORE the anchor (eventStartTime), so should NOT be included
+        val reminders = listOf(
+            EventReminderRecord.minutes(15)   // fires at eventStartTime - 15min = baseTime + 15min
+        )
+        
+        // Mock CalendarProvider to return our event with reminders
+        mockkObject(CalendarProvider)
+        every { CalendarProvider.getEvent(any(), eq(eventId)) } returns createMockEventRecord(
+            eventId = eventId,
+            startTime = eventStartTime,
+            reminders = reminders
+        )
+        
+        // Create the test event (EventAlertRecord)
+        val event = createTestEvent(
+            eventId = eventId,
+            startTime = eventStartTime,
+            endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS
+        )
+        
+        // Create a new formatter to pick up the setting
+        val testFormatter = EventFormatter(context, testClock)
+        
+        val result = testFormatter.formatNotificationSecondaryText(event)
+        
+        // Should NOT contain "Next alert" because all reminders are before the event start time
+        // (The feature looks for reminders AFTER displayedStartTime)
+        assertFalse(
+            "Should NOT contain 'Next alert' when no reminders are after event start. Result: $result",
+            result.contains("Next alert", ignoreCase = true)
+        )
     }
 }
 
