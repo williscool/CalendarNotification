@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View, StyleSheet } from 'react-native';
+import { Pressable, Text, View, ViewStyle, TextStyle } from 'react-native';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { getVariantStyle, ButtonVariant } from './variants';
 
@@ -10,6 +10,21 @@ interface ActionButtonProps {
   disabled?: boolean;
   testID?: string;
 }
+
+const buttonStyle: ViewStyle = {
+  marginHorizontal: 16,
+  marginTop: 16,
+  paddingVertical: 12,
+  paddingHorizontal: 16,
+  borderRadius: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const textStyle: TextStyle = {
+  fontWeight: '600',
+  fontSize: 16,
+};
 
 /**
  * A styled button with variant support and pressed state feedback.
@@ -38,34 +53,15 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     >
       <View
         style={[
-          styles.button,
+          buttonStyle,
           { backgroundColor: bg },
-          pressed && !disabled && styles.pressed,
+          pressed && !disabled ? { opacity: 0.8 } : undefined,
         ]}
       >
-        <Text style={[styles.text, { color: textColor }]}>
+        <Text style={[textStyle, { color: textColor }]}>
           {children}
         </Text>
       </View>
     </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  text: {
-    fontWeight: '600',
-    fontSize: 16,
-  },
-});
