@@ -4,6 +4,7 @@
 
 Follows `android.intent.action.EVENT_REMINDER` through the code to registerNewEvent
 
+```
 Calendar Provider EVENT_REMINDER Broadcast
     │
     ▼
@@ -50,6 +51,7 @@ CalendarMonitor.onProviderReminderBroadcast
     ├──► CalendarProvider.dismissNativeEventAlert: Dismiss native calendar alerts
     │
     └──► ApplicationController.afterCalendarEventFired: Reschedule alarms and notify UI
+```
 
 ``` mermaid
 flowchart TD
@@ -93,6 +95,7 @@ Note: The broadcast receiver for EVENT_REMINDER is registered with the highest p
 
 Follows `android.intent.action.PROVIDER_CHANGED` through the code to registerNewEvent
 
+```
 onCalendarChanged
     │
     ▼
@@ -152,6 +155,7 @@ CalendarMonitorService processes final intent
     - rescan_monitor=true
     - reload_calendar=false
     - start_delay=0
+```
 
 Note: The CalendarMonitorService uses a wake lock during the rescan process to ensure reliable operation, especially when processing calendar changes and firing events.
 
@@ -192,6 +196,7 @@ Besides the two main flows above, the Calendar Monitor can be triggered through 
 
 ### System Boot
 
+```
 BOOT_COMPLETED Broadcast
     │
     ▼
@@ -207,9 +212,11 @@ ApplicationController.onBootComplete
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
 
 ### Application Update
 
+```
 MY_PACKAGE_REPLACED Broadcast
     │
     ▼
@@ -225,9 +232,11 @@ ApplicationController.onAppUpdated
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
 
 ### Time or Timezone Changes
 
+```
 TIME_SET or TIMEZONE_CHANGED Broadcast
     │
     ▼
@@ -244,9 +253,11 @@ CalendarMonitor.onSystemTimeChange
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
 
 ### Periodic Rescan
 
+```
 System-scheduled Alarm
     │
     ▼
@@ -258,3 +269,4 @@ CalendarMonitor.onPeriodicRescanBroadcast
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
