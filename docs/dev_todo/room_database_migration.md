@@ -255,6 +255,8 @@ This is a good candidate for migration because:
 
 **Suggested approach:** Start with `MonitorStorage` as a pilot (simplest SQLite database, V1 only), then `DismissedEventsStorage` (V1→V2), and finally `EventsStorage` (V6→V9).
 
+**See also:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan with risk mitigation strategies.
+
 ## References
 
 - [Room documentation](https://developer.android.com/training/data-storage/room)
