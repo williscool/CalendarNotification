@@ -22,14 +22,13 @@ When snoozing events, you can snooze them a desired amount of time or quickly re
 - **Smart Snooze**: Easily snooze calendar notifications to a time that works for you
 - **Notification Persistence**: Never miss an event - notifications persist until you handle them
 - **Quick Rescheduling**: Reschedule non-repeating events for the next day or week with just one click
-- **Quiet Hours**: Set periods when notifications won't disturb you
 - **Missed Event Reminders**: Optional reminders for notifications you might have missed (configurable intervals)
 - **Bulk Actions**: "Snooze All" button to manage multiple notifications at once
 - **Customization**: Custom LED colors and screen wake options for notifications
 - **Reboot Protection**: All your notifications are automatically restored after device restart
 
-### ☁️ NEW! (March 2025)
-- **Data Backup**: Unidirectional sync to backup your notification data to the cloud (via Supabase/PowerSync)
+### ☁️ Data Backup (March 2025)
+- **Cloud Sync**: Unidirectional sync to backup your notification data to the cloud (via Supabase/PowerSync)
 
 
 <p align="center">
@@ -62,9 +61,10 @@ The app requires the following permissions for core functionality:
 
 If you're interested in contributing or building the app yourself, check out our developer documentation:
 
-- [Build Instructions](docs/BUILD.md)
+- [Full Documentation Index](docs/README.md)
+- [Build Instructions](docs/build/BUILD.md)
 - [Data Sync Guide](docs/DATA_SYNC_README.md)
-- [Debugging Guide](docs/DEBUG.md)
+- [Debugging Guide](docs/build/DEBUG.md)
 
 ### Automated Testing
 
@@ -77,7 +77,7 @@ We use GitHub Actions for continuous integration with automated test reporting:
 - JaCoCo coverage analysis with coverage badges and PR comments
 - Coverage thresholds ensure code quality is maintained
 
-For more details, see our [Test Reporting Documentation](docs/TEST_REPORTING.md).
+For more details, see our [Test Reporting Documentation](docs/testing/TEST_REPORTING.md).
 
 ## 💖 Contributing
 
