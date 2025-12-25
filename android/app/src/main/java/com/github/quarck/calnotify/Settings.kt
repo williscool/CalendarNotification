@@ -137,8 +137,9 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     val snoozePresetsRaw: String
         get() = getString(SNOOZE_PRESET_KEY, DEFAULT_SNOOZE_PRESET)
 
-    val displayNextAlertTime: Boolean
-      get() = getBoolean(DISPLAY_NEXT_ALERT_TIME, false)
+    var displayNextAlertTime: Boolean
+        get() = getBoolean(DISPLAY_NEXT_ALERT_TIME, false)
+        set(value) = setBoolean(DISPLAY_NEXT_ALERT_TIME, value)
 
     val snoozePresets: LongArray
         get() {

@@ -32,8 +32,12 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarEventDetails
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventReminderRecord
+import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.findOrThrow
@@ -225,6 +229,85 @@ class TestActivity : Activity() {
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonAddReminderInEventClick(v: View) {
+        val LOG_TAG = "TestActivity"
+        
+        // Enable the displayNextAlertTime setting
+        settings.displayNextAlertTime = true
+        DevLog.info(LOG_TAG, "Enabled displayNextAlertTime setting")
+        
+        // Find a calendar to use
+        val calendars = CalendarProvider.getCalendars(this)
+        val calendar = calendars.firstOrNull()
+        
+        if (calendar == null) {
+            DevLog.error(LOG_TAG, "No calendars available - cannot create test event")
+            return
+        }
+        
+        val currentTime = clock.currentTimeMillis()
+        // Event starts 2 hours from now
+        val eventStart = currentTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        val eventEnd = eventStart + Consts.HOUR_IN_MILLISECONDS
+        
+        // Create reminders at 15min, 30min, and 60min before event
+        // These will be at 1h45m, 1h30m, and 1h from now respectively
+        val reminders = listOf(
+            EventReminderRecord.minutes(15),  // fires 1h45m from now
+            EventReminderRecord.minutes(30),  // fires 1h30m from now  
+            EventReminderRecord.minutes(60)   // fires 1h from now
+        )
+        
+        val details = CalendarEventDetails(
+            title = "Test Reminder In Feature - ${System.currentTimeMillis() % 10000}",
+            desc = "This event tests the 'reminder in X' notification feature",
+            location = "",
+            timezone = java.util.TimeZone.getDefault().id,
+            startTime = eventStart,
+            endTime = eventEnd,
+            isAllDay = false,
+            reminders = reminders,
+            color = 0xff00aa00.toInt()
+        )
+        
+        val eventId = CalendarProvider.createEvent(this, calendar.calendarId, calendar.owner, details)
+        
+        if (eventId == -1L) {
+            DevLog.error(LOG_TAG, "Failed to create calendar event")
+            return
+        }
+        
+        DevLog.info(LOG_TAG, "Created calendar event $eventId with ${reminders.size} reminders")
+        
+        // Create and post a notification for this event
+        val event = EventAlertRecord(
+            calendarId = calendar.calendarId,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = currentTime,
+            notificationId = 0,
+            title = details.title,
+            desc = details.desc,
+            startTime = eventStart,
+            endTime = eventEnd,
+            instanceStartTime = eventStart,
+            instanceEndTime = eventEnd,
+            location = details.location,
+            lastStatusChangeTime = currentTime,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = details.color
+        )
+        
+        ApplicationController.registerNewEvent(this, event)
+        ApplicationController.postEventNotifications(this, listOf(event))
+        ApplicationController.afterCalendarEventFired(this)
+        
+        DevLog.info(LOG_TAG, "Posted notification - look for '(reminder in X)' in the notification text!")
+    }
+
+    @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonAddProvierEventClick(v: View) {
 
         startActivity(Intent(this, EditEventActivity::class.java))
@@ -241,7 +324,7 @@ class TestActivity : Activity() {
 
 //            startActivity(
 //                    Intent(Intent.ACTION_VIEW).setData(
-//                            ContentUris.withAppendedId(
+//                          )v_dfadsfadfadsf  ContentUris.withAppendedId(
 //                                    CalendarContract.Events.CONTENT_URI,
 //                                    id)))
 
