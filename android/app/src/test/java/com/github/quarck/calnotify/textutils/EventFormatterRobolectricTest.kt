@@ -385,10 +385,10 @@ class EventFormatterRobolectricTest {
         
         val result = testFormatter.formatNotificationSecondaryText(event)
         
-        // Should NOT contain "Next alert" when setting is disabled
+        // Should NOT contain "reminder in" when setting is disabled
         assertFalse(
-            "Should NOT contain 'Next alert' when setting is disabled",
-            result.contains("Next alert", ignoreCase = true)
+            "Should NOT contain 'reminder in' when setting is disabled",
+            result.contains("reminder in", ignoreCase = true)
         )
     }
 
@@ -427,10 +427,10 @@ class EventFormatterRobolectricTest {
         
         val result = testFormatter.formatNotificationSecondaryText(event)
         
-        // Should contain "Next alert" when setting is enabled and there are future reminders
+        // Should contain "reminder in" when setting is enabled and there are future reminders
         assertTrue(
-            "Should contain 'Next alert' when setting is enabled and future reminders exist. Result: $result",
-            result.contains("Next alert", ignoreCase = true)
+            "Should contain 'reminder in' when setting is enabled and future reminders exist. Result: $result",
+            result.contains("reminder in", ignoreCase = true)
         )
     }
 
@@ -439,16 +439,13 @@ class EventFormatterRobolectricTest {
         // Enable the setting
         setDisplayNextAlertTimeSetting(true)
         
-        // Event starts in 30 minutes, reminder was 15 minutes before (so already fired)
-        val eventStartTime = baseTime + 30 * Consts.MINUTE_IN_MILLISECONDS
+        // Event started 30 minutes ago, reminder was 15 minutes before that (so already fired)
+        val eventStartTime = baseTime - 30 * Consts.MINUTE_IN_MILLISECONDS
         val eventId = 102L
         
-        // Reminder at 15 min before = baseTime + 15min (which is in the future from baseTime)
-        // But we need to use displayedStartTime as anchor, which is eventStartTime
-        // So reminder at eventStartTime - 15min = baseTime + 15min
-        // This is BEFORE the anchor (eventStartTime), so should NOT be included
+        // Reminder at 15 min before event = baseTime - 45min (which is in the PAST from baseTime)
         val reminders = listOf(
-            EventReminderRecord.minutes(15)   // fires at eventStartTime - 15min = baseTime + 15min
+            EventReminderRecord.minutes(15)   // fires at eventStartTime - 15min = baseTime - 45min
         )
         
         // Mock CalendarProvider to return our event with reminders
@@ -471,11 +468,10 @@ class EventFormatterRobolectricTest {
         
         val result = testFormatter.formatNotificationSecondaryText(event)
         
-        // Should NOT contain "Next alert" because all reminders are before the event start time
-        // (The feature looks for reminders AFTER displayedStartTime)
+        // Should NOT contain "reminder in" because the reminder already fired (is in the past)
         assertFalse(
-            "Should NOT contain 'Next alert' when no reminders are after event start. Result: $result",
-            result.contains("Next alert", ignoreCase = true)
+            "Should NOT contain 'reminder in' when all reminders are in the past. Result: $result",
+            result.contains("reminder in", ignoreCase = true)
         )
     }
 }

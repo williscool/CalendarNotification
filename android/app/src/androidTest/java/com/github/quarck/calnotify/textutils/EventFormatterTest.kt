@@ -350,10 +350,10 @@ class EventFormatterTest {
         
         DevLog.info(LOG_TAG, "Result with setting disabled: $result")
         
-        // Should NOT contain "Next alert" when setting is disabled
+        // Should NOT contain "reminder in" when setting is disabled
         assertFalse(
-            "Should NOT contain 'Next alert' when setting is disabled",
-            result.contains("Next alert", ignoreCase = true)
+            "Should NOT contain 'reminder in' when setting is disabled",
+            result.contains("reminder in", ignoreCase = true)
         )
     }
 
@@ -400,10 +400,10 @@ class EventFormatterTest {
         DevLog.info(LOG_TAG, "Reminder 1 fires at: ${eventStartTime - 60 * Consts.MINUTE_IN_MILLISECONDS}")
         DevLog.info(LOG_TAG, "Reminder 2 fires at: ${eventStartTime - 30 * Consts.MINUTE_IN_MILLISECONDS}")
         
-        // Should contain "Next alert" when setting is enabled and there are future reminders
+        // Should contain "reminder in" when setting is enabled and there are future reminders
         assertTrue(
-            "Should contain 'Next alert' when setting is enabled and future reminders exist. Result: $result",
-            result.contains("Next alert", ignoreCase = true)
+            "Should contain 'reminder in' when setting is enabled and future reminders exist. Result: $result",
+            result.contains("reminder in", ignoreCase = true)
         )
     }
 }

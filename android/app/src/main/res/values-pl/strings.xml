@@ -155,8 +155,6 @@
 
     <string name="multiple_events_single_notification">%d wydarzeń kalendarza</string>
 
-    <string name="reminder_at" formatted="false"> (przypomnienie o %s)</string>
-
     <string name="dismissed_events">Odrzucone powiadomienia</string>
     <string name="deleted_events">Kosz</string>
     <string name="app_behavior">Inne działania</string>

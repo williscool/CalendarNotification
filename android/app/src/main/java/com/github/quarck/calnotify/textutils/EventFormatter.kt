@@ -86,15 +86,11 @@ class EventFormatter(
 
         if (Settings(ctx).displayNextAlertTime) {
             val eventRecord = calendarProvider.getEvent(ctx, event.eventId)
-            val nextAlertTime = eventRecord?.getNextAlertTimeAfter(event.displayedStartTime)
+            val nextAlertTime = eventRecord?.getNextAlertTimeAfter(clock.currentTimeMillis())
             if (nextAlertTime != null) {
                 val duration = nextAlertTime - clock.currentTimeMillis()
                 if (duration > 0) {
-                    sb.append(" (")
-                    sb.append(ctx.getString(R.string.event_next_alert_in))
-                    sb.append(" ")
-                    sb.append(formatTimeDuration(duration, 60))
-                    sb.append(")")
+                    sb.append(ctx.getString(R.string.reminder_in, formatTimeDuration(duration, 60)))
                 }
             }
         }
