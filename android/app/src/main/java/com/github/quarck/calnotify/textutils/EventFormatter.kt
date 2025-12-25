@@ -90,6 +90,7 @@ class EventFormatter(
             if (nextAlertTime != null) {
                 val duration = nextAlertTime - clock.currentTimeMillis()
                 if (duration > 0) {
+                    sb.append(" ")
                     sb.append(ctx.getString(R.string.reminder_in, formatTimeDuration(duration, 60)))
                 }
             }
