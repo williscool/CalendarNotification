@@ -29,6 +29,7 @@ import com.github.quarck.calnotify.calendar.displayedEndTime
 import com.github.quarck.calnotify.calendar.displayedStartTime
 import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.getNextAlertTimeAfter
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
@@ -85,7 +86,7 @@ class EventFormatter(
 
         if (Settings(ctx).displayNextAlertTime) {
             val eventRecord = calendarProvider.getEvent(ctx, event.eventId)
-            val nextAlertTime = eventRecord.getNextAlertTimeAfter(event.displayedStartTime)
+            val nextAlertTime = eventRecord?.getNextAlertTimeAfter(event.displayedStartTime)
             if (nextAlertTime != null) {
                 val duration = nextAlertTime - clock.currentTimeMillis()
                 if (duration > 0) {

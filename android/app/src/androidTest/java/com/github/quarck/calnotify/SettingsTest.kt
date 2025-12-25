@@ -170,5 +170,14 @@ class SettingsTest {
         DevLog.info(LOG_TAG, "Running testFormatSnoozePresetSeconds")
         assertEquals("45s", PreferenceUtils.formatSnoozePreset(45 * 1000L))
     }
+
+    // === Display Next Alert Time Tests ===
+
+    @Test
+    fun testDisplayNextAlertTimeDefaultValue() {
+        DevLog.info(LOG_TAG, "Running testDisplayNextAlertTimeDefaultValue")
+        // The default value should be false
+        assertFalse("displayNextAlertTime should default to false", settings.displayNextAlertTime)
+    }
 }
 
