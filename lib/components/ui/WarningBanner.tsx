@@ -1,10 +1,16 @@
 import React from 'react';
-import { View, Text } from 'react-native';
-import { useTheme } from '@lib/theme/ThemeContext';
-import { getWarningVariantStyle, BannerVariant } from './variants';
+import { Alert, AlertText, VStack } from '@/components/ui';
+
+// Map our variant names to Gluestack Alert action prop
+type BannerVariant = 'warning' | 'error' | 'info';
+const variantToAction: Record<BannerVariant, 'warning' | 'error' | 'info'> = {
+  warning: 'warning',
+  error: 'error',
+  info: 'info',
+};
 
 interface WarningBannerProps {
-  /** Simple text message (wrapped in Text component) */
+  /** Simple text message (wrapped in AlertText component) */
   message?: string;
   /** Custom content (not wrapped - use for interactive elements) */
   children?: React.ReactNode;
@@ -14,11 +20,11 @@ interface WarningBannerProps {
 
 /**
  * A banner for displaying warning/error/info messages.
- * Uses NativeWind for styling.
+ * Uses Gluestack UI Alert component.
  * 
  * Two usage modes:
  * 1. Simple: <WarningBanner message="Warning text" />
- * 2. Custom: <WarningBanner><Text>Custom</Text><Pressable>...</Pressable></WarningBanner>
+ * 2. Custom: <WarningBanner><VStack>...</VStack></WarningBanner> (auto-wrapped in VStack)
  */
 export const WarningBanner: React.FC<WarningBannerProps> = ({
   message,
@@ -26,29 +32,22 @@ export const WarningBanner: React.FC<WarningBannerProps> = ({
   variant = 'warning',
   testID,
 }) => {
-  const { colors } = useTheme();
-  const { bg, border, text } = getWarningVariantStyle(variant, colors);
-
   return (
-    <View
-      className="p-4 mx-4 my-4 rounded-lg items-center"
-      style={{ 
-        backgroundColor: bg,
-        borderWidth: 1,
-        borderColor: border,
-      }}
+    <Alert
+      action={variantToAction[variant]}
+      variant="outline"
+      className="mx-4 my-4 rounded-lg justify-center"
       testID={testID}
     >
       {message ? (
-        <Text
-          className="text-base text-center"
-          style={{ color: text }}
-        >
-          {message}
-        </Text>
+        <AlertText className="text-center">{message}</AlertText>
       ) : (
-        children
+        // Wrap children in VStack since Alert has flex-row layout
+        <VStack className="items-center">{children}</VStack>
       )}
-    </View>
+    </Alert>
   );
 };
+
+// Re-export AlertText for custom banner content
+export { AlertText } from '@/components/ui';

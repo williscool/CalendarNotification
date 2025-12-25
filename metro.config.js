@@ -1,5 +1,3 @@
-const path = require('path');
-const { pathToFileURL } = require('url');
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
@@ -8,10 +6,8 @@ const { withNativeWind } = require('nativewind/metro');
  * https://facebook.github.io/metro/docs/configuration
  * https://docs.expo.dev/guides/customizing-metro/
  *
- * NOTE: NativeWind has known issues with Windows paths and ESM.
- * If you get ERR_UNSUPPORTED_ESM_URL_SCHEME errors on Windows,
- * build from WSL instead: cd to the WSL path and run ./gradlew assembleDebug
- * See: https://github.com/nativewind/nativewind/issues/1667
+ * NOTE: NativeWind has Windows path issues. Use bundle_or_skip.js for Windows builds.
+ * Pre-bundle on WSL: yarn bundle:android --dev=true
  *
  * @type {import('metro-config').MetroConfig}
  */
@@ -24,6 +20,7 @@ config.transformer = {
       experimentalImportSupport: false,
       inlineRequires: {
         blockList: {
+          // PowerSync requires eager initialization - don't inline its requires
           [require.resolve('@powersync/react-native')]: true,
         }
       }
@@ -33,17 +30,8 @@ config.transformer = {
 
 config.resolver = {
   ...config.resolver,
+  // Support ESM modules that use .mjs extension
   sourceExts: [...config.resolver.sourceExts, 'mjs'],
 };
 
-// Convert paths to file URLs for Windows ESM compatibility
-// See: https://github.com/nativewind/nativewind/issues/1667
-const cssPath = path.resolve(__dirname, 'global.css');
-const tailwindConfigPath = path.resolve(__dirname, 'tailwind.config.js');
-
-const nativeWindOptions = {
-  input: process.platform === 'win32' ? pathToFileURL(cssPath).href : cssPath,
-  configPath: process.platform === 'win32' ? pathToFileURL(tailwindConfigPath).href : tailwindConfigPath,
-};
-
-module.exports = withNativeWind(config, nativeWindOptions);
+module.exports = withNativeWind(config, { input: './global.css' });

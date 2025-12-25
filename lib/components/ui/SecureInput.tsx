@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { View, TextInput, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
+import { Input, InputField, InputSlot } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@lib/theme/ThemeContext';
 
@@ -16,7 +17,7 @@ interface SecureInputProps {
 
 /**
  * A password input with visibility toggle.
- * Uses NativeWind for styling.
+ * Uses Gluestack UI Input components.
  * 
  * Can be used in two modes:
  * 1. Uncontrolled: Don't pass isVisible/onVisibilityChange - component manages its own state
@@ -46,38 +47,41 @@ export const SecureInput: React.FC<SecureInputProps> = ({
   }, [isControlled, onVisibilityChange, showPassword]);
 
   return (
-    <View
-      className="flex-row items-center rounded-lg px-3"
+    <Input
+      variant="outline"
+      size="md"
+      className="rounded-lg"
       style={{ 
-        borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.backgroundWhite,
+        flexDirection: 'row',
+        alignItems: 'center',
       }}
       testID={testID}
     >
-      <TextInput
+      <InputField
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.textLight}
         secureTextEntry={!showPassword}
         selectTextOnFocus={true}
-        className="flex-1 py-3"
-        style={{ color: colors.text }}
+        style={{ color: colors.text, flex: 1 }}
         testID={testID ? `${testID}-field` : undefined}
       />
-      <Pressable 
-        onPress={toggleVisibility} 
-        testID={testID ? `${testID}-toggle` : undefined}
-        className="pl-2"
-      >
-        <Ionicons
-          name={showPassword ? "eye-off" : "eye"}
-          size={24}
-          color={colors.textMuted}
-        />
-      </Pressable>
-    </View>
+      <InputSlot style={{ paddingRight: 12 }}>
+        <Pressable 
+          onPress={toggleVisibility} 
+          testID={testID ? `${testID}-toggle` : undefined}
+        >
+          <Ionicons
+            name={showPassword ? "eye-off" : "eye"}
+            size={24}
+            color={colors.textMuted}
+          />
+        </Pressable>
+      </InputSlot>
+    </Input>
   );
 };
 

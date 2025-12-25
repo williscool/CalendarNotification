@@ -50,8 +50,3 @@ export const getWarningVariantStyle = (variant: BannerVariant, colors?: ThemeCol
   return bannerVariantStyles[variant];
 };
 
-// SecureInput - no variant logic, just visibility toggle
-export const getSecureInputState = (isVisible: boolean) => ({
-  secureTextEntry: !isVisible,
-  iconName: isVisible ? 'eye-off' : 'eye',
-});

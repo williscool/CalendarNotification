@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { Card, Text } from '@/components/ui';
 import { useTheme } from '@lib/theme/ThemeContext';
 
 interface SectionProps {
@@ -10,14 +10,15 @@ interface SectionProps {
 
 /**
  * A card-like container with optional title.
- * Uses NativeWind for styling.
+ * Uses Gluestack UI Card component.
  */
 export const Section: React.FC<SectionProps> = ({ title, children, testID }) => {
   const { colors } = useTheme();
   
   return (
-    <View
-      className="p-4 mb-4 mx-4 rounded-lg"
+    <Card
+      variant="elevated"
+      className="p-4 mb-4 mx-4"
       style={{ backgroundColor: colors.backgroundWhite }}
       testID={testID}
     >
@@ -30,6 +31,6 @@ export const Section: React.FC<SectionProps> = ({ title, children, testID }) => 
         </Text>
       )}
       {children}
-    </View>
+    </Card>
   );
 };
