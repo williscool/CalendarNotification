@@ -4,6 +4,7 @@
 
 Follows `android.intent.action.EVENT_REMINDER` through the code to registerNewEvent
 
+```
 Calendar Provider EVENT_REMINDER Broadcast
     │
     ▼
@@ -45,13 +46,20 @@ CalendarMonitor.onProviderReminderBroadcast
     │
     ├──► ApplicationController.postEventNotifications: Post notifications for eventsToPost
     │
-    ├──► CalendarMonitor.setAlertWasHandled: Mark all events as handled
+    ├──► CalendarMonitor.setAlertWasHandled: Mark eventsToSilentlyDrop as handled
     │
-    ├──► CalendarProvider.dismissNativeEventAlert: Dismiss native calendar alerts
+    ├──► CalendarProvider.dismissNativeEventAlert: Dismiss native alerts for eventsToSilentlyDrop
     │
-    └──► ApplicationController.afterCalendarEventFired: Reschedule alarms and notify UI
+    ├──► CalendarMonitor.setAlertWasHandled: Mark eventsToPost as handled
+    │
+    ├──► CalendarProvider.dismissNativeEventAlert: Dismiss native alerts for eventsToPost
+    │
+    ├──► ApplicationController.afterCalendarEventFired: Reschedule alarms and notify UI
+    │
+    └──► CalendarMonitor.launchRescanService: Trigger rescan service
+```
 
-``` mermaid
+```mermaid
 flowchart TD
     A[Calendar Provider EVENT_REMINDER Broadcast] --> B[EventReminderBroadcastReceiver.onReceive]
     B --> C[CalendarMonitor.onProviderReminderBroadcast]
@@ -81,10 +89,16 @@ flowchart TD
     T --> U[Verify storage]
     U --> V[Add to eventsToPost]
     
-    V --> W[Post notifications]
-    W --> X[Mark as handled]
-    X --> Y[Dismiss native alerts]
-    Y --> Z[Reschedule alarms and notify UI]
+    V --> W[Post notifications for eventsToPost]
+    W --> X[Mark eventsToPost as handled]
+    X --> Y[Dismiss native alerts for eventsToPost]
+    
+    L --> X2[Mark eventsToSilentlyDrop as handled]
+    X2 --> Y2[Dismiss native alerts for eventsToSilentlyDrop]
+    
+    Y --> Z[afterCalendarEventFired]
+    Y2 --> Z
+    Z --> AA[launchRescanService]
 ```
 
 Note: The broadcast receiver for EVENT_REMINDER is registered with the highest possible priority (2147483647) to ensure reliable event handling.
@@ -93,6 +107,7 @@ Note: The broadcast receiver for EVENT_REMINDER is registered with the highest p
 
 Follows `android.intent.action.PROVIDER_CHANGED` through the code to registerNewEvent
 
+```
 onCalendarChanged
     │
     ▼
@@ -112,7 +127,7 @@ CalendarMonitorService.onHandleIntent
     │    │
     │    ├──► CalendarMonitorManual.scanNextEvent
     │    │    │
-    │    │    ├──► CalendarProvider.getEventAlertsForInstancesRange
+    │    │    ├──► calendarProvider.getEventAlertsForInstancesInRange
     │    │    │
     │    │    ├──► filterAndMergeAlerts
     │    │    │    │
@@ -135,36 +150,36 @@ ManualEventAlarmBroadcastReceiver receives alarm
     │    ├──► Check timing condition
     │    │    (nextEventFireFromScan < currentTime + ALARM_THRESHOLD)
     │    │
-    │    └──► CalendarMonitorManual.manualFireEventsAt_NoHousekeeping
-    │         │
-    │         ├──► MonitorStorage.getAlertsAt/getAlertsForAlertRange
-    │         │
-    │         ├──► registerFiredEventsInDB
-    │         │    │
-    │         │    └──► ApplicationController.registerNewEvents
-    │         │
-    │         └──► markAlertsAsHandledInDB
-    │
-    ▼
-CalendarMonitorService processes final intent
-    Parameters:
-    - alert_time=reminderTime
-    - rescan_monitor=true
-    - reload_calendar=false
-    - start_delay=0
+    │    ├──► CalendarMonitorManual.manualFireEventsAt_NoHousekeeping
+    │    │    │
+    │    │    ├──► MonitorStorage.getAlertsAt/getAlertsForAlertRange
+    │    │    │
+    │    │    ├──► registerFiredEventsInDB
+    │    │    │    │
+    │    │    │    └──► ApplicationController.registerNewEvents
+    │    │    │
+    │    │    └──► markAlertsAsHandledInDB
+    │    │
+    │    ├──► ApplicationController.afterCalendarEventFired (if events fired)
+    │    │
+    │    └──► launchRescanService
+    │         Parameters:
+    │         - rescan_monitor=true
+    │         - reload_calendar=true
+```
 
 Note: The CalendarMonitorService uses a wake lock during the rescan process to ensure reliable operation, especially when processing calendar changes and firing events.
 
-``` mermaid
+```mermaid
 flowchart TD
     A[onCalendarChanged] --> B[CalendarMonitor.launchRescanService]
-    B --> C[Intent: CalendarMonitorService]
-    C -->|Parameters:<br/>start_delay=2000<br/>rescan_monitor=true<br/>reload_calendar=true<br/>user_action_until=0| D[CalendarMonitorService.onHandleIntent]
+    B --> C["Intent: CalendarMonitorService<br/>(start_delay=2000, rescan_monitor=true,<br/>reload_calendar=true, user_action_until=0)"]
+    C --> D[CalendarMonitorService.onHandleIntent]
     
     D --> E[CalendarMonitor.onRescanFromService]
     E --> F[CalendarMonitorManual.scanNextEvent]
     
-    F --> G[CalendarProvider.getEventAlertsForInstancesRange]
+    F --> G[calendarProvider.getEventAlertsForInstancesInRange]
     F --> H[filterAndMergeAlerts]
     H --> I[MonitorStorage.getAlertsForInstanceStartRange]
     H --> J[Update MonitorStorage]
@@ -175,7 +190,7 @@ flowchart TD
     M[Time advances past reminder time] --> N[ManualEventAlarmBroadcastReceiver]
     N --> O[CalendarMonitor.onAlarmBroadcast]
     
-    O --> P{Check timing condition<br/>nextEventFireFromScan <br/> currentTime + ALARM_THRESHOLD}
+    O --> P{nextEventFireFromScan < currentTime + ALARM_THRESHOLD?}
     P -->|true| Q[manualFireEventsAt_NoHousekeeping]
     
     Q --> R[MonitorStorage.getAlertsAt]
@@ -183,7 +198,8 @@ flowchart TD
     S --> T[ApplicationController.registerNewEvents]
     Q --> U[markAlertsAsHandledInDB]
     
-    V[CalendarMonitorService final intent] -->|Parameters:<br/>alert_time=reminderTime<br/>rescan_monitor=true<br/>reload_calendar=false<br/>start_delay=0| D
+    U --> V[afterCalendarEventFired]
+    V --> W["launchRescanService<br/>(rescan_monitor=true, reload_calendar=true)"]
 ```
 
 ## Additional Calendar Monitoring Triggers
@@ -192,6 +208,7 @@ Besides the two main flows above, the Calendar Monitor can be triggered through 
 
 ### System Boot
 
+```
 BOOT_COMPLETED Broadcast
     │
     ▼
@@ -207,9 +224,11 @@ ApplicationController.onBootComplete
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
 
 ### Application Update
 
+```
 MY_PACKAGE_REPLACED Broadcast
     │
     ▼
@@ -225,9 +244,11 @@ ApplicationController.onAppUpdated
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
 
 ### Time or Timezone Changes
 
+```
 TIME_SET or TIMEZONE_CHANGED Broadcast
     │
     ▼
@@ -236,7 +257,7 @@ TimeSetBroadcastReceiver.onReceive
     ▼
 ApplicationController.onTimeChanged
     │
-    ├──► Reschedule alarms
+    ├──► alarmScheduler.rescheduleAlarms
     │
     ▼
 CalendarMonitor.onSystemTimeChange
@@ -244,9 +265,11 @@ CalendarMonitor.onSystemTimeChange
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```
 
 ### Periodic Rescan
 
+```
 System-scheduled Alarm
     │
     ▼
@@ -258,3 +281,4 @@ CalendarMonitor.onPeriodicRescanBroadcast
     ▼
 CalendarMonitor.launchRescanService
     (Same flow as PROVIDER_CHANGED)
+```

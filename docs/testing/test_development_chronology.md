@@ -40,7 +40,7 @@ The test suite was developed incrementally, starting with basic backup/restore t
 **Key Achievements:**
 - First tests using mock objects to simulate calendar provider interactions
 - Established the pattern of using MockK for mocking
-- Created the initial documentation in `docs/calendar_monitoring.md`
+- Created the initial documentation in `docs/architecture/calendar_monitoring.md`
 
 ---
 
@@ -61,7 +61,7 @@ The test suite was developed incrementally, starting with basic backup/restore t
 - Enabled deterministic testing of time-dependent behavior
 - Added `advanceAndExecuteTasks()` and `executeAllPendingTasks()` methods
 
-**Documentation Added:** `docs/clock_implementation.md`
+**Documentation Added:** `docs/architecture/clock_implementation.md`
 
 ---
 
@@ -82,7 +82,7 @@ The test suite was developed incrementally, starting with basic backup/restore t
 
 **Purpose:** Major refactoring to extract repeated mock setup into reusable fixtures. Created a modular, extensible test infrastructure.
 
-**Documentation Added:** `docs/test_fixture_refactoring.md`
+**Documentation Added:** `docs/testing/test_fixture_refactoring.md`
 
 ---
 
@@ -124,7 +124,7 @@ The test suite was developed incrementally, starting with basic backup/restore t
 - Dismissal from reschedule confirmations
 
 **Documentation Added:** 
-- `docs/dev_completed/event_dissmimal_testing_notes.md` (note: filename has typo "dissmimal" for "dismissal")
+- `docs/dev_completed/event_dismissal_testing_notes.md`
 - `docs/dev_completed/constructor-mocking-android.md`
 
 ---
@@ -168,8 +168,8 @@ android/app/src/androidTest/java/com/github/quarck/calnotify/
 For understanding the test suite one file at a time, follow this order:
 
 ### 1. Start with Documentation
-1. `docs/calendar_monitoring.md` - Understand the flows being tested
-2. `docs/clock_implementation.md` - Understand time control in tests
+1. `docs/architecture/calendar_monitoring.md` - Understand the flows being tested
+2. `docs/architecture/clock_implementation.md` - Understand time control in tests
 3. `docs/dev_completed/constructor-mocking-android.md` - Key mocking limitations
 
 ### 2. Test Utilities (Foundation)

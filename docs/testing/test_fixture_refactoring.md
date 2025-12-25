@@ -1,14 +1,14 @@
-# Test Fixture Refactoring Plan
+# Test Fixture Infrastructure
 
 ## Overview
 
-This document outlines the implementation plan for refactoring the calendar monitoring test fixtures into reusable components. The goal is to create a modular, extensible, and maintainable test infrastructure that reduces duplication and makes writing new tests easier.
+This document describes the test fixture infrastructure for calendar monitoring tests. The fixtures provide a modular, extensible, and maintainable test infrastructure that reduces duplication and makes writing new tests easier.
 
 ## Components
 
 ### 1. BaseCalendarTestFixture
 
-The `BaseCalendarTestFixture` in `testutils/BaseCalendarTestFixture.kt` will provide:
+The `BaseCalendarTestFixture` in `testutils/BaseCalendarTestFixture.kt` provides:
 - Core test infrastructure including context, timer, and permissions setup
 - Configurable mock components that can be selectively included
 - Helper methods for common testing operations
@@ -16,7 +16,7 @@ The `BaseCalendarTestFixture` in `testutils/BaseCalendarTestFixture.kt` will pro
 
 ### 2. MockContextProvider
 
-The `MockContextProvider` will handle:
+The `MockContextProvider` handles:
 - Creating and configuring the mock context
 - Setting up SharedPreferences with persistent storage
 - Managing system services like AlarmManager
@@ -24,7 +24,7 @@ The `MockContextProvider` will handle:
 
 ### 3. MockTimeProvider
 
-The `MockTimeProvider` will offer:
+The `MockTimeProvider` offers:
 - Test clock implementation that extends CNPlusTestClock
 - Methods to advance time and trigger scheduled tasks
 - Utilities for setting specific time points and verifying timing behavior
@@ -32,56 +32,68 @@ The `MockTimeProvider` will offer:
 
 ### 4. MockCalendarProvider
 
-The `MockCalendarProvider` will include:
+The `MockCalendarProvider` includes:
 - Methods to create test calendars and events
 - Configurable event attributes (title, start time, etc.)
 - Support for different event types (regular, all-day, recurring)
-- Mock implementations of CalendarProvider methods
+- Delegation to real CalendarProvider where possible
 
 ### 5. MockApplicationComponents
 
-The `MockApplicationComponents` will provide:
+The `MockApplicationComponents` provides:
 - Mock ApplicationController with configurable behavior
 - Mock notification handling
 - Mock alarm scheduling
 - Mock event formatting
 
-## Implementation Steps
+## Implementation Phases
 
 ### Phase 1: Foundation
 
-1. Create the base structure with core interfaces and abstract classes
-2. Extract mock context provider with SharedPreferences support
-3. Extract test clock and timer management
-4. Implement basic resource cleanup
+Created the base structure:
+1. Core interfaces and abstract classes
+2. Mock context provider with SharedPreferences support
+3. Test clock and timer management via `CNPlusTestClock`
+4. Resource cleanup in `@After` methods
 
 ### Phase 2: Calendar and Event Support
 
-1. Extract calendar creation and management
-2. Extract event creation and configuration
-3. Implement mock CalendarProvider responses
-4. Add storage verification utilities
+Extracted calendar functionality:
+1. Calendar creation and management utilities
+2. Event creation with configurable attributes
+3. Real CalendarProvider delegation (not pure mocks)
+4. Storage verification utilities
 
 ### Phase 3: Application Components
 
-1. Extract ApplicationController mocking
-2. Extract notification management
-3. Extract alarm scheduling
-4. Implement verification helpers
+Extracted application-level mocking:
+1. ApplicationController mocking with provider injection
+2. Notification management mocks
+3. Alarm scheduling mocks
+4. Event formatting utilities
 
 ### Phase 4: Builder Pattern
 
-1. Create builder interface for flexible configuration
-2. Implement specialized builders for common test scenarios
-3. Add documentation and examples
-4. Create cleanup mechanisms
+Implemented flexible configuration:
+1. Builder interface for fixture setup
+2. Specialized builders for common test scenarios
+3. Documentation and examples
+4. Cleanup mechanisms
 
 ### Phase 5: Test Migration
 
-1. Refactor one test class at a time to use the new fixture
-2. Verify tests continue to pass throughout migration
-3. Remove duplicate code
-4. Add additional test helpers as needed
+Migrated existing tests to use fixtures:
+1. Refactored one test class at a time
+2. Verified tests continued to pass throughout
+3. Removed duplicate code
+4. Added additional test helpers as needed
+
+### Resulting Specialized Fixtures
+
+- `CalendarProviderTestFixture` - For calendar/event tests
+- `CalendarMonitorTestFixture` - For monitoring flow tests
+- `DirectReminderTestFixture` - For reminder broadcast tests
+- `UITestFixture` - For UI/Activity tests with Espresso
 
 ## Usage Patterns
 
@@ -134,28 +146,26 @@ fun testDirectReminderProcessing() {
 7. **Flexible Configuration**: Builder pattern allows precise control over mock behavior
 8. **Resource Management**: Centralized cleanup of mocks and resources
 
-## Migration Strategy
+## Development History
 
-The migration to the new fixture system should be gradual to ensure tests continue to work:
+The fixture system was developed incrementally:
 
-1. First implement the foundation components without changing existing tests
-2. Create simple utility methods that existing tests can start using
-3. Refactor one test class at a time, starting with the simpler tests
-4. Add more specialized fixtures as patterns emerge during migration
-5. Run tests after each migration step to ensure functionality is preserved
-
-This incremental approach minimizes risks while improving the test codebase over time.
+1. Foundation components were created without changing existing tests
+2. Simple utility methods allowed existing tests to adopt fixtures gradually
+3. Test classes were refactored one at a time, starting with simpler tests
+4. Specialized fixtures emerged as patterns became clear during migration
+5. Tests were run after each step to ensure functionality was preserved
 
 ``` mermaid
 flowchart TD
-    A[Create Foundation Components] --> B[Extract Context & Time Providers]
-    B --> C[Extract Calendar Provider]
-    C --> D[Extract Application Components]
-    D --> E[Implement Builder Pattern]
-    E --> F[Migrate Direct Reminder Tests]
-    F --> G[Migrate Calendar Monitor Tests]
-    G --> H[Create Specialized Fixtures]
-    H --> I[Document Usage Patterns]
+    A[Foundation Components] --> B[Context & Time Providers]
+    B --> C[Calendar Provider]
+    C --> D[Application Components]
+    D --> E[Specialized Fixtures]
+    E --> F[Direct Reminder Tests]
+    F --> G[Calendar Monitor Tests]
+    G --> H[UI Tests]
+    H --> I[Documentation]
 ```
 
 ## Component Relationships
