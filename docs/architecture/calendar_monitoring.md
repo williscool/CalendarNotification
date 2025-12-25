@@ -89,11 +89,15 @@ flowchart TD
     T --> U[Verify storage]
     U --> V[Add to eventsToPost]
     
-    L --> W[Post notifications for eventsToPost]
-    V --> W
-    W --> X[Mark all events as handled]
-    X --> Y[Dismiss native alerts]
+    V --> W[Post notifications for eventsToPost]
+    W --> X[Mark eventsToPost as handled]
+    X --> Y[Dismiss native alerts for eventsToPost]
+    
+    L --> X2[Mark eventsToSilentlyDrop as handled]
+    X2 --> Y2[Dismiss native alerts for eventsToSilentlyDrop]
+    
     Y --> Z[afterCalendarEventFired]
+    Y2 --> Z
     Z --> AA[launchRescanService]
 ```
 
