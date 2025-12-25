@@ -7,59 +7,54 @@ alwaysApply: true
 
 # Code Changes
 
-Non-test code changes are now permitted for:
+This is a legacy codebase (2016) with a robust test suite added in 2024-25.
+
+**Permitted without confirmation:**
 - Bug fixes with corresponding test coverage
 - Refactoring with existing test coverage
 - Removal of deprecated features (QuietHours, CalendarEditor)
 
-For new features or significant changes, add tests first.
+**Requires tests first:**
+- New features or significant changes
 
-Previously the name of this rule was 
-
-dont change any non test code without getting confirmation first
-
-and its body:
-
-dont change any non test code without getting confirmation first. this is a very old application I'm working on making a thorough test suite for before making any changes. 
-
-now the test suite is a lot more robust we've relaxed the rule a bit but still be cognizant of it
+When in doubt, add tests first.
 
 
-# Work to make tests as faithful to the real code as possible
+# Faithful Testing
 
-its ok to mock out core android apis that the instrumentation testsuite doesn't work well with i.e. making push notifications but try to use the real original code for anything that exists in this codebase
-
-
-# Don't try to boil the ocean. Dont try to make big sweeping changes when more focused ones will do
-
-Always think of the minimum viable solution to a problem or change to make. make sure that works and then build on top of it. break things down into small testable pieces first. That said NO CHEATING! I.e. don't comment out or skip a test to solve a problem unless its just a temporary bandaid while working on something more important.
-
-# keep all code implementations as consise as possible.
-
-Everything it needs nothing it doesn't. Every new line of code is one that potentially doesn't work 😄
+Mock only what you must - core Android APIs that instrumentation tests can't handle (e.g., push notifications). Use real code for anything in this codebase.
 
 
-# Please check the documentation if you are implementing something potentially complex or nonstandard.
+# Incremental Changes
 
-often there are things we've learned already i.e. 
+Minimum viable solution first, then build on top. Break things into small testable pieces.
 
-docs/dev_completed/constructor-mocking-android.md
+**No cheating:** Don't comment out or skip tests to solve a problem (temporary bandaids excepted).
 
-documents how through a lot work an reserch we learned 
+# Keep Code Concise
 
-mockKStatic, mockConstructor and anyConstructed ALMOST ALWAYS FAIL. And aren't worth trying anymore where there are better alternatives.
-
-also 
-
-docs/calendar_monitoring.md
-
-goes into DEEP detail about how calendar monitoring works in the app
+Everything it needs, nothing it doesn't. Every new line of code is one that potentially doesn't work 😄
 
 
-# any new or updated copyright headers please attribute to 
+# Check Documentation First
 
+See `docs/README.md` for the full documentation index.
+
+**Key references:**
+
+- `docs/dev_completed/constructor-mocking-android.md` - **MockK limitations**: `mockkStatic`, `mockkConstructor`, and `anyConstructed` almost always fail in Android instrumentation tests. Use dependency injection patterns instead.
+
+- `docs/architecture/calendar_monitoring.md` - Deep detail on how calendar monitoring works (EVENT_REMINDER broadcasts, manual rescans, etc.)
+
+- `docs/architecture/clock_implementation.md` - How `CNPlusClockInterface` enables testable time-dependent code
+
+
+# Copyright Headers
+
+For new or updated copyright headers, use:
+
+```
 Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
+```
 
-William inherited the application from Sergey Parshin
-
-so any time you see the need to update those or create new ones please attribute to William
+(William inherited the application from Sergey Parshin in 2020)
