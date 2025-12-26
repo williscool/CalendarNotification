@@ -4,7 +4,7 @@ plugins {
     id 'kotlinx-serialization'
     id 'jacoco'
     id 'com.facebook.react'
-    id 'kotlin-kapt'  // KSP has binary incompatibility with Kotlin 2.0.21
+    id 'com.google.devtools.ksp'  // Using KSP for Room (avoids SQLite JDBC issue on Windows)
 }
 
 //
@@ -230,15 +230,8 @@ android {
 // React Native configuration for RN 0.76+
 // NOTE: All react {} configuration is consolidated at the bottom of this file
 
-// KAPT configuration for Room
-// Note: The SQLite JDBC verifier issue on Windows cannot be disabled via KAPT args
-// The only workaround is setting java.io.tmpdir to a writable location
-// Valid Room args: room.schemaLocation, room.incremental, room.expandProjection
-kapt {
-    arguments {
-        arg("room.incremental", "true")
-    }
-}
+// KSP avoids the SQLite JDBC native library extraction issue that KAPT has on Windows
+// Room arguments can be passed via: ksp { arg("room.schemaLocation", "...") } if needed
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -356,7 +349,7 @@ dependencies {
     androidTestImplementation "androidx.room:room-runtime:$roomVersion"
     androidTestImplementation "androidx.room:room-ktx:$roomVersion"
     androidTestImplementation "androidx.room:room-testing:$roomVersion"
-    kaptAndroidTest "androidx.room:room-compiler:$roomVersion"
+    kspAndroidTest "androidx.room:room-compiler:$roomVersion"
     // Room 2.8+ uses the new androidx.sqlite library
     androidTestImplementation "androidx.sqlite:sqlite:2.6.2"
     androidTestImplementation "androidx.sqlite:sqlite-framework:2.6.2"
