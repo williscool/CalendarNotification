@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.database.poc
 
 import androidx.sqlite.db.SupportSQLiteOpenHelper
+import com.github.quarck.calnotify.logs.DevLog
 
 /**
  * Custom factory for Room that uses requery's SQLite with cr-sqlite extension.
@@ -31,7 +32,12 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
  */
 class CrSqliteRoomFactory : SupportSQLiteOpenHelper.Factory {
     
+    companion object {
+        private const val LOG_TAG = "CrSqliteRoomFactory"
+    }
+    
     override fun create(configuration: SupportSQLiteOpenHelper.Configuration): SupportSQLiteOpenHelper {
+        DevLog.info(LOG_TAG, "Creating CrSqliteSupportHelper for database: ${configuration.name}")
         return CrSqliteSupportHelper(configuration)
     }
 }

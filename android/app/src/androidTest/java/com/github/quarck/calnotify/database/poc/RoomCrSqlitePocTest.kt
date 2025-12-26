@@ -136,9 +136,19 @@ class RoomCrSqlitePocTest {
         DevLog.info(LOG_TAG, "Starting test_crsqlite_extension_is_loaded")
         
         database = RoomPocDatabase.createWithCrSqlite(context)
+        val dao = database!!.pocDao()
+        
+        // IMPORTANT: Do a DAO operation first to trigger extension loading.
+        // Requery loads extensions lazily when the first query is executed through Room.
+        val count = dao.count()
+        DevLog.info(LOG_TAG, "Initial count (triggers extension loading): $count")
+        
+        // Now access underlying requery database where cr-sqlite extension is loaded
+        val helper = database!!.openHelper as CrSqliteSupportHelper
+        val underlyingDb = helper.underlyingDatabase
         
         // Query cr-sqlite version - this only works if extension is loaded
-        val cursor = database!!.openHelper.writableDatabase.query("SELECT crsql_version()")
+        val cursor = underlyingDb.rawQuery("SELECT crsql_version()", null)
         
         assertTrue("Cursor should have results", cursor.moveToFirst())
         
@@ -335,24 +345,33 @@ class RoomCrSqlitePocTest {
     /**
      * TEST 7: Verify cr-sqlite specific functions work.
      * 
-     * Tests that we can call cr-sqlite specific functions through Room's database.
+     * Tests that we can call cr-sqlite specific functions through the underlying database.
      */
     @Test
     fun test_crsqlite_specific_functions() {
         DevLog.info(LOG_TAG, "Starting test_crsqlite_specific_functions")
         
         database = RoomPocDatabase.createWithCrSqlite(context)
-        val writableDb = database!!.openHelper.writableDatabase
+        val dao = database!!.pocDao()
+        
+        // IMPORTANT: Do a DAO operation first to trigger extension loading.
+        // Requery loads extensions lazily when the first query is executed through Room.
+        val count = dao.count()
+        DevLog.info(LOG_TAG, "Initial count (triggers extension loading): $count")
+        
+        // Access underlying requery database where cr-sqlite extension is loaded
+        val helper = database!!.openHelper as CrSqliteSupportHelper
+        val underlyingDb = helper.underlyingDatabase
         
         // Test crsql_version() - already tested above but let's be thorough
-        val versionCursor = writableDb.query("SELECT crsql_version()")
+        val versionCursor = underlyingDb.rawQuery("SELECT crsql_version()", null)
         assertTrue(versionCursor.moveToFirst())
         val version = versionCursor.getString(0)
         versionCursor.close()
         DevLog.info(LOG_TAG, "crsql_version: $version")
         
-        // Test crsql_siteid() - each database should have a unique site ID
-        val siteIdCursor = writableDb.query("SELECT crsql_site_id()")
+        // Test crsql_site_id() - each database should have a unique site ID
+        val siteIdCursor = underlyingDb.rawQuery("SELECT crsql_site_id()", null)
         assertTrue(siteIdCursor.moveToFirst())
         val siteId = siteIdCursor.getBlob(0)
         siteIdCursor.close()

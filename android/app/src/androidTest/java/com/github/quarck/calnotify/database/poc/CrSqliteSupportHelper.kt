@@ -31,6 +31,7 @@ import androidx.sqlite.db.SupportSQLiteStatement
 import com.github.quarck.calnotify.logs.DevLog
 import io.requery.android.database.sqlite.SQLiteCustomExtension
 import io.requery.android.database.sqlite.SQLiteDatabase
+import io.requery.android.database.sqlite.SQLiteDatabase.OpenFlags
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import io.requery.android.database.sqlite.SQLiteOpenHelper
 import java.util.Locale
@@ -48,6 +49,16 @@ class CrSqliteSupportHelper(
     companion object {
         private const val LOG_TAG = "CrSqliteSupportHelper"
     }
+
+    /**
+     * Exposes the underlying requery SQLiteDatabase for cr-sqlite specific operations.
+     * This bypasses Room's connection management and goes directly to the database
+     * where the cr-sqlite extension is loaded.
+     * 
+     * Use this for testing cr-sqlite functions like crsql_version(), crsql_site_id(), etc.
+     */
+    val underlyingDatabase: SQLiteDatabase
+        get() = requeryHelper.writableDatabase
 
     private val requeryHelper: RequeryOpenHelper by lazy {
         RequeryOpenHelper(
@@ -96,12 +107,13 @@ class CrSqliteSupportHelper(
 
         override fun createConfiguration(
             path: String?,
-            openFlags: Int
+            @OpenFlags openFlags: Int
         ): SQLiteDatabaseConfiguration {
+            DevLog.info(LOG_TAG, "createConfiguration called! path=$path, openFlags=$openFlags")
             val config = super.createConfiguration(path, openFlags)
             // Load cr-sqlite extension
             config.customExtensions.add(SQLiteCustomExtension("crsqlite", "sqlite3_crsqlite_init"))
-            DevLog.info(LOG_TAG, "Added cr-sqlite extension to configuration")
+            DevLog.info(LOG_TAG, "Added cr-sqlite extension to configuration. Extensions count: ${config.customExtensions.size}")
             return config
         }
 
@@ -127,6 +139,21 @@ class CrSqliteSupportHelper(
 
         override fun onConfigure(db: SQLiteDatabase) {
             DevLog.info(LOG_TAG, "onConfigure called")
+            
+            // Try to verify cr-sqlite is loaded by querying version
+            try {
+                val cursor = db.rawQuery("SELECT crsql_version()", null)
+                if (cursor.moveToFirst()) {
+                    val version = cursor.getString(0)
+                    DevLog.info(LOG_TAG, "cr-sqlite version: $version")
+                }
+                cursor.close()
+            } catch (e: Exception) {
+                DevLog.error(LOG_TAG, "cr-sqlite extension NOT loaded: ${e.message}")
+                // Extension not loaded via createConfiguration, this is expected if 
+                // requery isn't calling our override properly
+            }
+            
             callback.onConfigure(RequeryDatabaseWrapper(db))
         }
 
