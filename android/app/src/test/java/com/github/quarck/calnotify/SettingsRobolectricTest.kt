@@ -164,5 +164,13 @@ class SettingsRobolectricTest {
     fun testFormatSnoozePresetSeconds() {
         assertEquals("45s", PreferenceUtils.formatSnoozePreset(45 * 1000L))
     }
+
+    // === Display Next Alert Time Tests ===
+
+    @Test
+    fun testDisplayNextAlertTimeDefaultValue() {
+        // The default value should be false
+        assertFalse("displayNextAlertTime should default to false", settings.displayNextAlertTime)
+    }
 }
 
