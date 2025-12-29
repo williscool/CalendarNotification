@@ -19,12 +19,28 @@ fi
 # Pin to specific nightly version - cr-sqlite uses concat_idents feature removed in Rust 1.90.0
 RUST_NIGHTLY_VERSION="nightly-2023-10-05"
 
+echo "=== Checking for rustup ==="
+if ! command -v rustup &> /dev/null; then
+    echo "ERROR: rustup is required but not installed!"
+    echo ""
+    echo "Install from: https://rustup.rs/"
+    exit 1
+fi
+
 echo "=== Installing required tools ==="
 echo "Using pinned Rust version: $RUST_NIGHTLY_VERSION"
+echo "(cr-sqlite requires this specific version due to concat_idents feature removal in newer Rust)"
 rustup toolchain install $RUST_NIGHTLY_VERSION || true
 rustup target add aarch64-linux-android --toolchain $RUST_NIGHTLY_VERSION || true
 rustup component add rust-src --toolchain $RUST_NIGHTLY_VERSION || true
 cargo install cargo-ndk || true
+
+# Verify the toolchain was installed
+if ! rustup run $RUST_NIGHTLY_VERSION cargo --version &> /dev/null; then
+    echo "ERROR: Failed to install $RUST_NIGHTLY_VERSION toolchain!"
+    echo "Try manually running: rustup toolchain install $RUST_NIGHTLY_VERSION"
+    exit 1
+fi
 
 echo "=== Creating temp directory ==="
 mkdir -p "$TMP_DIR"
