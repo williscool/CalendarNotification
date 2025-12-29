@@ -1,6 +1,8 @@
 # Room Database Migration
 
-## Status: Under Consideration
+## Status: POC COMPLETE ✅ - See [Database Modernization Plan](database_modernization_plan.md)
+
+> **Note:** This document contains preliminary research. For the actual implementation plan with POC results and validated configurations, see **[Database Modernization Plan](database_modernization_plan.md)**.
 
 ## Overview
 
@@ -206,22 +208,22 @@ val MIGRATION_LEGACY_TO_ROOM = object : Migration(9, 10) {
 | Custom migration code | Built-in migration support |
 | No reactive support | Flow/LiveData integration |
 
-## Dependencies to Add
+## Dependencies (Validated in POC)
 
-```kotlin
-// build.gradle.kts (app)
-dependencies {
-    val roomVersion = "2.6.1"
-    
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")  // Coroutines support
-    ksp("androidx.room:room-compiler:$roomVersion")  // Use KSP, not kapt
-    
-    testImplementation("androidx.room:room-testing:$roomVersion")
-}
+```groovy
+// Actual versions used - see database_modernization_plan.md for full config
+def roomVersion = "2.8.4"
+
+implementation "androidx.room:room-runtime:$roomVersion"
+implementation "androidx.room:room-ktx:$roomVersion"
+ksp "androidx.room:room-compiler:$roomVersion"
+
+// Required for Room 2.8.x
+implementation "androidx.sqlite:sqlite:2.6.2"
+implementation "androidx.sqlite:sqlite-framework:2.6.2"
 ```
 
-Note: The app already uses `io.requery.android.database.sqlite.SQLiteDatabase` (requery's SQLite wrapper), not the standard Android SQLite. Room uses `androidx.sqlite` under the hood, which is compatible.
+**Important:** The app uses `requery:sqlite-android` with cr-sqlite extension. Room integration requires a custom `SupportSQLiteOpenHelper.Factory` - see POC code in `android/app/src/androidTest/java/com/github/quarck/calnotify/database/poc/`.
 
 ## Considerations
 
@@ -233,7 +235,7 @@ Note: The app already uses `io.requery.android.database.sqlite.SQLiteDatabase` (
 - Better migration tooling
 
 ### Cons
-- Initial migration effort (~30-40 hours)
+- Initial migration effort (~50-68 hours total, including POC)
 - Need to maintain compatibility during transition
 - Existing interfaces (`EventsStorageInterface`, etc.) work well with current DI
 - Learning curve if unfamiliar with Room
@@ -243,9 +245,19 @@ Note: The app already uses `io.requery.android.database.sqlite.SQLiteDatabase` (
 - `ApplicationController.eventsStorageProvider` pattern still works
 - Room DAOs implement the same operations, just cleaner
 
+### CR-SQLite Integration (Solved in POC)
+The main technical challenge was integrating Room with cr-sqlite extension:
+
+- **Solution:** Custom `SupportSQLiteOpenHelper.Factory` (`CrSqliteRoomFactory`)
+- **APK Packaging:** Required `extractNativeLibs="true"` and `useLegacyPackaging=true`
+- **Library Naming:** Renamed to `crsqlite_requery.so` to avoid conflict with React Native's version
+- **Extension Loading:** Must use `SQLiteCustomExtension`, NOT `load_extension()` SQL
+
+See [CR-SQLite + Room Testing Guide](../testing/crsqlite_room_testing.md) for full details.
+
 ## Recommendation
 
-**Priority: Medium-High**
+**Priority: Medium-High** | **Status: POC COMPLETE ✅**
 
 This is a good candidate for migration because:
 1. Database code is mission-critical (event notifications)
@@ -253,9 +265,14 @@ This is a good candidate for migration because:
 3. Type safety would catch issues at compile time
 4. Reduces maintenance burden long-term
 
-**Suggested approach:** Start with `MonitorStorage` as a pilot (simplest SQLite database, V1 only), then `DismissedEventsStorage` (V1→V2), and finally `EventsStorage` (V6→V9).
+### POC Validated (Dec 2025)
+- ✅ Room works with cr-sqlite extension via custom `SupportSQLiteOpenHelper.Factory`
+- ✅ All 8 POC tests pass (CRUD, extension loading, finalize, coexistence)
+- ✅ APK packaging requirements documented
 
-**See also:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan with risk mitigation strategies.
+**Next step:** Phase 1 - Migrate `MonitorStorage` (simplest SQLite database, V1 only)
+
+**See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan with POC results and validated configurations.
 
 ## References
 
