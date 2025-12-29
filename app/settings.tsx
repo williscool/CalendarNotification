@@ -105,9 +105,9 @@ export default function Settings() {
                   <ButtonText>Unidirectional</ButtonText>
                 </Button>
                 <Button
-                  onPress={() => handleSettingChange({ ...tempSettings, syncType: 'bidirectional' })}
-                  action={tempSettings.syncType === 'bidirectional' ? 'primary' : 'secondary'}
-                  variant={tempSettings.syncType === 'bidirectional' ? 'solid' : 'outline'}
+                  disabled
+                  action="secondary"
+                  variant="outline"
                   size="sm"
                   className="rounded-full opacity-60"
                 >

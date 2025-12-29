@@ -5,8 +5,8 @@ import { emitSyncLog } from '../logging/syncLog';
 export const installCrsqliteOnTable = async (databaseName: string, tableName: string) => {
   const db = open({name: databaseName});
   try {
-    await db.execute("SELECT load_extension('crsqlite_requery', 'sqlite3_crsqlite_init')");
-    
+    await db.execute("SELECT load_extension('crsqlite', 'sqlite3_crsqlite_init')");
+  
     // Check if table exists before creating temp table
     const tableExists = await db.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`);
     emitSyncLog('debug', 'crsqlite table check', { tableName, exists: tableExists?.rows?.length > 0 });
@@ -58,15 +58,7 @@ export const installCrsqliteOnTable = async (databaseName: string, tableName: st
     
     // Enable CRDT behavior for the table
     await db.execute(`SELECT crsql_as_crr('${tableName}')`);
-    
-    // Verify CRR clock table was created
-    const clockTable = await db.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}__crsql_clock'`);
-    emitSyncLog('info', 'crsqlite CRR enabled', { 
-      tableName, 
-      clockTableCreated: (clockTable?.rows?.length ?? 0) > 0 
-    });
-    
-    await db.execute("SELECT crsql_finalize();");
+    await db.execute("SELECT crsql_finalize();")
   } catch (error) {
     emitSyncLog('error', 'crsqlite extension load failed', { error });
   }
