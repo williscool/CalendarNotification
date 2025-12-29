@@ -194,7 +194,7 @@ class RoomCrSqlitePocTest {
         DevLog.info(LOG_TAG, "Initial count: $count")
         
         // Now access underlying requery database where cr-sqlite extension should be loaded
-        val helper = database!!.openHelper as CrSqliteSupportHelper
+        val helper = database!!.openHelper as CrSqliteFinalizeWrapper
         val underlyingDb = helper.underlyingDatabase
         
         // Query cr-sqlite version - this only works if extension is loaded
@@ -271,7 +271,7 @@ class RoomCrSqlitePocTest {
     /**
      * TEST 4: Verify database close properly calls crsql_finalize.
      * 
-     * This tests that our CrSqliteSupportHelper properly calls crsql_finalize()
+     * This tests that our CrSqliteFinalizeWrapper properly calls crsql_finalize()
      * before closing, which is required for cr-sqlite to work correctly.
      */
     @Test
@@ -409,7 +409,7 @@ class RoomCrSqlitePocTest {
         DevLog.info(LOG_TAG, "Initial count: $count")
         
         // Access underlying requery database where cr-sqlite extension is loaded
-        val helper = database!!.openHelper as CrSqliteSupportHelper
+        val helper = database!!.openHelper as CrSqliteFinalizeWrapper
         val underlyingDb = helper.underlyingDatabase
         
         // Test crsql_db_version()

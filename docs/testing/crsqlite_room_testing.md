@@ -87,18 +87,25 @@ db.rawQuery("SELECT crsql_db_version()", null).use { cursor ->
 
 Note: Use `crsql_db_version()`, not `crsql_version()` - the latter doesn't exist in this build.
 
-## The `CrSqliteSupportHelper` Bridge
+## Room Integration with `RequerySQLiteOpenHelperFactory`
 
-`CrSqliteSupportHelper` bridges Room's `SupportSQLiteOpenHelper` interface with requery's implementation:
+We use requery's built-in Room support ([docs](https://github.com/requery/sqlite-android#support-library-compatibility)):
 
 ```
-Room → SupportSQLiteOpenHelper → CrSqliteSupportHelper → Requery SQLiteOpenHelper → cr-sqlite
+Room → CrSqliteRoomFactory → RequerySQLiteOpenHelperFactory → cr-sqlite
 ```
 
-Key features:
-- Configures cr-sqlite via `SQLiteCustomExtension` in `createConfiguration()`
-- Calls `crsql_finalize()` before closing (required by cr-sqlite)
-- Exposes `underlyingDatabase` for direct cr-sqlite function access in tests
+### Key classes:
+
+- **`CrSqliteRoomFactory`** - Our factory that adds cr-sqlite via `ConfigurationOptions`
+- **`CrSqliteFinalizeWrapper`** - Thin wrapper that calls `crsql_finalize()` before close
+- **`RequerySQLiteOpenHelperFactory`** - Requery's built-in Room-compatible factory
+
+### How it works:
+
+1. `ConfigurationOptions.apply()` adds `SQLiteCustomExtension("crsqlite_requery", ...)`
+2. `CrSqliteFinalizeWrapper` ensures `crsql_finalize()` is called before close
+3. `underlyingDatabase` exposes the requery SQLiteDatabase for cr-sqlite function access
 
 ## Troubleshooting
 

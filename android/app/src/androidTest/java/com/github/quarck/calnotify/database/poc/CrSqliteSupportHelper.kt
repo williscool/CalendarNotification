@@ -19,375 +19,90 @@
 
 package com.github.quarck.calnotify.database.poc
 
-import android.content.ContentValues
-import android.database.Cursor
-import android.database.sqlite.SQLiteTransactionListener
-import android.os.CancellationSignal
-import android.util.Pair
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
-import androidx.sqlite.db.SupportSQLiteQuery
-import androidx.sqlite.db.SupportSQLiteStatement
 import com.github.quarck.calnotify.logs.DevLog
+import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import io.requery.android.database.sqlite.SQLiteCustomExtension
 import io.requery.android.database.sqlite.SQLiteDatabase
-import io.requery.android.database.sqlite.SQLiteDatabase.OpenFlags
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
-import io.requery.android.database.sqlite.SQLiteOpenHelper
-import java.util.Locale
 
 /**
- * SupportSQLiteOpenHelper implementation that uses requery's SQLite with cr-sqlite extension.
+ * SupportSQLiteOpenHelper.Factory that uses requery with cr-sqlite extension.
  * 
- * This bridges Room's SupportSQLite interface with requery's implementation,
- * allowing Room to use cr-sqlite for CRDT functionality.
+ * Uses RequerySQLiteOpenHelperFactory's ConfigurationOptions to add cr-sqlite,
+ * and wraps the helper to ensure crsql_finalize() is called on close.
+ * 
+ * See: https://github.com/requery/sqlite-android#support-library-compatibility
+ * See: docs/testing/crsqlite_room_testing.md
  */
-class CrSqliteSupportHelper(
-    private val configuration: SupportSQLiteOpenHelper.Configuration
-) : SupportSQLiteOpenHelper {
-
+class CrSqliteRoomFactory : SupportSQLiteOpenHelper.Factory {
+    
     companion object {
-        private const val LOG_TAG = "CrSqliteSupportHelper"
+        private const val LOG_TAG = "CrSqliteRoomFactory"
     }
 
-    /**
-     * Exposes the underlying requery SQLiteDatabase for cr-sqlite specific operations.
-     * This bypasses Room's connection management and goes directly to the database
-     * where the cr-sqlite extension is loaded.
-     * 
-     * Use this for testing cr-sqlite functions like crsql_db_version(), crsql_site_id(), etc.
-     */
-    val underlyingDatabase: SQLiteDatabase
-        get() = requeryHelper.writableDatabase
-
-    private val requeryHelper: RequeryOpenHelper by lazy {
-        RequeryOpenHelper(
-            configuration.context,
-            configuration.name,
-            configuration.callback.version,
-            configuration.callback
-        )
+    // ConfigurationOptions that adds cr-sqlite extension
+    private val crSqliteOptions = object : RequerySQLiteOpenHelperFactory.ConfigurationOptions {
+        override fun apply(config: SQLiteDatabaseConfiguration): SQLiteDatabaseConfiguration {
+            config.customExtensions.add(
+                SQLiteCustomExtension("crsqlite_requery", "sqlite3_crsqlite_init")
+            )
+            DevLog.info(LOG_TAG, "Added cr-sqlite extension to configuration")
+            return config
+        }
     }
 
-    override val databaseName: String?
-        get() = configuration.name
+    // Requery's factory with our cr-sqlite configuration
+    private val requeryFactory = RequerySQLiteOpenHelperFactory(listOf(crSqliteOptions))
 
-    override val writableDatabase: SupportSQLiteDatabase
-        get() = RequeryDatabaseWrapper(requeryHelper.writableDatabase)
+    override fun create(configuration: SupportSQLiteOpenHelper.Configuration): SupportSQLiteOpenHelper {
+        val requeryHelper = requeryFactory.create(configuration)
+        return CrSqliteFinalizeWrapper(requeryHelper)
+    }
+}
 
-    override val readableDatabase: SupportSQLiteDatabase
-        get() = RequeryDatabaseWrapper(requeryHelper.readableDatabase)
+/**
+ * Wrapper that ensures crsql_finalize() is called before close.
+ * 
+ * This is required by cr-sqlite to properly flush CRDT metadata.
+ * All other methods delegate directly to the underlying helper.
+ */
+class CrSqliteFinalizeWrapper(
+    private val delegate: SupportSQLiteOpenHelper
+) : SupportSQLiteOpenHelper {
+    
+    companion object {
+        private const val LOG_TAG = "CrSqliteFinalizeWrapper"
+    }
+
+    override val databaseName: String? 
+        get() = delegate.databaseName
+
+    override val writableDatabase: SupportSQLiteDatabase 
+        get() = delegate.writableDatabase
+
+    override val readableDatabase: SupportSQLiteDatabase 
+        get() = delegate.readableDatabase
+
+    override fun setWriteAheadLoggingEnabled(enabled: Boolean) = 
+        delegate.setWriteAheadLoggingEnabled(enabled)
 
     override fun close() {
-        // Call crsql_finalize before closing
+        // REQUIRED: Call crsql_finalize() before closing
         try {
-            requeryHelper.writableDatabase.rawQuery("SELECT crsql_finalize()", null).use { cursor ->
-                cursor.moveToFirst()
-            }
+            writableDatabase.query("SELECT crsql_finalize()").use { it.moveToFirst() }
             DevLog.info(LOG_TAG, "Called crsql_finalize() before close")
         } catch (e: Exception) {
             DevLog.error(LOG_TAG, "Error calling crsql_finalize: ${e.message}")
         }
-        requeryHelper.close()
-    }
-
-    override fun setWriteAheadLoggingEnabled(enabled: Boolean) {
-        requeryHelper.setWriteAheadLoggingEnabled(enabled)
+        delegate.close()
     }
 
     /**
-     * Inner requery-based SQLiteOpenHelper that loads cr-sqlite extension.
+     * Access underlying requery database for cr-sqlite operations.
+     * Use for: crsql_db_version(), crsql_site_id(), crsql_changes(), etc.
      */
-    private class RequeryOpenHelper(
-        private val context: android.content.Context,
-        name: String?,
-        version: Int,
-        private val callback: SupportSQLiteOpenHelper.Callback
-    ) : SQLiteOpenHelper(context, name, null, version, null) {
-
-        override fun createConfiguration(
-            path: String?,
-            @OpenFlags openFlags: Int
-        ): SQLiteDatabaseConfiguration {
-            DevLog.info(LOG_TAG, "createConfiguration called! path=$path, openFlags=$openFlags")
-            val config = super.createConfiguration(path, openFlags)
-            // Load cr-sqlite extension
-            config.customExtensions.add(SQLiteCustomExtension("crsqlite_requery", "sqlite3_crsqlite_init"))
-            DevLog.info(LOG_TAG, "Added cr-sqlite extension to configuration. Extensions count: ${config.customExtensions.size}")
-            return config
-        }
-
-        override fun onCreate(db: SQLiteDatabase) {
-            DevLog.info(LOG_TAG, "onCreate called")
-            callback.onCreate(RequeryDatabaseWrapper(db))
-        }
-
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            DevLog.info(LOG_TAG, "onUpgrade called: $oldVersion -> $newVersion")
-            callback.onUpgrade(RequeryDatabaseWrapper(db), oldVersion, newVersion)
-        }
-
-        override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            DevLog.info(LOG_TAG, "onDowngrade called: $oldVersion -> $newVersion")
-            callback.onDowngrade(RequeryDatabaseWrapper(db), oldVersion, newVersion)
-        }
-
-        override fun onOpen(db: SQLiteDatabase) {
-            DevLog.info(LOG_TAG, "onOpen called")
-            callback.onOpen(RequeryDatabaseWrapper(db))
-        }
-
-        override fun onConfigure(db: SQLiteDatabase) {
-            DevLog.info(LOG_TAG, "onConfigure called")
-            
-            // cr-sqlite is loaded automatically via SQLiteCustomExtension in createConfiguration.
-            // Do NOT call load_extension() explicitly - it fails with "error during initialization"
-            // even though the extension loads successfully via requery's nativeLoadExtension.
-            // See docs/testing/crsqlite_room_testing.md for details.
-            
-            callback.onConfigure(RequeryDatabaseWrapper(db))
-        }
-
-        companion object {
-            private const val LOG_TAG = "RequeryOpenHelper"
-        }
-    }
-
-    /**
-     * Wraps requery's SQLiteDatabase to implement Room's SupportSQLiteDatabase interface.
-     */
-    private class RequeryDatabaseWrapper(
-        private val delegate: SQLiteDatabase
-    ) : SupportSQLiteDatabase {
-
-        override val isOpen: Boolean
-            get() = delegate.isOpen
-
-        override val path: String?
-            get() = delegate.path
-
-        override val isReadOnly: Boolean
-            get() = delegate.isReadOnly
-
-        override val isWriteAheadLoggingEnabled: Boolean
-            get() = delegate.isWriteAheadLoggingEnabled
-
-        override val isDbLockedByCurrentThread: Boolean
-            get() = delegate.isDbLockedByCurrentThread
-
-        override var version: Int
-            get() = delegate.version
-            set(value) { delegate.version = value }
-
-        override val maximumSize: Long
-            get() = delegate.maximumSize
-
-        override var pageSize: Long
-            get() = delegate.pageSize
-            set(value) { delegate.pageSize = value }
-
-        override val attachedDbs: List<Pair<String, String>>?
-            get() = delegate.attachedDbs
-
-        override val isDatabaseIntegrityOk: Boolean
-            get() = delegate.isDatabaseIntegrityOk
-
-        override fun close() {
-            delegate.close()
-        }
-
-        override fun compileStatement(sql: String): SupportSQLiteStatement {
-            return RequeryStatementWrapper(delegate.compileStatement(sql))
-        }
-
-        override fun beginTransaction() {
-            delegate.beginTransaction()
-        }
-
-        override fun beginTransactionNonExclusive() {
-            delegate.beginTransactionNonExclusive()
-        }
-
-        override fun beginTransactionWithListener(transactionListener: SQLiteTransactionListener) {
-            delegate.beginTransactionWithListener(transactionListener)
-        }
-
-        override fun beginTransactionWithListenerNonExclusive(transactionListener: SQLiteTransactionListener) {
-            delegate.beginTransactionWithListenerNonExclusive(transactionListener)
-        }
-
-        override fun endTransaction() {
-            delegate.endTransaction()
-        }
-
-        override fun setTransactionSuccessful() {
-            delegate.setTransactionSuccessful()
-        }
-
-        override fun inTransaction(): Boolean {
-            return delegate.inTransaction()
-        }
-
-        override fun yieldIfContendedSafely(): Boolean {
-            return delegate.yieldIfContendedSafely()
-        }
-
-        override fun yieldIfContendedSafely(sleepAfterYieldDelayMillis: Long): Boolean {
-            return delegate.yieldIfContendedSafely(sleepAfterYieldDelayMillis)
-        }
-
-        override fun enableWriteAheadLogging(): Boolean {
-            return delegate.enableWriteAheadLogging()
-        }
-
-        override fun disableWriteAheadLogging() {
-            delegate.disableWriteAheadLogging()
-        }
-
-        override fun needUpgrade(newVersion: Int): Boolean {
-            return delegate.needUpgrade(newVersion)
-        }
-
-        override fun setMaxSqlCacheSize(cacheSize: Int) {
-            delegate.setMaxSqlCacheSize(cacheSize)
-        }
-
-        override fun setForeignKeyConstraintsEnabled(enabled: Boolean) {
-            delegate.setForeignKeyConstraintsEnabled(enabled)
-        }
-
-        override fun setLocale(locale: Locale) {
-            delegate.setLocale(locale)
-        }
-
-        override fun setMaximumSize(numBytes: Long): Long {
-            return delegate.setMaximumSize(numBytes)
-        }
-
-        override fun query(query: String): Cursor {
-            return delegate.rawQuery(query, null)
-        }
-
-        override fun query(query: String, bindArgs: Array<out Any?>): Cursor {
-            return delegate.rawQuery(query, bindArgs.map { it?.toString() }.toTypedArray())
-        }
-
-        override fun query(query: SupportSQLiteQuery): Cursor {
-            return query(query, null)
-        }
-
-        override fun query(query: SupportSQLiteQuery, cancellationSignal: CancellationSignal?): Cursor {
-            val bindArgs = mutableListOf<Any?>()
-            query.bindTo(object : SupportSQLiteProgram {
-                override fun bindNull(index: Int) { bindArgs.add(null) }
-                override fun bindLong(index: Int, value: Long) { bindArgs.add(value) }
-                override fun bindDouble(index: Int, value: Double) { bindArgs.add(value) }
-                override fun bindString(index: Int, value: String) { bindArgs.add(value) }
-                override fun bindBlob(index: Int, value: ByteArray) { bindArgs.add(value) }
-                override fun clearBindings() { bindArgs.clear() }
-                override fun close() {}
-            })
-            // Convert android.os.CancellationSignal to androidx.core.os.CancellationSignal for requery
-            val axCancellationSignal = cancellationSignal?.let {
-                androidx.core.os.CancellationSignal().also { axSignal ->
-                    it.setOnCancelListener { axSignal.cancel() }
-                }
-            }
-            return if (axCancellationSignal != null) {
-                delegate.rawQueryWithFactory(null, query.sql, bindArgs.map { it?.toString() }.toTypedArray(), null, axCancellationSignal)
-            } else {
-                delegate.rawQuery(query.sql, bindArgs.map { it?.toString() }.toTypedArray())
-            }
-        }
-
-        override fun insert(table: String, conflictAlgorithm: Int, values: ContentValues): Long {
-            return delegate.insertWithOnConflict(table, null, values, conflictAlgorithm)
-        }
-
-        override fun delete(table: String, whereClause: String?, whereArgs: Array<out Any?>?): Int {
-            val args = whereArgs?.map { it?.toString() }?.toTypedArray()
-            return delegate.delete(table, whereClause, args)
-        }
-
-        override fun update(
-            table: String,
-            conflictAlgorithm: Int,
-            values: ContentValues,
-            whereClause: String?,
-            whereArgs: Array<out Any?>?
-        ): Int {
-            val args = whereArgs?.map { it?.toString() }?.toTypedArray()
-            return delegate.updateWithOnConflict(table, values, whereClause, args, conflictAlgorithm)
-        }
-
-        override fun execSQL(sql: String) {
-            delegate.execSQL(sql)
-        }
-
-        override fun execSQL(sql: String, bindArgs: Array<out Any?>) {
-            delegate.execSQL(sql, bindArgs)
-        }
-
-        /**
-         * Helper interface for binding query parameters.
-         */
-        interface SupportSQLiteProgram : androidx.sqlite.db.SupportSQLiteProgram
-    }
-
-    /**
-     * Wraps requery's SQLiteStatement to implement Room's SupportSQLiteStatement interface.
-     */
-    private class RequeryStatementWrapper(
-        private val delegate: io.requery.android.database.sqlite.SQLiteStatement
-    ) : SupportSQLiteStatement {
-
-        override fun bindNull(index: Int) {
-            delegate.bindNull(index)
-        }
-
-        override fun bindLong(index: Int, value: Long) {
-            delegate.bindLong(index, value)
-        }
-
-        override fun bindDouble(index: Int, value: Double) {
-            delegate.bindDouble(index, value)
-        }
-
-        override fun bindString(index: Int, value: String) {
-            delegate.bindString(index, value)
-        }
-
-        override fun bindBlob(index: Int, value: ByteArray) {
-            delegate.bindBlob(index, value)
-        }
-
-        override fun clearBindings() {
-            delegate.clearBindings()
-        }
-
-        override fun close() {
-            delegate.close()
-        }
-
-        override fun execute() {
-            delegate.execute()
-        }
-
-        override fun executeUpdateDelete(): Int {
-            return delegate.executeUpdateDelete()
-        }
-
-        override fun executeInsert(): Long {
-            return delegate.executeInsert()
-        }
-
-        override fun simpleQueryForLong(): Long {
-            return delegate.simpleQueryForLong()
-        }
-
-        override fun simpleQueryForString(): String? {
-            return delegate.simpleQueryForString()
-        }
-    }
+    val underlyingDatabase: SQLiteDatabase
+        get() = writableDatabase as SQLiteDatabase
 }
-

@@ -163,9 +163,12 @@ fun migrateToRoom(context: Context) {
 Prove that Room can work with cr-sqlite extension before committing to full migration.
 
 ### What We Built
-- `CrSqliteRoomFactory` - Custom `SupportSQLiteOpenHelper.Factory` for Room
-- `CrSqliteSupportHelper` - Bridges Room's API with requery's cr-sqlite-enabled SQLiteOpenHelper
+- `CrSqliteRoomFactory` - Uses `RequerySQLiteOpenHelperFactory.ConfigurationOptions` to add cr-sqlite
+- `CrSqliteFinalizeWrapper` - Thin wrapper ensuring `crsql_finalize()` is called on close
 - `RoomPocDatabase` / `RoomPocEntity` / `RoomPocDao` - Minimal Room setup for testing
+
+Note: We leverage requery's built-in Room support (`RequerySQLiteOpenHelperFactory`) rather than
+implementing the entire `SupportSQLiteOpenHelper` interface ourselves. See [requery docs](https://github.com/requery/sqlite-android#support-library-compatibility).
 
 ### Tests Implemented (All Pass ✅)
 1. **Diagnostic test** - cr-sqlite works without Room (validates base setup)
@@ -414,12 +417,12 @@ configurations.all {
 Room works with cr-sqlite via custom `SupportSQLiteOpenHelper.Factory`:
 
 ```kotlin
-// See: CrSqliteRoomFactory.kt, CrSqliteSupportHelper.kt
+// See: CrSqliteSupportHelper.kt (contains CrSqliteRoomFactory + CrSqliteFinalizeWrapper)
 abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase {
             return Room.databaseBuilder(context, AppDatabase::class.java, "app_database")
-                .openHelperFactory(CrSqliteRoomFactory())  // Our custom factory
+                .openHelperFactory(CrSqliteRoomFactory())  // Uses RequerySQLiteOpenHelperFactory + cr-sqlite
                 .build()
         }
     }
@@ -487,7 +490,7 @@ If issues are discovered after migration:
 
 ## Questions Resolved by POC
 
-1. ✅ **CR-SQLite Integration:** Yes, Room works with cr-sqlite via custom `SupportSQLiteOpenHelper.Factory` (`CrSqliteRoomFactory`)
+1. ✅ **CR-SQLite Integration:** Yes, Room works with cr-sqlite via `RequerySQLiteOpenHelperFactory.ConfigurationOptions` (`CrSqliteRoomFactory`)
 
 2. ✅ **Test Environment:** Yes, Room tests work. Note: Required `extractNativeLibs="true"` and `useLegacyPackaging=true` for native libs.
 
