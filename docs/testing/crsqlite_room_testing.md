@@ -132,3 +132,20 @@ unzip -l app/build/outputs/apk/*/debug/*.apk | grep crsqlite
 
 You should see `crsqlite_requery.so` in the lib directories.
 
+### "sqlite3_close failed: 5" / "unfinalized statements"
+
+This warning appears during database close:
+
+```
+E SQLiteConnection: sqlite3_close(0x...) failed: 5
+E SQLiteConnectionPool: unable to close due to unfinalized statements
+```
+
+**This is expected and not a test failure.** Room/Requery cache prepared statements for performance, and SQLite complains when closing with cached statements. The GC cleans these up.
+
+`CrSqliteSupportHelper` tries to mitigate this by:
+1. Setting SQL cache size to 0 before close
+2. Catching the close exception gracefully
+
+The important thing is that `crsql_finalize()` is called before close, which it is.
+

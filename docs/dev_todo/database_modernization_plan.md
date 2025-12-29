@@ -1,6 +1,6 @@
 # Database Modernization Plan
 
-## Status: RFC (Request for Comments)
+## Status: POC COMPLETE ✅ - Ready for Phase 1
 
 ## Executive Summary
 
@@ -154,6 +154,64 @@ fun migrateToRoom(context: Context) {
     // 4. Only delete backup after successful verification
 }
 ```
+
+---
+
+## Phase 0: POC Validation ✅ COMPLETE
+
+### Objective
+Prove that Room can work with cr-sqlite extension before committing to full migration.
+
+### What We Built
+- `CrSqliteRoomFactory` - Custom `SupportSQLiteOpenHelper.Factory` for Room
+- `CrSqliteSupportHelper` - Bridges Room's API with requery's cr-sqlite-enabled SQLiteOpenHelper
+- `RoomPocDatabase` / `RoomPocEntity` / `RoomPocDao` - Minimal Room setup for testing
+
+### Tests Implemented (All Pass ✅)
+1. **Diagnostic test** - cr-sqlite works without Room (validates base setup)
+2. **Room CRUD** - Basic create/read/update/delete operations
+3. **cr-sqlite extension loaded** - `crsql_db_version()` works through Room
+4. **Bulk operations** - insertAll, deleteAll, queries with LIKE
+5. **crsql_finalize on close** - Proper cleanup on database close
+6. **Behavior parity** - Standard Room vs cr-sqlite Room produce identical results
+7. **Raw SQL execution** - Can execute arbitrary SQL (needed for CRDT ops)
+8. **cr-sqlite functions** - `crsql_db_version()`, `crsql_site_id()` work
+
+### Key Technical Findings
+
+#### APK Packaging Requirements
+```xml
+<!-- AndroidManifest.xml -->
+<application android:extractNativeLibs="true" ...>
+```
+
+```groovy
+// build.gradle
+packagingOptions {
+    jniLibs { useLegacyPackaging = true }
+    pickFirst '**/*.so'
+}
+```
+
+#### Library Naming
+- Renamed our cr-sqlite build to `crsqlite_requery.so` to avoid conflict with React Native's `crsqlite.so`
+- These are built against different SQLite versions and are NOT interchangeable
+
+#### Extension Loading
+- ✅ Use `SQLiteCustomExtension("crsqlite_requery", "sqlite3_crsqlite_init")` in `createConfiguration()`
+- ❌ Do NOT use `load_extension()` SQL - fails with "error during initialization"
+
+#### Room Version
+- Using Room 2.8.4 with KSP (not KAPT)
+- Requires `androidx.sqlite:sqlite:2.6.2` and `androidx.sqlite:sqlite-framework:2.6.2`
+
+### Documentation
+- Full setup guide: `docs/testing/crsqlite_room_testing.md`
+- POC test code: `android/app/src/androidTest/java/com/github/quarck/calnotify/database/poc/`
+
+### Known Issues (Non-Blocking)
+- `sqlite3_close failed: 5` warnings during test teardown (Room's connection pooling vs cr-sqlite finalization)
+- Tests pass despite warnings; GC cleans up properly
 
 ---
 
@@ -316,40 +374,52 @@ interface MonitorAlertDao {
 
 ---
 
-## Dependencies to Add
+## Dependencies (Validated in POC)
 
-```kotlin
+```groovy
+// build.gradle (root)
+classpath "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.1.20-1.0.31"
+
 // build.gradle (app)
-dependencies {
-    val roomVersion = "2.6.1"
-    
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")  // Coroutines support
-    ksp("androidx.room:room-compiler:$roomVersion")  // KSP for faster builds
-    
-    // Testing
-    testImplementation("androidx.room:room-testing:$roomVersion")
-    androidTestImplementation("androidx.room:room-testing:$roomVersion")
+plugins {
+    id 'com.google.devtools.ksp'
 }
 
-// Add KSP plugin
-plugins {
-    id("com.google.devtools.ksp") version "1.9.22-1.0.17"  // Match Kotlin version
+dependencies {
+    def roomVersion = "2.8.4"
+    
+    implementation "androidx.room:room-runtime:$roomVersion"
+    implementation "androidx.room:room-ktx:$roomVersion"
+    ksp "androidx.room:room-compiler:$roomVersion"
+    
+    // Required for Room 2.8.x
+    implementation "androidx.sqlite:sqlite:2.6.2"
+    implementation "androidx.sqlite:sqlite-framework:2.6.2"
+    
+    // Testing
+    androidTestImplementation "androidx.room:room-testing:$roomVersion"
+}
+
+// Force sqlite versions to avoid conflicts
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.sqlite:sqlite:2.6.2'
+        force 'androidx.sqlite:sqlite-framework:2.6.2'
+    }
 }
 ```
 
-### CR-SQLite Compatibility Consideration
+### CR-SQLite Integration (VALIDATED ✅)
 
-The app uses cr-sqlite extension. Need to verify Room compatibility:
+Room works with cr-sqlite via custom `SupportSQLiteOpenHelper.Factory`:
 
 ```kotlin
-// Room uses SupportSQLiteOpenHelper under the hood
-// May need custom SupportSQLiteOpenHelper.Factory to inject cr-sqlite
+// See: CrSqliteRoomFactory.kt, CrSqliteSupportHelper.kt
 abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase {
             return Room.databaseBuilder(context, AppDatabase::class.java, "app_database")
-                .openHelperFactory(CrSqliteOpenHelperFactory())  // Custom factory
+                .openHelperFactory(CrSqliteRoomFactory())  // Our custom factory
                 .build()
         }
     }
@@ -359,6 +429,14 @@ abstract class AppDatabase : RoomDatabase() {
 ---
 
 ## Success Criteria
+
+### Phase 0 (POC) ✅ COMPLETE
+- [x] Room CRUD operations work with custom factory
+- [x] cr-sqlite extension loads correctly  
+- [x] `crsql_finalize()` called on close
+- [x] Room and legacy implementations can coexist
+- [x] Raw SQL execution works
+- [x] All 8 POC tests pass
 
 ### Phase 1 (MonitorStorage)
 - [ ] All existing MonitorStorage tests pass with Room implementation
@@ -383,15 +461,16 @@ abstract class AppDatabase : RoomDatabase() {
 
 ## Timeline Estimate
 
-| Phase | Effort | Risk |
-|-------|--------|------|
-| Phase 1: MonitorStorage | 8-12 hours | Low |
-| Phase 2: DismissedEventsStorage | 6-8 hours | Medium |
-| Phase 3: EventsStorage | 16-24 hours | **High** |
-| Testing & Verification | 12-16 hours | Medium |
-| **Total** | **42-60 hours** | Medium-High |
+| Phase | Effort | Risk | Status |
+|-------|--------|------|--------|
+| Phase 0: POC Validation | ~8 hours | Low | ✅ COMPLETE |
+| Phase 1: MonitorStorage | 8-12 hours | Low | Ready to start |
+| Phase 2: DismissedEventsStorage | 6-8 hours | Medium | Pending |
+| Phase 3: EventsStorage | 16-24 hours | **High** | Pending |
+| Testing & Verification | 12-16 hours | Medium | Ongoing |
+| **Total** | **~50-68 hours** | Medium-High | In Progress |
 
-**Note:** These estimates include comprehensive testing. The actual implementation is faster, but validation takes significant time for a change this risky.
+**Note:** Phase 0 took longer than expected due to APK packaging issues with native libraries, but these learnings are now documented and won't recur.
 
 ---
 
@@ -406,11 +485,13 @@ If issues are discovered after migration:
 
 ---
 
-## Questions to Resolve Before Starting
+## Questions Resolved by POC
 
-1. **CR-SQLite Integration:** Can Room work with cr-sqlite extension, or do we need a custom `SupportSQLiteOpenHelper.Factory`?
+1. ✅ **CR-SQLite Integration:** Yes, Room works with cr-sqlite via custom `SupportSQLiteOpenHelper.Factory` (`CrSqliteRoomFactory`)
 
-2. **Test Environment:** Does Room's in-memory database work with our test fixtures?
+2. ✅ **Test Environment:** Yes, Room tests work. Note: Required `extractNativeLibs="true"` and `useLegacyPackaging=true` for native libs.
+
+## Questions Remaining
 
 3. **Migration Validation:** How do we validate migration on existing user databases without risking their data?
 
@@ -420,6 +501,11 @@ If issues are discovered after migration:
 
 ## References
 
+### Internal Documentation
+- [cr-sqlite + Room Testing Guide](../testing/crsqlite_room_testing.md) - Setup and troubleshooting
+- [CR-SQLite Build Guide](../build/CR_SQLITE_BUILD.md) - Building the extension
+
+### External Documentation
 - [Room Documentation](https://developer.android.com/training/data-storage/room)
 - [Migrating to Room](https://developer.android.com/training/data-storage/room/migrating-db-versions)
 - [Room Testing](https://developer.android.com/training/data-storage/room/testing-db)
