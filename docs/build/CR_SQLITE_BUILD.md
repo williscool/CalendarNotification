@@ -70,6 +70,42 @@ export ANDROID_NDK_HOME=/path/to/your/ndk/27.2.12479018
 yarn build:crsqlite:arm64
 ```
 
+## Why `crsqlite_requery.so`?
+
+This project has **two** cr-sqlite builds:
+
+1. **React Native's version** (`crsqlite.so`) - bundled via op-sqlite/PowerSync
+2. **Our custom build** (`crsqlite_requery.so`) - for requery's SQLite
+
+These are built against different SQLite versions and are **not interchangeable**. Gradle's `pickFirst '**/*.so'` would otherwise pick an arbitrary one, so we renamed ours to avoid conflicts.
+
+## APK Packaging Requirements
+
+For cr-sqlite to load at runtime, the APK must extract native libraries to the filesystem.
+
+### AndroidManifest.xml
+
+```xml
+<application
+    android:extractNativeLibs="true"
+    ...>
+```
+
+### app/build.gradle
+
+```groovy
+packagingOptions {
+    jniLibs {
+        useLegacyPackaging = true
+    }
+    pickFirst '**/*.so'
+}
+```
+
+**Without these settings**, the native library directory will be empty at runtime and `dlopen` will fail with "library not found".
+
+See `docs/testing/crsqlite_room_testing.md` for more details on using cr-sqlite with Room tests.
+
 ## Troubleshooting
 
 ### Common Issues
