@@ -17,7 +17,7 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.database.poc
+package com.github.quarck.calnotify.database
 
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.github.quarck.calnotify.logs.DevLog
@@ -77,3 +77,4 @@ class CrSqliteFinalizeWrapper(
         delegate.close()
     }
 }
+
