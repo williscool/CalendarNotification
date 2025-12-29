@@ -16,30 +16,15 @@ if [ -z "$ANDROID_NDK_HOME" ]; then
     exit 1
 fi
 
-echo "=== Checking for nightly cargo ==="
-# Check if cargo is nightly version
-if ! cargo --version | grep -q "nightly"; then
-    echo "ERROR: Nightly version of cargo required!"
-    echo ""
-    echo "If you are using Rust from Homebrew:"
-    echo "  brew uninstall rust"
-    echo ""
-    echo "And install from the official source:"
-    echo "  https://www.rust-lang.org/tools/install"
-    echo ""
-    echo "Then run:"
-    echo "  rustup toolchain install nightly"
-    echo "  rustup default nightly"
-    echo ""
-    echo "Or you are likely gonna have a bad time."
-    exit 1
-fi
+# Pin to specific nightly version - cr-sqlite uses concat_idents feature removed in Rust 1.90.0
+RUST_NIGHTLY_VERSION="nightly-2023-10-05"
 
 echo "=== Installing required tools ==="
-rustup toolchain install nightly || true
-rustup target add aarch64-linux-android --toolchain nightly || true
-rustup component add rust-src --toolchain nightly || true
-cargo +nightly install cargo-ndk || true
+echo "Using pinned Rust version: $RUST_NIGHTLY_VERSION"
+rustup toolchain install $RUST_NIGHTLY_VERSION || true
+rustup target add aarch64-linux-android --toolchain $RUST_NIGHTLY_VERSION || true
+rustup component add rust-src --toolchain $RUST_NIGHTLY_VERSION || true
+cargo install cargo-ndk || true
 
 echo "=== Creating temp directory ==="
 mkdir -p "$TMP_DIR"
@@ -74,12 +59,13 @@ cd "$CR_SQLITE_DIR/core"
 echo "=== Building crsqlite for arm64-v8a ==="
 export ANDROID_TARGET=aarch64-linux-android
 
-# Use nightly explicitly for the make command
-rustup run nightly make loadable
+# Use pinned nightly version for the make command
+rustup run $RUST_NIGHTLY_VERSION make loadable
 
 echo "=== Copying compiled .so file to project ==="
 mkdir -p "$PROJECT_ROOT/android/app/src/main/jniLibs/arm64-v8a"
-cp "$CR_SQLITE_DIR/core/dist/crsqlite.so" "$PROJECT_ROOT/android/app/src/main/jniLibs/arm64-v8a/"
+# Renamed to crsqlite_requery.so to avoid conflict with React Native's crsqlite.so
+cp "$CR_SQLITE_DIR/core/dist/crsqlite.so" "$PROJECT_ROOT/android/app/src/main/jniLibs/arm64-v8a/crsqlite_requery.so"
 
 echo "=== Build completed successfully ==="
-echo "The crsqlite.so file has been placed in android/app/src/main/jniLibs/arm64-v8a/" 
+echo "The crsqlite_requery.so file has been placed in android/app/src/main/jniLibs/arm64-v8a/" 

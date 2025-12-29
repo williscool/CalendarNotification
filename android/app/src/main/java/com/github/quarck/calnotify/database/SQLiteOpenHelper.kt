@@ -45,7 +45,7 @@ errorHandler) {
   ): SQLiteDatabaseConfiguration {
     val configuration = super.createConfiguration(path, openFlags)
 
-    configuration.customExtensions.add(SQLiteCustomExtension("crsqlite", "sqlite3_crsqlite_init"))
+    configuration.customExtensions.add(SQLiteCustomExtension("crsqlite_requery", "sqlite3_crsqlite_init"))
     return configuration
   }
 

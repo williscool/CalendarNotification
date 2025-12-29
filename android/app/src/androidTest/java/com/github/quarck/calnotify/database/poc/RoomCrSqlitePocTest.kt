@@ -22,12 +22,14 @@ package com.github.quarck.calnotify.database.poc
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /**
  * POC tests to verify Room can work with cr-sqlite extension.
@@ -37,7 +39,7 @@ import org.junit.runner.RunWith
  * 
  * SUCCESS CRITERIA:
  * 1. Room CRUD operations work with our custom factory
- * 2. CR-SQLite extension is loaded (can query crsql_version)
+ * 2. CR-SQLite extension is loaded (can query crsql_db_version)
  * 3. crsql_finalize() is called properly on close
  * 4. Room and legacy implementations can coexist
  * 
@@ -71,6 +73,54 @@ class RoomCrSqlitePocTest {
         
         // Clean up test database file
         context.deleteDatabase("room_poc_test.db")
+    }
+    
+    /**
+     * DIAGNOSTIC TEST: Verify cr-sqlite works with main app's EventsStorage (no Room).
+     * 
+     * This test bypasses Room entirely and uses the main app's SQLiteOpenHelper
+     * to verify that cr-sqlite extension loading works at all in tests.
+     * If this fails, the issue is with extension loading in tests, not Room.
+     * If this passes but Room tests fail, the issue is with Room integration.
+     */
+    @Test
+    fun test_0_diagnostic_crsqlite_works_without_room() {
+        DevLog.info(LOG_TAG, "Starting diagnostic test - cr-sqlite without Room")
+        
+        // Check native library path
+        val nativeLibDir = context.applicationInfo.nativeLibraryDir
+        DevLog.info(LOG_TAG, "Native library dir: $nativeLibDir")
+        
+        // List files in native lib dir
+        val nativeLibDirFile = File(nativeLibDir)
+        if (nativeLibDirFile.exists()) {
+            val files = nativeLibDirFile.listFiles()?.map { it.name } ?: emptyList()
+            DevLog.info(LOG_TAG, "Files in nativeLibDir: $files")
+        } else {
+            DevLog.error(LOG_TAG, "Native lib dir does not exist!")
+        }
+        
+        // Use EventsStorage which uses the main app's SQLiteOpenHelper
+        val eventsStorage = EventsStorage(context)
+        
+        try {
+            // Get the underlying database directly
+            val db = eventsStorage.writableDatabase
+            DevLog.info(LOG_TAG, "Got writable database")
+            
+            // Try to query cr-sqlite version
+            val cursor = db.rawQuery("SELECT crsql_db_version()", null)
+            assertTrue("Cursor should have results", cursor.moveToFirst())
+            val version = cursor.getString(0)
+            cursor.close()
+            
+            DevLog.info(LOG_TAG, "SUCCESS! crsql_db_version() = $version")
+            assertNotNull("CR-SQLite version should not be null", version)
+        } finally {
+            eventsStorage.close()
+        }
+        
+        DevLog.info(LOG_TAG, "Diagnostic test PASSED - cr-sqlite works without Room")
     }
     
     /**
@@ -128,7 +178,7 @@ class RoomCrSqlitePocTest {
     /**
      * TEST 2: Verify CR-SQLite extension is properly loaded.
      * 
-     * We query crsql_version() which only works if the extension is loaded.
+     * We query crsql_db_version() which only works if the extension is loaded.
      * This proves the custom factory correctly configures cr-sqlite.
      */
     @Test
@@ -138,17 +188,17 @@ class RoomCrSqlitePocTest {
         database = RoomPocDatabase.createWithCrSqlite(context)
         val dao = database!!.pocDao()
         
-        // IMPORTANT: Do a DAO operation first to trigger extension loading.
-        // Requery loads extensions lazily when the first query is executed through Room.
+        // Do a DAO operation first - this triggers full database initialization
+        // including extension loading by requery
         val count = dao.count()
-        DevLog.info(LOG_TAG, "Initial count (triggers extension loading): $count")
+        DevLog.info(LOG_TAG, "Initial count: $count")
         
-        // Now access underlying requery database where cr-sqlite extension is loaded
+        // Now access underlying requery database where cr-sqlite extension should be loaded
         val helper = database!!.openHelper as CrSqliteSupportHelper
         val underlyingDb = helper.underlyingDatabase
         
         // Query cr-sqlite version - this only works if extension is loaded
-        val cursor = underlyingDb.rawQuery("SELECT crsql_version()", null)
+        val cursor = underlyingDb.rawQuery("SELECT crsql_db_version()", null)
         
         assertTrue("Cursor should have results", cursor.moveToFirst())
         
@@ -291,7 +341,7 @@ class RoomCrSqlitePocTest {
             assertEquals("Names should match", standardResult!!.name, crSqliteResult!!.name)
             assertEquals("Timestamps should match", standardResult.timestamp, crSqliteResult.timestamp)
             assertEquals("Descriptions should match", standardResult.description, crSqliteResult.description)
-            
+
             // Count should be the same
             assertEquals("Counts should match", standardDao.count(), crSqliteDao.count())
             
@@ -308,7 +358,7 @@ class RoomCrSqlitePocTest {
     /**
      * TEST 6: Test raw SQL execution works (needed for cr-sqlite CRDT operations).
      * 
-     * CR-SQLite requires executing raw SQL for CRDT operations like
+     * CR-SQLite requires executing raw SQL for C  RDT operations like
      * crsql_changes() and crsql_finalize(). This verifies we can do that through Room.
      */
     @Test
@@ -354,21 +404,20 @@ class RoomCrSqlitePocTest {
         database = RoomPocDatabase.createWithCrSqlite(context)
         val dao = database!!.pocDao()
         
-        // IMPORTANT: Do a DAO operation first to trigger extension loading.
-        // Requery loads extensions lazily when the first query is executed through Room.
+        // Do a DAO operation first - this triggers full database initialization
         val count = dao.count()
-        DevLog.info(LOG_TAG, "Initial count (triggers extension loading): $count")
+        DevLog.info(LOG_TAG, "Initial count: $count")
         
         // Access underlying requery database where cr-sqlite extension is loaded
         val helper = database!!.openHelper as CrSqliteSupportHelper
         val underlyingDb = helper.underlyingDatabase
         
-        // Test crsql_version() - already tested above but let's be thorough
-        val versionCursor = underlyingDb.rawQuery("SELECT crsql_version()", null)
+        // Test crsql_db_version()
+        val versionCursor = underlyingDb.rawQuery("SELECT crsql_db_version()", null)
         assertTrue(versionCursor.moveToFirst())
         val version = versionCursor.getString(0)
         versionCursor.close()
-        DevLog.info(LOG_TAG, "crsql_version: $version")
+        DevLog.info(LOG_TAG, "crsql_db_version: $version")
         
         // Test crsql_site_id() - each database should have a unique site ID
         val siteIdCursor = underlyingDb.rawQuery("SELECT crsql_site_id()", null)

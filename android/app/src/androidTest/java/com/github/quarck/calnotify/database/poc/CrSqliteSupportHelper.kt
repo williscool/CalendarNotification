@@ -55,7 +55,7 @@ class CrSqliteSupportHelper(
      * This bypasses Room's connection management and goes directly to the database
      * where the cr-sqlite extension is loaded.
      * 
-     * Use this for testing cr-sqlite functions like crsql_version(), crsql_site_id(), etc.
+     * Use this for testing cr-sqlite functions like crsql_db_version(), crsql_site_id(), etc.
      */
     val underlyingDatabase: SQLiteDatabase
         get() = requeryHelper.writableDatabase
@@ -99,7 +99,7 @@ class CrSqliteSupportHelper(
      * Inner requery-based SQLiteOpenHelper that loads cr-sqlite extension.
      */
     private class RequeryOpenHelper(
-        context: android.content.Context,
+        private val context: android.content.Context,
         name: String?,
         version: Int,
         private val callback: SupportSQLiteOpenHelper.Callback
@@ -112,7 +112,7 @@ class CrSqliteSupportHelper(
             DevLog.info(LOG_TAG, "createConfiguration called! path=$path, openFlags=$openFlags")
             val config = super.createConfiguration(path, openFlags)
             // Load cr-sqlite extension
-            config.customExtensions.add(SQLiteCustomExtension("crsqlite", "sqlite3_crsqlite_init"))
+            config.customExtensions.add(SQLiteCustomExtension("crsqlite_requery", "sqlite3_crsqlite_init"))
             DevLog.info(LOG_TAG, "Added cr-sqlite extension to configuration. Extensions count: ${config.customExtensions.size}")
             return config
         }
@@ -140,18 +140,53 @@ class CrSqliteSupportHelper(
         override fun onConfigure(db: SQLiteDatabase) {
             DevLog.info(LOG_TAG, "onConfigure called")
             
-            // Try to verify cr-sqlite is loaded by querying version
+            // Log native library info for debugging
             try {
-                val cursor = db.rawQuery("SELECT crsql_version()", null)
-                if (cursor.moveToFirst()) {
-                    val version = cursor.getString(0)
-                    DevLog.info(LOG_TAG, "cr-sqlite version: $version")
-                }
-                cursor.close()
+                val nativeLibDir = context.applicationInfo.nativeLibraryDir
+                val libDir = java.io.File(nativeLibDir)
+                val libs = libDir.listFiles()?.map { it.name } ?: emptyList()
+                DevLog.info(LOG_TAG, "Native lib dir: $nativeLibDir")
+                DevLog.info(LOG_TAG, "Available libs: $libs")
             } catch (e: Exception) {
-                DevLog.error(LOG_TAG, "cr-sqlite extension NOT loaded: ${e.message}")
-                // Extension not loaded via createConfiguration, this is expected if 
-                // requery isn't calling our override properly
+                DevLog.error(LOG_TAG, "Failed to list native libs: ${e.message}")
+            }
+            
+            // Option B: Let SQLiteCustomExtension handle loading (configured in createConfiguration)
+            // Don't call load_extension() explicitly - requery should load it via nativeLoadExtension
+            
+            // Just verify if cr-sqlite functions are available after requery loads the extension
+            try {
+                db.rawQuery("SELECT crsql_db_version()", null).use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        DevLog.info(LOG_TAG, "cr-sqlite loaded via SQLiteCustomExtension! db_version = ${cursor.getString(0)}")
+                    }
+                }
+            } catch (e: Exception) {
+                DevLog.warn(LOG_TAG, "cr-sqlite not available via SQLiteCustomExtension: ${e.message}")
+                
+                // Try explicit loading as fallback with more debug info
+                try {
+                    db.execSQL("PRAGMA enable_load_extension = 1;")
+                    DevLog.info(LOG_TAG, "Enabled extension loading, attempting explicit load...")
+                    
+                    // Get full path to the library
+                    val libPath = "${context.applicationInfo.nativeLibraryDir}/crsqlite_requery.so"
+                    DevLog.info(LOG_TAG, "Attempting to load from: $libPath")
+                    DevLog.info(LOG_TAG, "File exists: ${java.io.File(libPath).exists()}")
+                    
+                    // Try with full path
+                    db.execSQL("SELECT load_extension('$libPath', 'sqlite3_crsqlite_init');")
+                    DevLog.info(LOG_TAG, "Extension loaded successfully via full path")
+                } catch (e2: Exception) {
+                    DevLog.error(LOG_TAG, "Explicit load also failed: ${e2.message}")
+                    // Try without entry point to see if we get a different error
+                    try {
+                        val libPath = "${context.applicationInfo.nativeLibraryDir}/crsqlite_requery.so"
+                        db.execSQL("SELECT load_extension('$libPath');")
+                    } catch (e3: Exception) {
+                        DevLog.error(LOG_TAG, "Load without entry point: ${e3.message}")
+                    }
+                }
             }
             
             callback.onConfigure(RequeryDatabaseWrapper(db))

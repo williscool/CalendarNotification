@@ -35,6 +35,7 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         android:usesCleartextTraffic="true"
+        android:extractNativeLibs="true"
         >
         <activity
             android:name=".ui.MainActivity"

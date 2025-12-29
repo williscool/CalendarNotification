@@ -22,9 +22,9 @@ buildscript {
       androidGradlePluginVersion = '8.13.2'
       android_gradle_plugin_version = '8.13.2'
 
-      // WARNING: WE BUILT CR-SQLITE WITH NDK 26.1.10909125
-      // React Native 0.81 requires NDK 27+ for std::format support
-      // CR-SQLITE may need to be rebuilt if issues arise
+      // WARNING: WE BUILT CR-SQLITE WITH NDK 27.2.12479018 and Rust nightly-2023-10-05
+      // (cr-sqlite requires pinned Rust nightly due to removed concat_idents feature)
+      // if ndk version changes, we may need to rebuild cr-sqlite
       ndkVersion = '27.2.12479018'
       // SDK versions - aligned with Expo SDK 54 requirements
       minSdk = 24

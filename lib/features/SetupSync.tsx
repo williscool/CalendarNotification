@@ -76,6 +76,7 @@ export const SetupSync = () => {
     }
 
     (async () => {
+      emitSyncLog('info', 'SetupSync useEffect', { settings, syncType: settings.syncType });
       if (settings.syncEnabled && settings.syncType === 'bidirectional') {
         await installCrsqliteOnTable('Events', 'eventsV9');
       }

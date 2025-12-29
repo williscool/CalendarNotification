@@ -4,8 +4,8 @@ This guide details the process of building cr-sqlite for Android devices and emu
 
 ## Prerequisites
 
-- Rust toolchain with nightly version
-- Android NDK (version 26.1.10909125 recommended)
+- Rust toolchain with nightly version **nightly-2023-10-05** (required - newer versions removed `concat_idents` feature)
+- Android NDK (version 27.2.12479018 recommended)
 - cargo-ndk
 
 ## ⚠️ Important Warning
@@ -24,13 +24,13 @@ Using an NDK from a different OS will cause build failures that are difficult to
 1. Set up the environment:
 ```bash
 # Set NDK path
-export ANDROID_NDK_HOME=/path/to/your/ndk/26.1.10909125
+export ANDROID_NDK_HOME=/path/to/your/ndk/27.2.12479018
 
-# Install Rust nightly and components
+# Install Rust with specific nightly version (required for concat_idents feature)
 brew install rustup
-rustup toolchain install nightly
-rustup target add x86_64-linux-android --toolchain nightly
-rustup component add rust-src --toolchain nightly
+rustup toolchain install nightly-2023-10-05
+rustup target add x86_64-linux-android --toolchain nightly-2023-10-05
+rustup component add rust-src --toolchain nightly-2023-10-05
 
 # Install cargo-ndk
 cargo install cargo-ndk
@@ -41,12 +41,13 @@ cargo install cargo-ndk
 # Clone repository
 git clone https://github.com/vlcn-io/cr-sqlite.git
 cd cr-sqlite
+git submodule update --init --recursive
 
 # Build loadable extension
 cd core
-export ANDROID_NDK_HOME=/home/william/android/ndk/26.1.10909125
+export ANDROID_NDK_HOME=/home/william/android/ndk/27.2.12479018
 export ANDROID_TARGET=x86_64-linux-android
-make loadable 
+rustup run nightly-2023-10-05 make loadable 
 ```
 
 3. Copy the .so file:
@@ -54,8 +55,8 @@ make loadable
 # from project root
 mkdir -p android/app/src/main/jniLibs/x86_64
 
-# from cr-sqlite root
-cp core/dist/crsqlite.so android/app/src/main/jniLibs/x86_64/crsqlite.so
+# from cr-sqlite root - renamed to avoid conflict with React Native's crsqlite.so
+cp core/dist/crsqlite.so android/app/src/main/jniLibs/x86_64/crsqlite_requery.so
 ```
 
 ### For arm64-v8a (Physical Devices)
@@ -63,7 +64,7 @@ cp core/dist/crsqlite.so android/app/src/main/jniLibs/x86_64/crsqlite.so
 Use our convenience script:
 ```bash
 # Set NDK path
-export ANDROID_NDK_HOME=/path/to/your/ndk/26.1.10909125
+export ANDROID_NDK_HOME=/path/to/your/ndk/27.2.12479018
 
 # Run build script
 yarn build:crsqlite:arm64
@@ -79,18 +80,19 @@ yarn build:crsqlite:arm64
 
 2. **Missing arm64-v8a Target**
    ```bash
-   rustup target add aarch64-linux-android --toolchain nightly
+   rustup target add aarch64-linux-android --toolchain nightly-2023-10-05
    ```
 
 3. **Nightly Channel Issues**
    ```bash
-   # Use nightly explicitly
-   rustup run nightly make loadable
+   # Use pinned nightly explicitly (required - newer versions break cr-sqlite)
+   rustup run nightly-2023-10-05 make loadable
+   ```
    
-   # Or temporarily set as default
-   rustup default nightly
-   make loadable
-   rustup default stable  # Switch back after
+   ⚠️ **Important**: cr-sqlite uses the `concat_idents` feature which was removed in Rust 1.90.0.
+   You must use `nightly-2023-10-05` or earlier. Using a newer nightly will fail with:
+   ```
+   error[E0557]: feature has been removed
    ```
 
 4. **Homebrew Rust Conflicts**
