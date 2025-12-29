@@ -193,12 +193,8 @@ class RoomCrSqlitePocTest {
         val count = dao.count()
         DevLog.info(LOG_TAG, "Initial count: $count")
         
-        // Now access underlying requery database where cr-sqlite extension should be loaded
-        val helper = database!!.openHelper as CrSqliteFinalizeWrapper
-        val underlyingDb = helper.underlyingDatabase
-        
         // Query cr-sqlite version - this only works if extension is loaded
-        val cursor = underlyingDb.rawQuery("SELECT crsql_db_version()", null)
+        val cursor = database!!.openHelper.writableDatabase.query("SELECT crsql_db_version()")
         
         assertTrue("Cursor should have results", cursor.moveToFirst())
         
@@ -408,19 +404,16 @@ class RoomCrSqlitePocTest {
         val count = dao.count()
         DevLog.info(LOG_TAG, "Initial count: $count")
         
-        // Access underlying requery database where cr-sqlite extension is loaded
-        val helper = database!!.openHelper as CrSqliteFinalizeWrapper
-        val underlyingDb = helper.underlyingDatabase
-        
         // Test crsql_db_version()
-        val versionCursor = underlyingDb.rawQuery("SELECT crsql_db_version()", null)
+        val db = database!!.openHelper.writableDatabase
+        val versionCursor = db.query("SELECT crsql_db_version()")
         assertTrue(versionCursor.moveToFirst())
         val version = versionCursor.getString(0)
         versionCursor.close()
         DevLog.info(LOG_TAG, "crsql_db_version: $version")
         
         // Test crsql_site_id() - each database should have a unique site ID
-        val siteIdCursor = underlyingDb.rawQuery("SELECT crsql_site_id()", null)
+        val siteIdCursor = db.query("SELECT crsql_site_id()")
         assertTrue(siteIdCursor.moveToFirst())
         val siteId = siteIdCursor.getBlob(0)
         siteIdCursor.close()

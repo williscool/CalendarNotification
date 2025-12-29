@@ -19,12 +19,10 @@
 
 package com.github.quarck.calnotify.database.poc
 
-import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.github.quarck.calnotify.logs.DevLog
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import io.requery.android.database.sqlite.SQLiteCustomExtension
-import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 
 /**
@@ -64,45 +62,18 @@ class CrSqliteRoomFactory : SupportSQLiteOpenHelper.Factory {
 
 /**
  * Wrapper that ensures crsql_finalize() is called before close.
- * 
- * This is required by cr-sqlite to properly flush CRDT metadata.
- * All other methods delegate directly to the underlying helper.
+ * Uses Kotlin delegation - only overrides close().
  */
 class CrSqliteFinalizeWrapper(
     private val delegate: SupportSQLiteOpenHelper
-) : SupportSQLiteOpenHelper {
-    
-    companion object {
-        private const val LOG_TAG = "CrSqliteFinalizeWrapper"
-    }
-
-    override val databaseName: String? 
-        get() = delegate.databaseName
-
-    override val writableDatabase: SupportSQLiteDatabase 
-        get() = delegate.writableDatabase
-
-    override val readableDatabase: SupportSQLiteDatabase 
-        get() = delegate.readableDatabase
-
-    override fun setWriteAheadLoggingEnabled(enabled: Boolean) = 
-        delegate.setWriteAheadLoggingEnabled(enabled)
+) : SupportSQLiteOpenHelper by delegate {
 
     override fun close() {
-        // REQUIRED: Call crsql_finalize() before closing
         try {
             writableDatabase.query("SELECT crsql_finalize()").use { it.moveToFirst() }
-            DevLog.info(LOG_TAG, "Called crsql_finalize() before close")
         } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "Error calling crsql_finalize: ${e.message}")
+            DevLog.error("CrSqliteFinalizeWrapper", "Error calling crsql_finalize: ${e.message}")
         }
         delegate.close()
     }
-
-    /**
-     * Access underlying requery database for cr-sqlite operations.
-     * Use for: crsql_db_version(), crsql_site_id(), crsql_changes(), etc.
-     */
-    val underlyingDatabase: SQLiteDatabase
-        get() = writableDatabase as SQLiteDatabase
 }
