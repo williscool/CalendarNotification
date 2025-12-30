@@ -161,6 +161,7 @@ out/
 
 # Gradle files
 .gradle/
+android/.kotlin/
 build/
 !docs/build/
 

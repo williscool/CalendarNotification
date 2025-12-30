@@ -4,6 +4,7 @@ plugins {
     id 'kotlinx-serialization'
     id 'jacoco'
     id 'com.facebook.react'
+    id 'com.google.devtools.ksp'  // Using KSP for Room (avoids SQLite JDBC issue on Windows)
 }
 
 //
@@ -60,6 +61,9 @@ android {
       force 'org.objenesis:objenesis:3.3'
       force 'net.bytebuddy:byte-buddy:1.14.11'
       force 'net.bytebuddy:byte-buddy-agent:1.14.11'
+      // Force sqlite version for Room 2.8.4 compatibility (overrides consistent resolution constraint)
+      force 'androidx.sqlite:sqlite:2.6.2'
+      force 'androidx.sqlite:sqlite-framework:2.6.2'
     }
   }
 
@@ -71,6 +75,9 @@ android {
       excludes += ['META-INF/*.kotlin_module']
       excludes += ['META-INF/AL2.0']
       excludes += ['META-INF/LGPL2.1']
+    }
+    jniLibs {
+      useLegacyPackaging = true
     }
     pickFirst '**/*.so'
   }
@@ -226,6 +233,9 @@ android {
 // React Native configuration for RN 0.76+
 // NOTE: All react {} configuration is consolidated at the bottom of this file
 
+// KSP avoids the SQLite JDBC native library extraction issue that KAPT has on Windows
+// Room arguments can be passed via: ksp { arg("room.schemaLocation", "...") } if needed
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
@@ -333,6 +343,19 @@ dependencies {
 
     // Jacoco
     androidTestImplementation 'org.jacoco:org.jacoco.core:0.8.12'
+    
+    // Room POC (test only - verifying cr-sqlite compatibility)
+    // See docs/dev_todo/database_modernization_plan.md
+    // Note: Room 2.7.0+ required for Kotlin 2.0.x metadata compatibility
+    // https://developer.android.com/jetpack/androidx/releases/room
+    def roomVersion = "2.8.4"
+    androidTestImplementation "androidx.room:room-runtime:$roomVersion"
+    androidTestImplementation "androidx.room:room-ktx:$roomVersion"
+    androidTestImplementation "androidx.room:room-testing:$roomVersion"
+    kspAndroidTest "androidx.room:room-compiler:$roomVersion"
+    // Room 2.8+ uses the new androidx.sqlite library
+    androidTestImplementation "androidx.sqlite:sqlite:2.6.2"
+    androidTestImplementation "androidx.sqlite:sqlite-framework:2.6.2"
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin

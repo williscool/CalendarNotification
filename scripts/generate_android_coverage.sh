@@ -21,8 +21,16 @@ fi
 
 if [ -n "$SHARD_INDEX" ]; then
   echo "Processing coverage for architecture: $ARCH (shard $SHARD_INDEX)"
+  SHARD_SUFFIX="_shard_${SHARD_INDEX}"
+  
+  # Random backoff for sharded runs to avoid resource contention
+  # when multiple shards complete around the same time on GitHub Actions
+  RANDOM_DELAY=$((RANDOM % 20 + SHARD_INDEX * 5))
+  echo "Applying backoff delay of ${RANDOM_DELAY}s to avoid contention..."
+  sleep "$RANDOM_DELAY"
 else
   echo "Processing coverage for architecture: $ARCH (using suffix: $ARCH_SUFFIX)"
+  SHARD_SUFFIX=""
 fi
 
 # Navigate to the Android directory
@@ -89,15 +97,15 @@ if adb shell "run-as $APP_PACKAGE ls -la ${DEVICE_JACOCO_PATH}" 2>/dev/null; the
   
   # Method 1: Try direct byte streaming with hexdump and xxd
   echo "Method 1: Using hexdump for binary transfer..."
-  if adb shell "run-as $APP_PACKAGE hexdump -ve '1/1 \"%.2x\"' ${DEVICE_JACOCO_PATH} > /sdcard/coverage.hex"; then
-    adb pull "/sdcard/coverage.hex" "${LOCAL_COVERAGE_PATH}.hex" && \
+  if adb shell "run-as $APP_PACKAGE hexdump -ve '1/1 \"%.2x\"' ${DEVICE_JACOCO_PATH} > /sdcard/coverage${SHARD_SUFFIX}.hex"; then
+    adb pull "/sdcard/coverage${SHARD_SUFFIX}.hex" "${LOCAL_COVERAGE_PATH}.hex" && \
     cat "${LOCAL_COVERAGE_PATH}.hex" | xxd -r -p > "$LOCAL_COVERAGE_PATH" && {
       echo "Method 1 succeeded!"
       LOCAL_SIZE=$(stat -c%s "$LOCAL_COVERAGE_PATH" 2>/dev/null || echo "0")
       echo "Local file size: $LOCAL_SIZE bytes"
       if [ "$LOCAL_SIZE" -gt "0" ]; then
         HAS_COVERAGE=true
-        adb shell "rm /sdcard/coverage.hex" || true
+        adb shell "rm /sdcard/coverage${SHARD_SUFFIX}.hex" || true
         rm -f "${LOCAL_COVERAGE_PATH}.hex" || true
       fi
     }
@@ -106,14 +114,14 @@ if adb shell "run-as $APP_PACKAGE ls -la ${DEVICE_JACOCO_PATH}" 2>/dev/null; the
   # If first method failed, try direct ADB pull with permissions hack
   if [ "$HAS_COVERAGE" = false ]; then
     echo "Method 2: Using chmod to make coverage file readable..."
-    if adb shell "run-as $APP_PACKAGE cp ${DEVICE_JACOCO_PATH} /sdcard/coverage.ec && chmod 644 /sdcard/coverage.ec"; then
-      adb pull "/sdcard/coverage.ec" "$LOCAL_COVERAGE_PATH" && {
+    if adb shell "run-as $APP_PACKAGE cp ${DEVICE_JACOCO_PATH} /sdcard/coverage${SHARD_SUFFIX}.ec && chmod 644 /sdcard/coverage${SHARD_SUFFIX}.ec"; then
+      adb pull "/sdcard/coverage${SHARD_SUFFIX}.ec" "$LOCAL_COVERAGE_PATH" && {
         echo "Method 2 succeeded!"
         LOCAL_SIZE=$(stat -c%s "$LOCAL_COVERAGE_PATH" 2>/dev/null || echo "0")
         echo "Local file size: $LOCAL_SIZE bytes"
         if [ "$LOCAL_SIZE" -gt "0" ]; then
           HAS_COVERAGE=true
-          adb shell "rm /sdcard/coverage.ec" || true
+          adb shell "rm /sdcard/coverage${SHARD_SUFFIX}.ec" || true
         fi
       }
     fi
@@ -168,14 +176,14 @@ else
       
       if [ "$SIZE" -gt "0" ]; then
         echo "Attempting to pull $EC_FILE using hexdump method..."
-        if adb shell "run-as $APP_PACKAGE hexdump -ve '1/1 \"%.2x\"' ${EC_FILE} > /sdcard/coverage.hex"; then
-          adb pull "/sdcard/coverage.hex" "${LOCAL_COVERAGE_PATH}.hex" && \
+        if adb shell "run-as $APP_PACKAGE hexdump -ve '1/1 \"%.2x\"' ${EC_FILE} > /sdcard/coverage${SHARD_SUFFIX}.hex"; then
+          adb pull "/sdcard/coverage${SHARD_SUFFIX}.hex" "${LOCAL_COVERAGE_PATH}.hex" && \
           cat "${LOCAL_COVERAGE_PATH}.hex" | xxd -r -p > "$LOCAL_COVERAGE_PATH" && {
             LOCAL_SIZE=$(stat -c%s "$LOCAL_COVERAGE_PATH" 2>/dev/null || echo "0")
             echo "Local file size: $LOCAL_SIZE bytes"
             if [ "$LOCAL_SIZE" -gt "0" ]; then
               HAS_COVERAGE=true
-              adb shell "rm /sdcard/coverage.hex" || true
+              adb shell "rm /sdcard/coverage${SHARD_SUFFIX}.hex" || true
               rm -f "${LOCAL_COVERAGE_PATH}.hex" || true
               break
             fi
