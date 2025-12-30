@@ -86,7 +86,7 @@ class MonitorStorageMigrationTest {
         val db = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         
         try {
-            // Create table with EXACT schema from MonitorStorageImplV1
+            // Create table with EXACT schema from MonitorStorageImplV1 (NO NOT NULL on PKs!)
             db.execSQL("""
                 CREATE TABLE IF NOT EXISTS manualAlertsV1 (
                     calendarId INTEGER,
@@ -151,6 +151,61 @@ class MonitorStorageMigrationTest {
     }
     
     /**
+     * Performs pre-Room migration on a legacy database.
+     * This replicates the logic in MonitorDatabase.migrateLegacyDatabaseIfNeeded()
+     * to add NOT NULL constraints to PK columns (required by Room).
+     */
+    private fun performPreRoomMigration() {
+        DevLog.info(LOG_TAG, "Running pre-Room migration on test database")
+        
+        val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+            dbFile.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
+        )
+        
+        try {
+            db.beginTransaction()
+            try {
+                // Recreate table with NOT NULL on primary key columns
+                db.execSQL("""
+                    CREATE TABLE manualAlertsV1_new (
+                        calendarId INTEGER,
+                        eventId INTEGER NOT NULL,
+                        alertTime INTEGER NOT NULL,
+                        instanceStart INTEGER NOT NULL,
+                        instanceEnd INTEGER,
+                        allDay INTEGER,
+                        alertCreatedByUs INTEGER,
+                        wasHandled INTEGER,
+                        i1 INTEGER,
+                        i2 INTEGER,
+                        PRIMARY KEY (eventId, alertTime, instanceStart)
+                    )
+                """)
+                
+                // Copy data
+                db.execSQL("""
+                    INSERT INTO manualAlertsV1_new 
+                    SELECT calendarId, COALESCE(eventId, 0), COALESCE(alertTime, 0), 
+                           COALESCE(instanceStart, 0), instanceEnd, allDay, 
+                           alertCreatedByUs, wasHandled, i1, i2
+                    FROM manualAlertsV1
+                """)
+                
+                db.execSQL("DROP TABLE manualAlertsV1")
+                db.execSQL("ALTER TABLE manualAlertsV1_new RENAME TO manualAlertsV1")
+                db.execSQL("CREATE UNIQUE INDEX manualAlertsV1IdxV1 ON manualAlertsV1 (eventId, alertTime, instanceStart)")
+                
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            DevLog.info(LOG_TAG, "Pre-Room migration complete")
+        } finally {
+            db.close()
+        }
+    }
+    
+    /**
      * Tests that Room can open a legacy database and read existing data.
      * 
      * This is the critical migration test - if this passes, existing users
@@ -163,7 +218,10 @@ class MonitorStorageMigrationTest {
         // Step 1: Create legacy database with test data (no room_master_table)
         val testData = createLegacyDatabase()
         
-        // Step 2: Open database with Room via MonitorDatabase
+        // Step 2: Run pre-Room migration (same as MonitorDatabase does)
+        performPreRoomMigration()
+        
+        // Step 3: Open database with Room via MonitorDatabase
         // This should NOT crash - Room should handle the pre-existing table
         DevLog.info(LOG_TAG, "Opening legacy database with Room...")
         
@@ -177,13 +235,13 @@ class MonitorStorageMigrationTest {
             .build()
         
         try {
-            // Step 3: Read data via Room DAO
+            // Step 4: Read data via Room DAO
             val dao = roomDb.monitorAlertDao()
-            val alerts = dao.getAllAlerts()
+            val alerts = dao.getAll()
             
             DevLog.info(LOG_TAG, "Room read ${alerts.size} alerts from legacy database")
             
-            // Step 4: Verify data integrity
+            // Step 5: Verify data integrity
             assertEquals("Should read all test alerts", testData.size, alerts.size)
             
             // Verify each row
@@ -199,7 +257,7 @@ class MonitorStorageMigrationTest {
                 assertEquals("allDay should match", expected.allDay, found.isAllDay)
             }
             
-            // Step 5: Verify Room created its metadata table
+            // Step 6: Verify Room created its metadata table
             val supportDb = roomDb.openHelper.writableDatabase
             supportDb.query("SELECT name FROM sqlite_master WHERE type='table' AND name='room_master_table'").use { cursor ->
                 assertTrue("Room should have created room_master_table", cursor.moveToFirst())
@@ -219,8 +277,9 @@ class MonitorStorageMigrationTest {
     fun test_room_can_write_to_legacy_database() {
         DevLog.info(LOG_TAG, "=== test_room_can_write_to_legacy_database ===")
         
-        // Create legacy database
+        // Create legacy database and migrate
         createLegacyDatabase()
+        performPreRoomMigration()
         
         // Open with Room
         val roomDb = androidx.room.Room.databaseBuilder(
@@ -251,12 +310,12 @@ class MonitorStorageMigrationTest {
             DevLog.info(LOG_TAG, "Inserted new alert via Room")
             
             // Verify it was inserted
-            val retrieved = dao.getAlert(99999, 1735600000000, 1735600000000)
+            val retrieved = dao.getByKey(99999, 1735600000000, 1735600000000)
             assertNotNull("Should retrieve newly inserted alert", retrieved)
             assertEquals("eventId should match", 99999L, retrieved!!.eventId)
             
             // Verify total count increased
-            val allAlerts = dao.getAllAlerts()
+            val allAlerts = dao.getAll()
             assertEquals("Should have 4 alerts total (3 legacy + 1 new)", 4, allAlerts.size)
             
             DevLog.info(LOG_TAG, "✅ Room successfully wrote to legacy database!")
@@ -273,8 +332,9 @@ class MonitorStorageMigrationTest {
     fun test_room_can_update_legacy_records() {
         DevLog.info(LOG_TAG, "=== test_room_can_update_legacy_records ===")
         
-        // Create legacy database
+        // Create legacy database and migrate
         createLegacyDatabase()
+        performPreRoomMigration()
         
         // Open with Room
         val roomDb = androidx.room.Room.databaseBuilder(
@@ -290,7 +350,7 @@ class MonitorStorageMigrationTest {
             val dao = roomDb.monitorAlertDao()
             
             // Get the first alert (wasHandled = 0)
-            val alert = dao.getAlert(12345, 1735500000000, 1735500000000)
+            val alert = dao.getByKey(12345, 1735500000000, 1735500000000)
             assertNotNull("Should find test alert", alert)
             assertEquals("Should initially be unhandled", 0, alert!!.wasHandled)
             
@@ -300,7 +360,7 @@ class MonitorStorageMigrationTest {
             DevLog.info(LOG_TAG, "Updated alert via Room")
             
             // Verify update
-            val retrieved = dao.getAlert(12345, 1735500000000, 1735500000000)
+            val retrieved = dao.getByKey(12345, 1735500000000, 1735500000000)
             assertEquals("wasHandled should be updated", 1, retrieved!!.wasHandled)
             
             DevLog.info(LOG_TAG, "✅ Room successfully updated legacy records!")
