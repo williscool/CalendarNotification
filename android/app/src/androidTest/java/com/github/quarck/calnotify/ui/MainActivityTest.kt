@@ -33,11 +33,17 @@ class MainActivityTest : BaseUltronTest() {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        // Prevent calendar reloads that would clear test events from EventsStorage
-        // This is a lightweight mock that just stops ApplicationController.onMainActivityResumed
-        // from triggering background calendar scans
-        // Grant permissions to avoid permission dialogs (faster tests)
-        fixture.setup(preventCalendarReload = true, grantPermissions = true)
+        // Full optimization for fast UI tests:
+        // - waitForAsyncTasks: Wait for background data loading instead of polling with timeouts
+        // - preventCalendarReload: Stop calendar rescans from clearing test events
+        // - grantPermissions: Avoid permission dialogs
+        // - suppressBatteryDialog: Suppress battery optimization dialog
+        fixture.setup(
+            waitForAsyncTasks = true,
+            preventCalendarReload = true,
+            grantPermissions = true,
+            suppressBatteryDialog = true
+        )
     }
     
     @After

@@ -31,7 +31,15 @@ class DismissedEventsActivityTest : BaseUltronTest() {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // Full optimization for fast UI tests:
+        // - waitForAsyncTasks: Wait for background data loading instead of polling with timeouts
+        // - grantPermissions: Avoid permission dialogs
+        // - suppressBatteryDialog: Suppress battery optimization dialog
+        fixture.setup(
+            waitForAsyncTasks = true,
+            grantPermissions = true,
+            suppressBatteryDialog = true
+        )
     }
     
     @After
