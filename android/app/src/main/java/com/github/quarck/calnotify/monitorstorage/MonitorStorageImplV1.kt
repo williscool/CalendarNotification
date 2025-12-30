@@ -466,8 +466,9 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
     companion object {
         private const val LOG_TAG = "MonitorStorageImplV1"
 
-        private const val TABLE_NAME = "manualAlertsV1"
-        private const val INDEX_NAME = "manualAlertsV1IdxV1"
+        // Exposed for testing legacy database migration
+        internal const val TABLE_NAME = "manualAlertsV1"
+        internal const val INDEX_NAME = "manualAlertsV1IdxV1"
 
         private const val KEY_CALENDAR_ID = "calendarId"
         private const val KEY_EVENTID = "eventId"
@@ -477,7 +478,6 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
         private const val KEY_INSTANCE_END = "instanceEnd"
         private const val KEY_WE_CREATED_ALERT = "alertCreatedByUs"
         private const val KEY_WAS_HANDLED = "wasHandled"
-
 
         private const val KEY_RESERVED_INT1 = "i1"
         private const val KEY_RESERVED_INT2 = "i2"

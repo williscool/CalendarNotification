@@ -78,38 +78,23 @@ class MonitorStorageMigrationTest {
     /**
      * Creates a legacy database with the exact schema that SQLiteOpenHelper would create,
      * WITHOUT room_master_table. This simulates a user's existing database before upgrade.
+     * 
+     * Uses the actual MonitorStorageImplV1.createDb() to ensure we test the real schema.
      */
     private fun createLegacyDatabase(): List<TestAlertData> {
         DevLog.info(LOG_TAG, "Creating legacy database at ${dbFile.absolutePath}")
         
-        // Use Android's SQLiteDatabase directly (not requery, not Room)
-        val db = android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null)
+        // Use requery SQLiteDatabase - same as the legacy code uses
+        val db = io.requery.android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(
+            dbFile.absolutePath, null
+        )
         
         try {
-            // Create table with EXACT schema from MonitorStorageImplV1 (NO NOT NULL on PKs!)
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS manualAlertsV1 (
-                    calendarId INTEGER,
-                    eventId INTEGER,
-                    alertTime INTEGER,
-                    instanceStart INTEGER,
-                    instanceEnd INTEGER,
-                    allDay INTEGER,
-                    alertCreatedByUs INTEGER,
-                    wasHandled INTEGER,
-                    i1 INTEGER,
-                    i2 INTEGER,
-                    PRIMARY KEY (eventId, alertTime, instanceStart)
-                )
-            """.trimIndent())
+            // Use the ACTUAL legacy code to create the schema - this is what we're migrating from
+            val legacyImpl = MonitorStorageImplV1(context)
+            legacyImpl.createDb(db)
             
-            // Create the index exactly as the legacy code would
-            db.execSQL("""
-                CREATE UNIQUE INDEX IF NOT EXISTS manualAlertsV1IdxV1 
-                ON manualAlertsV1 (eventId, alertTime, instanceStart)
-            """.trimIndent())
-            
-            // Insert test data
+            // Insert test data using the legacy implementation
             val testData = listOf(
                 TestAlertData(calendarId = 1, eventId = 12345, alertTime = 1735500000000, 
                     instanceStart = 1735500000000, instanceEnd = 1735503600000, 
@@ -124,7 +109,7 @@ class MonitorStorageMigrationTest {
             
             for (data in testData) {
                 db.execSQL("""
-                    INSERT INTO manualAlertsV1 VALUES (
+                    INSERT INTO ${MonitorStorageImplV1.TABLE_NAME} VALUES (
                         ${data.calendarId}, ${data.eventId}, ${data.alertTime},
                         ${data.instanceStart}, ${data.instanceEnd}, ${data.allDay},
                         ${data.alertCreatedByUs}, ${data.wasHandled}, 0, 0
@@ -156,6 +141,9 @@ class MonitorStorageMigrationTest {
      * to add NOT NULL constraints to PK columns (required by Room).
      */
     private fun performPreRoomMigration() {
+        val tableName = MonitorStorageImplV1.TABLE_NAME
+        val indexName = MonitorStorageImplV1.INDEX_NAME
+        
         DevLog.info(LOG_TAG, "Running pre-Room migration on test database")
         
         val db = android.database.sqlite.SQLiteDatabase.openDatabase(
@@ -167,7 +155,7 @@ class MonitorStorageMigrationTest {
             try {
                 // Recreate table with NOT NULL on primary key columns
                 db.execSQL("""
-                    CREATE TABLE manualAlertsV1_new (
+                    CREATE TABLE ${tableName}_new (
                         calendarId INTEGER,
                         eventId INTEGER NOT NULL,
                         alertTime INTEGER NOT NULL,
@@ -184,16 +172,16 @@ class MonitorStorageMigrationTest {
                 
                 // Copy data
                 db.execSQL("""
-                    INSERT INTO manualAlertsV1_new 
+                    INSERT INTO ${tableName}_new 
                     SELECT calendarId, COALESCE(eventId, 0), COALESCE(alertTime, 0), 
                            COALESCE(instanceStart, 0), instanceEnd, allDay, 
                            alertCreatedByUs, wasHandled, i1, i2
-                    FROM manualAlertsV1
+                    FROM $tableName
                 """)
                 
-                db.execSQL("DROP TABLE manualAlertsV1")
-                db.execSQL("ALTER TABLE manualAlertsV1_new RENAME TO manualAlertsV1")
-                db.execSQL("CREATE UNIQUE INDEX manualAlertsV1IdxV1 ON manualAlertsV1 (eventId, alertTime, instanceStart)")
+                db.execSQL("DROP TABLE $tableName")
+                db.execSQL("ALTER TABLE ${tableName}_new RENAME TO $tableName")
+                db.execSQL("CREATE UNIQUE INDEX $indexName ON $tableName (eventId, alertTime, instanceStart)")
                 
                 db.setTransactionSuccessful()
             } finally {
