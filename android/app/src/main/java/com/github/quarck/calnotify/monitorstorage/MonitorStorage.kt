@@ -28,6 +28,11 @@ import java.io.Closeable
  * 
  * Now backed by Room database with cr-sqlite support.
  * Maintains API compatibility with existing callers via delegation.
+ * 
+ * Note: This class previously extended SQLiteOpenHelper with:
+ * - DATABASE_NAME = "CalendarMonitor" → now in MonitorDatabase.DATABASE_NAME
+ * - DATABASE_VERSION = 1 → now in @Database(version = 1) on MonitorDatabase
+ * Room handles version tracking automatically via room_master_table.
  */
 class MonitorStorage private constructor(
     private val delegate: RoomMonitorStorage
@@ -36,6 +41,7 @@ class MonitorStorage private constructor(
     constructor(context: Context) : this(RoomMonitorStorage(context))
 
     companion object {
+        @Suppress("unused")
         private const val LOG_TAG = "MonitorStorage"
     }
 }
