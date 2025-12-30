@@ -32,7 +32,14 @@ class SnoozeAllActivityTest : BaseUltronTest() {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // Optimized for fast UI tests:
+        // - grantPermissions: Avoid permission dialogs
+        // - suppressBatteryDialog: Suppress battery optimization dialog
+        // Note: No waitForAsyncTasks needed - SnoozeAllActivity has no background data loading
+        fixture.setup(
+            grantPermissions = true,
+            suppressBatteryDialog = true
+        )
     }
     
     @After
