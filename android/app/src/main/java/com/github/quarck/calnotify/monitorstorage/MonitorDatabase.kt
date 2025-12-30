@@ -80,13 +80,14 @@ abstract class MonitorDatabase : RoomDatabase() {
         /**
          * Migrate legacy SQLiteOpenHelper database to Room-compatible schema.
          * 
-         * The legacy schema has nullable primary key columns (no NOT NULL constraint).
-         * Room requires primary key columns to be NOT NULL.
+         * This runs BEFORE Room opens the database because Room validates schema
+         * before running any migrations. For pre-Room databases (no room_master_table),
+         * the schema must match exactly or Room will reject it.
          * 
-         * This migration:
-         * 1. Detects legacy database (has manualAlertsV1 but no room_master_table)
-         * 2. Recreates the table with NOT NULL constraints on PK columns
-         * 3. Preserves all existing data
+         * Changes made:
+         * - Adds NOT NULL constraints to primary key columns (Room requirement)
+         * - Preserves the existing index
+         * - All data is preserved
          */
         private fun migrateLegacyDatabaseIfNeeded(context: Context) {
             val dbFile = context.getDatabasePath(DATABASE_NAME)
@@ -95,94 +96,79 @@ abstract class MonitorDatabase : RoomDatabase() {
                 return
             }
             
-            // Open database directly with Android's SQLiteDatabase (not Room, not requery)
             val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
             try {
-                // Check if this is a legacy database (has table but no room_master_table)
-                val hasLegacyTable = db.rawQuery(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='manualAlertsV1'", null
-                ).use { it.moveToFirst() }
-                
-                val hasRoomTable = db.rawQuery(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='room_master_table'", null
-                ).use { it.moveToFirst() }
-                
-                if (!hasLegacyTable) {
-                    DevLog.info(LOG_TAG, "No legacy table found - nothing to migrate")
-                    return
-                }
-                
-                if (hasRoomTable) {
-                    DevLog.info(LOG_TAG, "Database already migrated to Room")
-                    return
-                }
-                
-                DevLog.info(LOG_TAG, "Legacy database detected - migrating schema for Room compatibility")
-                
-                // Count existing rows for verification
-                val rowCountBefore = db.rawQuery("SELECT COUNT(*) FROM manualAlertsV1", null).use { cursor ->
-                    if (cursor.moveToFirst()) cursor.getLong(0) else 0
-                }
-                DevLog.info(LOG_TAG, "Found $rowCountBefore rows to migrate")
-                
-                db.beginTransaction()
-                try {
-                    // Create new table with Room-compatible schema (NOT NULL on PK columns)
-                    db.execSQL("""
-                        CREATE TABLE manualAlertsV1_new (
-                            calendarId INTEGER,
-                            eventId INTEGER NOT NULL,
-                            alertTime INTEGER NOT NULL,
-                            instanceStart INTEGER NOT NULL,
-                            instanceEnd INTEGER,
-                            allDay INTEGER,
-                            alertCreatedByUs INTEGER,
-                            wasHandled INTEGER,
-                            i1 INTEGER,
-                            i2 INTEGER,
-                            PRIMARY KEY (eventId, alertTime, instanceStart)
-                        )
-                    """.trimIndent())
-                    
-                    // Copy data (coalesce handles any null PKs, though there shouldn't be any)
-                    db.execSQL("""
-                        INSERT INTO manualAlertsV1_new 
-                        SELECT calendarId, 
-                               COALESCE(eventId, 0), 
-                               COALESCE(alertTime, 0), 
-                               COALESCE(instanceStart, 0),
-                               instanceEnd, allDay, alertCreatedByUs, wasHandled, i1, i2
-                        FROM manualAlertsV1
-                    """.trimIndent())
-                    
-                    // Drop old table and rename new one
-                    db.execSQL("DROP TABLE manualAlertsV1")
-                    db.execSQL("ALTER TABLE manualAlertsV1_new RENAME TO manualAlertsV1")
-                    
-                    // Recreate the index
-                    db.execSQL("""
-                        CREATE UNIQUE INDEX IF NOT EXISTS manualAlertsV1IdxV1 
-                        ON manualAlertsV1 (eventId, alertTime, instanceStart)
-                    """.trimIndent())
-                    
-                    db.setTransactionSuccessful()
-                    
-                    // Verify migration
-                    val rowCountAfter = db.rawQuery("SELECT COUNT(*) FROM manualAlertsV1", null).use { cursor ->
-                        if (cursor.moveToFirst()) cursor.getLong(0) else 0
-                    }
-                    DevLog.info(LOG_TAG, "Migration complete: $rowCountAfter rows (was $rowCountBefore)")
-                    
-                    if (rowCountAfter != rowCountBefore) {
-                        DevLog.error(LOG_TAG, "WARNING: Row count mismatch after migration!")
-                    }
-                    
-                } finally {
-                    db.endTransaction()
-                }
-                
+                if (!isLegacyDatabase(db)) return
+                performLegacyMigration(db)
             } finally {
                 db.close()
+            }
+        }
+        
+        private fun isLegacyDatabase(db: SQLiteDatabase): Boolean {
+            val hasTable = db.rawQuery(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='manualAlertsV1'", null
+            ).use { it.moveToFirst() }
+            
+            val hasRoomTable = db.rawQuery(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='room_master_table'", null
+            ).use { it.moveToFirst() }
+            
+            return when {
+                !hasTable -> { DevLog.info(LOG_TAG, "No legacy table - nothing to migrate"); false }
+                hasRoomTable -> { DevLog.info(LOG_TAG, "Already Room-managed"); false }
+                else -> { DevLog.info(LOG_TAG, "Legacy database detected"); true }
+            }
+        }
+        
+        private fun performLegacyMigration(db: SQLiteDatabase) {
+            val rowCountBefore = db.rawQuery("SELECT COUNT(*) FROM manualAlertsV1", null)
+                .use { if (it.moveToFirst()) it.getLong(0) else 0 }
+            DevLog.info(LOG_TAG, "Migrating $rowCountBefore rows to Room-compatible schema")
+            
+            db.beginTransaction()
+            try {
+                // Recreate table with NOT NULL on primary key columns
+                db.execSQL("""
+                    CREATE TABLE manualAlertsV1_new (
+                        calendarId INTEGER,
+                        eventId INTEGER NOT NULL,
+                        alertTime INTEGER NOT NULL,
+                        instanceStart INTEGER NOT NULL,
+                        instanceEnd INTEGER,
+                        allDay INTEGER,
+                        alertCreatedByUs INTEGER,
+                        wasHandled INTEGER,
+                        i1 INTEGER,
+                        i2 INTEGER,
+                        PRIMARY KEY (eventId, alertTime, instanceStart)
+                    )
+                """)
+                
+                // Copy data (COALESCE ensures no nulls in PK columns)
+                db.execSQL("""
+                    INSERT INTO manualAlertsV1_new 
+                    SELECT calendarId, COALESCE(eventId, 0), COALESCE(alertTime, 0), 
+                           COALESCE(instanceStart, 0), instanceEnd, allDay, 
+                           alertCreatedByUs, wasHandled, i1, i2
+                    FROM manualAlertsV1
+                """)
+                
+                db.execSQL("DROP TABLE manualAlertsV1")
+                db.execSQL("ALTER TABLE manualAlertsV1_new RENAME TO manualAlertsV1")
+                db.execSQL("CREATE UNIQUE INDEX manualAlertsV1IdxV1 ON manualAlertsV1 (eventId, alertTime, instanceStart)")
+                
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            
+            val rowCountAfter = db.rawQuery("SELECT COUNT(*) FROM manualAlertsV1", null)
+                .use { if (it.moveToFirst()) it.getLong(0) else 0 }
+            DevLog.info(LOG_TAG, "Migration complete: $rowCountAfter rows")
+            
+            if (rowCountAfter != rowCountBefore) {
+                DevLog.error(LOG_TAG, "Row count mismatch! Before=$rowCountBefore, After=$rowCountAfter")
             }
         }
         

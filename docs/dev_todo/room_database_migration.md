@@ -1,8 +1,8 @@
 # Room Database Migration
 
-## Status: POC COMPLETE ✅ - See [Database Modernization Plan](database_modernization_plan.md)
+## Status: Phase 1 IN PROGRESS 🔄 - MonitorStorage migrated, testing on CI
 
-> **Note:** This document contains preliminary research. For the actual implementation plan with POC results and validated configurations, see **[Database Modernization Plan](database_modernization_plan.md)**.
+> **Note:** This document contains implementation details and patterns discovered during migration. For the overall plan, see **[Database Modernization Plan](database_modernization_plan.md)**.
 
 ## Overview
 
@@ -175,6 +175,9 @@ abstract class AppDatabase : RoomDatabase() {
 3. `CalendarChangeRequestsStorage`
 
 ### Schema Migration from Current to Room
+
+> ⚠️ **Important:** Standard Room migrations only work for version upgrades AFTER Room has opened the database. For pre-existing SQLiteOpenHelper databases, see the next section.
+
 ```kotlin
 val MIGRATION_LEGACY_TO_ROOM = object : Migration(9, 10) {
     override fun migrate(database: SupportSQLiteDatabase) {
@@ -184,6 +187,109 @@ val MIGRATION_LEGACY_TO_ROOM = object : Migration(9, 10) {
     }
 }
 ```
+
+### Pre-Room Migration Pattern (CRITICAL for existing databases)
+
+Room validates schema **before** running any migrations. For databases created by `SQLiteOpenHelper` (no `room_master_table`), Room checks the schema first and fails if it doesn't match exactly.
+
+```
+Standard Room Migration Flow:
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ Room opens DB   │ ──► │ Validate schema  │ ──► │ Run migrations  │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                              ▲
+                              │ FAILS HERE for legacy DBs
+                              │ (before migrations can run)
+```
+
+**Solution:** Pre-migrate the database BEFORE Room opens it:
+
+```
+Our Pattern:
+┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│ Pre-migrate     │ ──► │ Room opens DB   │ ──► │ Validate schema  │ ✅
+└─────────────────┘     └─────────────────┘     └──────────────────┘
+```
+
+#### Schema Differences Found (MonitorStorage example)
+
+| Issue | Legacy Schema | Room Requires |
+|-------|---------------|---------------|
+| **PK NOT NULL** | `eventId INTEGER` | `eventId INTEGER NOT NULL` |
+| **Indexes** | Has `manualAlertsV1IdxV1` | Must be declared in `@Entity` |
+
+Room requires:
+- Primary key columns to have `NOT NULL` constraint
+- Any indexes to be declared in the `@Entity` annotation
+
+#### Implementation Pattern
+
+```kotlin
+// In MonitorDatabase.kt
+fun getInstance(context: Context): MonitorDatabase {
+    return INSTANCE ?: synchronized(this) {
+        INSTANCE ?: run {
+            // Pre-migrate BEFORE Room opens
+            migrateLegacyDatabaseIfNeeded(context)
+            buildDatabase(context).also { INSTANCE = it }
+        }
+    }
+}
+
+private fun migrateLegacyDatabaseIfNeeded(context: Context) {
+    val dbFile = context.getDatabasePath(DATABASE_NAME)
+    if (!dbFile.exists()) return
+    
+    val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, OPEN_READWRITE)
+    try {
+        if (!isLegacyDatabase(db)) return
+        performLegacyMigration(db)
+    } finally {
+        db.close()
+    }
+}
+
+private fun isLegacyDatabase(db: SQLiteDatabase): Boolean {
+    // Legacy = has our table but no room_master_table
+    val hasTable = db.rawQuery("SELECT 1 FROM sqlite_master WHERE name='myTable'", null)
+        .use { it.moveToFirst() }
+    val hasRoomTable = db.rawQuery("SELECT 1 FROM sqlite_master WHERE name='room_master_table'", null)
+        .use { it.moveToFirst() }
+    return hasTable && !hasRoomTable
+}
+
+private fun performLegacyMigration(db: SQLiteDatabase) {
+    db.beginTransaction()
+    try {
+        // Recreate table with Room-compatible schema
+        db.execSQL("CREATE TABLE myTable_new (...)")  // with NOT NULL on PKs
+        db.execSQL("INSERT INTO myTable_new SELECT ... FROM myTable")
+        db.execSQL("DROP TABLE myTable")
+        db.execSQL("ALTER TABLE myTable_new RENAME TO myTable")
+        db.execSQL("CREATE INDEX ...")  // recreate indexes
+        db.setTransactionSuccessful()
+    } finally {
+        db.endTransaction()
+    }
+}
+```
+
+#### Entity with Index Declaration
+
+```kotlin
+@Entity(
+    tableName = "manualAlertsV1",
+    primaryKeys = ["eventId", "alertTime", "instanceStart"],
+    indices = [Index(
+        value = ["eventId", "alertTime", "instanceStart"],
+        unique = true,
+        name = "manualAlertsV1IdxV1"  // Must match existing index name!
+    )]
+)
+data class MonitorAlertEntity(...)
+```
+
+**This pattern is documented for SQLiteOpenHelper → Room migrations.** It's not a hack - it's the correct approach when schemas don't match exactly.
 
 ## Effort Estimate
 
@@ -257,7 +363,7 @@ See [CR-SQLite + Room Testing Guide](../testing/crsqlite_room_testing.md) for fu
 
 ## Recommendation
 
-**Priority: Medium-High** | **Status: POC COMPLETE ✅**
+**Priority: Medium-High** | **Status: Phase 1 IN PROGRESS 🔄**
 
 This is a good candidate for migration because:
 1. Database code is mission-critical (event notifications)
@@ -265,14 +371,29 @@ This is a good candidate for migration because:
 3. Type safety would catch issues at compile time
 4. Reduces maintenance burden long-term
 
-### POC Validated (Dec 2025)
+### Progress (Dec 2025)
+
+#### POC Validated ✅
 - ✅ Room works with cr-sqlite extension via custom `SupportSQLiteOpenHelper.Factory`
 - ✅ All 8 POC tests pass (CRUD, extension loading, finalize, coexistence)
 - ✅ APK packaging requirements documented
 
-**Next step:** Phase 1 - Migrate `MonitorStorage` (simplest SQLite database, V1 only)
+#### Phase 1: MonitorStorage Migration ✅
+- ✅ Created `MonitorAlertEntity`, `MonitorAlertDao`, `MonitorDatabase`
+- ✅ Implemented pre-Room migration for legacy schema compatibility
+- ✅ Live upgrade test passed (legacy DB → Room-managed DB, data preserved)
+- ✅ `room_master_table` created successfully
+- 🔄 Running full test suite on CI
 
-**See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan with POC results and validated configurations.
+**Key files:**
+- `monitorstorage/MonitorAlertEntity.kt` - Room entity with index
+- `monitorstorage/MonitorAlertDao.kt` - Data access object
+- `monitorstorage/MonitorDatabase.kt` - Database with pre-Room migration
+- `monitorstorage/RoomMonitorStorage.kt` - Implementation of `MonitorStorageInterface`
+
+**Next step:** Phase 2 - Migrate `EventsStorage` (most complex, V6→V9 migration history)
+
+**See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan.
 
 ## References
 
