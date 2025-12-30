@@ -55,10 +55,13 @@ class RoomMonitorStorage(context: Context) : MonitorStorageInterface, Closeable 
     }
 
     override fun deleteAlertsMatching(filter: (MonitorEventAlertEntry) -> Boolean) {
-        val allAlerts = dao.getAll()
-        val toDelete = allAlerts.filter { filter(it.toAlertEntry()) }
-        if (toDelete.isNotEmpty()) {
-            dao.deleteAll(toDelete)
+        // Wrap in transaction to ensure atomicity (read + delete as single unit)
+        database.runInTransaction {
+            val allAlerts = dao.getAll()
+            val toDelete = allAlerts.filter { filter(it.toAlertEntry()) }
+            if (toDelete.isNotEmpty()) {
+                dao.deleteAll(toDelete)
+            }
         }
     }
 
