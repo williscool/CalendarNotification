@@ -1,6 +1,6 @@
 # Database Modernization Plan
 
-## Status: POC COMPLETE ✅ - Ready for Phase 1
+## Status: Phase 1 COMPLETE ✅ - Ready for Phase 2
 
 ## Executive Summary
 
@@ -45,9 +45,9 @@ While [jOOQ](https://www.jooq.org/) is an excellent library for type-safe SQL on
 
 | Database | File | Version History | Complexity | Coverage | Priority |
 |----------|------|-----------------|------------|----------|----------|
-| **MonitorStorage** | `monitorstorage/` | V1 only | Low | 730/925 (79%) | **1st (Pilot)** |
-| **DismissedEventsStorage** | `dismissedeventsstorage/` | V1→V2 | Medium | 597/623 (96%) | 2nd |
-| **EventsStorage** | `eventsstorage/` | V6→V7→V8→V9 | **High** | 1015/1137 (89%) | 3rd |
+| **MonitorStorage** | `monitorstorage/` | V1 only | Low | 730/925 (79%) | **1st (Pilot)** ✅ |
+| **DismissedEventsStorage** | `dismissedeventsstorage/` | V1→V2 | Medium | 597/623 (96%) | **2nd** |
+| **EventsStorage** | `eventsstorage/` | V6→V7→V8→V9 | **High** | 1015/1137 (89%) | **3rd (Last)** |
 
 ### NOT SQLite (Skip)
 
@@ -349,18 +349,31 @@ interface MonitorAlertDao {
 
 ## Phase 2: DismissedEventsStorage
 
+### Why DismissedEventsStorage Second?
+1. **Medium complexity** - Only V1→V2 migration (simpler than EventsStorage)
+2. **High test coverage** - 96% already covered
+3. **Builds confidence** - Establishes patterns before tackling high-risk storage
+4. **Lower risk than EventsStorage** - Not the primary notification database
+
 ### Migration Complexity: Medium
 - Has V1→V2 migration history
 - Need Room migration from V2
 
 ### Approach
-- Same parallel implementation pattern
+- Same parallel implementation pattern as MonitorStorage
 - Room schema matches V2
+- Pre-Room migration if needed (check for NOT NULL on PKs)
 - Migration class handles legacy→Room transition
 
 ---
 
-## Phase 3: EventsStorage (Most Critical)
+## Phase 3: EventsStorage (Most Critical - LAST)
+
+### Why EventsStorage Last?
+1. **Highest complexity** - V6→V7→V8→V9 migration history
+2. **Highest risk** - Core notification functionality depends on this
+3. **Patterns established** - By now we've migrated 2 databases successfully
+4. **Confidence built** - Pre-Room migration pattern proven, edge cases known
 
 ### Migration Complexity: HIGH
 - V6→V7→V8→V9 migration history

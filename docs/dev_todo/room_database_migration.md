@@ -1,6 +1,6 @@
 # Room Database Migration
 
-## Status: Phase 1 IN PROGRESS 🔄 - MonitorStorage migrated, testing on CI
+## Status: Phase 1 COMPLETE ✅ - MonitorStorage migrated, ready for Phase 2
 
 > **Note:** This document contains implementation details and patterns discovered during migration. For the overall plan, see **[Database Modernization Plan](database_modernization_plan.md)**.
 
@@ -164,15 +164,19 @@ abstract class AppDatabase : RoomDatabase() {
 
 **Note:** Originally suggested BTCarModeStorage but it's SharedPreferences, not SQLite. MonitorStorage is the actual simplest SQLite database (V1 only, no migration history).
 
-### Phase 2: Migrate Critical Storage
-1. `EventsStorage` - most important, most complex
-2. Need to handle existing V6→V7→V8→V9 migration history
-3. Room's `Migration` class handles this cleanly
+### Phase 2: DismissedEventsStorage (Medium Complexity)
+1. `DismissedEventsStorage` - Medium complexity, V1→V2 migration
+2. Builds confidence with migration patterns before tackling highest-risk database
+3. High test coverage (96%) provides safety net
 
-### Phase 3: Complete Migration
-1. `DismissedEventsStorage`
-2. `MonitorStorage`
-3. `CalendarChangeRequestsStorage`
+### Phase 3: EventsStorage (Highest Risk - LAST)
+1. `EventsStorage` - most important, most complex
+2. Tackle LAST after patterns are proven on simpler databases
+3. Need to handle existing V6→V7→V8→V9 migration history
+4. Room's `Migration` class handles schema versioning
+
+### Deprecated (Skip)
+- `CalendarChangeRequestsStorage` - DEPRECATED, remove instead of migrate
 
 ### Schema Migration from Current to Room
 
@@ -363,7 +367,7 @@ See [CR-SQLite + Room Testing Guide](../testing/crsqlite_room_testing.md) for fu
 
 ## Recommendation
 
-**Priority: Medium-High** | **Status: Phase 1 IN PROGRESS 🔄**
+**Priority: Medium-High** | **Status: Phase 1 COMPLETE ✅**
 
 This is a good candidate for migration because:
 1. Database code is mission-critical (event notifications)
@@ -383,7 +387,7 @@ This is a good candidate for migration because:
 - ✅ Implemented pre-Room migration for legacy schema compatibility
 - ✅ Live upgrade test passed (legacy DB → Room-managed DB, data preserved)
 - ✅ `room_master_table` created successfully
-- 🔄 Running full test suite on CI
+- ✅ Migration tests pass locally (3/3)
 
 **Key files:**
 - `monitorstorage/MonitorAlertEntity.kt` - Room entity with index
@@ -391,7 +395,7 @@ This is a good candidate for migration because:
 - `monitorstorage/MonitorDatabase.kt` - Database with pre-Room migration
 - `monitorstorage/RoomMonitorStorage.kt` - Implementation of `MonitorStorageInterface`
 
-**Next step:** Phase 2 - Migrate `EventsStorage` (most complex, V6→V9 migration history)
+**Next step:** Phase 2 - Migrate `DismissedEventsStorage` (medium complexity, build confidence before EventsStorage)
 
 **See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan.
 
