@@ -30,29 +30,33 @@ import androidx.room.Update
  * Room DAO for MonitorAlertEntity.
  * 
  * Provides all database operations needed by MonitorStorageInterface.
+ * 
+ * Note: Room @Query annotations require string literals, so we can't use
+ * MonitorAlertEntity constants directly in queries. The table/column names
+ * are validated at compile time against the @Entity definition.
  */
 @Dao
 interface MonitorAlertDao {
     
-    @Query("SELECT * FROM manualAlertsV1")
+    @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME}")
     fun getAll(): List<MonitorAlertEntity>
 
-    @Query("SELECT * FROM manualAlertsV1 WHERE eventId = :eventId AND alertTime = :alertTime AND instanceStart = :instanceStart")
+    @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_EVENT_ID} = :eventId AND ${MonitorAlertEntity.COL_ALERT_TIME} = :alertTime AND ${MonitorAlertEntity.COL_INSTANCE_START} = :instanceStart")
     fun getByKey(eventId: Long, alertTime: Long, instanceStart: Long): MonitorAlertEntity?
 
-    @Query("SELECT * FROM manualAlertsV1 WHERE eventId = :eventId AND instanceStart = :instanceStart")
+    @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_EVENT_ID} = :eventId AND ${MonitorAlertEntity.COL_INSTANCE_START} = :instanceStart")
     fun getByEventAndInstance(eventId: Long, instanceStart: Long): List<MonitorAlertEntity>
 
-    @Query("SELECT * FROM manualAlertsV1 WHERE alertTime = :time")
+    @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_ALERT_TIME} = :time")
     fun getByAlertTime(time: Long): List<MonitorAlertEntity>
 
-    @Query("SELECT MIN(alertTime) FROM manualAlertsV1 WHERE alertTime >= :since")
+    @Query("SELECT MIN(${MonitorAlertEntity.COL_ALERT_TIME}) FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_ALERT_TIME} >= :since")
     fun getNextAlertTime(since: Long): Long?
 
-    @Query("SELECT * FROM manualAlertsV1 WHERE instanceStart >= :scanFrom AND instanceStart <= :scanTo")
+    @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_INSTANCE_START} >= :scanFrom AND ${MonitorAlertEntity.COL_INSTANCE_START} <= :scanTo")
     fun getByInstanceStartRange(scanFrom: Long, scanTo: Long): List<MonitorAlertEntity>
 
-    @Query("SELECT * FROM manualAlertsV1 WHERE alertTime >= :scanFrom AND alertTime <= :scanTo")
+    @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_ALERT_TIME} >= :scanFrom AND ${MonitorAlertEntity.COL_ALERT_TIME} <= :scanTo")
     fun getByAlertTimeRange(scanFrom: Long, scanTo: Long): List<MonitorAlertEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -73,7 +77,7 @@ interface MonitorAlertDao {
     @Delete
     fun deleteAll(entities: List<MonitorAlertEntity>)
 
-    @Query("DELETE FROM manualAlertsV1 WHERE eventId = :eventId AND alertTime = :alertTime AND instanceStart = :instanceStart")
+    @Query("DELETE FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_EVENT_ID} = :eventId AND ${MonitorAlertEntity.COL_ALERT_TIME} = :alertTime AND ${MonitorAlertEntity.COL_INSTANCE_START} = :instanceStart")
     fun deleteByKey(eventId: Long, alertTime: Long, instanceStart: Long)
 }
 

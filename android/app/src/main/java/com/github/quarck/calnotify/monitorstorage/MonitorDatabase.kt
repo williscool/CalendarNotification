@@ -106,8 +106,10 @@ abstract class MonitorDatabase : RoomDatabase() {
         }
         
         private fun isLegacyDatabase(db: SQLiteDatabase): Boolean {
+            val tableName = MonitorAlertEntity.TABLE_NAME
+            
             val hasTable = db.rawQuery(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='manualAlertsV1'", null
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='$tableName'", null
             ).use { it.moveToFirst() }
             
             val hasRoomTable = db.rawQuery(
@@ -122,7 +124,21 @@ abstract class MonitorDatabase : RoomDatabase() {
         }
         
         private fun performLegacyMigration(db: SQLiteDatabase) {
-            val rowCountBefore = db.rawQuery("SELECT COUNT(*) FROM manualAlertsV1", null)
+            val t = MonitorAlertEntity.TABLE_NAME
+            val idx = MonitorAlertEntity.INDEX_NAME
+            // Column names
+            val calendarId = MonitorAlertEntity.COL_CALENDAR_ID
+            val eventId = MonitorAlertEntity.COL_EVENT_ID
+            val alertTime = MonitorAlertEntity.COL_ALERT_TIME
+            val instanceStart = MonitorAlertEntity.COL_INSTANCE_START
+            val instanceEnd = MonitorAlertEntity.COL_INSTANCE_END
+            val allDay = MonitorAlertEntity.COL_ALL_DAY
+            val alertCreatedByUs = MonitorAlertEntity.COL_ALERT_CREATED_BY_US
+            val wasHandled = MonitorAlertEntity.COL_WAS_HANDLED
+            val i1 = MonitorAlertEntity.COL_RESERVED_INT1
+            val i2 = MonitorAlertEntity.COL_RESERVED_INT2
+            
+            val rowCountBefore = db.rawQuery("SELECT COUNT(*) FROM $t", null)
                 .use { if (it.moveToFirst()) it.getLong(0) else 0 }
             DevLog.info(LOG_TAG, "Migrating $rowCountBefore rows to Room-compatible schema")
             
@@ -130,40 +146,40 @@ abstract class MonitorDatabase : RoomDatabase() {
             try {
                 // Recreate table with NOT NULL on primary key columns
                 db.execSQL("""
-                    CREATE TABLE manualAlertsV1_new (
-                        calendarId INTEGER,
-                        eventId INTEGER NOT NULL,
-                        alertTime INTEGER NOT NULL,
-                        instanceStart INTEGER NOT NULL,
-                        instanceEnd INTEGER,
-                        allDay INTEGER,
-                        alertCreatedByUs INTEGER,
-                        wasHandled INTEGER,
-                        i1 INTEGER,
-                        i2 INTEGER,
-                        PRIMARY KEY (eventId, alertTime, instanceStart)
+                    CREATE TABLE ${t}_new (
+                        $calendarId INTEGER,
+                        $eventId INTEGER NOT NULL,
+                        $alertTime INTEGER NOT NULL,
+                        $instanceStart INTEGER NOT NULL,
+                        $instanceEnd INTEGER,
+                        $allDay INTEGER,
+                        $alertCreatedByUs INTEGER,
+                        $wasHandled INTEGER,
+                        $i1 INTEGER,
+                        $i2 INTEGER,
+                        PRIMARY KEY ($eventId, $alertTime, $instanceStart)
                     )
                 """)
                 
                 // Copy data (COALESCE ensures no nulls in PK columns)
                 db.execSQL("""
-                    INSERT INTO manualAlertsV1_new 
-                    SELECT calendarId, COALESCE(eventId, 0), COALESCE(alertTime, 0), 
-                           COALESCE(instanceStart, 0), instanceEnd, allDay, 
-                           alertCreatedByUs, wasHandled, i1, i2
-                    FROM manualAlertsV1
+                    INSERT INTO ${t}_new 
+                    SELECT $calendarId, COALESCE($eventId, 0), COALESCE($alertTime, 0), 
+                           COALESCE($instanceStart, 0), $instanceEnd, $allDay, 
+                           $alertCreatedByUs, $wasHandled, $i1, $i2
+                    FROM $t
                 """)
                 
-                db.execSQL("DROP TABLE manualAlertsV1")
-                db.execSQL("ALTER TABLE manualAlertsV1_new RENAME TO manualAlertsV1")
-                db.execSQL("CREATE UNIQUE INDEX manualAlertsV1IdxV1 ON manualAlertsV1 (eventId, alertTime, instanceStart)")
+                db.execSQL("DROP TABLE $t")
+                db.execSQL("ALTER TABLE ${t}_new RENAME TO $t")
+                db.execSQL("CREATE UNIQUE INDEX $idx ON $t ($eventId, $alertTime, $instanceStart)")
                 
                 db.setTransactionSuccessful()
             } finally {
                 db.endTransaction()
             }
             
-            val rowCountAfter = db.rawQuery("SELECT COUNT(*) FROM manualAlertsV1", null)
+            val rowCountAfter = db.rawQuery("SELECT COUNT(*) FROM $t", null)
                 .use { if (it.moveToFirst()) it.getLong(0) else 0 }
             DevLog.info(LOG_TAG, "Migration complete: $rowCountAfter rows")
             

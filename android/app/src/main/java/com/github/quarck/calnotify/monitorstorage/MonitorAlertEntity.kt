@@ -36,25 +36,25 @@ import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
  * before Room opens it. See MonitorDatabase.migrateLegacyDatabaseIfNeeded().
  */
 @Entity(
-    tableName = "manualAlertsV1",
-    primaryKeys = ["eventId", "alertTime", "instanceStart"],
-    indices = [Index(value = ["eventId", "alertTime", "instanceStart"], unique = true, name = "manualAlertsV1IdxV1")]
+    tableName = MonitorAlertEntity.TABLE_NAME,
+    primaryKeys = [MonitorAlertEntity.COL_EVENT_ID, MonitorAlertEntity.COL_ALERT_TIME, MonitorAlertEntity.COL_INSTANCE_START],
+    indices = [Index(
+        value = [MonitorAlertEntity.COL_EVENT_ID, MonitorAlertEntity.COL_ALERT_TIME, MonitorAlertEntity.COL_INSTANCE_START],
+        unique = true,
+        name = MonitorAlertEntity.INDEX_NAME
+    )]
 )
 data class MonitorAlertEntity(
-    // Nullable columns (match legacy schema without NOT NULL)
-    @ColumnInfo(name = "calendarId") val calendarId: Long? = -1,
-    // Primary key columns - NOT NULL (migration ensures this)
-    @ColumnInfo(name = "eventId") val eventId: Long,
-    @ColumnInfo(name = "alertTime") val alertTime: Long,
-    @ColumnInfo(name = "instanceStart") val instanceStartTime: Long,
-    // Other nullable columns
-    @ColumnInfo(name = "instanceEnd") val instanceEndTime: Long? = 0,
-    @ColumnInfo(name = "allDay") val isAllDay: Int? = 0,
-    @ColumnInfo(name = "alertCreatedByUs") val alertCreatedByUs: Int? = 0,
-    @ColumnInfo(name = "wasHandled") val wasHandled: Int? = 0,
-    // Reserved columns
-    @ColumnInfo(name = "i1") val reservedInt1: Long? = 0,
-    @ColumnInfo(name = "i2") val reservedInt2: Long? = 0
+    @ColumnInfo(name = COL_CALENDAR_ID) val calendarId: Long? = -1,
+    @ColumnInfo(name = COL_EVENT_ID) val eventId: Long,
+    @ColumnInfo(name = COL_ALERT_TIME) val alertTime: Long,
+    @ColumnInfo(name = COL_INSTANCE_START) val instanceStartTime: Long,
+    @ColumnInfo(name = COL_INSTANCE_END) val instanceEndTime: Long? = 0,
+    @ColumnInfo(name = COL_ALL_DAY) val isAllDay: Int? = 0,
+    @ColumnInfo(name = COL_ALERT_CREATED_BY_US) val alertCreatedByUs: Int? = 0,
+    @ColumnInfo(name = COL_WAS_HANDLED) val wasHandled: Int? = 0,
+    @ColumnInfo(name = COL_RESERVED_INT1) val reservedInt1: Long? = 0,
+    @ColumnInfo(name = COL_RESERVED_INT2) val reservedInt2: Long? = 0
 ) {
     /** Convert to domain model (handles potential nulls) */
     fun toAlertEntry() = MonitorEventAlertEntry(
@@ -68,6 +68,22 @@ data class MonitorAlertEntity(
     )
 
     companion object {
+        // Table and index names
+        const val TABLE_NAME = "manualAlertsV1"
+        const val INDEX_NAME = "manualAlertsV1IdxV1"
+        
+        // Column names (must match legacy schema exactly)
+        const val COL_CALENDAR_ID = "calendarId"
+        const val COL_EVENT_ID = "eventId"
+        const val COL_ALERT_TIME = "alertTime"
+        const val COL_INSTANCE_START = "instanceStart"
+        const val COL_INSTANCE_END = "instanceEnd"
+        const val COL_ALL_DAY = "allDay"
+        const val COL_ALERT_CREATED_BY_US = "alertCreatedByUs"
+        const val COL_WAS_HANDLED = "wasHandled"
+        const val COL_RESERVED_INT1 = "i1"
+        const val COL_RESERVED_INT2 = "i2"
+
         /** Convert from domain model */
         fun fromAlertEntry(entry: MonitorEventAlertEntry) = MonitorAlertEntity(
             eventId = entry.eventId,

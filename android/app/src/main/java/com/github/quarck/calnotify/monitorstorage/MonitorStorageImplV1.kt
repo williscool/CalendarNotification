@@ -466,21 +466,24 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
     companion object {
         private const val LOG_TAG = "MonitorStorageImplV1"
 
-        // Exposed for testing legacy database migration
-        internal const val TABLE_NAME = "manualAlertsV1"
-        internal const val INDEX_NAME = "manualAlertsV1IdxV1"
+        // Delegate to MonitorAlertEntity - the canonical source for schema constants
+        @Deprecated("Use MonitorAlertEntity.TABLE_NAME", ReplaceWith("MonitorAlertEntity.TABLE_NAME"))
+        internal const val TABLE_NAME = MonitorAlertEntity.TABLE_NAME
+        @Deprecated("Use MonitorAlertEntity.INDEX_NAME", ReplaceWith("MonitorAlertEntity.INDEX_NAME"))
+        internal const val INDEX_NAME = MonitorAlertEntity.INDEX_NAME
 
-        private const val KEY_CALENDAR_ID = "calendarId"
-        private const val KEY_EVENTID = "eventId"
-        private const val KEY_ALL_DAY = "allDay"
-        private const val KEY_ALERT_TIME = "alertTime"
-        private const val KEY_INSTANCE_START = "instanceStart"
-        private const val KEY_INSTANCE_END = "instanceEnd"
-        private const val KEY_WE_CREATED_ALERT = "alertCreatedByUs"
-        private const val KEY_WAS_HANDLED = "wasHandled"
+        // Column name constants - delegate to Entity
+        private const val KEY_CALENDAR_ID = MonitorAlertEntity.COL_CALENDAR_ID
+        private const val KEY_EVENTID = MonitorAlertEntity.COL_EVENT_ID
+        private const val KEY_ALL_DAY = MonitorAlertEntity.COL_ALL_DAY
+        private const val KEY_ALERT_TIME = MonitorAlertEntity.COL_ALERT_TIME
+        private const val KEY_INSTANCE_START = MonitorAlertEntity.COL_INSTANCE_START
+        private const val KEY_INSTANCE_END = MonitorAlertEntity.COL_INSTANCE_END
+        private const val KEY_WE_CREATED_ALERT = MonitorAlertEntity.COL_ALERT_CREATED_BY_US
+        private const val KEY_WAS_HANDLED = MonitorAlertEntity.COL_WAS_HANDLED
 
-        private const val KEY_RESERVED_INT1 = "i1"
-        private const val KEY_RESERVED_INT2 = "i2"
+        private const val KEY_RESERVED_INT1 = MonitorAlertEntity.COL_RESERVED_INT1
+        private const val KEY_RESERVED_INT2 = MonitorAlertEntity.COL_RESERVED_INT2
 
         private val SELECT_COLUMNS = arrayOf<String>(
                 KEY_CALENDAR_ID,

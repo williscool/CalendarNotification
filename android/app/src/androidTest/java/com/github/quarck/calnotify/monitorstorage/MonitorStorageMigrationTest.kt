@@ -109,7 +109,7 @@ class MonitorStorageMigrationTest {
             
             for (data in testData) {
                 db.execSQL("""
-                    INSERT INTO ${MonitorStorageImplV1.TABLE_NAME} VALUES (
+                    INSERT INTO ${MonitorAlertEntity.TABLE_NAME} VALUES (
                         ${data.calendarId}, ${data.eventId}, ${data.alertTime},
                         ${data.instanceStart}, ${data.instanceEnd}, ${data.allDay},
                         ${data.alertCreatedByUs}, ${data.wasHandled}, 0, 0
@@ -141,8 +141,19 @@ class MonitorStorageMigrationTest {
      * to add NOT NULL constraints to PK columns (required by Room).
      */
     private fun performPreRoomMigration() {
-        val tableName = MonitorStorageImplV1.TABLE_NAME
-        val indexName = MonitorStorageImplV1.INDEX_NAME
+        val t = MonitorAlertEntity.TABLE_NAME
+        val idx = MonitorAlertEntity.INDEX_NAME
+        // Column names from Entity
+        val calendarId = MonitorAlertEntity.COL_CALENDAR_ID
+        val eventId = MonitorAlertEntity.COL_EVENT_ID
+        val alertTime = MonitorAlertEntity.COL_ALERT_TIME
+        val instanceStart = MonitorAlertEntity.COL_INSTANCE_START
+        val instanceEnd = MonitorAlertEntity.COL_INSTANCE_END
+        val allDay = MonitorAlertEntity.COL_ALL_DAY
+        val alertCreatedByUs = MonitorAlertEntity.COL_ALERT_CREATED_BY_US
+        val wasHandled = MonitorAlertEntity.COL_WAS_HANDLED
+        val i1 = MonitorAlertEntity.COL_RESERVED_INT1
+        val i2 = MonitorAlertEntity.COL_RESERVED_INT2
         
         DevLog.info(LOG_TAG, "Running pre-Room migration on test database")
         
@@ -155,33 +166,33 @@ class MonitorStorageMigrationTest {
             try {
                 // Recreate table with NOT NULL on primary key columns
                 db.execSQL("""
-                    CREATE TABLE ${tableName}_new (
-                        calendarId INTEGER,
-                        eventId INTEGER NOT NULL,
-                        alertTime INTEGER NOT NULL,
-                        instanceStart INTEGER NOT NULL,
-                        instanceEnd INTEGER,
-                        allDay INTEGER,
-                        alertCreatedByUs INTEGER,
-                        wasHandled INTEGER,
-                        i1 INTEGER,
-                        i2 INTEGER,
-                        PRIMARY KEY (eventId, alertTime, instanceStart)
+                    CREATE TABLE ${t}_new (
+                        $calendarId INTEGER,
+                        $eventId INTEGER NOT NULL,
+                        $alertTime INTEGER NOT NULL,
+                        $instanceStart INTEGER NOT NULL,
+                        $instanceEnd INTEGER,
+                        $allDay INTEGER,
+                        $alertCreatedByUs INTEGER,
+                        $wasHandled INTEGER,
+                        $i1 INTEGER,
+                        $i2 INTEGER,
+                        PRIMARY KEY ($eventId, $alertTime, $instanceStart)
                     )
                 """)
                 
                 // Copy data
                 db.execSQL("""
-                    INSERT INTO ${tableName}_new 
-                    SELECT calendarId, COALESCE(eventId, 0), COALESCE(alertTime, 0), 
-                           COALESCE(instanceStart, 0), instanceEnd, allDay, 
-                           alertCreatedByUs, wasHandled, i1, i2
-                    FROM $tableName
+                    INSERT INTO ${t}_new 
+                    SELECT $calendarId, COALESCE($eventId, 0), COALESCE($alertTime, 0), 
+                           COALESCE($instanceStart, 0), $instanceEnd, $allDay, 
+                           $alertCreatedByUs, $wasHandled, $i1, $i2
+                    FROM $t
                 """)
                 
-                db.execSQL("DROP TABLE $tableName")
-                db.execSQL("ALTER TABLE ${tableName}_new RENAME TO $tableName")
-                db.execSQL("CREATE UNIQUE INDEX $indexName ON $tableName (eventId, alertTime, instanceStart)")
+                db.execSQL("DROP TABLE $t")
+                db.execSQL("ALTER TABLE ${t}_new RENAME TO $t")
+                db.execSQL("CREATE UNIQUE INDEX $idx ON $t ($eventId, $alertTime, $instanceStart)")
                 
                 db.setTransactionSuccessful()
             } finally {
