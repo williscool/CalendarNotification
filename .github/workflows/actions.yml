@@ -809,11 +809,8 @@ jobs:
       if: always() && steps.verify_results.outputs.has_results == 'true'
       with:
         name: 'Integration Tests (Shard ${{ matrix.shard }})'
-        # Exclude allure-results which contain non-JUnit XML files
-        path: |
-          android/app/build/outputs/*.xml
-          android/app/build/outputs/androidTest-results/**/*.xml
-          android/app/build/outputs/connected/**/*.xml
+        # Exclude allure-results which contain non-JUnit XML files (use comma-separated paths)
+        path: 'android/app/build/outputs/*.xml,android/app/build/outputs/androidTest-results/**/*.xml,android/app/build/outputs/connected/**/*.xml'
         reporter: java-junit
         fail-on-error: true
 
