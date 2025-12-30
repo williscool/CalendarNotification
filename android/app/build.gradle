@@ -397,6 +397,15 @@ afterEvaluate {
         .withPathSensitivity(PathSensitivity.RELATIVE)
         .optional()
     }
+    
+    // Wire KSP tasks (Room annotation processor)
+    tasks.matching { it.name.matches('ksp.*Kotlin') }.configureEach { task ->
+      task.dependsOn(autolinkTask)
+      task.inputs.dir(autolinkingDir)
+        .withPropertyName('autolinkingSources')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional()
+    }
   }
 }
 
