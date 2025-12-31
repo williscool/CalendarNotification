@@ -77,14 +77,20 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
                     val db = buildDatabase(context)
+                    var success = false
                     try {
                         // Copy from legacy DB if needed (throws exception on failure)
                         copyFromLegacyIfNeeded(context, db)
                         INSTANCE = db
+                        success = true
                         db
                     } catch (e: DismissedEventsMigrationException) {
-                        db.close() // Clean up on failure to avoid leaking connection
                         throw e
+                    } catch (e: RuntimeException) {
+                        // Wrap unexpected runtime exceptions so caller can fall back to legacy
+                        throw DismissedEventsMigrationException("Migration failed with unexpected error: ${e.message}", e)
+                    } finally {
+                        if (!success) db.close()
                     }
                 }
             }
