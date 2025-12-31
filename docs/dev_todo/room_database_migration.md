@@ -1,6 +1,6 @@
 # Room Database Migration
 
-## Status: Phase 2 IN PROGRESS 🚧 - DismissedEventsStorage migration
+## Status: Phase 3 IN PROGRESS 🚧 - EventsStorage migration
 
 > **Note:** This document contains implementation details and patterns discovered during migration. For the overall plan, see **[Database Modernization Plan](database_modernization_plan.md)**.
 
@@ -379,7 +379,7 @@ See [CR-SQLite + Room Testing Guide](../testing/crsqlite_room_testing.md) for fu
 
 ## Recommendation
 
-**Priority: Medium-High** | **Status: Phase 2 IN PROGRESS 🚧**
+**Priority: Medium-High** | **Status: Phase 3 IN PROGRESS 🚧**
 
 This is a good candidate for migration because:
 1. Database code is mission-critical (event notifications)
@@ -409,11 +409,11 @@ This is a good candidate for migration because:
 - `monitorstorage/LegacyMonitorStorage.kt` - Fallback SQLiteOpenHelper implementation
 - `monitorstorage/MonitorStorage.kt` - Wrapper with delegation pattern
 
-#### Phase 2: DismissedEventsStorage Migration 🚧
+#### Phase 2: DismissedEventsStorage Migration ✅
 - ✅ Created `DismissedEventEntity`, `DismissedEventDao`, `DismissedEventsDatabase`
 - ✅ Implemented copy-based migration pattern (same as MonitorStorage)
 - ✅ Fallback to `LegacyDismissedEventsStorage` on `DismissedEventsMigrationException`
-- 🚧 Testing in progress
+- ✅ Migration tests pass
 
 **Key files:**
 - `dismissedeventsstorage/DismissedEventEntity.kt` - Room entity with index
@@ -423,7 +423,21 @@ This is a good candidate for migration because:
 - `dismissedeventsstorage/LegacyDismissedEventsStorage.kt` - Fallback SQLiteOpenHelper implementation
 - `dismissedeventsstorage/DismissedEventsStorage.kt` - Wrapper with delegation pattern
 
-**Next step:** Phase 3 - Migrate `EventsStorage` (highest complexity, most fields)
+#### Phase 3: EventsStorage Migration 🚧
+- ✅ Created `EventAlertEntity`, `EventAlertDao`, `EventsDatabase`
+- ✅ Implemented copy-based migration pattern (30 columns)
+- ✅ Fallback to `LegacyEventsStorage` on `EventsMigrationException`
+- 🚧 Testing in progress
+
+**Key files:**
+- `eventsstorage/EventAlertEntity.kt` - Room entity with 30 columns
+- `eventsstorage/EventAlertDao.kt` - Data access object
+- `eventsstorage/EventsDatabase.kt` - Database with copy-from-legacy migration
+- `eventsstorage/RoomEventsStorage.kt` - Room implementation
+- `eventsstorage/LegacyEventsStorage.kt` - Fallback SQLiteOpenHelper implementation
+- `eventsstorage/EventsStorage.kt` - Wrapper with delegation pattern
+
+**Next step:** Test and verify all three migrations work together
 
 **See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan.
 
