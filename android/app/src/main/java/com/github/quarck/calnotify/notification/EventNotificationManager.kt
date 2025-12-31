@@ -536,6 +536,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(false)
                         .setOngoing(true)
+                        .setOnlyAlertOnce(!shouldPlayAndVibrate)
                         .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
                         .setNumber(numEvents)
                         .setShowWhen(false)
@@ -997,6 +998,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 )
                 .setWhen(clock.currentTimeMillis())
                 .setShowWhen(false)
+                .setOnlyAlertOnce(true)
                 .setNumber(numTotalEvents)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
 
@@ -1136,6 +1138,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setOngoing(
                         !notificationSettings.behavior.allowNotificationSwipe
                 )
+                .setOnlyAlertOnce(isForce || wasCollapsed)
                 .setStyle(
                         NotificationCompat.BigTextStyle().bigText(notificationTextString)
                 )
@@ -1489,6 +1492,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(false)
                         .setOngoing(true)
+                        .setOnlyAlertOnce(true)
                         .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
                         .setShowWhen(false)
                         .setCategory(
