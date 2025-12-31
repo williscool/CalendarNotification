@@ -482,9 +482,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             }
         }
 
-        // Only force sound for non-muted alarms; respect muted status otherwise
-        if (playReminderSound)
-            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
+        // Apply reminder sound override using shared helper (testable)
+        shouldPlayAndVibrate = applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
 
         // now build actual notification and notify
         val intent = Intent(context, MainActivity::class.java)
@@ -514,13 +513,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
-        // Use appropriate channel: silent if all muted, alarm if has alarms, otherwise default/reminders
-        val allEventsMuted = events.all { it.isMuted }
-        val channelId = NotificationChannels.getChannelId(
-                isAlarm = hasAlarms,
-                isMuted = allEventsMuted,
-                isReminder = playReminderSound
-        )
+        // Use appropriate channel using shared helper (testable)
+        val channelId = computeCollapsedChannelId(events, hasAlarms, playReminderSound)
         
         val builder =
                 NotificationCompat.Builder(context, channelId)
@@ -1624,8 +1618,34 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         const val MAIN_ACTIVITY_GROUP_NOTIFICATION_CODE = 3
 
         /**
+         * Applies the reminder sound override logic.
+         * THIS IS THE ACTUAL PRODUCTION CODE - used by postEverythingCollapsed.
+         * 
+         * Fixed bug: Previously was `currentValue || !isQuietPeriodActive || hasAlarms`
+         * which would force sound when NOT in quiet period, ignoring muted status.
+         * Now only hasAlarms can override the muted status.
+         * 
+         * @param currentShouldPlayAndVibrate The value computed by the event loop
+         * @param playReminderSound Whether this is a reminder notification
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return Final shouldPlayAndVibrate value
+         */
+        fun applyReminderSoundOverride(
+            currentShouldPlayAndVibrate: Boolean,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Boolean {
+            return if (playReminderSound) {
+                currentShouldPlayAndVibrate || hasAlarms
+            } else {
+                currentShouldPlayAndVibrate
+            }
+        }
+
+        /**
          * Computes whether sound/vibration should play for collapsed notification.
-         * Extracted for testability.
+         * This is a simplified version of the production loop + override for testing.
+         * It calls applyReminderSoundOverride (the actual production code) for the override step.
          * 
          * @param events List of events to display
          * @param playReminderSound Whether this is a reminder (affects sound logic)
@@ -1637,25 +1657,19 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             playReminderSound: Boolean,
             hasAlarms: Boolean
         ): Boolean {
+            // Simplified loop logic - checks muted status (matches production for basic cases)
             var shouldPlayAndVibrate = false
-            
             for (event in events) {
                 if (event.snoozedUntil == 0L) {
-                    // For collapsed events, we check muted status
                     val shouldBeQuiet = event.isMuted
                     shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
                 } else {
-                    // Snoozed event coming out of snooze
                     shouldPlayAndVibrate = shouldPlayAndVibrate || !event.isMuted
                 }
             }
             
-            // Only hasAlarms can override muted status for reminders
-            if (playReminderSound) {
-                shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
-            }
-            
-            return shouldPlayAndVibrate
+            // Apply override using ACTUAL PRODUCTION CODE
+            return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
         }
 
         /**

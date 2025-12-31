@@ -255,7 +255,96 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
-    // === Bug regression tests using production code ===
+    // === Direct tests for applyReminderSoundOverride (THE ACTUAL PRODUCTION CODE) ===
+    
+    @Test
+    fun `applyReminderSoundOverride - muted events stay silent when playReminderSound is true`() {
+        // This is THE EXACT production code that was buggy
+        // Production code at line ~486 calls: applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+        
+        // Given - loop determined all events are muted (shouldPlayAndVibrate = false)
+        val loopResult = false  // all muted events
+        val playReminderSound = true
+        val hasAlarms = false  // no unmuted alarms
+        
+        // When - call the ACTUAL production function
+        val result = EventNotificationManager.applyReminderSoundOverride(
+            currentShouldPlayAndVibrate = loopResult,
+            playReminderSound = playReminderSound,
+            hasAlarms = hasAlarms
+        )
+        
+        // Then - should stay silent (this is the bug fix!)
+        assertFalse(
+            "BUG FIX: applyReminderSoundOverride should NOT force sound when all muted",
+            result
+        )
+    }
+
+    @Test
+    fun `applyReminderSoundOverride - unmuted alarm overrides muted status`() {
+        // Given - loop determined all events are muted, BUT there's an unmuted alarm
+        val loopResult = false  // all regular events muted
+        val playReminderSound = true
+        val hasAlarms = true  // has unmuted alarm
+        
+        // When
+        val result = EventNotificationManager.applyReminderSoundOverride(
+            currentShouldPlayAndVibrate = loopResult,
+            playReminderSound = playReminderSound,
+            hasAlarms = hasAlarms
+        )
+        
+        // Then - unmuted alarm SHOULD force sound
+        assertTrue(
+            "Unmuted alarm should override and force sound",
+            result
+        )
+    }
+
+    @Test
+    fun `applyReminderSoundOverride - preserves true when loop found unmuted events`() {
+        // Given - loop found unmuted events
+        val loopResult = true  // some unmuted events
+        val playReminderSound = true
+        val hasAlarms = false
+        
+        // When
+        val result = EventNotificationManager.applyReminderSoundOverride(
+            currentShouldPlayAndVibrate = loopResult,
+            playReminderSound = playReminderSound,
+            hasAlarms = hasAlarms
+        )
+        
+        // Then - should preserve the loop result
+        assertTrue(
+            "Should preserve true from loop when there are unmuted events",
+            result
+        )
+    }
+
+    @Test
+    fun `applyReminderSoundOverride - no change when not a reminder`() {
+        // Given - not a reminder notification
+        val loopResult = false
+        val playReminderSound = false  // NOT a reminder
+        val hasAlarms = true  // even with alarms
+        
+        // When
+        val result = EventNotificationManager.applyReminderSoundOverride(
+            currentShouldPlayAndVibrate = loopResult,
+            playReminderSound = playReminderSound,
+            hasAlarms = hasAlarms
+        )
+        
+        // Then - should just return the loop result without modification
+        assertFalse(
+            "Non-reminder should not apply any override",
+            result
+        )
+    }
+
+    // === Bug regression tests using production code (full flow) ===
 
     @Test
     fun `regression - reminder sound should not play when all events muted`() {
@@ -273,7 +362,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
+        // When - call production code (which internally uses applyReminderSoundOverride)
         val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
             events = allMutedEvents,
             playReminderSound = true,
