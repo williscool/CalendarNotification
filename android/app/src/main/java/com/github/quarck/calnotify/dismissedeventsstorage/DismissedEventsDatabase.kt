@@ -134,12 +134,23 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 
                 DevLog.info(LOG_TAG, "Starting migration from legacy database: ${legacyDbFile.absolutePath}")
                 
+                // Get actual count from legacy DB first (don't trust read count - impl may swallow errors)
+                val legacyCount = countLegacyRows(legacyDbFile)
+                DevLog.info(LOG_TAG, "Legacy database has $legacyCount rows")
+                
+                if (legacyCount == 0) {
+                    DevLog.info(LOG_TAG, "Legacy database is empty - nothing to migrate")
+                    return
+                }
+                
                 // Read from legacy DB using the legacy implementation
                 val legacyEvents = readFromLegacyDatabase(legacyDbFile)
                 
-                if (legacyEvents.isEmpty()) {
-                    DevLog.info(LOG_TAG, "Legacy database is empty - nothing to migrate")
-                    return
+                // Validate read count matches actual count (detect partial reads)
+                if (legacyEvents.size != legacyCount) {
+                    val msg = "Partial read detected! DB has $legacyCount rows but only read ${legacyEvents.size}"
+                    DevLog.error(LOG_TAG, msg)
+                    throw DismissedEventsMigrationException(msg)
                 }
                 
                 DevLog.info(LOG_TAG, "Read ${legacyEvents.size} events from legacy database")
@@ -148,17 +159,17 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 val entities = legacyEvents.map { DismissedEventEntity.fromRecord(it) }
                 dao.insertAll(entities)
                 
-                // Validate row count
+                // Validate row count in Room matches legacy
                 val newCount = dao.getAll().size
                 DevLog.info(LOG_TAG, "Inserted $newCount rows into Room database")
                 
-                if (newCount != legacyEvents.size) {
-                    val msg = "Migration row count mismatch! Legacy=${legacyEvents.size}, Room=$newCount"
+                if (newCount != legacyCount) {
+                    val msg = "Migration row count mismatch! Legacy=$legacyCount, Room=$newCount"
                     DevLog.error(LOG_TAG, msg)
                     throw DismissedEventsMigrationException(msg)
                 }
                 
-                DevLog.info(LOG_TAG, "✅ Migration complete: ${legacyEvents.size} events copied successfully")
+                DevLog.info(LOG_TAG, "✅ Migration complete: $legacyCount events copied successfully")
                 
             } catch (e: DismissedEventsMigrationException) {
                 throw e
@@ -170,6 +181,25 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 val msg = "Migration failed with Room validation error: ${e.message}"
                 DevLog.error(LOG_TAG, msg)
                 throw DismissedEventsMigrationException(msg, e)
+            }
+        }
+        
+        /**
+         * Count rows in legacy database directly via SQL.
+         * This is more reliable than trusting getEventsImpl() which may swallow errors.
+         */
+        private fun countLegacyRows(dbFile: File): Int {
+            val db = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
+                dbFile.absolutePath,
+                null,
+                io.requery.android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            )
+            return try {
+                db.rawQuery("SELECT COUNT(*) FROM ${DismissedEventEntity.TABLE_NAME}", null).use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getInt(0) else 0
+                }
+            } finally {
+                db.close()
             }
         }
         
