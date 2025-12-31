@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.database
 
+import android.database.SQLException
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.github.quarck.calnotify.logs.DevLog
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
@@ -71,7 +72,9 @@ class CrSqliteFinalizeWrapper(
     override fun close() {
         try {
             writableDatabase.query("SELECT crsql_finalize()").use { it.moveToFirst() }
-        } catch (e: Exception) {
+        } catch (e: SQLException) {
+            DevLog.error("CrSqliteFinalizeWrapper", "Error calling crsql_finalize: ${e.message}")
+        } catch (e: IllegalStateException) {
             DevLog.error("CrSqliteFinalizeWrapper", "Error calling crsql_finalize: ${e.message}")
         }
         delegate.close()
