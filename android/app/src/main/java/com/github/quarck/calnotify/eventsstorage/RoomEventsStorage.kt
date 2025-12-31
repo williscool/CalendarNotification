@@ -20,11 +20,14 @@
 package com.github.quarck.calnotify.eventsstorage
 
 import android.content.Context
+import android.database.sqlite.SQLiteConstraintException
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.EventAlertFlags
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.setFlag
+import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.detailed
 import java.io.Closeable
 
 /**
@@ -38,6 +41,10 @@ import java.io.Closeable
  * read-then-write.
  */
 class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
+
+    companion object {
+        private const val LOG_TAG = "RoomEventsStorage"
+    }
 
     private val database = EventsDatabase.getInstance(context)
     private val dao = database.eventAlertDao()
@@ -164,8 +171,13 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         synchronized(RoomEventsStorage::class.java) {
             // Wrap in transaction for atomicity (delete + insert must be atomic)
             var success = false
-            database.runInTransaction {
-                success = updateEventAndInstanceTimesRaw(event, instanceStart, instanceEnd)
+            try {
+                database.runInTransaction {
+                    success = updateEventAndInstanceTimesRaw(event, instanceStart, instanceEnd)
+                }
+            } catch (ex: SQLiteConstraintException) {
+                // Match legacy behavior: log and return false if new instance time conflicts with existing row
+                DevLog.error(LOG_TAG, "updateEventAndInstanceTimes: hit SQLiteConstraintException: ${ex.detailed}")
             }
             success
         }
@@ -195,6 +207,10 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
                 }
                 database.setTransactionSuccessful()
                 true
+            } catch (ex: SQLiteConstraintException) {
+                // Match legacy behavior: log and return false if new instance time conflicts with existing row
+                DevLog.error(LOG_TAG, "updateEventsAndInstanceTimes: hit SQLiteConstraintException: ${ex.detailed}")
+                false
             } finally {
                 database.endTransaction()
             }
