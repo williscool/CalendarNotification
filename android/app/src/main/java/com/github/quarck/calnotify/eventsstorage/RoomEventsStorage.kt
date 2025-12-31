@@ -170,14 +170,10 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean = 
         synchronized(RoomEventsStorage::class.java) {
             // Wrap in transaction for atomicity (delete + insert must be atomic)
+            // Note: Unlike batch method, single method does NOT catch SQLiteConstraintException (matches legacy)
             var success = false
-            try {
-                database.runInTransaction {
-                    success = updateEventAndInstanceTimesRaw(event, instanceStart, instanceEnd)
-                }
-            } catch (ex: SQLiteConstraintException) {
-                // Match legacy behavior: log and return false if new instance time conflicts with existing row
-                DevLog.error(LOG_TAG, "updateEventAndInstanceTimes: hit SQLiteConstraintException: ${ex.detailed}")
+            database.runInTransaction {
+                success = updateEventAndInstanceTimesRaw(event, instanceStart, instanceEnd)
             }
             success
         }
