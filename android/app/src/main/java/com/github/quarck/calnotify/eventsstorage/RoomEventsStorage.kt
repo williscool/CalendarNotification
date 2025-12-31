@@ -138,10 +138,14 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
         val updatedEvent = event.copy(instanceStartTime = instanceStart, instanceEndTime = instanceEnd)
         // Need to delete old key and insert new since PK changed - wrap in transaction for atomicity
+        // Only succeed if original record existed (matches legacy UPDATE semantics)
         var success = false
         database.runInTransaction {
-            dao.deleteByKey(event.eventId, event.instanceStartTime)
-            success = dao.insert(EventAlertEntity.fromRecord(updatedEvent)) != -1L
+            val deleted = dao.deleteByKey(event.eventId, event.instanceStartTime)
+            if (deleted == 1) {
+                success = dao.insert(EventAlertEntity.fromRecord(updatedEvent)) != -1L
+            }
+            // If deleted == 0, record didn't exist - success stays false (matches legacy)
         }
         return success
     }
