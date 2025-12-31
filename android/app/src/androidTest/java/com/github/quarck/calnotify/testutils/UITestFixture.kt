@@ -126,7 +126,9 @@ class UITestFixture {
             val settings = Settings(context)
             settings.doNotShowBatteryOptimisationWarning = true
             DevLog.info(LOG_TAG, "Suppressed battery optimization dialog via SharedPreference")
-        } catch (e: Exception) {
+        } catch (e: RuntimeException) {
+            // SharedPreferences operations can fail in edge cases (storage full, etc.)
+            // Log and continue - dialog dismissal code will handle the dialog if it appears
             DevLog.error(LOG_TAG, "Failed to suppress battery dialog: ${e.message}")
         }
     }
@@ -161,7 +163,7 @@ class UITestFixture {
             }
             
             DevLog.info(LOG_TAG, "Granted runtime permissions to $packageName")
-        } catch (e: Exception) {
+        } catch (e: SecurityException) {
             DevLog.error(LOG_TAG, "Failed to grant runtime permissions: ${e.message}")
             // Don't throw - some test environments might not support this
         }
@@ -302,7 +304,8 @@ class UITestFixture {
             if (totalDismissed > 0) {
                 DevLog.info(LOG_TAG, "Dismissed $totalDismissed dialog(s)")
             }
-        } catch (e: Exception) {
+        } catch (e: RuntimeException) {
+            // UiAutomator operations can throw various RuntimeExceptions
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
         } finally {
             // Always restore the original timeout, even if an exception occurred
@@ -324,16 +327,17 @@ class UITestFixture {
         try {
             val settings = Settings(context)
             settings.doNotShowBatteryOptimisationWarning = false
-        } catch (e: Exception) {
-            // Ignore - settings might not be accessible
+        } catch (e: RuntimeException) {
+            // SharedPreferences operations can fail - log and continue cleanup
+            DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
         }
         
         // Unregister IdlingResource if it was registered
         try {
             IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
             globalAsyncTaskCallback = null
-        } catch (e: Exception) {
-            // Ignore if not registered
+        } catch (e: IllegalArgumentException) {
+            // Expected if IdlingResource wasn't registered - safe to ignore
         }
         
         unmockkAll()
@@ -628,7 +632,7 @@ class UITestFixture {
         private const val LOG_TAG = "UITestFixture"
         
         // Dialog dismissal timing constants (kept short since permissions are usually granted upfront)
-        private const val FIRST_DIALOG_TIMEOUT_MS = 300L      // First dialog wait
+        private const val FIRST_DIALOG_TIMEOUT_MS = 200L      // First dialog wait
         private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
         private const val DIALOG_DISMISS_ANIMATION_MS = 100L
         private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs
