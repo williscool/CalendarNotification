@@ -161,6 +161,67 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
+    // === Partial collapse channel selection tests (postNumNotificationsCollapsed) ===
+
+    @Test
+    fun `partial collapse with all muted events uses silent channel`() {
+        // Given - all collapsed events are muted (partial collapse = some shown, rest collapsed)
+        val mutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true),
+            createTestEvent(eventId = 3, isMuted = true)
+        )
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computePartialCollapseChannelId(mutedEvents)
+        
+        // Then - should use silent channel
+        assertEquals(
+            "All muted collapsed events should use silent channel",
+            NotificationChannels.CHANNEL_ID_SILENT,
+            channelId
+        )
+    }
+
+    @Test
+    fun `partial collapse with some unmuted events uses default channel`() {
+        // Given - mix of muted and unmuted events
+        val mixedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = false),
+            createTestEvent(eventId = 3, isMuted = true)
+        )
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computePartialCollapseChannelId(mixedEvents)
+        
+        // Then - should use default channel (not silent)
+        assertEquals(
+            "Mixed events should use default channel",
+            NotificationChannels.CHANNEL_ID_DEFAULT,
+            channelId
+        )
+    }
+
+    @Test
+    fun `partial collapse with all unmuted events uses default channel`() {
+        // Given - all events unmuted
+        val unmutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = false)
+        )
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computePartialCollapseChannelId(unmutedEvents)
+        
+        // Then - should use default channel
+        assertEquals(
+            "All unmuted events should use default channel",
+            NotificationChannels.CHANNEL_ID_DEFAULT,
+            channelId
+        )
+    }
+
     // === Sound/vibrate logic tests using production code ===
 
     @Test

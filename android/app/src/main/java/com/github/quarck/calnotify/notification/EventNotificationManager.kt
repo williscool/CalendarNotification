@@ -1477,8 +1477,11 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
+        // Use silent channel if all collapsed events are muted
+        val channelId = computePartialCollapseChannelId(events)
+
         val builder =
-                NotificationCompat.Builder(context, NotificationChannels.CHANNEL_ID_DEFAULT)
+                NotificationCompat.Builder(context, channelId)
                         .setContentTitle(title)
                         .setContentText(text)
                         .setSmallIcon(com.github.quarck.calnotify.R.drawable.stat_notify_calendar_multiple)
@@ -1644,8 +1647,11 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         /**
          * Computes whether sound/vibration should play for collapsed notification.
-         * This is a simplified version of the production loop + override for testing.
-         * It calls applyReminderSoundOverride (the actual production code) for the override step.
+         * Uses a simplified loop (only checks muted status) + applyReminderSoundOverride.
+         * 
+         * Note: The loop here is simplified compared to postEverythingCollapsed which also
+         * handles force, displayStatus, and isQuietPeriodActive. This function is used by
+         * tests to verify muted event behavior without needing full production dependencies.
          * 
          * @param events List of events to display
          * @param playReminderSound Whether this is a reminder (affects sound logic)
@@ -1673,8 +1679,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         }
 
         /**
-         * Computes the notification channel ID for collapsed notifications.
-         * Extracted for testability.
+         * Computes the notification channel ID for collapsed notifications (postEverythingCollapsed).
+         * THIS IS ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
          * 
          * @param events List of events to display
          * @param hasAlarms Whether there are non-muted alarm events
@@ -1692,6 +1698,26 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 isMuted = allEventsMuted,
                 isReminder = isReminder
             )
+        }
+
+        /**
+         * Computes the notification channel ID for partial collapse notifications (postNumNotificationsCollapsed).
+         * THIS IS ACTUAL PRODUCTION CODE - called by postNumNotificationsCollapsed.
+         * 
+         * This is for the "X more events" summary notification when some events are shown
+         * individually and older ones are collapsed. Uses DEFAULT or SILENT channel only
+         * (no alarm/reminder variants since this is a passive summary).
+         * 
+         * @param events List of collapsed events
+         * @return SILENT if all events are muted, DEFAULT otherwise
+         */
+        fun computePartialCollapseChannelId(events: List<EventAlertRecord>): String {
+            val allEventsMuted = events.all { it.isMuted }
+            return if (allEventsMuted) {
+                NotificationChannels.CHANNEL_ID_SILENT
+            } else {
+                NotificationChannels.CHANNEL_ID_DEFAULT
+            }
         }
     }
 }
