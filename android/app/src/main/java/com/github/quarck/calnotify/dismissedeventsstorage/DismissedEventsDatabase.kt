@@ -17,7 +17,7 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.monitorstorage
+package com.github.quarck.calnotify.dismissedeventsstorage
 
 import android.content.Context
 import android.database.SQLException
@@ -33,56 +33,56 @@ import java.io.File
  * Exception thrown when migration from legacy database fails.
  * Signals that the caller should fall back to legacy storage.
  */
-class MigrationException(message: String, cause: Throwable? = null) : Exception(message, cause)
+class DismissedEventsMigrationException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Room database for MonitorStorage.
+ * Room database for DismissedEventsStorage.
  * 
- * Uses a NEW database file "RoomCalendarMonitor" (not the legacy "CalendarMonitor").
+ * Uses a NEW database file "RoomDismissedEvents" (not the legacy "DismissedEvents").
  * On first use, copies data from legacy database if it exists.
  * Uses CrSqliteRoomFactory for cr-sqlite extension support.
  * 
  * MIGRATION STRATEGY: Copy data from old DB to new Room DB.
- * - Legacy DB "CalendarMonitor" is preserved (not modified)
- * - If migration fails, throws MigrationException so caller can fall back to legacy
+ * - Legacy DB "DismissedEvents" is preserved (not modified)
+ * - If migration fails, throws DismissedEventsMigrationException so caller can fall back to legacy
  * - This allows retry on future app versions if bugs are found
  */
 @Database(
-    entities = [MonitorAlertEntity::class],
+    entities = [DismissedEventEntity::class],
     version = 1,
     exportSchema = false
 )
-abstract class MonitorDatabase : RoomDatabase() {
+abstract class DismissedEventsDatabase : RoomDatabase() {
     
-    abstract fun monitorAlertDao(): MonitorAlertDao
+    abstract fun dismissedEventDao(): DismissedEventDao
 
     companion object {
-        private const val LOG_TAG = "MonitorDatabase"
+        private const val LOG_TAG = "DismissedEventsDatabase"
         
         /** New Room database name - separate from legacy */
-        internal const val DATABASE_NAME = "RoomCalendarMonitor"
+        internal const val DATABASE_NAME = "RoomDismissedEvents"
         
         /** Legacy SQLiteOpenHelper database name */
-        internal const val LEGACY_DATABASE_NAME = "CalendarMonitor"
+        internal const val LEGACY_DATABASE_NAME = "DismissedEvents"
 
         @Volatile
-        private var INSTANCE: MonitorDatabase? = null
+        private var INSTANCE: DismissedEventsDatabase? = null
 
         /**
          * Get the Room database instance.
          * 
-         * @throws MigrationException if migration from legacy DB fails
+         * @throws DismissedEventsMigrationException if migration from legacy DB fails
          */
-        fun getInstance(context: Context): MonitorDatabase {
+        fun getInstance(context: Context): DismissedEventsDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
                     val db = buildDatabase(context)
                     try {
-                        // Copy from legacy DB if needed (throws MigrationException on failure)
+                        // Copy from legacy DB if needed (throws exception on failure)
                         copyFromLegacyIfNeeded(context, db)
                         INSTANCE = db
                         db
-                    } catch (e: MigrationException) {
+                    } catch (e: DismissedEventsMigrationException) {
                         db.close() // Clean up on failure to avoid leaking connection
                         throw e
                     }
@@ -90,30 +90,30 @@ abstract class MonitorDatabase : RoomDatabase() {
             }
         }
 
-        private fun buildDatabase(context: Context): MonitorDatabase {
+        private fun buildDatabase(context: Context): DismissedEventsDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
-                MonitorDatabase::class.java,
+                DismissedEventsDatabase::class.java,
                 DATABASE_NAME
             )
                 .openHelperFactory(CrSqliteRoomFactory())
-                .allowMainThreadQueries() // Match existing behavior - MonitorStorage uses sync queries
+                .allowMainThreadQueries() // Match existing behavior - uses sync queries
                 .addCallback(LoggingCallback())
                 .build()
         }
         
         /**
-         * Copy data from legacy "CalendarMonitor" database to new Room database.
+         * Copy data from legacy "DismissedEvents" database to new Room database.
          * 
          * This is a one-time migration that:
          * 1. Checks if Room DB already has data (skip if so)
-         * 2. Reads all alerts from legacy DB using MonitorStorageImplV1
+         * 2. Reads all events from legacy DB using DismissedEventsStorageImplV2
          * 3. Inserts them into Room DB
          * 4. Validates row counts match
          * 
-         * @throws MigrationException if row count mismatch (data loss detected)
+         * @throws DismissedEventsMigrationException if row count mismatch (data loss detected)
          */
-        private fun copyFromLegacyIfNeeded(context: Context, roomDb: MonitorDatabase) {
+        private fun copyFromLegacyIfNeeded(context: Context, roomDb: DismissedEventsDatabase) {
             val legacyDbFile = context.getDatabasePath(LEGACY_DATABASE_NAME)
             
             // No legacy DB = fresh install, nothing to migrate
@@ -122,7 +122,7 @@ abstract class MonitorDatabase : RoomDatabase() {
                 return
             }
             
-            val dao = roomDb.monitorAlertDao()
+            val dao = roomDb.dismissedEventDao()
             
             try {
                 // Check if Room DB already has data (migration already done)
@@ -144,19 +144,19 @@ abstract class MonitorDatabase : RoomDatabase() {
                 }
                 
                 // Read from legacy DB using the legacy implementation
-                val legacyAlerts = readFromLegacyDatabase(context, legacyDbFile)
+                val legacyEvents = readFromLegacyDatabase(legacyDbFile)
                 
                 // Validate read count matches actual count (detect partial reads)
-                if (legacyAlerts.size != legacyCount) {
-                    val msg = "Partial read detected! DB has $legacyCount rows but only read ${legacyAlerts.size}"
+                if (legacyEvents.size != legacyCount) {
+                    val msg = "Partial read detected! DB has $legacyCount rows but only read ${legacyEvents.size}"
                     DevLog.error(LOG_TAG, msg)
-                    throw MigrationException(msg)
+                    throw DismissedEventsMigrationException(msg)
                 }
                 
-                DevLog.info(LOG_TAG, "Read ${legacyAlerts.size} alerts from legacy database")
+                DevLog.info(LOG_TAG, "Read ${legacyEvents.size} events from legacy database")
                 
                 // Insert into Room DB
-                val entities = legacyAlerts.map { MonitorAlertEntity.fromAlertEntry(it) }
+                val entities = legacyEvents.map { DismissedEventEntity.fromRecord(it) }
                 dao.insertAll(entities)
                 
                 // Validate row count in Room matches legacy
@@ -166,27 +166,27 @@ abstract class MonitorDatabase : RoomDatabase() {
                 if (newCount != legacyCount) {
                     val msg = "Migration row count mismatch! Legacy=$legacyCount, Room=$newCount"
                     DevLog.error(LOG_TAG, msg)
-                    throw MigrationException(msg)
+                    throw DismissedEventsMigrationException(msg)
                 }
                 
-                DevLog.info(LOG_TAG, "✅ Migration complete: $legacyCount alerts copied successfully")
+                DevLog.info(LOG_TAG, "✅ Migration complete: $legacyCount events copied successfully")
                 
-            } catch (e: MigrationException) {
+            } catch (e: DismissedEventsMigrationException) {
                 throw e
             } catch (e: SQLException) {
                 val msg = "Migration failed with database error: ${e.message}"
                 DevLog.error(LOG_TAG, msg)
-                throw MigrationException(msg, e)
+                throw DismissedEventsMigrationException(msg, e)
             } catch (e: IllegalStateException) {
                 val msg = "Migration failed with Room validation error: ${e.message}"
                 DevLog.error(LOG_TAG, msg)
-                throw MigrationException(msg, e)
+                throw DismissedEventsMigrationException(msg, e)
             }
         }
         
         /**
          * Count rows in legacy database directly via SQL.
-         * This is more reliable than trusting getAlerts() which may swallow errors.
+         * This is more reliable than trusting getEventsImpl() which may swallow errors.
          */
         private fun countLegacyRows(dbFile: File): Int {
             val db = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
@@ -195,7 +195,7 @@ abstract class MonitorDatabase : RoomDatabase() {
                 io.requery.android.database.sqlite.SQLiteDatabase.OPEN_READONLY
             )
             return try {
-                db.rawQuery("SELECT COUNT(*) FROM ${MonitorAlertEntity.TABLE_NAME}", null).use { cursor ->
+                db.rawQuery("SELECT COUNT(*) FROM ${DismissedEventEntity.TABLE_NAME}", null).use { cursor ->
                     if (cursor.moveToFirst()) cursor.getInt(0) else 0
                 }
             } finally {
@@ -204,10 +204,10 @@ abstract class MonitorDatabase : RoomDatabase() {
         }
         
         /**
-         * Read all alerts from the legacy database.
+         * Read all events from the legacy database.
          * Uses requery SQLiteDatabase directly to avoid opening the legacy SQLiteOpenHelper.
          */
-        private fun readFromLegacyDatabase(context: Context, dbFile: File): List<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry> {
+        private fun readFromLegacyDatabase(dbFile: File): List<DismissedEventAlertRecord> {
             val db = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
                 dbFile.absolutePath,
                 null,
@@ -215,8 +215,8 @@ abstract class MonitorDatabase : RoomDatabase() {
             )
             
             return try {
-                val impl = MonitorStorageImplV1(context)
-                impl.getAlerts(db)
+                val impl = DismissedEventsStorageImplV2()
+                impl.getEventsImpl(db)
             } finally {
                 db.close()
             }
@@ -236,3 +236,4 @@ abstract class MonitorDatabase : RoomDatabase() {
         }
     }
 }
+

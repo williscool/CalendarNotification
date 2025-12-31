@@ -1,6 +1,6 @@
 # Room Database Migration
 
-## Status: Phase 1 COMPLETE ✅ - MonitorStorage migrated, ready for Phase 2
+## Status: Phase 2 IN PROGRESS 🚧 - DismissedEventsStorage migration
 
 > **Note:** This document contains implementation details and patterns discovered during migration. For the overall plan, see **[Database Modernization Plan](database_modernization_plan.md)**.
 
@@ -192,88 +192,93 @@ val MIGRATION_LEGACY_TO_ROOM = object : Migration(9, 10) {
 }
 ```
 
-### Pre-Room Migration Pattern (CRITICAL for existing databases)
+### Copy-Based Migration Pattern (Recommended)
 
-Room validates schema **before** running any migrations. For databases created by `SQLiteOpenHelper` (no `room_master_table`), Room checks the schema first and fails if it doesn't match exactly.
+Instead of modifying the legacy database in-place, we use a **separate database file** for Room and copy data from the legacy DB on first use. This is safer because:
 
-```
-Standard Room Migration Flow:
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│ Room opens DB   │ ──► │ Validate schema  │ ──► │ Run migrations  │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                              ▲
-                              │ FAILS HERE for legacy DBs
-                              │ (before migrations can run)
-```
-
-**Solution:** Pre-migrate the database BEFORE Room opens it:
+1. **Legacy DB preserved** - original database is never modified, can always fall back
+2. **Retry on failure** - if migration fails, next app version can try again
+3. **No schema conflicts** - Room creates its own clean schema in new file
+4. **Graceful degradation** - app continues working with legacy storage if Room fails
 
 ```
-Our Pattern:
-┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│ Pre-migrate     │ ──► │ Room opens DB   │ ──► │ Validate schema  │ ✅
-└─────────────────┘     └─────────────────┘     └──────────────────┘
+Copy-Based Migration Flow:
+┌─────────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ Room creates new DB │ ──► │ Copy from legacy │ ──► │ Validate counts │
+│ (RoomCalendarMonitor)│     │ (CalendarMonitor) │     │ (data integrity)│
+└─────────────────────┘     └──────────────────┘     └─────────────────┘
+         │                                                    │
+         │                                                    ▼
+         │                                          ┌─────────────────┐
+         │                                          │ On failure:     │
+         │                                          │ throw Migration │
+         │                                          │ Exception       │
+         └──────────────────────────────────────────└─────────────────┘
+                                                              │
+                                                              ▼
+                                                    ┌─────────────────┐
+                                                    │ Fall back to    │
+                                                    │ LegacyStorage   │
+                                                    └─────────────────┘
 ```
-
-#### Schema Differences Found (MonitorStorage example)
-
-| Issue | Legacy Schema | Room Requires |
-|-------|---------------|---------------|
-| **PK NOT NULL** | `eventId INTEGER` | `eventId INTEGER NOT NULL` |
-| **Indexes** | Has `manualAlertsV1IdxV1` | Must be declared in `@Entity` |
-
-Room requires:
-- Primary key columns to have `NOT NULL` constraint
-- Any indexes to be declared in the `@Entity` annotation
 
 #### Implementation Pattern
 
 ```kotlin
-// In MonitorDatabase.kt
-fun getInstance(context: Context): MonitorDatabase {
-    return INSTANCE ?: synchronized(this) {
-        INSTANCE ?: run {
-            // Pre-migrate BEFORE Room opens
-            migrateLegacyDatabaseIfNeeded(context)
-            buildDatabase(context).also { INSTANCE = it }
+// Storage wrapper with delegation
+class MonitorStorage private constructor(
+    result: Pair<MonitorStorageInterface, Boolean>
+) : MonitorStorageInterface by result.first, Closeable {
+    
+    private val delegate: MonitorStorageInterface = result.first
+    val isUsingRoom: Boolean = result.second
+    
+    constructor(context: Context) : this(createStorage(context))
+    
+    companion object {
+        private fun createStorage(context: Context): Pair<MonitorStorageInterface, Boolean> {
+            return try {
+                Pair(RoomMonitorStorage(context), true)
+            } catch (e: MigrationException) {
+                DevLog.error(LOG_TAG, "Room migration failed, falling back: ${e.message}")
+                Pair(LegacyMonitorStorage(context), false)
+            }
         }
     }
 }
 
-private fun migrateLegacyDatabaseIfNeeded(context: Context) {
-    val dbFile = context.getDatabasePath(DATABASE_NAME)
-    if (!dbFile.exists()) return
-    
-    val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, OPEN_READWRITE)
-    try {
-        if (!isLegacyDatabase(db)) return
-        performLegacyMigration(db)
-    } finally {
-        db.close()
-    }
-}
-
-private fun isLegacyDatabase(db: SQLiteDatabase): Boolean {
-    // Legacy = has our table but no room_master_table
-    val hasTable = db.rawQuery("SELECT 1 FROM sqlite_master WHERE name='myTable'", null)
-        .use { it.moveToFirst() }
-    val hasRoomTable = db.rawQuery("SELECT 1 FROM sqlite_master WHERE name='room_master_table'", null)
-        .use { it.moveToFirst() }
-    return hasTable && !hasRoomTable
-}
-
-private fun performLegacyMigration(db: SQLiteDatabase) {
-    db.beginTransaction()
-    try {
-        // Recreate table with Room-compatible schema
-        db.execSQL("CREATE TABLE myTable_new (...)")  // with NOT NULL on PKs
-        db.execSQL("INSERT INTO myTable_new SELECT ... FROM myTable")
-        db.execSQL("DROP TABLE myTable")
-        db.execSQL("ALTER TABLE myTable_new RENAME TO myTable")
-        db.execSQL("CREATE INDEX ...")  // recreate indexes
-        db.setTransactionSuccessful()
-    } finally {
-        db.endTransaction()
+// Database with copy-from-legacy logic
+@Database(entities = [MonitorAlertEntity::class], version = 1)
+abstract class MonitorDatabase : RoomDatabase() {
+    companion object {
+        const val DATABASE_NAME = "RoomCalendarMonitor"      // NEW Room DB
+        const val LEGACY_DATABASE_NAME = "CalendarMonitor"   // OLD legacy DB
+        
+        fun getInstance(context: Context): MonitorDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val db = buildDatabase(context)
+                copyFromLegacyIfNeeded(context, db)  // Throws MigrationException on failure
+                INSTANCE = db
+                db
+            }
+        }
+        
+        private fun copyFromLegacyIfNeeded(context: Context, roomDb: MonitorDatabase) {
+            val legacyFile = context.getDatabasePath(LEGACY_DATABASE_NAME)
+            if (!legacyFile.exists()) return  // Fresh install
+            
+            val dao = roomDb.monitorAlertDao()
+            if (dao.getAll().isNotEmpty()) return  // Already migrated
+            
+            // Read from legacy using old impl, insert into Room
+            val legacyData = readFromLegacyDatabase(legacyFile)
+            dao.insertAll(legacyData.map { Entity.from(it) })
+            
+            // Validate row counts match
+            if (dao.getAll().size != legacyData.size) {
+                throw MigrationException("Row count mismatch - data loss detected!")
+            }
+        }
     }
 }
 ```
@@ -287,13 +292,20 @@ private fun performLegacyMigration(db: SQLiteDatabase) {
     indices = [Index(
         value = ["eventId", "alertTime", "instanceStart"],
         unique = true,
-        name = "manualAlertsV1IdxV1"  // Must match existing index name!
+        name = "manualAlertsV1IdxV1"  // Match legacy index name
     )]
 )
 data class MonitorAlertEntity(...)
 ```
 
-**This pattern is documented for SQLiteOpenHelper → Room migrations.** It's not a hack - it's the correct approach when schemas don't match exactly.
+#### MigrationException Handling
+
+Each storage module has its own `MigrationException` type that signals the wrapper to fall back:
+
+- `MigrationException` (MonitorStorage)
+- `DismissedEventsMigrationException` (DismissedEventsStorage)
+
+These are caught specifically (not broad `Exception`) to ensure unexpected errors still propagate.
 
 ## Effort Estimate
 
@@ -367,7 +379,7 @@ See [CR-SQLite + Room Testing Guide](../testing/crsqlite_room_testing.md) for fu
 
 ## Recommendation
 
-**Priority: Medium-High** | **Status: Phase 1 COMPLETE ✅**
+**Priority: Medium-High** | **Status: Phase 2 IN PROGRESS 🚧**
 
 This is a good candidate for migration because:
 1. Database code is mission-critical (event notifications)
@@ -384,18 +396,34 @@ This is a good candidate for migration because:
 
 #### Phase 1: MonitorStorage Migration ✅
 - ✅ Created `MonitorAlertEntity`, `MonitorAlertDao`, `MonitorDatabase`
-- ✅ Implemented pre-Room migration for legacy schema compatibility
+- ✅ Implemented copy-based migration (separate Room DB, copy from legacy)
+- ✅ Fallback to `LegacyMonitorStorage` on `MigrationException`
 - ✅ Live upgrade test passed (legacy DB → Room-managed DB, data preserved)
-- ✅ `room_master_table` created successfully
 - ✅ Migration tests pass locally (3/3)
 
 **Key files:**
 - `monitorstorage/MonitorAlertEntity.kt` - Room entity with index
-- `monitorstorage/MonitorAlertDao.kt` - Data access object
-- `monitorstorage/MonitorDatabase.kt` - Database with pre-Room migration
-- `monitorstorage/RoomMonitorStorage.kt` - Implementation of `MonitorStorageInterface`
+- `monitorstorage/MonitorAlertDao.kt` - Data access object  
+- `monitorstorage/MonitorDatabase.kt` - Database with copy-from-legacy migration
+- `monitorstorage/RoomMonitorStorage.kt` - Room implementation
+- `monitorstorage/LegacyMonitorStorage.kt` - Fallback SQLiteOpenHelper implementation
+- `monitorstorage/MonitorStorage.kt` - Wrapper with delegation pattern
 
-**Next step:** Phase 2 - Migrate `DismissedEventsStorage` (medium complexity, build confidence before EventsStorage)
+#### Phase 2: DismissedEventsStorage Migration 🚧
+- ✅ Created `DismissedEventEntity`, `DismissedEventDao`, `DismissedEventsDatabase`
+- ✅ Implemented copy-based migration pattern (same as MonitorStorage)
+- ✅ Fallback to `LegacyDismissedEventsStorage` on `DismissedEventsMigrationException`
+- 🚧 Testing in progress
+
+**Key files:**
+- `dismissedeventsstorage/DismissedEventEntity.kt` - Room entity with index
+- `dismissedeventsstorage/DismissedEventDao.kt` - Data access object
+- `dismissedeventsstorage/DismissedEventsDatabase.kt` - Database with copy-from-legacy migration
+- `dismissedeventsstorage/RoomDismissedEventsStorage.kt` - Room implementation
+- `dismissedeventsstorage/LegacyDismissedEventsStorage.kt` - Fallback SQLiteOpenHelper implementation
+- `dismissedeventsstorage/DismissedEventsStorage.kt` - Wrapper with delegation pattern
+
+**Next step:** Phase 3 - Migrate `EventsStorage` (highest complexity, most fields)
 
 **See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan.
 

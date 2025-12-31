@@ -46,5 +46,22 @@ class AsyncTaskIdlingResource(
      * Get current count (for debugging).
      */
     fun getCount(): Int = counter.get()
+    
+    /**
+     * Resets the counter to zero.
+     * Call this when clearing IdlingResources between tests to prevent stale
+     * counter values from causing subsequent tests to hang.
+     */
+    fun reset() {
+        val previousCount = counter.getAndSet(0)
+        if (previousCount > 0) {
+            com.github.quarck.calnotify.logs.DevLog.info(
+                "AsyncTaskIdlingResource",
+                "Reset counter from $previousCount to 0 (clearing stale async task count)"
+            )
+        }
+        // Notify callback that we're now idle (counter is 0)
+        callback?.onTransitionToIdle()
+    }
 }
 

@@ -1,6 +1,7 @@
 //
 //   Calendar Notifications Plus  
 //   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
@@ -20,109 +21,48 @@
 package com.github.quarck.calnotify.dismissedeventsstorage
 
 import android.content.Context
-import io.requery.android.database.sqlite.SQLiteDatabase
-import com.github.quarck.calnotify.database.SQLiteOpenHelper
-import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
-import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-//import com.github.quarck.calnotify.logs.Logger
 import java.io.Closeable
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
-class DismissedEventsStorage(
-    val context: Context,
-    private val clock: CNPlusClockInterface = CNPlusSystemClock()
-) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, DismissedEventsStorageInterface {
-
-    private var impl: DismissedEventsStorageImplInterface
-
-    init {
-        impl = DismissedEventsStorageImplV2();
+/**
+ * DismissedEventsStorage - tracks dismissed calendar event alerts.
+ * 
+ * Attempts to use Room database with cr-sqlite support.
+ * Falls back to legacy SQLiteOpenHelper if Room migration fails.
+ * 
+ * This fallback strategy ensures:
+ * - No data loss if migration has bugs
+ * - Future app versions can retry migration
+ * - Legacy database is preserved untouched
+ */
+class DismissedEventsStorage private constructor(
+    result: Pair<DismissedEventsStorageInterface, Boolean>
+) : DismissedEventsStorageInterface by result.first, Closeable {
+    
+    private val delegate: DismissedEventsStorageInterface = result.first
+    val isUsingRoom: Boolean = result.second
+    
+    constructor(context: Context, clock: CNPlusClockInterface = CNPlusSystemClock()) : this(createStorage(context, clock))
+    
+    override fun close() {
+        (delegate as? Closeable)?.close()
     }
-
-    override fun onCreate(db: SQLiteDatabase)
-            = impl.createDb(db)
-
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-
-        DevLog.info(LOG_TAG, "onUpgrade $oldVersion -> $newVersion")
-
-        if (oldVersion == newVersion)
-            return
-
-        if (newVersion != DATABASE_VERSION_V2)
-            throw Exception("DB storage error: upgrade from $oldVersion to $newVersion is not supported")
-
-        val implOld =
-                when (oldVersion) {
-                    DATABASE_VERSION_V1 -> DismissedEventsStorageImplV1()
-                    else -> throw Exception("DB storage error: upgrade from $oldVersion to $newVersion is not supported")
-                }
-
-        try {
-            impl.createDb(db)
-
-            val events = implOld.getEventsImpl(db)
-
-            DevLog.info(LOG_TAG, "${events.size} requests to convert")
-
-            for ((event, time, type) in events) {
-                impl.addEventImpl(db, type, time, event)
-                implOld.deleteEventImpl(db, event)
-
-                DevLog.debug(LOG_TAG, "Done event ${event.eventId}, inst ${event.instanceStartTime}")
-            }
-
-            if (implOld.getEventsImpl(db).isEmpty()) {
-                DevLog.info(LOG_TAG, "Finally - dropping old tables")
-                implOld.dropAll(db)
-            }
-            else {
-                throw Exception("DB Upgrade failed: some requests are still in the old version of DB")
-            }
-
-        }
-        catch (ex: Exception) {
-            DevLog.error(LOG_TAG, "Exception during DB upgrade $oldVersion -> $newVersion: ${ex.detailed}")
-            throw ex
-        }
-    }
-
-    override fun addEvent(type: EventDismissType, event: EventAlertRecord)
-            = addEvent(type, clock.currentTimeMillis(), event)
-
-    override fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventImpl(it, type, changeTime, event) } }
-
-    override fun addEvents(type: EventDismissType, events: Collection<EventAlertRecord>)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.addEventsImpl(it, type, clock.currentTimeMillis(), events) } }
-
-    override fun deleteEvent(entry: DismissedEventAlertRecord)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.deleteEventImpl(it, entry) } }
-
-    override fun deleteEvent(event: EventAlertRecord)
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.deleteEventImpl(it, event) } }
-
-    override fun clearHistory()
-            = synchronized(DismissedEventsStorage::class.java) { writableDatabase.customUse { impl.clearHistoryImpl(it) } }
-
-    override val events: List<DismissedEventAlertRecord>
-        get() = synchronized(DismissedEventsStorage::class.java) { readableDatabase.customUse { impl.getEventsImpl(it) } }
-
-    override fun purgeOld(currentTime: Long, maxLiveTime: Long)
-            = events.filter { (currentTime - it.dismissTime) > maxLiveTime }.forEach { deleteEvent(it) }
-
-    override fun close() = super.close()
 
     companion object {
-        private val LOG_TAG = "DismissedEventsStorage"
-
-        private const val DATABASE_VERSION_V1 = 1
-        private const val DATABASE_VERSION_V2 = 2
-        private const val DATABASE_CURRENT_VERSION = DATABASE_VERSION_V2
-
-        private const val DATABASE_NAME = "DismissedEvents"
+        private const val LOG_TAG = "DismissedEventsStorage"
+        
+        private fun createStorage(context: Context, clock: CNPlusClockInterface): Pair<DismissedEventsStorageInterface, Boolean> {
+            return try {
+                DevLog.info(LOG_TAG, "Attempting to use Room storage...")
+                val roomStorage = RoomDismissedEventsStorage(context, clock)
+                DevLog.info(LOG_TAG, "✅ Using Room storage")
+                Pair(roomStorage, true)
+            } catch (e: DismissedEventsMigrationException) {
+                DevLog.error(LOG_TAG, "⚠️ Room migration failed, falling back to legacy storage: ${e.message}")
+                Pair(LegacyDismissedEventsStorage(context, clock), false)
+            }
+        }
     }
 }

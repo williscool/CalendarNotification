@@ -47,9 +47,6 @@ class UITestFixture {
     private var eventIdCounter = 100000L
     private val seededEvents = mutableListOf<EventAlertRecord>()
     
-    // IdlingResource for AsyncTask tracking
-    private val asyncTaskIdlingResource = AsyncTaskIdlingResource()
-    
     // Track if calendar reload prevention is active
     private var calendarReloadPrevented = false
     
@@ -76,6 +73,10 @@ class UITestFixture {
         suppressBatteryDialog: Boolean = false
     ) {
         DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantPermissions=$grantPermissions, suppressBatteryDialog=$suppressBatteryDialog)")
+        
+        // CRITICAL: Clear any leftover IdlingResources from previous tests FIRST
+        // This prevents accumulation when running the full test suite
+        clearIdlingResources()
         
         // Reset dialog flag so each test can handle dialogs if they appear
         startupDialogsDismissed = false
@@ -109,8 +110,8 @@ class UITestFixture {
         
         // Only register IdlingResource if we need to wait for async operations
         if (waitForAsyncTasks) {
-            IdlingRegistry.getInstance().register(asyncTaskIdlingResource)
-            globalAsyncTaskCallback = asyncTaskIdlingResource
+            IdlingRegistry.getInstance().register(sharedAsyncTaskIdlingResource)
+            globalAsyncTaskCallback = sharedAsyncTaskIdlingResource
             DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
         } else {
             DevLog.info(LOG_TAG, "Skipping AsyncTask IdlingResource for faster UI tests")
@@ -332,13 +333,8 @@ class UITestFixture {
             DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
         }
         
-        // Unregister IdlingResource if it was registered
-        try {
-            IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
-            globalAsyncTaskCallback = null
-        } catch (e: IllegalArgumentException) {
-            // Expected if IdlingResource wasn't registered - safe to ignore
-        }
+        // Clear IdlingResources to ensure clean state for next test
+        clearIdlingResources()
         
         unmockkAll()
     }
@@ -641,6 +637,34 @@ class UITestFixture {
         // Track if startup dialogs have been dismissed across ALL test instances
         @Volatile
         private var startupDialogsDismissed = false
+        
+        /**
+         * Shared IdlingResource instance to prevent accumulation across tests.
+         * Using a singleton ensures we don't register multiple IdlingResources
+         * when running the full test suite.
+         */
+        private val sharedAsyncTaskIdlingResource = AsyncTaskIdlingResource()
+        
+        /**
+         * Clears any leftover IdlingResources from previous test runs.
+         * Call at the START of setup to ensure clean state.
+         */
+        fun clearIdlingResources() {
+            // Clear the global callback first
+            globalAsyncTaskCallback = null
+            
+            // Reset the counter to clear any stale async task counts from previous tests
+            // This prevents tests from hanging if a previous test terminated with tasks in-flight
+            sharedAsyncTaskIdlingResource.reset()
+            
+            // Unregister our shared IdlingResource if it's registered
+            try {
+                IdlingRegistry.getInstance().unregister(sharedAsyncTaskIdlingResource)
+                DevLog.info(LOG_TAG, "Cleared previously registered IdlingResource")
+            } catch (e: IllegalArgumentException) {
+                // Not registered, that's fine
+            }
+        }
         
         /**
          * Creates a fixture instance. Typically used with JUnit rules.
