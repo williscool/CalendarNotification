@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.monitorstorage
 
 import android.content.Context
+import android.database.SQLException
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -116,17 +117,18 @@ abstract class MonitorDatabase : RoomDatabase() {
                 return
             }
             
-            // Check if Room DB already has data (migration already done)
             val dao = roomDb.monitorAlertDao()
-            val existingCount = dao.getAll().size
-            if (existingCount > 0) {
-                DevLog.info(LOG_TAG, "Room database already has $existingCount rows - skipping migration")
-                return
-            }
-            
-            DevLog.info(LOG_TAG, "Starting migration from legacy database: ${legacyDbFile.absolutePath}")
             
             try {
+                // Check if Room DB already has data (migration already done)
+                val existingCount = dao.getAll().size
+                if (existingCount > 0) {
+                    DevLog.info(LOG_TAG, "Room database already has $existingCount rows - skipping migration")
+                    return
+                }
+                
+                DevLog.info(LOG_TAG, "Starting migration from legacy database: ${legacyDbFile.absolutePath}")
+                
                 // Read from legacy DB using the legacy implementation
                 val legacyAlerts = readFromLegacyDatabase(context, legacyDbFile)
                 
@@ -154,9 +156,13 @@ abstract class MonitorDatabase : RoomDatabase() {
                 DevLog.info(LOG_TAG, "✅ Migration complete: ${legacyAlerts.size} alerts copied successfully")
                 
             } catch (e: MigrationException) {
-                throw e // Re-throw migration exceptions
-            } catch (e: Exception) {
-                val msg = "Migration failed with exception: ${e.message}"
+                throw e
+            } catch (e: SQLException) {
+                val msg = "Migration failed with database error: ${e.message}"
+                DevLog.error(LOG_TAG, msg)
+                throw MigrationException(msg, e)
+            } catch (e: IllegalStateException) {
+                val msg = "Migration failed with Room validation error: ${e.message}"
                 DevLog.error(LOG_TAG, msg)
                 throw MigrationException(msg, e)
             }
