@@ -43,14 +43,14 @@ class EventsStorage private constructor(
     val isUsingRoom: Boolean = result.second
     
     constructor(context: Context) : this(createStorage(context))
-    
+
     override fun close() {
         (delegate as? Closeable)?.close()
     }
 
     companion object {
         private const val LOG_TAG = "EventsStorage"
-        
+
         private fun createStorage(context: Context): Pair<EventsStorageInterface, Boolean> {
             return try {
                 DevLog.info(LOG_TAG, "Attempting to use Room storage...")

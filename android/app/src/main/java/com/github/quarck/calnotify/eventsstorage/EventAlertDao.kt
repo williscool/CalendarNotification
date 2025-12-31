@@ -37,6 +37,9 @@ interface EventAlertDao {
     @Query("SELECT * FROM ${EventAlertEntity.TABLE_NAME}")
     fun getAll(): List<EventAlertEntity>
 
+    @Query("SELECT COUNT(*) FROM ${EventAlertEntity.TABLE_NAME}")
+    fun count(): Int
+
     @Query("SELECT * FROM ${EventAlertEntity.TABLE_NAME} WHERE ${EventAlertEntity.COL_EVENT_ID} = :eventId AND ${EventAlertEntity.COL_INSTANCE_START} = :instanceStart")
     fun getByKey(eventId: Long, instanceStart: Long): EventAlertEntity?
 

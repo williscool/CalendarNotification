@@ -41,6 +41,9 @@ interface MonitorAlertDao {
     @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME}")
     fun getAll(): List<MonitorAlertEntity>
 
+    @Query("SELECT COUNT(*) FROM ${MonitorAlertEntity.TABLE_NAME}")
+    fun count(): Int
+
     @Query("SELECT * FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_EVENT_ID} = :eventId AND ${MonitorAlertEntity.COL_ALERT_TIME} = :alertTime AND ${MonitorAlertEntity.COL_INSTANCE_START} = :instanceStart")
     fun getByKey(eventId: Long, alertTime: Long, instanceStart: Long): MonitorAlertEntity?
 

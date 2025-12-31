@@ -132,7 +132,7 @@ abstract class EventsDatabase : RoomDatabase() {
             
             try {
                 // Check if Room DB already has data (migration already done)
-                val existingCount = dao.getAll().size
+                val existingCount = dao.count()
                 if (existingCount > 0) {
                     DevLog.info(LOG_TAG, "Room database already has $existingCount rows - skipping migration")
                     return
@@ -166,7 +166,7 @@ abstract class EventsDatabase : RoomDatabase() {
                 dao.insertAll(entities)
                 
                 // Validate row count in Room matches legacy
-                val newCount = dao.getAll().size
+                val newCount = dao.count()
                 DevLog.info(LOG_TAG, "Inserted $newCount rows into Room database")
                 
                 if (newCount != legacyCount) {

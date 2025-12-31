@@ -162,22 +162,25 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
 
     override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean = 
         synchronized(RoomEventsStorage::class.java) {
-            updateEventAndInstanceTimesInternal(event, instanceStart, instanceEnd)
+            // Wrap in transaction for atomicity (delete + insert must be atomic)
+            var success = false
+            database.runInTransaction {
+                success = updateEventAndInstanceTimesRaw(event, instanceStart, instanceEnd)
+            }
+            success
         }
     
-    private fun updateEventAndInstanceTimesInternal(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
+    // Raw version without transaction wrapper - for use inside existing transactions
+    private fun updateEventAndInstanceTimesRaw(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
         val updatedEvent = event.copy(instanceStartTime = instanceStart, instanceEndTime = instanceEnd)
-        // Need to delete old key and insert new since PK changed - wrap in transaction for atomicity
+        // Need to delete old key and insert new since PK changed
         // Only succeed if original record existed (matches legacy UPDATE semantics)
-        var success = false
-        database.runInTransaction {
-            val deleted = dao.deleteByKey(event.eventId, event.instanceStartTime)
-            if (deleted == 1) {
-                success = dao.insert(EventAlertEntity.fromRecord(updatedEvent)) != -1L
-            }
-            // If deleted == 0, record didn't exist - success stays false (matches legacy)
+        val deleted = dao.deleteByKey(event.eventId, event.instanceStartTime)
+        return if (deleted == 1) {
+            dao.insert(EventAlertEntity.fromRecord(updatedEvent)) != -1L
+        } else {
+            false  // Record didn't exist - matches legacy UPDATE returning 0 rows
         }
-        return success
     }
 
     override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean = 
@@ -186,7 +189,7 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
             database.beginTransaction()
             try {
                 for ((event, instanceStart, instanceEnd) in events) {
-                    if (!updateEventAndInstanceTimesInternal(event, instanceStart, instanceEnd)) {
+                    if (!updateEventAndInstanceTimesRaw(event, instanceStart, instanceEnd)) {
                         return@synchronized false  // Rollback - don't call setTransactionSuccessful
                     }
                 }

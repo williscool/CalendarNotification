@@ -50,7 +50,7 @@ class MonitorStorage private constructor(
 
     companion object {
         private const val LOG_TAG = "MonitorStorage"
-        
+
         private fun createStorage(context: Context): Pair<MonitorStorageInterface, Boolean> {
             return try {
                 DevLog.info(LOG_TAG, "Attempting to use Room storage...")
