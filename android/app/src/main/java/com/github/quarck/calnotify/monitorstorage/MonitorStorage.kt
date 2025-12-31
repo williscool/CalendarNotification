@@ -35,48 +35,22 @@ import java.io.Closeable
  * - Future app versions can retry migration
  * - Legacy database is preserved untouched
  */
-class MonitorStorage(context: Context) : MonitorStorageInterface, Closeable {
+class MonitorStorage private constructor(
+    result: Pair<MonitorStorageInterface, Boolean>
+) : MonitorStorageInterface by result.first, Closeable {
     
-    private val delegate: MonitorStorageInterface
-    private val isUsingRoom: Boolean
+    private val delegate: MonitorStorageInterface = result.first
+    val isUsingRoom: Boolean = result.second
     
-    init {
-        val (storage, usingRoom) = createStorage(context)
-        delegate = storage
-        isUsingRoom = usingRoom
-    }
-
-    // Delegate all interface methods
-    override fun addAlert(entry: com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) = delegate.addAlert(entry)
-    override fun addAlerts(entries: Collection<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>) = delegate.addAlerts(entries)
-    override fun deleteAlert(entry: com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) = delegate.deleteAlert(entry)
-    override fun deleteAlerts(entries: Collection<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>) = delegate.deleteAlerts(entries)
-    override fun deleteAlert(eventId: Long, alertTime: Long, instanceStart: Long) = delegate.deleteAlert(eventId, alertTime, instanceStart)
-    override fun deleteAlertsMatching(filter: (com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) -> Boolean) = delegate.deleteAlertsMatching(filter)
-    override fun updateAlert(entry: com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) = delegate.updateAlert(entry)
-    override fun updateAlerts(entries: Collection<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>) = delegate.updateAlerts(entries)
-    override fun getAlert(eventId: Long, alertTime: Long, instanceStart: Long) = delegate.getAlert(eventId, alertTime, instanceStart)
-    override fun getInstanceAlerts(eventId: Long, instanceStart: Long) = delegate.getInstanceAlerts(eventId, instanceStart)
-    override fun getNextAlert(since: Long) = delegate.getNextAlert(since)
-    override fun getAlertsAt(time: Long) = delegate.getAlertsAt(time)
-    override val alerts get() = delegate.alerts
-    override fun getAlertsForInstanceStartRange(scanFrom: Long, scanTo: Long) = delegate.getAlertsForInstanceStartRange(scanFrom, scanTo)
-    override fun getAlertsForAlertRange(scanFrom: Long, scanTo: Long) = delegate.getAlertsForAlertRange(scanFrom, scanTo)
+    constructor(context: Context) : this(createStorage(context))
     
     override fun close() {
-        if (delegate is Closeable) {
-            delegate.close()
-        }
+        (delegate as? Closeable)?.close()
     }
 
     companion object {
         private const val LOG_TAG = "MonitorStorage"
         
-        /**
-         * Creates the appropriate storage implementation.
-         * 
-         * @return Pair of (storage implementation, isUsingRoom)
-         */
         private fun createStorage(context: Context): Pair<MonitorStorageInterface, Boolean> {
             return try {
                 DevLog.info(LOG_TAG, "Attempting to use Room storage...")
