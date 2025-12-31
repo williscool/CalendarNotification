@@ -653,6 +653,10 @@ class UITestFixture {
             // Clear the global callback first
             globalAsyncTaskCallback = null
             
+            // Reset the counter to clear any stale async task counts from previous tests
+            // This prevents tests from hanging if a previous test terminated with tasks in-flight
+            sharedAsyncTaskIdlingResource.reset()
+            
             // Unregister our shared IdlingResource if it's registered
             try {
                 IdlingRegistry.getInstance().unregister(sharedAsyncTaskIdlingResource)
