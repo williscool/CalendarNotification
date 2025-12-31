@@ -52,11 +52,17 @@ flowchart TD
 
 These are the actual calendar events on the user's device. We query them but don't own them.
 
+Query types:
+- `CalendarRecord` - calendar account (id, owner, displayName, color)
+- `EventRecord` - full event details (used to populate/update EventAlertRecord)
+
 ### Event Alerts (EventsStorage)
 
 **What it is:** An active notification that the app is managing.
 
 **Lifecycle:** Created when an alert fires → Displayed to user → Snoozed or Dismissed
+
+**Snoozing:** When snoozed, `snoozedUntil` is set to the wake time. An alarm reschedules the notification. The alert stays in EventsStorage (not moved to DismissedEventsStorage).
 
 ```kotlin
 data class EventAlertRecord(
@@ -199,3 +205,4 @@ erDiagram
 | `PersistentState` | App state (last notification time, snooze alarms) |
 | `ReminderState` | Reminder firing state (fire count, pattern index) |
 | `CalendarMonitorState` | Scan state (next fire time, first scan flag) |
+| `BTCarModeStorage` | Bluetooth car mode trigger devices |
