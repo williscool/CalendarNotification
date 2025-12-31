@@ -9,6 +9,8 @@
 | `DismissedEventsStorage` | `DismissedEventAlertRecord` | `RoomDismissedEvents` | `dismissedEventsV2` |
 | `MonitorStorage` | `MonitorEventAlertEntry` | `RoomCalendarMonitor` | `manualAlertsV1` |
 
+> **Note:** Database names are the new Room names (Dec 2025 migration). Legacy names were `Events`, `DismissedEvents`, `CalendarMonitor`.
+
 **External (Calendar Provider):**
 - `CalendarRecord` - calendar account info
 - `EventRecord` - full event with `EventReminderRecord` list
@@ -127,6 +129,7 @@ data class EventAlertRecord(
 **Purpose:** Undo support, preventing duplicate notifications.
 
 ```kotlin
+// Simplified - actual implementation denormalizes event fields
 data class DismissedEventAlertRecord(
     val event: EventAlertRecord,  // The dismissed event's data
     val dismissTime: Long,
