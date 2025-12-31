@@ -137,71 +137,12 @@ class MonitorStorageMigrationTest {
     
     /**
      * Performs pre-Room migration on a legacy database.
-     * This replicates the logic in MonitorDatabase.migrateLegacyDatabaseIfNeeded()
-     * to add NOT NULL constraints to PK columns (required by Room).
+     * Calls the ACTUAL migration function from MonitorDatabase to ensure test fidelity.
      */
     private fun performPreRoomMigration() {
-        val t = MonitorAlertEntity.TABLE_NAME
-        val idx = MonitorAlertEntity.INDEX_NAME
-        // Column names from Entity
-        val calendarId = MonitorAlertEntity.COL_CALENDAR_ID
-        val eventId = MonitorAlertEntity.COL_EVENT_ID
-        val alertTime = MonitorAlertEntity.COL_ALERT_TIME
-        val instanceStart = MonitorAlertEntity.COL_INSTANCE_START
-        val instanceEnd = MonitorAlertEntity.COL_INSTANCE_END
-        val allDay = MonitorAlertEntity.COL_ALL_DAY
-        val alertCreatedByUs = MonitorAlertEntity.COL_ALERT_CREATED_BY_US
-        val wasHandled = MonitorAlertEntity.COL_WAS_HANDLED
-        val i1 = MonitorAlertEntity.COL_RESERVED_INT1
-        val i2 = MonitorAlertEntity.COL_RESERVED_INT2
-        
-        DevLog.info(LOG_TAG, "Running pre-Room migration on test database")
-        
-        val db = android.database.sqlite.SQLiteDatabase.openDatabase(
-            dbFile.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
-        )
-        
-        try {
-            db.beginTransaction()
-            try {
-                // Recreate table with NOT NULL on primary key columns
-                db.execSQL("""
-                    CREATE TABLE ${t}_new (
-                        $calendarId INTEGER,
-                        $eventId INTEGER NOT NULL,
-                        $alertTime INTEGER NOT NULL,
-                        $instanceStart INTEGER NOT NULL,
-                        $instanceEnd INTEGER,
-                        $allDay INTEGER,
-                        $alertCreatedByUs INTEGER,
-                        $wasHandled INTEGER,
-                        $i1 INTEGER,
-                        $i2 INTEGER,
-                        PRIMARY KEY ($eventId, $alertTime, $instanceStart)
-                    )
-                """)
-                
-                // Copy data
-                db.execSQL("""
-                    INSERT INTO ${t}_new 
-                    SELECT $calendarId, COALESCE($eventId, 0), COALESCE($alertTime, 0), 
-                           COALESCE($instanceStart, 0), $instanceEnd, $allDay, 
-                           $alertCreatedByUs, $wasHandled, $i1, $i2
-                    FROM $t
-                """)
-                
-                db.execSQL("DROP TABLE $t")
-                db.execSQL("ALTER TABLE ${t}_new RENAME TO $t")
-                db.execSQL("CREATE UNIQUE INDEX $idx ON $t ($eventId, $alertTime, $instanceStart)")
-                
-                db.setTransactionSuccessful()
-            } finally {
-                db.endTransaction()
-            }
-            DevLog.info(LOG_TAG, "Pre-Room migration complete")
-        } finally {
-            db.close()
-        }
+        DevLog.info(LOG_TAG, "Running pre-Room migration via MonitorDatabase.migrateLegacyDatabaseIfNeeded()")
+        MonitorDatabase.migrateLegacyDatabaseIfNeeded(dbFile)
+        DevLog.info(LOG_TAG, "Pre-Room migration complete")
     }
     
     /**

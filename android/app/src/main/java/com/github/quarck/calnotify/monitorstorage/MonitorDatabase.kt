@@ -77,6 +77,10 @@ abstract class MonitorDatabase : RoomDatabase() {
                 .build()
         }
         
+        private fun migrateLegacyDatabaseIfNeeded(context: Context) {
+            migrateLegacyDatabaseIfNeeded(context.getDatabasePath(DATABASE_NAME))
+        }
+        
         /**
          * Migrate legacy SQLiteOpenHelper database to Room-compatible schema.
          * 
@@ -88,9 +92,10 @@ abstract class MonitorDatabase : RoomDatabase() {
          * - Adds NOT NULL constraints to primary key columns (Room requirement)
          * - Preserves the existing index
          * - All data is preserved
+         * 
+         * @param dbFile The database file to migrate. Exposed as internal for testing.
          */
-        private fun migrateLegacyDatabaseIfNeeded(context: Context) {
-            val dbFile = context.getDatabasePath(DATABASE_NAME)
+        internal fun migrateLegacyDatabaseIfNeeded(dbFile: File) {
             if (!dbFile.exists()) {
                 DevLog.info(LOG_TAG, "No existing database - fresh install")
                 return
