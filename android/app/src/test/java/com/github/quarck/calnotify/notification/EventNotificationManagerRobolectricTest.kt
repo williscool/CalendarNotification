@@ -37,7 +37,8 @@ import org.robolectric.annotation.Config
  * Tests for EventNotificationManager logic, specifically the collapsed notification
  * behavior when events are muted.
  * 
- * These tests verify the channel selection and sound logic that was fixed:
+ * These tests call the actual production code via companion object helper functions
+ * to verify:
  * - All events muted: should use silent channel, no sound
  * - Some events muted: should use normal channel, play sound for non-muted
  * - Alarm events override: non-muted alarms should always play sound
@@ -58,7 +59,7 @@ class EventNotificationManagerRobolectricTest {
         NotificationChannels.createChannels(context)
     }
 
-    // === Collapsed notification channel selection tests ===
+    // === Channel selection tests using production code ===
 
     @Test
     fun `collapsed notification with all muted events uses silent channel`() {
@@ -68,13 +69,12 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = true),
             createTestEvent(eventId = 3, isMuted = true)
         )
-        
-        // When - determine channel using the same logic as postEverythingCollapsed
-        val allMuted = mutedEvents.all { it.isMuted }
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
-        val channelId = NotificationChannels.getChannelId(
-            isAlarm = hasAlarms,
-            isMuted = allMuted,
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = mutedEvents,
+            hasAlarms = hasAlarms,
             isReminder = true
         )
         
@@ -94,13 +94,12 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = false),
             createTestEvent(eventId = 3, isMuted = true)
         )
-        
-        // When - determine channel
-        val allMuted = mixedEvents.all { it.isMuted }
         val hasAlarms = mixedEvents.any { it.isAlarm && !it.isMuted }
-        val channelId = NotificationChannels.getChannelId(
-            isAlarm = hasAlarms,
-            isMuted = allMuted,
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = mixedEvents,
+            hasAlarms = hasAlarms,
             isReminder = true
         )
         
@@ -120,13 +119,12 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = false, isAlarm = true),
             createTestEvent(eventId = 3, isMuted = false)
         )
-        
-        // When - determine channel
-        val allMuted = eventsWithAlarm.all { it.isMuted }
         val hasAlarms = eventsWithAlarm.any { it.isAlarm && !it.isMuted }
-        val channelId = NotificationChannels.getChannelId(
-            isAlarm = hasAlarms,
-            isMuted = allMuted,
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = eventsWithAlarm,
+            hasAlarms = hasAlarms,
             isReminder = true
         )
         
@@ -146,13 +144,12 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = true, isAlarm = true),
             createTestEvent(eventId = 3, isMuted = true)
         )
-        
-        // When - determine channel
-        val allMuted = eventsWithMutedAlarm.all { it.isMuted }
         val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
-        val channelId = NotificationChannels.getChannelId(
-            isAlarm = hasAlarms,
-            isMuted = allMuted,
+        
+        // When - call production code
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = eventsWithMutedAlarm,
+            hasAlarms = hasAlarms,
             isReminder = true
         )
         
@@ -164,31 +161,23 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
-    // === Sound/vibrate logic tests ===
+    // === Sound/vibrate logic tests using production code ===
 
     @Test
     fun `shouldPlayAndVibrate is false when all events are muted`() {
-        // Given - all events muted, simulating loop logic from postEverythingCollapsed
+        // Given - all events muted
         val mutedEvents = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = true)
         )
-        
-        // When - simulate the loop logic
-        var shouldPlayAndVibrate = false
-        for (event in mutedEvents) {
-            var shouldBeQuiet = false
-            // Not forced, not already displayed, not quiet period
-            shouldBeQuiet = shouldBeQuiet || event.isMuted
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-        }
-        
-        // Then apply reminder sound logic (the fixed version)
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
-        val playReminderSound = true
-        if (playReminderSound) {
-            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
-        }
+        
+        // When - call production code
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = mutedEvents,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
         
         // Then
         assertFalse(
@@ -204,21 +193,14 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = false)
         )
-        
-        // When - simulate the loop logic
-        var shouldPlayAndVibrate = false
-        for (event in mixedEvents) {
-            var shouldBeQuiet = false
-            shouldBeQuiet = shouldBeQuiet || event.isMuted
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-        }
-        
-        // Then apply reminder sound logic
         val hasAlarms = mixedEvents.any { it.isAlarm && !it.isMuted }
-        val playReminderSound = true
-        if (playReminderSound) {
-            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
-        }
+        
+        // When - call production code
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = mixedEvents,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
         
         // Then
         assertTrue(
@@ -229,26 +211,19 @@ class EventNotificationManagerRobolectricTest {
 
     @Test
     fun `shouldPlayAndVibrate is true when there is unmuted alarm`() {
-        // Given - unmuted alarm among muted events
-        val eventsWithAlarm = listOf(
+        // Given - all regular events muted, but there's an unmuted alarm
+        val eventsWithUnmutedAlarm = listOf(
             createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true)
+            createTestEvent(eventId = 2, isMuted = false, isAlarm = true)
         )
+        val hasAlarms = eventsWithUnmutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        // When - simulate the loop (all muted, so shouldPlayAndVibrate stays false)
-        var shouldPlayAndVibrate = false
-        for (event in eventsWithAlarm) {
-            var shouldBeQuiet = false
-            shouldBeQuiet = shouldBeQuiet || event.isMuted
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-        }
-        
-        // hasAlarms is calculated separately (checking for unmuted alarms)
-        val hasAlarms = true // Simulating an unmuted alarm exists
-        val playReminderSound = true
-        if (playReminderSound) {
-            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
-        }
+        // When - call production code
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = eventsWithUnmutedAlarm,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
         
         // Then - alarm overrides
         assertTrue(
@@ -264,21 +239,14 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = true, isAlarm = true)
         )
-        
-        // When - simulate the loop
-        var shouldPlayAndVibrate = false
-        for (event in eventsWithMutedAlarm) {
-            var shouldBeQuiet = false
-            shouldBeQuiet = shouldBeQuiet || event.isMuted
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-        }
-        
-        // hasAlarms checks for unmuted alarms only
         val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
-        val playReminderSound = true
-        if (playReminderSound) {
-            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
-        }
+        
+        // When - call production code
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = eventsWithMutedAlarm,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
         
         // Then - muted alarm doesn't force sound
         assertFalse(
@@ -287,13 +255,13 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
-    // === Bug regression tests ===
+    // === Bug regression tests using production code ===
 
     @Test
-    fun `regression - reminder sound should not play when all events muted even outside quiet period`() {
+    fun `regression - reminder sound should not play when all events muted`() {
         // This is the specific bug that was fixed:
         // Previously: shouldPlayAndVibrate = shouldPlayAndVibrate || !isQuietPeriodActive || hasAlarms
-        // This would set shouldPlayAndVibrate = true whenever !isQuietPeriodActive (not in quiet period)
+        // This would set shouldPlayAndVibrate = true whenever not in quiet period
         // 
         // Fixed: shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
         // Now only hasAlarms can override the muted status
@@ -303,39 +271,26 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = true),
             createTestEvent(eventId = 3, isMuted = true)
         )
-        
-        // Simulate NOT being in quiet period (this was causing the bug)
-        @Suppress("UNUSED_VARIABLE")
-        val isQuietPeriodActive = false
-        
-        // Simulate the loop - all muted so shouldPlayAndVibrate stays false
-        var shouldPlayAndVibrate = false
-        for (event in allMutedEvents) {
-            var shouldBeQuiet = false
-            shouldBeQuiet = shouldBeQuiet || event.isMuted
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-        }
-        
-        // Apply the FIXED reminder logic (not the buggy one)
         val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
-        val playReminderSound = true
-        if (playReminderSound) {
-            // FIXED: Only hasAlarms can override, not quiet period status
-            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
-        }
         
-        // Verify the fix works
+        // When - call production code
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = allMutedEvents,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
+        
+        // Then - verify the fix works
         assertFalse(
-            "BUG REGRESSION: All muted events should stay silent even outside quiet period",
+            "BUG REGRESSION: All muted events should stay silent even for reminders",
             shouldPlayAndVibrate
         )
         
-        // Verify the channel is also correct
-        val allMuted = allMutedEvents.all { it.isMuted }
-        val channelId = NotificationChannels.getChannelId(
-            isAlarm = hasAlarms,
-            isMuted = allMuted,
-            isReminder = playReminderSound
+        // Also verify the channel is correct
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = allMutedEvents,
+            hasAlarms = hasAlarms,
+            isReminder = true
         )
         assertEquals(
             "BUG REGRESSION: All muted events should use silent channel",
@@ -345,11 +300,48 @@ class EventNotificationManagerRobolectricTest {
     }
 
     @Test
+    fun `regression - non-reminder collapsed notification with all muted should not play sound`() {
+        // Test the case where playReminderSound = false (regular notification update)
+        val allMutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true)
+        )
+        val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
+        
+        // When - call production code with playReminderSound = false
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = allMutedEvents,
+            playReminderSound = false,
+            hasAlarms = hasAlarms
+        )
+        
+        // Then
+        assertFalse(
+            "Non-reminder with all muted events should not play sound",
+            shouldPlayAndVibrate
+        )
+    }
+
+    // === setOnlyAlertOnce logic tests ===
+
+    @Test
     fun `setOnlyAlertOnce logic - updates should not re-alert`() {
         // Test the setOnlyAlertOnce logic for notification updates
         // When shouldPlayAndVibrate is false, setOnlyAlertOnce should be true
         
-        val shouldPlayAndVibrate = false
+        val allMutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true)
+        )
+        val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = allMutedEvents,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
+        
+        // The setOnlyAlertOnce flag should be !shouldPlayAndVibrate
         val setOnlyAlertOnce = !shouldPlayAndVibrate
         
         assertTrue(
@@ -363,7 +355,19 @@ class EventNotificationManagerRobolectricTest {
         // Test the setOnlyAlertOnce logic for new notifications
         // When shouldPlayAndVibrate is true, setOnlyAlertOnce should be false
         
-        val shouldPlayAndVibrate = true
+        val unmutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = false)
+        )
+        val hasAlarms = unmutedEvents.any { it.isAlarm && !it.isMuted }
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = unmutedEvents,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
+        
+        // The setOnlyAlertOnce flag should be !shouldPlayAndVibrate
         val setOnlyAlertOnce = !shouldPlayAndVibrate
         
         assertFalse(

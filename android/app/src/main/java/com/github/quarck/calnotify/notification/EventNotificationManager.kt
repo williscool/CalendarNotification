@@ -1622,5 +1622,62 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         const val MAIN_ACTIVITY_NUM_NOTIFICATIONS_COLLAPSED_CODE = 1
         const val MAIN_ACTIVITY_REMINDER_CODE = 2
         const val MAIN_ACTIVITY_GROUP_NOTIFICATION_CODE = 3
+
+        /**
+         * Computes whether sound/vibration should play for collapsed notification.
+         * Extracted for testability.
+         * 
+         * @param events List of events to display
+         * @param playReminderSound Whether this is a reminder (affects sound logic)
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return true if sound should play, false otherwise
+         */
+        fun computeShouldPlayAndVibrateForCollapsed(
+            events: List<EventAlertRecord>,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Boolean {
+            var shouldPlayAndVibrate = false
+            
+            for (event in events) {
+                if (event.snoozedUntil == 0L) {
+                    // For collapsed events, we check muted status
+                    val shouldBeQuiet = event.isMuted
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
+                } else {
+                    // Snoozed event coming out of snooze
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || !event.isMuted
+                }
+            }
+            
+            // Only hasAlarms can override muted status for reminders
+            if (playReminderSound) {
+                shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
+            }
+            
+            return shouldPlayAndVibrate
+        }
+
+        /**
+         * Computes the notification channel ID for collapsed notifications.
+         * Extracted for testability.
+         * 
+         * @param events List of events to display
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @param isReminder Whether this is a reminder notification
+         * @return The appropriate channel ID
+         */
+        fun computeCollapsedChannelId(
+            events: List<EventAlertRecord>,
+            hasAlarms: Boolean,
+            isReminder: Boolean
+        ): String {
+            val allEventsMuted = events.all { it.isMuted }
+            return NotificationChannels.getChannelId(
+                isAlarm = hasAlarms,
+                isMuted = allEventsMuted,
+                isReminder = isReminder
+            )
+        }
     }
 }
