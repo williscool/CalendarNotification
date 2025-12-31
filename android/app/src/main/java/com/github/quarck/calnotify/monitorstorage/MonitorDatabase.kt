@@ -77,10 +77,15 @@ abstract class MonitorDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
                     val db = buildDatabase(context)
-                    // Copy from legacy DB if needed (throws MigrationException on failure)
-                    copyFromLegacyIfNeeded(context, db)
-                    INSTANCE = db
-                    db
+                    try {
+                        // Copy from legacy DB if needed (throws MigrationException on failure)
+                        copyFromLegacyIfNeeded(context, db)
+                        INSTANCE = db
+                        db
+                    } catch (e: MigrationException) {
+                        db.close() // Clean up on failure to avoid leaking connection
+                        throw e
+                    }
                 }
             }
         }
