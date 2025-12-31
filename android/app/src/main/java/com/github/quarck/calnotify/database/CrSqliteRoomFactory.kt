@@ -76,8 +76,9 @@ class CrSqliteFinalizeWrapper(
             DevLog.error("CrSqliteFinalizeWrapper", "Error calling crsql_finalize: ${e.message}")
         } catch (e: IllegalStateException) {
             DevLog.error("CrSqliteFinalizeWrapper", "Error calling crsql_finalize: ${e.message}")
+        } finally {
+            delegate.close()
         }
-        delegate.close()
     }
 }
 
