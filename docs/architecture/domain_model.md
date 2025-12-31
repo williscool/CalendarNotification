@@ -1,5 +1,27 @@
 # Domain Model
 
+## Quick Reference
+
+**Storage (Room databases):**
+| Storage | Domain Class | Database | Table |
+|---------|--------------|----------|-------|
+| `EventsStorage` | `EventAlertRecord` | `RoomEvents` | `eventsV9` |
+| `DismissedEventsStorage` | `DismissedEventAlertRecord` | `RoomDismissedEvents` | `dismissedEventsV2` |
+| `MonitorStorage` | `MonitorEventAlertEntry` | `RoomCalendarMonitor` | `manualAlertsV1` |
+
+**External (Calendar Provider):**
+- `CalendarRecord` - calendar account info
+- `EventRecord` - full event with `EventReminderRecord` list
+
+**State (SharedPreferences):**
+- `Settings` - user preferences
+- `PersistentState` - app runtime state
+- `ReminderState` - missed event reminder tracking
+- `CalendarMonitorState` - calendar scan state
+- `BTCarModeStorage` - bluetooth triggers
+
+---
+
 ## Overview
 
 Core domain concepts in Calendar Notifications Plus and how they relate to each other.
