@@ -57,15 +57,19 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     }
 
     override fun addEvents(events: List<EventAlertRecord>): Boolean {
-        var success = true
-        database.runInTransaction {
+        // Use manual transaction to match legacy rollback-on-failure semantics
+        database.beginTransaction()
+        try {
             for (event in events) {
                 if (!addEvent(event)) {
-                    success = false
+                    return false  // Rollback - don't call setTransactionSuccessful
                 }
             }
+            database.setTransactionSuccessful()
+            return true
+        } finally {
+            database.endTransaction()
         }
-        return success
     }
 
     override fun updateEvent(
@@ -151,15 +155,19 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     }
 
     override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean {
-        var success = true
-        database.runInTransaction {
+        // Use manual transaction to match legacy rollback-on-failure semantics
+        database.beginTransaction()
+        try {
             for ((event, instanceStart, instanceEnd) in events) {
                 if (!updateEventAndInstanceTimes(event, instanceStart, instanceEnd)) {
-                    success = false
+                    return false  // Rollback - don't call setTransactionSuccessful
                 }
             }
+            database.setTransactionSuccessful()
+            return true
+        } finally {
+            database.endTransaction()
         }
-        return success
     }
 
     override fun updateEvent(event: EventAlertRecord): Boolean {
@@ -167,15 +175,19 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     }
 
     override fun updateEvents(events: List<EventAlertRecord>): Boolean {
-        var success = true
-        database.runInTransaction {
+        // Use manual transaction to match legacy rollback-on-failure semantics
+        database.beginTransaction()
+        try {
             for (event in events) {
                 if (dao.update(EventAlertEntity.fromRecord(event)) != 1) {
-                    success = false
+                    return false  // Rollback - don't call setTransactionSuccessful
                 }
             }
+            database.setTransactionSuccessful()
+            return true
+        } finally {
+            database.endTransaction()
         }
-        return success
     }
 
     override fun getEvent(eventId: Long, instanceStartTime: Long): EventAlertRecord? {
