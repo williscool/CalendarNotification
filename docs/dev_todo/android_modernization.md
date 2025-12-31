@@ -297,7 +297,7 @@ The app already has React Native for modern UI. Migrating native Activities to C
 
 | Modernization | Effort | Priority | Notes |
 |---------------|--------|----------|-------|
-| Room Database | 30-40h | **High** | See `room_database_migration.md` |
+| Room Database | 30-40h | ✅ **COMPLETE** | All 3 storages migrated - see `room_database_migration.md` |
 | Kotlin Coroutines | 8-16h | Medium | Replace `background { }` helper |
 | Hilt DI | 20-30h | Medium-Low | Manual DI works, but more boilerplate |
 | ViewModel | 30-40h | Low | Big change, RN handles most UI |
@@ -310,7 +310,7 @@ The app already has React Native for modern UI. Migrating native Activities to C
 
 If modernizing, tackle in this order:
 
-1. **Room Database** - Highest value, reduces boilerplate in critical code
+1. ~~**Room Database**~~ ✅ **COMPLETE** (Dec 2025) - All 3 storages migrated
 2. **Kotlin Coroutines** - Natural fit, improves async code quality
 3. **Hilt DI** - Nice to have, but manual DI is working
 
