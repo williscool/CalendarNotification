@@ -458,6 +458,155 @@ class EventsStorageMigrationTest {
     }
     
     /**
+     * Tests that EventsStorage wrapper correctly falls back to LegacyEventsStorage
+     * when Room migration fails.
+     * 
+     * This is a belt-and-suspenders test since EventsStorage is the main flow of the app.
+     * We force a failure by corrupting the Room database file before initialization.
+     */
+    @Test
+    fun test_eventsStorage_falls_back_to_legacy_on_migration_failure() {
+        DevLog.info(LOG_TAG, "=== test_eventsStorage_falls_back_to_legacy_on_migration_failure ===")
+        
+        // Use production database paths for this test
+        val productionLegacyDbFile = context.getDatabasePath(EventsDatabase.LEGACY_DATABASE_NAME)
+        val productionRoomDbFile = context.getDatabasePath(EventsDatabase.DATABASE_NAME)
+        
+        // Skip if production databases already exist (don't mess with real data)
+        if (productionLegacyDbFile.exists() || productionRoomDbFile.exists()) {
+            DevLog.info(LOG_TAG, "⚠️ Skipping test - production databases exist (won't corrupt real data)")
+            return
+        }
+        
+        try {
+            // Step 1: Create a valid legacy database
+            DevLog.info(LOG_TAG, "Creating legacy database at ${productionLegacyDbFile.absolutePath}")
+            productionLegacyDbFile.parentFile?.mkdirs()
+            
+            val legacyDb = io.requery.android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(
+                productionLegacyDbFile.absolutePath, null
+            )
+            try {
+                val legacyImpl = EventsStorageImplV9(context)
+                legacyImpl.createDb(legacyDb)
+                
+                // Insert one test event
+                legacyDb.execSQL("""
+                    INSERT INTO ${EventAlertEntity.TABLE_NAME} (
+                        ${EventAlertEntity.COL_CALENDAR_ID},
+                        ${EventAlertEntity.COL_EVENT_ID},
+                        ${EventAlertEntity.COL_ALERT_TIME},
+                        ${EventAlertEntity.COL_NOTIFICATION_ID},
+                        ${EventAlertEntity.COL_TITLE},
+                        ${EventAlertEntity.COL_DESCRIPTION},
+                        ${EventAlertEntity.COL_START},
+                        ${EventAlertEntity.COL_END},
+                        ${EventAlertEntity.COL_INSTANCE_START},
+                        ${EventAlertEntity.COL_INSTANCE_END},
+                        ${EventAlertEntity.COL_LOCATION},
+                        ${EventAlertEntity.COL_SNOOZED_UNTIL},
+                        ${EventAlertEntity.COL_LAST_STATUS_CHANGE},
+                        ${EventAlertEntity.COL_DISPLAY_STATUS},
+                        ${EventAlertEntity.COL_COLOR},
+                        ${EventAlertEntity.COL_IS_REPEATING},
+                        ${EventAlertEntity.COL_ALL_DAY},
+                        ${EventAlertEntity.COL_EVENT_ORIGIN},
+                        ${EventAlertEntity.COL_TIME_FIRST_SEEN},
+                        ${EventAlertEntity.COL_EVENT_STATUS},
+                        ${EventAlertEntity.COL_ATTENDANCE_STATUS},
+                        ${EventAlertEntity.COL_FLAGS},
+                        ${EventAlertEntity.COL_RESERVED_INT2},
+                        ${EventAlertEntity.COL_RESERVED_INT3},
+                        ${EventAlertEntity.COL_RESERVED_INT4},
+                        ${EventAlertEntity.COL_RESERVED_INT5},
+                        ${EventAlertEntity.COL_RESERVED_INT6},
+                        ${EventAlertEntity.COL_RESERVED_INT7},
+                        ${EventAlertEntity.COL_RESERVED_INT8},
+                        ${EventAlertEntity.COL_RESERVED_STR2}
+                    ) VALUES (
+                        1, 77777, 1735499000000, 100, 'Fallback Test Event', 'Testing fallback',
+                        1735500000000, 1735503600000, 1735500000000, 1735503600000,
+                        'Test Location', 0, 1735499500000, 0, 0, 0, 0, 0, 1735499000000, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, ''
+                    )
+                """.trimIndent())
+            } finally {
+                legacyDb.close()
+            }
+            
+            // Step 2: Create a corrupted Room database file (garbage bytes)
+            DevLog.info(LOG_TAG, "Creating corrupted Room database file at ${productionRoomDbFile.absolutePath}")
+            productionRoomDbFile.writeBytes(ByteArray(1024) { 0xFF.toByte() })
+            
+            // Step 3: Try to create EventsStorage - should fall back to legacy
+            DevLog.info(LOG_TAG, "Attempting to create EventsStorage (expecting fallback)...")
+            val storage = EventsStorage(context)
+            
+            try {
+                // Step 4: Verify fallback occurred
+                assertFalse("Should have fallen back to legacy storage", storage.isUsingRoom)
+                DevLog.info(LOG_TAG, "✅ EventsStorage correctly fell back to legacy!")
+                
+                // Step 5: Verify the fallback storage is functional
+                val events = storage.events
+                assertEquals("Should see event from legacy DB", 1, events.size)
+                assertEquals("Event ID should match", 77777L, events[0].eventId)
+                assertEquals("Title should match", "Fallback Test Event", events[0].title)
+                DevLog.info(LOG_TAG, "✅ Legacy fallback storage is functional!")
+                
+                // Step 6: Verify we can write to the fallback storage
+                val testEvent = com.github.quarck.calnotify.calendar.EventAlertRecord(
+                    calendarId = 2,
+                    eventId = 88888,
+                    alertTime = 1735599000000,
+                    notificationId = 0, // Will be assigned
+                    title = "New Event via Fallback",
+                    desc = "Written after fallback",
+                    startTime = 1735600000000,
+                    endTime = 1735603600000,
+                    instanceStartTime = 1735600000000,
+                    instanceEndTime = 1735603600000,
+                    location = "",
+                    snoozedUntil = 0,
+                    lastStatusChangeTime = 1735599500000,
+                    displayStatus = com.github.quarck.calnotify.calendar.EventDisplayStatus.Hidden,
+                    color = 0,
+                    isRepeating = false,
+                    isAllDay = false,
+                    origin = com.github.quarck.calnotify.calendar.EventOrigin.ProviderBroadcast,
+                    timeFirstSeen = 1735599000000,
+                    eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
+                    attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None,
+                    flags = 0
+                )
+                val added = storage.addEvent(testEvent)
+                assertTrue("Should be able to add event via fallback", added)
+                
+                val allEvents = storage.events
+                assertEquals("Should have 2 events now", 2, allEvents.size)
+                DevLog.info(LOG_TAG, "✅ Can write to legacy fallback storage!")
+                
+            } finally {
+                storage.close()
+            }
+            
+        } finally {
+            // Thorough cleanup
+            DevLog.info(LOG_TAG, "Cleaning up production database files...")
+            productionLegacyDbFile.delete()
+            File(productionLegacyDbFile.absolutePath + "-journal").delete()
+            File(productionLegacyDbFile.absolutePath + "-shm").delete()
+            File(productionLegacyDbFile.absolutePath + "-wal").delete()
+            
+            productionRoomDbFile.delete()
+            File(productionRoomDbFile.absolutePath + "-shm").delete()
+            File(productionRoomDbFile.absolutePath + "-wal").delete()
+            
+            DevLog.info(LOG_TAG, "✅ Cleanup complete")
+        }
+    }
+    
+    /**
      * Helper data class for test data
      */
     private data class TestEventData(

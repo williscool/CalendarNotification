@@ -76,21 +76,20 @@ abstract class EventsDatabase : RoomDatabase() {
         fun getInstance(context: Context): EventsDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    val db = buildDatabase(context)
-                    var success = false
+                    var db: EventsDatabase? = null
                     try {
+                        db = buildDatabase(context)
                         // Copy from legacy DB if needed (throws exception on failure)
                         copyFromLegacyIfNeeded(context, db)
                         INSTANCE = db
-                        success = true
                         db
                     } catch (e: EventsMigrationException) {
+                        db?.close()
                         throw e
                     } catch (e: RuntimeException) {
                         // Wrap unexpected runtime exceptions so caller can fall back to legacy
+                        db?.close()
                         throw EventsMigrationException("Migration failed with unexpected error: ${e.message}", e)
-                    } finally {
-                        if (!success) db.close()
                     }
                 }
             }

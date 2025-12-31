@@ -76,21 +76,20 @@ abstract class MonitorDatabase : RoomDatabase() {
         fun getInstance(context: Context): MonitorDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    val db = buildDatabase(context)
-                    var success = false
+                    var db: MonitorDatabase? = null
                     try {
+                        db = buildDatabase(context)
                         // Copy from legacy DB if needed (throws MigrationException on failure)
                         copyFromLegacyIfNeeded(context, db)
                         INSTANCE = db
-                        success = true
                         db
                     } catch (e: MigrationException) {
+                        db?.close()
                         throw e
                     } catch (e: RuntimeException) {
                         // Wrap unexpected runtime exceptions so caller can fall back to legacy
+                        db?.close()
                         throw MigrationException("Migration failed with unexpected error: ${e.message}", e)
-                    } finally {
-                        if (!success) db.close()
                     }
                 }
             }
