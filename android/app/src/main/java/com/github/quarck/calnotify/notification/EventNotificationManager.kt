@@ -482,8 +482,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             }
         }
 
+        // Only force sound for non-muted alarms; respect muted status otherwise
         if (playReminderSound)
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !isQuietPeriodActive || hasAlarms
+            shouldPlayAndVibrate = shouldPlayAndVibrate || hasAlarms
 
         // now build actual notification and notify
         val intent = Intent(context, MainActivity::class.java)
@@ -513,8 +514,13 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
-        // Use alarm channel if there are alarms, otherwise default
-        val channelId = if (hasAlarms) NotificationChannels.CHANNEL_ID_ALARM else NotificationChannels.CHANNEL_ID_DEFAULT
+        // Use appropriate channel: silent if all muted, alarm if has alarms, otherwise default/reminders
+        val allEventsMuted = events.all { it.isMuted }
+        val channelId = NotificationChannels.getChannelId(
+                isAlarm = hasAlarms,
+                isMuted = allEventsMuted,
+                isReminder = playReminderSound
+        )
         
         val builder =
                 NotificationCompat.Builder(context, channelId)
