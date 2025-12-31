@@ -10,25 +10,31 @@ Core domain concepts in Calendar Notifications Plus and how they relate to each 
 ┌─────────────────────────────────────────┐
 │           Calendar Provider              │
 │  (Google Calendar, Exchange, etc.)       │
+│                                          │
+│  Entities: CalendarRecord, EventRecord   │
 └────────────────────┬────────────────────┘
                      │ queried by CalendarProvider wrapper
                      ▼
 ┌─────────────────────────────────────────┐
 │            Calendar Monitor              │
 │     (watches for alerts that should fire)│
+│                                          │
+│  State: CalendarMonitorState             │
 └─────────────┬───────────────────────────┘
               │ tracks upcoming alerts in
               ▼
 ┌──────────────────────────┐
-│   Monitor Alerts         │
-│   (MonitorStorage)       │
+│   MonitorStorage         │
+│                          │
+│  Entity: MonitorEventAlertEntry
 └──────────────────────────┘
               │ when alert fires, creates
               ▼
 ┌──────────────────────────┐         ┌──────────────────────────┐
-│   Event Alerts           │         │   Dismissed Event Alerts │
-│   (EventsStorage)        │  ────►  │   (DismissedEventsStorage)│
-└──────────────────────────┘ dismiss └──────────────────────────┘
+│   EventsStorage          │         │   DismissedEventsStorage │
+│                          │  ────►  │                          │
+│  Entity: EventAlertRecord│ dismiss │  Entity: DismissedEventAlertRecord
+└──────────────────────────┘         └──────────────────────────┘
 ```
 
 <details>
@@ -36,10 +42,10 @@ Core domain concepts in Calendar Notifications Plus and how they relate to each 
 
 ```mermaid
 flowchart TD
-    CP[Calendar Provider] --> CM[Calendar Monitor]
-    CM --> MS[(MonitorStorage)]
-    MS --> ES[(EventsStorage)]
-    ES -->|dismiss| DS[(DismissedEventsStorage)]
+    CP["Calendar Provider<br/>(CalendarRecord, EventRecord)"] --> CM["Calendar Monitor<br/>(CalendarMonitorState)"]
+    CM --> MS[("MonitorStorage<br/>(MonitorEventAlertEntry)")]
+    MS --> ES[("EventsStorage<br/>(EventAlertRecord)")]
+    ES -->|dismiss| DS[("DismissedEventsStorage<br/>(DismissedEventAlertRecord)")]
 ```
 
 </details>
@@ -207,14 +213,137 @@ erDiagram
 | `CalendarMonitorState` | Scan state (next fire time, first scan flag) |
 | `BTCarModeStorage` | Bluetooth car mode trigger devices |
 
-## Key Behaviors
+## Alert & Reminder Flow
 
-### Missed Event Reminders
+Two different "reminder" concepts:
 
-Periodic re-notifications for unhandled alerts. `ReminderState` tracks:
-- When last reminder fired
-- How many reminders have fired
-- Pattern index for configurable intervals
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CALENDAR PROVIDER                                  │
+│  Event: "Meeting at 10:00am"                                                │
+│  Reminders: [15 min before, 1 hour before]                                  │
+│                                                                             │
+│  Entities: EventRecord, EventReminderRecord                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ Android fires EVENT_REMINDER broadcast
+                                    │ at alertTime (e.g., 9:45am, 9:00am)
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           EventsStorage                                      │
+│  EventAlertRecord created with:                                              │
+│    - alertTime = when reminder fired                                        │
+│    - snoozedUntil = 0 (not snoozed)                                         │
+│    - displayStatus = DisplayedNormal                                        │
+│                                                                             │
+│  Entity: EventAlertRecord                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+            User dismisses                  User ignores
+                    │                               │
+                    ▼                               ▼
+        ┌─────────────────────────┐     ┌───────────────────────────┐
+        │ DismissedEventsStorage  │     │ MISSED EVENT REMINDERS    │
+        │                         │     │                           │
+        │ Entity:                 │     │ State: ReminderState      │
+        │ DismissedEventAlertRecord     │ Reads: EventsStorage      │
+        └─────────────────────────┘     │                           │
+                                        │ Re-notifies at intervals  │
+                                        │ until user handles alert  │
+                                        └───────────────────────────┘
+```
+
+<details>
+<summary>Mermaid version</summary>
+
+```mermaid
+flowchart TD
+    subgraph Calendar["Calendar Provider"]
+        E["EventRecord"]
+        R["EventReminderRecord"]
+    end
+    
+    E --> R
+    R -->|"alertTime fires"| EA["EventsStorage<br/>(EventAlertRecord)"]
+    
+    EA -->|"user dismisses"| D["DismissedEventsStorage<br/>(DismissedEventAlertRecord)"]
+    EA -->|"user ignores"| MR["ReminderState<br/>+ reads EventsStorage"]
+    MR -->|"re-notifies"| EA
+```
+
+</details>
+
+**Calendar Reminders** (`EventReminderRecord`): Configured in calendar app. Define WHEN an alert fires (e.g., "15 min before"). Stored in Calendar Provider, not by us.
+
+**Missed Event Reminders** (`ReminderState`): App feature that re-notifies about unhandled alerts.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MISSED EVENT REMINDERS FLOW                              │
+│                                                                             │
+│  Reads: Settings (reminderPattern = [10m, 30m, 1h], maxReminders = 5)      │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Query: EventsStorage for unhandled EventAlertRecords                       │
+│    (where snoozedUntil = 0 and not dismissed)                               │
+│                                                                             │
+│    YES → Schedule Android alarm for pattern[currentIndex]                   │
+│    NO  → Done                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼ (alarm fires)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ReminderAlarmBroadcastReceiver                                             │
+│                                                                             │
+│  Reads: EventsStorage (EventAlertRecords to re-notify)                      │
+│  Reads: Settings (pattern intervals, max reminders)                         │
+│  Updates: ReminderState                                                     │
+│       - numRemindersFired++                                                 │
+│       - currentReminderPatternIndex++ (wraps at end)                        │
+│       - reminderLastFireTime = now                                          │
+│                                                                             │
+│  Then: Schedule next alarm using Settings.pattern[newIndex]                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+          User handles alert              ReminderState.numRemindersFired >= max
+          (dismiss/snooze)                        │
+                    │                               ▼
+                    ▼                          Stop reminding
+          Updates: ReminderState
+            - currentIndex = 0
+            - numFired = 0
+          Updates: EventsStorage or DismissedEventsStorage
+```
+
+<details>
+<summary>Mermaid version</summary>
+
+```mermaid
+flowchart TD
+    S["Settings<br/>(reminderPattern, maxReminders)"] --> C{"Query EventsStorage<br/>unhandled EventAlertRecords?"}
+    C -->|No| Done
+    C -->|Yes| A["Schedule alarm<br/>(Settings.pattern index)"]
+    A --> F[Alarm fires]
+    F --> R["Re-show notifications<br/>(from EventsStorage)"]
+    R --> U["Update ReminderState<br/>(numFired++, patternIndex++)"]
+    U --> N["Schedule next alarm<br/>(Settings.pattern)"]
+    N --> C
+    
+    U --> H{User handles?}
+    H -->|Yes| Reset["Reset ReminderState<br/>Update EventsStorage or<br/>DismissedEventsStorage"]
+    Reset --> Done
+    
+    U --> M{"ReminderState<br/>max reached?"}
+    M -->|Yes| Done
+```
+
+</details>
 
 ### Cloud Sync (Optional)
 
