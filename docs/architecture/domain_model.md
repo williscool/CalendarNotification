@@ -206,3 +206,16 @@ erDiagram
 | `ReminderState` | Reminder firing state (fire count, pattern index) |
 | `CalendarMonitorState` | Scan state (next fire time, first scan flag) |
 | `BTCarModeStorage` | Bluetooth car mode trigger devices |
+
+## Key Behaviors
+
+### Missed Event Reminders
+
+Periodic re-notifications for unhandled alerts. `ReminderState` tracks:
+- When last reminder fired
+- How many reminders have fired
+- Pattern index for configurable intervals
+
+### Cloud Sync (Optional)
+
+Unidirectional backup to cloud via PowerSync/Supabase. Room databases use cr-sqlite extension enabling sync capability. See [Data Sync Guide](../DATA_SYNC_README.md).
