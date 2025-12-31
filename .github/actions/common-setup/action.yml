@@ -198,6 +198,21 @@ runs:
         java-version: '21'
         distribution: 'temurin'
 
+    # Cache Gradle downloaded dependencies (separate from build cache for stability)
+    # This uses a stable key so dependencies persist across gradle file changes
+    # Prevents intermittent 403s from Maven Central rate limiting in CI
+    - name: Restore Gradle Dependencies Cache
+      uses: actions/cache/restore@v4
+      id: gradle-deps-cache-restore
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/caches/jars-*
+        key: ${{ runner.os }}-gradle-deps-v1-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-deps-v1-
+          ${{ runner.os }}-gradle-deps-
+
     # Cache Gradle files
     # Note: Cache key includes gradle-wrapper.properties hash to invalidate on Gradle version changes
     - name: Restore Cache Gradle files

@@ -52,6 +52,17 @@ runs:
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
 
+    # Gradle dependencies cache - Save only (more stable than build cache)
+    # Prevents intermittent 403s from Maven Central rate limiting in CI
+    - name: Save Gradle Dependencies Cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/caches/jars-*
+        key: ${{ runner.os }}-gradle-deps-v1-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
+
     # Gradle cache - Save only with architecture in key
     - name: Save Gradle Cache
       if: always()
