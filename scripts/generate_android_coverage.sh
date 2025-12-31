@@ -231,7 +231,14 @@ echo "Coverage data preparation completed"
 # Now handle the XML test results for dorny/test-reporter
 echo "Processing XML test results for test reporting..."
 
-# Define paths for test results
+# Define paths for test results (shard-specific if sharding enabled)
+if [ -n "$SHARD_INDEX" ]; then
+  # Internal storage path where XmlRunListener writes (configured via -e reportFile)
+  DEVICE_XML_PATH="/data/data/${APP_PACKAGE}/files/test-results_shard_${SHARD_INDEX}.xml"
+else
+  DEVICE_XML_PATH="/data/data/${APP_PACKAGE}/files/test-results.xml"
+fi
+# Fallback paths for legacy/external storage locations
 DEVICE_TEST_RESULT_PATH="/storage/emulated/0/Android/data/com.github.quarck.calnotify/files/report-0.xml"
 APP_CACHE_XML_PATH="/data/data/${APP_PACKAGE}/cache/test-results.xml"
 LOCAL_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/androidTest-results/connected/TEST-${APP_PACKAGE}.xml"
@@ -241,16 +248,37 @@ DORNY_TEST_RESULT_PATH="./$MAIN_PROJECT_MODULE/build/outputs/connected/TEST-${AP
 mkdir -p "$(dirname "$LOCAL_TEST_RESULT_PATH")"
 mkdir -p "$(dirname "$DORNY_TEST_RESULT_PATH")"
 
-# First try direct pull (if we have permission)
-echo "Attempting to pull XML test results directly..."
-if adb pull "$DEVICE_TEST_RESULT_PATH" "$LOCAL_TEST_RESULT_PATH" 2>/dev/null; then
-  echo "✅ Successfully pulled test results directly!"
-  XML_RETRIEVED=true
-else
-  echo "⚠️ Direct pull failed. Trying alternative methods..."
-  XML_RETRIEVED=false
-  
-  # Check if the file exists in the app's cache directory (XmlRunListener fallback location)
+XML_RETRIEVED=false
+
+# First try internal storage (where XmlRunListener is configured to write)
+echo "Attempting to pull XML test results from internal storage..."
+if adb shell "run-as $APP_PACKAGE ls -la $DEVICE_XML_PATH" 2>/dev/null | grep -q "test-results"; then
+  echo "Found XML file at $DEVICE_XML_PATH"
+  # Extract using base64 (run-as required for internal storage)
+  TEMP_DIR=$(mktemp -d)
+  if adb shell "run-as $APP_PACKAGE cat $DEVICE_XML_PATH | base64" > "$TEMP_DIR/test-results.b64" 2>/dev/null; then
+    base64 --decode < "$TEMP_DIR/test-results.b64" > "$LOCAL_TEST_RESULT_PATH" && {
+      echo "✅ Successfully extracted XML from internal storage!"
+      XML_RETRIEVED=true
+    }
+  fi
+  rm -rf "$TEMP_DIR"
+fi
+
+# Fallback: try external storage direct pull (legacy path)
+if [ "$XML_RETRIEVED" = false ]; then
+  echo "Trying external storage fallback..."
+  if adb pull "$DEVICE_TEST_RESULT_PATH" "$LOCAL_TEST_RESULT_PATH" 2>/dev/null; then
+    # Verify file is not empty
+    if [ -s "$LOCAL_TEST_RESULT_PATH" ]; then
+      echo "✅ Successfully pulled test results from external storage!"
+      XML_RETRIEVED=true
+    fi
+  fi
+fi
+
+# Fallback: check app's cache directory
+if [ "$XML_RETRIEVED" = false ]; then
   echo "Checking for XML in app's cache directory..."
   if adb shell "run-as $APP_PACKAGE ls -la $APP_CACHE_XML_PATH" 2>/dev/null | grep -q "test-results.xml"; then
     echo "Found XML file in app's cache directory!"

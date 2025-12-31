@@ -28,7 +28,14 @@ class SettingsActivityTest : BaseUltronTest() {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        fixture.setup()
+        // Optimized for fast UI tests:
+        // - grantPermissions: Avoid permission dialogs
+        // - suppressBatteryDialog: Suppress battery optimization dialog
+        // Note: No waitForAsyncTasks needed - SettingsActivity is a static screen
+        fixture.setup(
+            grantPermissions = true,
+            suppressBatteryDialog = true
+        )
     }
     
     @After

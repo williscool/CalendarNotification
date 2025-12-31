@@ -12,6 +12,7 @@ import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
@@ -52,6 +53,9 @@ class UITestFixture {
     // Track if calendar reload prevention is active
     private var calendarReloadPrevented = false
     
+    // Track if dialogs have been pre-suppressed (no need to dismiss them)
+    private var dialogsSuppressed = false
+    
     /**
      * Sets up the fixture. Call in @Before.
      * 
@@ -62,23 +66,40 @@ class UITestFixture {
      *                              to full MockCalendarProvider setup.
      * @param grantPermissions If true, grants runtime permissions (calendar, notifications) programmatically.
      *                         This speeds up tests by avoiding permission dialogs.
+     * @param suppressBatteryDialog If true, sets SharedPreference to suppress battery optimization dialog.
+     *                              Combined with grantPermissions, this eliminates all startup dialogs.
      */
     fun setup(
         waitForAsyncTasks: Boolean = false, 
         preventCalendarReload: Boolean = false,
-        grantPermissions: Boolean = false
+        grantPermissions: Boolean = false,
+        suppressBatteryDialog: Boolean = false
     ) {
-        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantPermissions=$grantPermissions)")
+        DevLog.info(LOG_TAG, "Setting up UITestFixture (waitForAsyncTasks=$waitForAsyncTasks, preventCalendarReload=$preventCalendarReload, grantPermissions=$grantPermissions, suppressBatteryDialog=$suppressBatteryDialog)")
         
         // Reset dialog flag so each test can handle dialogs if they appear
         startupDialogsDismissed = false
+        dialogsSuppressed = false
         
         clearAllEvents()
+        
+        // Suppress battery optimization dialog if requested
+        // This must be done BEFORE launching activity
+        if (suppressBatteryDialog) {
+            suppressBatteryOptimizationDialog()
+        }
         
         // Grant runtime permissions programmatically if requested
         // This speeds up tests by avoiding permission dialogs
         if (grantPermissions) {
             grantPermissions()
+        }
+        
+        // If both permissions granted and battery dialog suppressed, no dialogs will appear
+        if (grantPermissions && suppressBatteryDialog) {
+            dialogsSuppressed = true
+            startupDialogsDismissed = true  // Skip dialog dismissal entirely
+            DevLog.info(LOG_TAG, "All dialogs suppressed - skipping dialog dismissal")
         }
         
         // Prevent calendar reload if needed - this stops CalendarReloadManager from clearing test events
@@ -93,6 +114,22 @@ class UITestFixture {
             DevLog.info(LOG_TAG, "Registered AsyncTask IdlingResource")
         } else {
             DevLog.info(LOG_TAG, "Skipping AsyncTask IdlingResource for faster UI tests")
+        }
+    }
+    
+    /**
+     * Suppresses the battery optimization dialog by setting SharedPreference.
+     * Must be called before launching MainActivity.
+     */
+    private fun suppressBatteryOptimizationDialog() {
+        try {
+            val settings = Settings(context)
+            settings.doNotShowBatteryOptimisationWarning = true
+            DevLog.info(LOG_TAG, "Suppressed battery optimization dialog via SharedPreference")
+        } catch (e: RuntimeException) {
+            // SharedPreferences operations can fail in edge cases (storage full, etc.)
+            // Log and continue - dialog dismissal code will handle the dialog if it appears
+            DevLog.error(LOG_TAG, "Failed to suppress battery dialog: ${e.message}")
         }
     }
     
@@ -126,7 +163,7 @@ class UITestFixture {
             }
             
             DevLog.info(LOG_TAG, "Granted runtime permissions to $packageName")
-        } catch (e: Exception) {
+        } catch (e: SecurityException) {
             DevLog.error(LOG_TAG, "Failed to grant runtime permissions: ${e.message}")
             // Don't throw - some test environments might not support this
         }
@@ -267,7 +304,8 @@ class UITestFixture {
             if (totalDismissed > 0) {
                 DevLog.info(LOG_TAG, "Dismissed $totalDismissed dialog(s)")
             }
-        } catch (e: Exception) {
+        } catch (e: RuntimeException) {
+            // UiAutomator operations can throw various RuntimeExceptions
             DevLog.error(LOG_TAG, "Error dismissing dialogs: ${e.message}")
         } finally {
             // Always restore the original timeout, even if an exception occurred
@@ -283,13 +321,23 @@ class UITestFixture {
         clearAllEvents()
         
         calendarReloadPrevented = false
+        dialogsSuppressed = false
+        
+        // Reset battery optimization dialog setting
+        try {
+            val settings = Settings(context)
+            settings.doNotShowBatteryOptimisationWarning = false
+        } catch (e: RuntimeException) {
+            // SharedPreferences operations can fail - log and continue cleanup
+            DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
+        }
         
         // Unregister IdlingResource if it was registered
         try {
             IdlingRegistry.getInstance().unregister(asyncTaskIdlingResource)
             globalAsyncTaskCallback = null
-        } catch (e: Exception) {
-            // Ignore if not registered
+        } catch (e: IllegalArgumentException) {
+            // Expected if IdlingResource wasn't registered - safe to ignore
         }
         
         unmockkAll()
@@ -584,7 +632,7 @@ class UITestFixture {
         private const val LOG_TAG = "UITestFixture"
         
         // Dialog dismissal timing constants (kept short since permissions are usually granted upfront)
-        private const val FIRST_DIALOG_TIMEOUT_MS = 300L      // First dialog wait
+        private const val FIRST_DIALOG_TIMEOUT_MS = 200L      // First dialog wait
         private const val SUBSEQUENT_DIALOG_TIMEOUT_MS = 100L // Chained dialogs appear quickly
         private const val DIALOG_DISMISS_ANIMATION_MS = 100L
         private const val DIALOG_CHAIN_WAIT_MS = 50L          // Brief wait between chained dialogs

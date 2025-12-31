@@ -144,6 +144,7 @@ install_apks() {
 
 build_instrument_command() {
   local coverage_path="$1"
+  local xml_report_path="$2"
   
   local cmd="am instrument -w -r"
   cmd+=" -e debug false"
@@ -156,6 +157,8 @@ build_instrument_command() {
   cmd+=" -e jaco-agent.destfile \"$coverage_path\""
   cmd+=" -e jaco-agent.includes \"com.github.quarck.calnotify.*\""
   cmd+=" -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
+  # Write XML report to internal storage (external storage blocked by scoped storage on API 30+)
+  cmd+=" -e reportFile \"$xml_report_path\""
 
   # Smart sharding: UI tests get shards 0-(UI_SHARD_COUNT-1), non-UI get the rest
   # With 4 total shards and UI_SHARD_COUNT=2:
@@ -272,12 +275,15 @@ main() {
   # Install APKs
   install_apks "$app_apk" "$test_apk"
 
-  # Determine coverage file path (shard-specific if sharding enabled)
+  # Determine coverage and XML report paths (shard-specific if sharding enabled)
   local coverage_path
+  local xml_report_path
   if [ -n "$SHARD_INDEX" ]; then
     coverage_path="/data/data/$APP_PACKAGE/files/coverage_shard_${SHARD_INDEX}.ec"
+    xml_report_path="/data/data/$APP_PACKAGE/files/test-results_shard_${SHARD_INDEX}.xml"
   else
     coverage_path="/data/data/$APP_PACKAGE/files/coverage.ec"
+    xml_report_path="/data/data/$APP_PACKAGE/files/test-results.xml"
   fi
 
   # Create coverage directory on device
@@ -285,10 +291,11 @@ main() {
 
   # Build and run instrument command
   local instrument_cmd
-  instrument_cmd=$(build_instrument_command "$coverage_path")
+  instrument_cmd=$(build_instrument_command "$coverage_path" "$xml_report_path")
   
   echo "Running tests with timeout $TEST_TIMEOUT..."
   echo "Coverage file: $coverage_path"
+  echo "XML report file: $xml_report_path"
 
   local test_exit_code=0
   timeout "$TEST_TIMEOUT" adb shell "$instrument_cmd" || {

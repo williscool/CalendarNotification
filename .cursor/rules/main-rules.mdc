@@ -57,3 +57,7 @@ Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 ```
 
 (William inherited the application from Sergey Parshin in 2020)
+
+# Never Catch the broad Exception class
+
+no catching Exception e. it can lead to hiding important bugs to catch. always do something more specific

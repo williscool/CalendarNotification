@@ -19,8 +19,12 @@ import java.util.Map;
 import androidx.test.internal.runner.listener.InstrumentationRunListener;
 
 /**
- * An InstrumentationRunListener which writes the test results to JUnit style XML files to the
- * {@code /storage/emulated/0/Android/data/<package-name>/files/} directory on the device.
+ * An InstrumentationRunListener which writes the test results to JUnit style XML files.
+ * <p>
+ * By default, writes to internal storage {@code /data/data/<package-name>/files/} which works
+ * reliably on all Android versions including API 30+ with scoped storage.
+ * <p>
+ * Supports custom output path via {@code -e reportFile <path>} instrumentation argument.
  * <p>
  * This listener will not override existing XML reports and instead will generate unique file names
  * for the report file (report-0.xml, report-1.xml ...).
@@ -102,14 +106,29 @@ public class XmlRunListener extends InstrumentationRunListener {
      * Get a {@link File} for the test report.
      * <p>
      * Override this to change the default file location.
+     * <p>
+     * Supports the -e reportFile argument to specify a custom output path.
+     * If not specified, defaults to internal storage (getFilesDir) which works
+     * reliably on API 30+ where scoped storage blocks external storage access.
      *
      * @param instrumentation the {@link Instrumentation} for this test run
      * @return the file which should be used to store the XML report of the test run
      */
     protected File getOutputFile(Instrumentation instrumentation) {
-        // Seems like we need to put this into the target application's context as for the instrumentation app's
-        // context we can never be sure if we have the correct permissions - and getFilesDir() seems to return null
-        return new File(instrumentation.getTargetContext().getExternalFilesDir(null), getFileName(instrumentation));
+        // Check for custom reportFile argument
+        android.os.Bundle args = androidx.test.platform.app.InstrumentationRegistry.getArguments();
+        String reportFilePath = args.getString("reportFile");
+        
+        if (reportFilePath != null && !reportFilePath.isEmpty()) {
+            Log.d(TAG, "Using custom report file path: " + reportFilePath);
+            return new File(reportFilePath);
+        }
+        
+        // Default to internal storage (getFilesDir) - works reliably on API 30+
+        // External storage (getExternalFilesDir) is blocked by scoped storage on newer Android
+        File filesDir = instrumentation.getTargetContext().getFilesDir();
+        Log.d(TAG, "Using internal storage for report: " + filesDir);
+        return new File(filesDir, getFileName(instrumentation));
     }
 
     /**
@@ -126,7 +145,8 @@ public class XmlRunListener extends InstrumentationRunListener {
 
     private String findFile(String fileNamePrefix, int iterator, String fileNamePostfix, Instrumentation instr) {
         String fileName = fileNamePrefix + "-" + iterator + fileNamePostfix;
-        File file = new File(instr.getTargetContext().getExternalFilesDir(null), fileName);
+        // Use internal storage (getFilesDir) for consistency with getOutputFile
+        File file = new File(instr.getTargetContext().getFilesDir(), fileName);
 
         if (file.exists()) {
             return findFile(fileNamePrefix, iterator + 1, fileNamePostfix, instr);

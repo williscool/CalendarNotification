@@ -101,3 +101,35 @@ Error [ERR_UNSUPPORTED_ESM_URL_SCHEME]: Only URLs with a scheme in: file, data, 
 The `scripts/bundle_or_skip.js` wrapper automatically detects and copies the pre-built bundle, skipping Metro on Windows. This is configured via `cliFile` in `android/app/build.gradle`.
 
 See: https://github.com/nativewind/nativewind/issues/1667
+
+## Running Android Instrumentation Tests
+
+Android instrumentation tests (`connectedAndroidTest`) must be run from **Windows**, not WSL. The test runner communicates with the emulator over ports that don't work properly through WSL.
+
+### From WSL Terminal (via PowerShell)
+
+```bash
+# Wait for Unison sync after file changes (~15 seconds)
+sleep 15
+
+# Run all tests for a specific class
+powershell.exe -Command 'cd C:\dev\CN\android; $env:JAVA_HOME = "C:\Program Files\Android\Android_Studio\jbr"; .\gradlew.bat :app:connectedX8664DebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.github.quarck.calnotify.monitorstorage.MonitorStorageMigrationTest"'
+
+# Run all instrumentation tests
+powershell.exe -Command 'cd C:\dev\CN\android; $env:JAVA_HOME = "C:\Program Files\Android\Android_Studio\jbr"; .\gradlew.bat :app:connectedX8664DebugAndroidTest'
+```
+
+### Important Notes
+
+1. **Wait for sync**: Unison syncs every 10 seconds (no inotify on Windows mounts). Wait 15s after file changes before running tests.
+
+2. **JAVA_HOME**: Must be set in PowerShell. Android Studio's bundled JBR is at `C:\Program Files\Android\Android_Studio\jbr`
+
+3. **Test filtering**: Use `-Pandroid.testInstrumentationRunnerArguments.class=...`, NOT `--tests` (which doesn't work for `connectedAndroidTest`)
+
+4. **Signature conflicts**: If you get `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, uninstall the app first:
+   ```bash
+   adb uninstall com.github.quarck.calnotify
+   ```
+
+5. **Building APKs**: Can be done from either side, but running connected tests requires Windows.

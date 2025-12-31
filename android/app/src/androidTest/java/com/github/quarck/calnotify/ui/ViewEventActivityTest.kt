@@ -32,9 +32,14 @@ class ViewEventActivityTest : BaseUltronTest() {
     @Before
     fun setup() {
         fixture = UITestFixture.create()
-        // Grant permissions programmatically so ViewEventActivity doesn't finish() immediately
-        // This allows the test to work in isolation while other tests can still test permission dialogs
-        fixture.setup(grantPermissions = true)
+        // Optimized for fast UI tests:
+        // - grantPermissions: Avoid permission dialogs (also prevents activity from finishing)
+        // - suppressBatteryDialog: Suppress battery optimization dialog
+        // Note: No waitForAsyncTasks needed - event is already in storage from test setup
+        fixture.setup(
+            grantPermissions = true,
+            suppressBatteryDialog = true
+        )
     }
     
     @After

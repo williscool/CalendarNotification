@@ -344,18 +344,19 @@ dependencies {
     // Jacoco
     androidTestImplementation 'org.jacoco:org.jacoco.core:0.8.12'
     
-    // Room POC (test only - verifying cr-sqlite compatibility)
+    // Room database library
     // See docs/dev_todo/database_modernization_plan.md
     // Note: Room 2.7.0+ required for Kotlin 2.0.x metadata compatibility
     // https://developer.android.com/jetpack/androidx/releases/room
     def roomVersion = "2.8.4"
-    androidTestImplementation "androidx.room:room-runtime:$roomVersion"
-    androidTestImplementation "androidx.room:room-ktx:$roomVersion"
-    androidTestImplementation "androidx.room:room-testing:$roomVersion"
-    kspAndroidTest "androidx.room:room-compiler:$roomVersion"
+    implementation "androidx.room:room-runtime:$roomVersion"
+    implementation "androidx.room:room-ktx:$roomVersion"
+    ksp "androidx.room:room-compiler:$roomVersion"
     // Room 2.8+ uses the new androidx.sqlite library
-    androidTestImplementation "androidx.sqlite:sqlite:2.6.2"
-    androidTestImplementation "androidx.sqlite:sqlite-framework:2.6.2"
+    implementation "androidx.sqlite:sqlite:2.6.2"
+    implementation "androidx.sqlite:sqlite-framework:2.6.2"
+    // Room testing support
+    androidTestImplementation "androidx.room:room-testing:$roomVersion"
 }
 
 // https://reactnative.dev/docs/react-native-gradle-plugin
@@ -390,6 +391,15 @@ afterEvaluate {
     
     // Wire Java compile tasks too
     tasks.matching { it.name.matches('compile.*JavaWithJavac') }.configureEach { task ->
+      task.dependsOn(autolinkTask)
+      task.inputs.dir(autolinkingDir)
+        .withPropertyName('autolinkingSources')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional()
+    }
+    
+    // Wire KSP tasks (Room annotation processor)
+    tasks.matching { it.name.matches('ksp.*Kotlin') }.configureEach { task ->
       task.dependsOn(autolinkTask)
       task.inputs.dir(autolinkingDir)
         .withPropertyName('autolinkingSources')
