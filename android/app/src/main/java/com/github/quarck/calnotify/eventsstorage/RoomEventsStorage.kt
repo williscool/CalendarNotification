@@ -32,13 +32,17 @@ import java.io.Closeable
  * 
  * Replaces the legacy SQLiteOpenHelper-based EventsStorage.
  * Uses EventsDatabase with cr-sqlite support via CrSqliteRoomFactory.
+ * 
+ * All operations are synchronized on the class object to match legacy thread-safety
+ * guarantees, particularly for notification ID generation which requires atomic
+ * read-then-write.
  */
 class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
 
     private val database = EventsDatabase.getInstance(context)
     private val dao = database.eventAlertDao()
 
-    override fun addEvent(event: EventAlertRecord): Boolean {
+    override fun addEvent(event: EventAlertRecord): Boolean = synchronized(RoomEventsStorage::class.java) {
         // Assign notification ID if not set
         val eventWithId = if (event.notificationId == 0) {
             event.copy(notificationId = nextNotificationId())
@@ -50,25 +54,42 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         val existing = dao.getByKey(eventWithId.eventId, eventWithId.instanceStartTime)
         if (existing != null) {
             val merged = eventWithId.copy(notificationId = existing.notificationId ?: eventWithId.notificationId)
-            return dao.update(EventAlertEntity.fromRecord(merged)) == 1
+            dao.update(EventAlertEntity.fromRecord(merged)) == 1
+        } else {
+            dao.insert(EventAlertEntity.fromRecord(eventWithId)) != -1L
         }
-        
-        return dao.insert(EventAlertEntity.fromRecord(eventWithId)) != -1L
     }
 
-    override fun addEvents(events: List<EventAlertRecord>): Boolean {
+    override fun addEvents(events: List<EventAlertRecord>): Boolean = synchronized(RoomEventsStorage::class.java) {
         // Use manual transaction to match legacy rollback-on-failure semantics
         database.beginTransaction()
         try {
             for (event in events) {
-                if (!addEvent(event)) {
-                    return false  // Rollback - don't call setTransactionSuccessful
+                if (!addEventInternal(event)) {
+                    return@synchronized false  // Rollback - don't call setTransactionSuccessful
                 }
             }
             database.setTransactionSuccessful()
-            return true
+            true
         } finally {
             database.endTransaction()
+        }
+    }
+    
+    // Internal version without synchronization for use within already-synchronized methods
+    private fun addEventInternal(event: EventAlertRecord): Boolean {
+        val eventWithId = if (event.notificationId == 0) {
+            event.copy(notificationId = nextNotificationId())
+        } else {
+            event
+        }
+        
+        val existing = dao.getByKey(eventWithId.eventId, eventWithId.instanceStartTime)
+        return if (existing != null) {
+            val merged = eventWithId.copy(notificationId = existing.notificationId ?: eventWithId.notificationId)
+            dao.update(EventAlertEntity.fromRecord(merged)) == 1
+        } else {
+            dao.insert(EventAlertEntity.fromRecord(eventWithId)) != -1L
         }
     }
 
@@ -85,7 +106,7 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         color: Int?,
         isRepeating: Boolean?,
         isMuted: Boolean?
-    ): Pair<Boolean, EventAlertRecord> {
+    ): Pair<Boolean, EventAlertRecord> = synchronized(RoomEventsStorage::class.java) {
         var newFlags = event.flags
         if (isMuted != null) {
             newFlags = event.flags.setFlag(EventAlertFlags.IS_MUTED, isMuted)
@@ -105,8 +126,8 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
             flags = newFlags
         )
 
-        val success = updateEvent(newEvent)
-        return Pair(success, newEvent)
+        val success = updateEventInternal(newEvent)
+        Pair(success, newEvent)
     }
 
     override fun updateEvents(
@@ -121,7 +142,7 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         displayStatus: EventDisplayStatus?,
         color: Int?,
         isRepeating: Boolean?
-    ): Boolean {
+    ): Boolean = synchronized(RoomEventsStorage::class.java) {
         val newEvents = events.map { event ->
             event.copy(
                 alertTime = alertTime ?: event.alertTime,
@@ -136,10 +157,15 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
                 isRepeating = isRepeating ?: event.isRepeating
             )
         }
-        return updateEvents(newEvents)
+        updateEventsInternal(newEvents)
     }
 
-    override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
+    override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean = 
+        synchronized(RoomEventsStorage::class.java) {
+            updateEventAndInstanceTimesInternal(event, instanceStart, instanceEnd)
+        }
+    
+    private fun updateEventAndInstanceTimesInternal(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
         val updatedEvent = event.copy(instanceStartTime = instanceStart, instanceEndTime = instanceEnd)
         // Need to delete old key and insert new since PK changed - wrap in transaction for atomicity
         // Only succeed if original record existed (matches legacy UPDATE semantics)
@@ -154,27 +180,36 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         return success
     }
 
-    override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean {
-        // Use manual transaction to match legacy rollback-on-failure semantics
-        database.beginTransaction()
-        try {
-            for ((event, instanceStart, instanceEnd) in events) {
-                if (!updateEventAndInstanceTimes(event, instanceStart, instanceEnd)) {
-                    return false  // Rollback - don't call setTransactionSuccessful
+    override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean = 
+        synchronized(RoomEventsStorage::class.java) {
+            // Use manual transaction to match legacy rollback-on-failure semantics
+            database.beginTransaction()
+            try {
+                for ((event, instanceStart, instanceEnd) in events) {
+                    if (!updateEventAndInstanceTimesInternal(event, instanceStart, instanceEnd)) {
+                        return@synchronized false  // Rollback - don't call setTransactionSuccessful
+                    }
                 }
+                database.setTransactionSuccessful()
+                true
+            } finally {
+                database.endTransaction()
             }
-            database.setTransactionSuccessful()
-            return true
-        } finally {
-            database.endTransaction()
         }
-    }
 
-    override fun updateEvent(event: EventAlertRecord): Boolean {
+    override fun updateEvent(event: EventAlertRecord): Boolean = synchronized(RoomEventsStorage::class.java) {
+        updateEventInternal(event)
+    }
+    
+    private fun updateEventInternal(event: EventAlertRecord): Boolean {
         return dao.update(EventAlertEntity.fromRecord(event)) == 1
     }
 
-    override fun updateEvents(events: List<EventAlertRecord>): Boolean {
+    override fun updateEvents(events: List<EventAlertRecord>): Boolean = synchronized(RoomEventsStorage::class.java) {
+        updateEventsInternal(events)
+    }
+    
+    private fun updateEventsInternal(events: List<EventAlertRecord>): Boolean {
         // Use manual transaction to match legacy rollback-on-failure semantics
         database.beginTransaction()
         try {
@@ -190,41 +225,52 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
     }
 
-    override fun getEvent(eventId: Long, instanceStartTime: Long): EventAlertRecord? {
-        return dao.getByKey(eventId, instanceStartTime)?.toRecord()
-    }
+    override fun getEvent(eventId: Long, instanceStartTime: Long): EventAlertRecord? = 
+        synchronized(RoomEventsStorage::class.java) {
+            dao.getByKey(eventId, instanceStartTime)?.toRecord()
+        }
 
-    override fun getEventInstances(eventId: Long): List<EventAlertRecord> {
-        return dao.getByEventId(eventId).map { it.toRecord() }
-    }
+    override fun getEventInstances(eventId: Long): List<EventAlertRecord> = 
+        synchronized(RoomEventsStorage::class.java) {
+            dao.getByEventId(eventId).map { it.toRecord() }
+        }
 
-    override fun deleteEvent(eventId: Long, instanceStartTime: Long): Boolean {
+    override fun deleteEvent(eventId: Long, instanceStartTime: Long): Boolean = 
+        synchronized(RoomEventsStorage::class.java) {
+            deleteEventInternal(eventId, instanceStartTime)
+        }
+    
+    private fun deleteEventInternal(eventId: Long, instanceStartTime: Long): Boolean {
         return dao.deleteByKey(eventId, instanceStartTime) == 1
     }
 
-    override fun deleteEvent(ev: EventAlertRecord): Boolean {
-        return deleteEvent(ev.eventId, ev.instanceStartTime)
-    }
+    override fun deleteEvent(ev: EventAlertRecord): Boolean = 
+        synchronized(RoomEventsStorage::class.java) {
+            deleteEventInternal(ev.eventId, ev.instanceStartTime)
+        }
 
-    override fun deleteEvents(events: Collection<EventAlertRecord>): Int {
-        var count = 0
-        database.runInTransaction {
-            for (event in events) {
-                if (deleteEvent(event.eventId, event.instanceStartTime)) {
-                    count++
+    override fun deleteEvents(events: Collection<EventAlertRecord>): Int = 
+        synchronized(RoomEventsStorage::class.java) {
+            var count = 0
+            database.runInTransaction {
+                for (event in events) {
+                    if (deleteEventInternal(event.eventId, event.instanceStartTime)) {
+                        count++
+                    }
                 }
             }
+            count
         }
-        return count
-    }
 
-    override fun deleteAllEvents(): Boolean {
+    override fun deleteAllEvents(): Boolean = synchronized(RoomEventsStorage::class.java) {
         dao.deleteAllRows()
-        return true
+        true
     }
 
     override val events: List<EventAlertRecord>
-        get() = dao.getAll().map { it.toRecord() }
+        get() = synchronized(RoomEventsStorage::class.java) {
+            dao.getAll().map { it.toRecord() }
+        }
 
     override fun close() {
         // Room handles connection management via singleton pattern
