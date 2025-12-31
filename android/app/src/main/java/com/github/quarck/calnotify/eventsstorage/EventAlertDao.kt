@@ -46,10 +46,11 @@ interface EventAlertDao {
     @Query("SELECT MAX(${EventAlertEntity.COL_NOTIFICATION_ID}) FROM ${EventAlertEntity.TABLE_NAME}")
     fun getMaxNotificationId(): Int?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // ABORT matches legacy insertOrThrow behavior - duplicates are handled explicitly in RoomEventsStorage
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insert(entity: EventAlertEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertAll(entities: List<EventAlertEntity>): List<Long>
 
     @Update
