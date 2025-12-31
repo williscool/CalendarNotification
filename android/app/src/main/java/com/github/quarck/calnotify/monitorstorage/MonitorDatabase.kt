@@ -20,7 +20,6 @@
 package com.github.quarck.calnotify.monitorstorage
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -30,14 +29,22 @@ import com.github.quarck.calnotify.logs.DevLog
 import java.io.File
 
 /**
+ * Exception thrown when migration from legacy database fails.
+ * Signals that the caller should fall back to legacy storage.
+ */
+class MigrationException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/**
  * Room database for MonitorStorage.
  * 
- * Uses the existing "CalendarMonitor" database file to read existing data.
+ * Uses a NEW database file "RoomCalendarMonitor" (not the legacy "CalendarMonitor").
+ * On first use, copies data from legacy database if it exists.
  * Uses CrSqliteRoomFactory for cr-sqlite extension support.
  * 
- * MIGRATION NOTE: This Room database takes over from legacy SQLiteOpenHelper.
- * Before Room opens, we migrate the legacy schema to add NOT NULL constraints
- * on primary key columns (required by Room but missing in legacy schema).
+ * MIGRATION STRATEGY: Copy data from old DB to new Room DB.
+ * - Legacy DB "CalendarMonitor" is preserved (not modified)
+ * - If migration fails, throws MigrationException so caller can fall back to legacy
+ * - This allows retry on future app versions if bugs are found
  */
 @Database(
     entities = [MonitorAlertEntity::class],
@@ -50,17 +57,29 @@ abstract class MonitorDatabase : RoomDatabase() {
 
     companion object {
         private const val LOG_TAG = "MonitorDatabase"
-        private const val DATABASE_NAME = "CalendarMonitor"
+        
+        /** New Room database name - separate from legacy */
+        internal const val DATABASE_NAME = "RoomCalendarMonitor"
+        
+        /** Legacy SQLiteOpenHelper database name */
+        internal const val LEGACY_DATABASE_NAME = "CalendarMonitor"
 
         @Volatile
         private var INSTANCE: MonitorDatabase? = null
 
+        /**
+         * Get the Room database instance.
+         * 
+         * @throws MigrationException if migration from legacy DB fails
+         */
         fun getInstance(context: Context): MonitorDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    // Migrate legacy database BEFORE Room opens it
-                    migrateLegacyDatabaseIfNeeded(context)
-                    buildDatabase(context).also { INSTANCE = it }
+                    val db = buildDatabase(context)
+                    // Copy from legacy DB if needed (throws MigrationException on failure)
+                    copyFromLegacyIfNeeded(context, db)
+                    INSTANCE = db
+                    db
                 }
             }
         }
@@ -77,119 +96,88 @@ abstract class MonitorDatabase : RoomDatabase() {
                 .build()
         }
         
-        private fun migrateLegacyDatabaseIfNeeded(context: Context) {
-            migrateLegacyDatabaseIfNeeded(context.getDatabasePath(DATABASE_NAME))
-        }
-        
         /**
-         * Migrate legacy SQLiteOpenHelper database to Room-compatible schema.
+         * Copy data from legacy "CalendarMonitor" database to new Room database.
          * 
-         * This runs BEFORE Room opens the database because Room validates schema
-         * before running any migrations. For pre-Room databases (no room_master_table),
-         * the schema must match exactly or Room will reject it.
+         * This is a one-time migration that:
+         * 1. Checks if Room DB already has data (skip if so)
+         * 2. Reads all alerts from legacy DB using MonitorStorageImplV1
+         * 3. Inserts them into Room DB
+         * 4. Validates row counts match
          * 
-         * Changes made:
-         * - Adds NOT NULL constraints to primary key columns (Room requirement)
-         * - Preserves the existing index
-         * - All data is preserved
-         * 
-         * @param dbFile The database file to migrate. Exposed as internal for testing.
+         * @throws MigrationException if row count mismatch (data loss detected)
          */
-        internal fun migrateLegacyDatabaseIfNeeded(dbFile: File) {
-            if (!dbFile.exists()) {
-                DevLog.info(LOG_TAG, "No existing database - fresh install")
+        private fun copyFromLegacyIfNeeded(context: Context, roomDb: MonitorDatabase) {
+            val legacyDbFile = context.getDatabasePath(LEGACY_DATABASE_NAME)
+            
+            // No legacy DB = fresh install, nothing to migrate
+            if (!legacyDbFile.exists()) {
+                DevLog.info(LOG_TAG, "No legacy database found - fresh install")
                 return
             }
             
-            val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+            // Check if Room DB already has data (migration already done)
+            val dao = roomDb.monitorAlertDao()
+            val existingCount = dao.getAll().size
+            if (existingCount > 0) {
+                DevLog.info(LOG_TAG, "Room database already has $existingCount rows - skipping migration")
+                return
+            }
+            
+            DevLog.info(LOG_TAG, "Starting migration from legacy database: ${legacyDbFile.absolutePath}")
+            
             try {
-                if (!isLegacyDatabase(db)) return
-                performLegacyMigration(db)
+                // Read from legacy DB using the legacy implementation
+                val legacyAlerts = readFromLegacyDatabase(context, legacyDbFile)
+                
+                if (legacyAlerts.isEmpty()) {
+                    DevLog.info(LOG_TAG, "Legacy database is empty - nothing to migrate")
+                    return
+                }
+                
+                DevLog.info(LOG_TAG, "Read ${legacyAlerts.size} alerts from legacy database")
+                
+                // Insert into Room DB
+                val entities = legacyAlerts.map { MonitorAlertEntity.fromAlertEntry(it) }
+                dao.insertAll(entities)
+                
+                // Validate row count
+                val newCount = dao.getAll().size
+                DevLog.info(LOG_TAG, "Inserted $newCount rows into Room database")
+                
+                if (newCount != legacyAlerts.size) {
+                    val msg = "Migration row count mismatch! Legacy=${legacyAlerts.size}, Room=$newCount"
+                    DevLog.error(LOG_TAG, msg)
+                    throw MigrationException(msg)
+                }
+                
+                DevLog.info(LOG_TAG, "✅ Migration complete: ${legacyAlerts.size} alerts copied successfully")
+                
+            } catch (e: MigrationException) {
+                throw e // Re-throw migration exceptions
+            } catch (e: Exception) {
+                val msg = "Migration failed with exception: ${e.message}"
+                DevLog.error(LOG_TAG, msg)
+                throw MigrationException(msg, e)
+            }
+        }
+        
+        /**
+         * Read all alerts from the legacy database.
+         * Uses requery SQLiteDatabase directly to avoid opening the legacy SQLiteOpenHelper.
+         */
+        private fun readFromLegacyDatabase(context: Context, dbFile: File): List<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry> {
+            val db = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
+                dbFile.absolutePath,
+                null,
+                io.requery.android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            )
+            
+            return try {
+                val impl = MonitorStorageImplV1(context)
+                impl.getAlerts(db)
             } finally {
                 db.close()
-            }
-        }
-        
-        private fun isLegacyDatabase(db: SQLiteDatabase): Boolean {
-            val tableName = MonitorAlertEntity.TABLE_NAME
-            
-            val hasTable = db.rawQuery(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='$tableName'", null
-            ).use { it.moveToFirst() }
-            
-            val hasRoomTable = db.rawQuery(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='room_master_table'", null
-            ).use { it.moveToFirst() }
-            
-            return when {
-                !hasTable -> { DevLog.info(LOG_TAG, "No legacy table - nothing to migrate"); false }
-                hasRoomTable -> { DevLog.info(LOG_TAG, "Already Room-managed"); false }
-                else -> { DevLog.info(LOG_TAG, "Legacy database detected"); true }
-            }
-        }
-        
-        private fun performLegacyMigration(db: SQLiteDatabase) {
-            val t = MonitorAlertEntity.TABLE_NAME
-            val idx = MonitorAlertEntity.INDEX_NAME
-            // Column names
-            val calendarId = MonitorAlertEntity.COL_CALENDAR_ID
-            val eventId = MonitorAlertEntity.COL_EVENT_ID
-            val alertTime = MonitorAlertEntity.COL_ALERT_TIME
-            val instanceStart = MonitorAlertEntity.COL_INSTANCE_START
-            val instanceEnd = MonitorAlertEntity.COL_INSTANCE_END
-            val allDay = MonitorAlertEntity.COL_ALL_DAY
-            val alertCreatedByUs = MonitorAlertEntity.COL_ALERT_CREATED_BY_US
-            val wasHandled = MonitorAlertEntity.COL_WAS_HANDLED
-            val i1 = MonitorAlertEntity.COL_RESERVED_INT1
-            val i2 = MonitorAlertEntity.COL_RESERVED_INT2
-            
-            val rowCountBefore = db.rawQuery("SELECT COUNT(*) FROM $t", null)
-                .use { if (it.moveToFirst()) it.getLong(0) else 0 }
-            DevLog.info(LOG_TAG, "Migrating $rowCountBefore rows to Room-compatible schema")
-            
-            db.beginTransaction()
-            try {
-                // Recreate table with NOT NULL on primary key columns
-                db.execSQL("""
-                    CREATE TABLE ${t}_new (
-                        $calendarId INTEGER,
-                        $eventId INTEGER NOT NULL,
-                        $alertTime INTEGER NOT NULL,
-                        $instanceStart INTEGER NOT NULL,
-                        $instanceEnd INTEGER,
-                        $allDay INTEGER,
-                        $alertCreatedByUs INTEGER,
-                        $wasHandled INTEGER,
-                        $i1 INTEGER,
-                        $i2 INTEGER,
-                        PRIMARY KEY ($eventId, $alertTime, $instanceStart)
-                    )
-                """)
-                
-                // Copy data (COALESCE ensures no nulls in PK columns)
-                db.execSQL("""
-                    INSERT INTO ${t}_new 
-                    SELECT $calendarId, COALESCE($eventId, 0), COALESCE($alertTime, 0), 
-                           COALESCE($instanceStart, 0), $instanceEnd, $allDay, 
-                           $alertCreatedByUs, $wasHandled, $i1, $i2
-                    FROM $t
-                """)
-                
-                db.execSQL("DROP TABLE $t")
-                db.execSQL("ALTER TABLE ${t}_new RENAME TO $t")
-                db.execSQL("CREATE UNIQUE INDEX $idx ON $t ($eventId, $alertTime, $instanceStart)")
-                
-                db.setTransactionSuccessful()
-            } finally {
-                db.endTransaction()
-            }
-            
-            val rowCountAfter = db.rawQuery("SELECT COUNT(*) FROM $t", null)
-                .use { if (it.moveToFirst()) it.getLong(0) else 0 }
-            DevLog.info(LOG_TAG, "Migration complete: $rowCountAfter rows")
-            
-            if (rowCountAfter != rowCountBefore) {
-                DevLog.error(LOG_TAG, "Row count mismatch! Before=$rowCountBefore, After=$rowCountAfter")
             }
         }
         
@@ -207,4 +195,3 @@ abstract class MonitorDatabase : RoomDatabase() {
         }
     }
 }
-

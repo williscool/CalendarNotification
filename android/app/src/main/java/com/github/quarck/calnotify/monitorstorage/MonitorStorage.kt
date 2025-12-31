@@ -21,27 +21,72 @@
 package com.github.quarck.calnotify.monitorstorage
 
 import android.content.Context
+import com.github.quarck.calnotify.logs.DevLog
 import java.io.Closeable
 
 /**
  * MonitorStorage - tracks calendar alerts being monitored.
  * 
- * Now backed by Room database with cr-sqlite support.
- * Maintains API compatibility with existing callers via delegation.
+ * Attempts to use Room database with cr-sqlite support.
+ * Falls back to legacy SQLiteOpenHelper if Room migration fails.
  * 
- * Note: This class previously extended SQLiteOpenHelper with:
- * - DATABASE_NAME = "CalendarMonitor" → now in MonitorDatabase.DATABASE_NAME
- * - DATABASE_VERSION = 1 → now in @Database(version = 1) on MonitorDatabase
- * Room handles version tracking automatically via room_master_table.
+ * This fallback strategy ensures:
+ * - No data loss if migration has bugs
+ * - Future app versions can retry migration
+ * - Legacy database is preserved untouched
  */
-class MonitorStorage private constructor(
-    private val delegate: RoomMonitorStorage
-) : MonitorStorageInterface by delegate, Closeable by delegate {
+class MonitorStorage(context: Context) : MonitorStorageInterface, Closeable {
     
-    constructor(context: Context) : this(RoomMonitorStorage(context))
+    private val delegate: MonitorStorageInterface
+    private val isUsingRoom: Boolean
+    
+    init {
+        val (storage, usingRoom) = createStorage(context)
+        delegate = storage
+        isUsingRoom = usingRoom
+    }
+
+    // Delegate all interface methods
+    override fun addAlert(entry: com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) = delegate.addAlert(entry)
+    override fun addAlerts(entries: Collection<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>) = delegate.addAlerts(entries)
+    override fun deleteAlert(entry: com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) = delegate.deleteAlert(entry)
+    override fun deleteAlerts(entries: Collection<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>) = delegate.deleteAlerts(entries)
+    override fun deleteAlert(eventId: Long, alertTime: Long, instanceStart: Long) = delegate.deleteAlert(eventId, alertTime, instanceStart)
+    override fun deleteAlertsMatching(filter: (com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) -> Boolean) = delegate.deleteAlertsMatching(filter)
+    override fun updateAlert(entry: com.github.quarck.calnotify.calendar.MonitorEventAlertEntry) = delegate.updateAlert(entry)
+    override fun updateAlerts(entries: Collection<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>) = delegate.updateAlerts(entries)
+    override fun getAlert(eventId: Long, alertTime: Long, instanceStart: Long) = delegate.getAlert(eventId, alertTime, instanceStart)
+    override fun getInstanceAlerts(eventId: Long, instanceStart: Long) = delegate.getInstanceAlerts(eventId, instanceStart)
+    override fun getNextAlert(since: Long) = delegate.getNextAlert(since)
+    override fun getAlertsAt(time: Long) = delegate.getAlertsAt(time)
+    override val alerts get() = delegate.alerts
+    override fun getAlertsForInstanceStartRange(scanFrom: Long, scanTo: Long) = delegate.getAlertsForInstanceStartRange(scanFrom, scanTo)
+    override fun getAlertsForAlertRange(scanFrom: Long, scanTo: Long) = delegate.getAlertsForAlertRange(scanFrom, scanTo)
+    
+    override fun close() {
+        if (delegate is Closeable) {
+            delegate.close()
+        }
+    }
 
     companion object {
-        @Suppress("unused")
         private const val LOG_TAG = "MonitorStorage"
+        
+        /**
+         * Creates the appropriate storage implementation.
+         * 
+         * @return Pair of (storage implementation, isUsingRoom)
+         */
+        private fun createStorage(context: Context): Pair<MonitorStorageInterface, Boolean> {
+            return try {
+                DevLog.info(LOG_TAG, "Attempting to use Room storage...")
+                val roomStorage = RoomMonitorStorage(context)
+                DevLog.info(LOG_TAG, "✅ Using Room storage")
+                Pair(roomStorage, true)
+            } catch (e: MigrationException) {
+                DevLog.error(LOG_TAG, "⚠️ Room migration failed, falling back to legacy storage: ${e.message}")
+                Pair(LegacyMonitorStorage(context), false)
+            }
+        }
     }
 }
