@@ -49,6 +49,15 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     private val database = EventsDatabase.getInstance(context)
     private val dao = database.eventAlertDao()
 
+    /**
+     * Adds or updates an event alert record.
+     * 
+     * If [event.notificationId] is 0, assigns a new unique notification ID.
+     * If the event already exists (same eventId + instanceStartTime), updates it
+     * while preserving the original notification ID.
+     * 
+     * @return true if insert/update succeeded, false otherwise
+     */
     override fun addEvent(event: EventAlertRecord): Boolean = synchronized(RoomEventsStorage::class.java) {
         // Assign notification ID if not set
         val eventWithId = if (event.notificationId == 0) {
@@ -67,13 +76,20 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
     }
 
+    /**
+     * Adds multiple events in a single transaction.
+     * 
+     * Rolls back entire transaction if any event fails to add.
+     * 
+     * @return true if all events added successfully, false if any failed (all rolled back)
+     */
     override fun addEvents(events: List<EventAlertRecord>): Boolean = synchronized(RoomEventsStorage::class.java) {
         // Use manual transaction to match legacy rollback-on-failure semantics
         database.beginTransaction()
         try {
             for (event in events) {
                 if (!addEventInternal(event)) {
-                    return@synchronized false  // Rollback - don't call setTransactionSuccessful
+                    return@synchronized false
                 }
             }
             database.setTransactionSuccessful()
@@ -83,7 +99,7 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
     }
     
-    // Internal version without synchronization for use within already-synchronized methods
+    /** Internal add without synchronization - for use within transactions. */
     private fun addEventInternal(event: EventAlertRecord): Boolean {
         val eventWithId = if (event.notificationId == 0) {
             event.copy(notificationId = nextNotificationId())
@@ -100,6 +116,14 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
     }
 
+    /**
+     * Updates specific fields of an event, leaving others unchanged.
+     * 
+     * Non-null parameters override the corresponding field in the event.
+     * Useful for partial updates like snoozing or changing display status.
+     * 
+     * @return Pair of (success, updated event record)
+     */
     override fun updateEvent(
         event: EventAlertRecord,
         alertTime: Long?,
@@ -137,6 +161,13 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         Pair(success, newEvent)
     }
 
+    /**
+     * Updates specific fields of multiple events in a transaction.
+     * 
+     * Rolls back entire transaction if any update fails.
+     * 
+     * @return true if all updates succeeded, false if any failed (all rolled back)
+     */
     override fun updateEvents(
         events: List<EventAlertRecord>,
         alertTime: Long?,
@@ -167,6 +198,15 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         updateEventsInternal(newEvents)
     }
 
+    /**
+     * Updates an event's instance times (changes the primary key).
+     * 
+     * Used when a recurring event instance is rescheduled. Since the primary key
+     * (eventId, instanceStartTime) changes, this performs delete + insert atomically.
+     * 
+     * @throws SQLiteConstraintException if new instance time conflicts with existing record
+     * @return true if update succeeded, false if original record didn't exist
+     */
     override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean = 
         synchronized(RoomEventsStorage::class.java) {
             // Wrap in transaction for atomicity (delete + insert must be atomic)
@@ -178,7 +218,7 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
             success
         }
     
-    // Raw version without transaction wrapper - for use inside existing transactions
+    /** Raw version without transaction wrapper - for use inside existing transactions. */
     private fun updateEventAndInstanceTimesRaw(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
         val updatedEvent = event.copy(instanceStartTime = instanceStart, instanceEndTime = instanceEnd)
         // Need to delete old key and insert new since PK changed
@@ -191,6 +231,14 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
     }
 
+    /**
+     * Updates multiple events' instance times in a single transaction.
+     * 
+     * Unlike the single-event version, catches SQLiteConstraintException and returns false
+     * (matches legacy defensive batch behavior).
+     * 
+     * @return true if all updates succeeded, false if any failed (all rolled back)
+     */
     override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean = 
         synchronized(RoomEventsStorage::class.java) {
             // Use manual transaction to match legacy rollback-on-failure semantics
@@ -212,6 +260,11 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
             }
         }
 
+    /**
+     * Updates an event record in place (same primary key).
+     * 
+     * @return true if exactly one row was updated, false otherwise
+     */
     override fun updateEvent(event: EventAlertRecord): Boolean = synchronized(RoomEventsStorage::class.java) {
         updateEventInternal(event)
     }
@@ -220,6 +273,13 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         return dao.update(EventAlertEntity.fromRecord(event)) == 1
     }
 
+    /**
+     * Updates multiple event records in a single transaction.
+     * 
+     * Rolls back entire transaction if any update fails.
+     * 
+     * @return true if all updates succeeded, false if any failed (all rolled back)
+     */
     override fun updateEvents(events: List<EventAlertRecord>): Boolean = synchronized(RoomEventsStorage::class.java) {
         updateEventsInternal(events)
     }
@@ -240,16 +300,31 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
     }
 
+    /**
+     * Retrieves a single event by its primary key.
+     * 
+     * @return the event record, or null if not found
+     */
     override fun getEvent(eventId: Long, instanceStartTime: Long): EventAlertRecord? = 
         synchronized(RoomEventsStorage::class.java) {
             dao.getByKey(eventId, instanceStartTime)?.toRecord()
         }
 
+    /**
+     * Retrieves all instances of a recurring event.
+     * 
+     * @return list of all event records with the given eventId (may be empty)
+     */
     override fun getEventInstances(eventId: Long): List<EventAlertRecord> = 
         synchronized(RoomEventsStorage::class.java) {
             dao.getByEventId(eventId).map { it.toRecord() }
         }
 
+    /**
+     * Deletes an event by its primary key.
+     * 
+     * @return true if exactly one row was deleted, false otherwise
+     */
     override fun deleteEvent(eventId: Long, instanceStartTime: Long): Boolean = 
         synchronized(RoomEventsStorage::class.java) {
             deleteEventInternal(eventId, instanceStartTime)
@@ -259,11 +334,23 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         return dao.deleteByKey(eventId, instanceStartTime) == 1
     }
 
+    /**
+     * Deletes an event by its record.
+     * 
+     * @return true if exactly one row was deleted, false otherwise
+     */
     override fun deleteEvent(ev: EventAlertRecord): Boolean = 
         synchronized(RoomEventsStorage::class.java) {
             deleteEventInternal(ev.eventId, ev.instanceStartTime)
         }
 
+    /**
+     * Deletes multiple events in a single transaction.
+     * 
+     * Continues processing even if individual deletes fail.
+     * 
+     * @return count of successfully deleted events
+     */
     override fun deleteEvents(events: Collection<EventAlertRecord>): Int = 
         synchronized(RoomEventsStorage::class.java) {
             var count = 0
@@ -277,21 +364,34 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
             count
         }
 
+    /**
+     * Deletes all events from storage.
+     * 
+     * @return true (always succeeds; throws on database error)
+     */
     override fun deleteAllEvents(): Boolean = synchronized(RoomEventsStorage::class.java) {
         dao.deleteAllRows()
         true
     }
 
+    /**
+     * Retrieves all stored event alert records.
+     */
     override val events: List<EventAlertRecord>
         get() = synchronized(RoomEventsStorage::class.java) {
             dao.getAll().map { it.toRecord() }
         }
 
+    /** Room manages connections via singleton; individual close is a no-op. */
     override fun close() {
-        // Room handles connection management via singleton pattern
-        // Individual close is not needed - database will be closed when app terminates
     }
 
+    /**
+     * Generates the next unique notification ID.
+     * 
+     * Returns max(existing IDs) + 1, or NOTIFICATION_ID_DYNAMIC_FROM if table is empty
+     * or all IDs are below the dynamic range.
+     */
     private fun nextNotificationId(): Int {
         val maxId = dao.getMaxNotificationId() ?: 0
         return if (maxId < Consts.NOTIFICATION_ID_DYNAMIC_FROM) {
