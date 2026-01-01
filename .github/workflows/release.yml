@@ -21,6 +21,11 @@ jobs:
           ssh-key: ${{ secrets.VERSION_BUMP_DEPLOY_PRIVATE_KEY }}
           fetch-depth: 0
 
+      - name: Ensure dev page is not exposed
+        run: |
+          chmod +x ./scripts/check_dev_page_hidden.sh
+          ./scripts/check_dev_page_hidden.sh
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

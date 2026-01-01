@@ -493,10 +493,9 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                                 R.string.start_quiet_hours)
         }
 
-        if (settings.devModeEnabled) {
-            menu.findItem(R.id.action_test_page)?.isVisible = true
-//            menu.findItem(R.id.action_add_event)?.isVisible = true
-        }
+        // DEV_PAGE_ENABLED is set via local.properties (gitignored, can't leak to releases)
+        // devModeEnabled is the easter egg fallback (tap 13x in Report a Bug)
+        menu.findItem(R.id.action_test_page)?.isVisible = BuildConfig.DEV_PAGE_ENABLED || settings.devModeEnabled
 
         return true
     }

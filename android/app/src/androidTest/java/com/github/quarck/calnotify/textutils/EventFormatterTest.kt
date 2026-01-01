@@ -1,16 +1,25 @@
 package com.github.quarck.calnotify.textutils
 
 import android.content.Context
+import android.preference.PreferenceManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.AttendanceStatus
+import com.github.quarck.calnotify.calendar.CalendarEventDetails
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.calendar.EventRecord
+import com.github.quarck.calnotify.calendar.EventReminderRecord
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusTestClock
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -37,6 +46,23 @@ class EventFormatterTest {
         testClock = CNPlusTestClock(baseTime)
         formatter = EventFormatter(context, testClock)
         DevLog.info(LOG_TAG, "Setup complete with baseTime=$baseTime")
+    }
+
+    @After
+    fun cleanup() {
+        DevLog.info(LOG_TAG, "Cleaning up after test")
+        // Reset the next alert settings to defaults
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .remove("pref_display_next_gcal_reminder")
+            .remove("pref_display_next_app_alert")
+            .commit()
+        // Unmock CalendarProvider if it was mocked
+        try {
+            unmockkObject(CalendarProvider)
+        } catch (e: Exception) {
+            // Ignore if not mocked
+        }
     }
 
     private fun createTestEvent(
@@ -264,6 +290,129 @@ class EventFormatterTest {
         val result2 = encodedMinuteTimestamp(clock = testClock)
 
         assertNotEquals("Different times should produce different timestamps", result1, result2)
+    }
+
+    // === Next Alert Indicator feature tests ===
+
+    private fun setNextGCalReminderSetting(enabled: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .putBoolean("pref_display_next_gcal_reminder", enabled)
+            .commit()
+    }
+
+    private fun setNextAppAlertSetting(enabled: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .putBoolean("pref_display_next_app_alert", enabled)
+            .commit()
+    }
+
+    private fun createMockEventRecord(
+        eventId: Long,
+        startTime: Long,
+        reminders: List<EventReminderRecord>
+    ): EventRecord {
+        return EventRecord(
+            calendarId = 1L,
+            eventId = eventId,
+            details = CalendarEventDetails(
+                title = "Test Event",
+                desc = "Test Description",
+                location = "",
+                timezone = "UTC",
+                startTime = startTime,
+                endTime = startTime + Consts.HOUR_IN_MILLISECONDS,
+                isAllDay = false,
+                reminders = reminders,
+                repeatingRule = "",
+                repeatingRDate = "",
+                repeatingExRule = "",
+                repeatingExRDate = "",
+                color = 0
+            ),
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None
+        )
+    }
+
+    @Test
+    fun testFormatNotificationSecondaryTextNextAlertTimeDisabled() {
+        DevLog.info(LOG_TAG, "Running testFormatNotificationSecondaryTextNextAlertTimeDisabled")
+        
+        // Ensure the setting is disabled (default)
+        setNextGCalReminderSetting(false)
+        
+        // Create a new formatter to pick up the setting
+        val testFormatter = EventFormatter(context, testClock)
+        
+        // Event starts 2 hours from now with a reminder 30 minutes before
+        val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        val event = createTestEvent(
+            eventId = 100L,
+            startTime = eventStartTime,
+            endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS
+        )
+        
+        val result = testFormatter.formatNotificationSecondaryText(event)
+        
+        DevLog.info(LOG_TAG, "Result with setting disabled: $result")
+        
+        // Should NOT contain "reminder in" when setting is disabled
+        assertFalse(
+            "Should NOT contain 'reminder in' when setting is disabled",
+            result.contains("reminder in", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun testFormatNotificationSecondaryTextNextGCalEnabled() {
+        DevLog.info(LOG_TAG, "Running testFormatNotificationSecondaryTextNextGCalEnabled")
+        
+        // Enable GCal setting, disable app alert
+        setNextGCalReminderSetting(true)
+        setNextAppAlertSetting(false)
+        
+        // Event starts 2 hours from now
+        val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        val eventId = 101L
+        
+        // Create reminders: one that fires in the future (60min before = baseTime + 1h)
+        val reminders = listOf(
+            EventReminderRecord.minutes(60),  // fires at baseTime + 1h (future from baseTime)
+            EventReminderRecord.minutes(30)   // fires at baseTime + 1.5h (future from baseTime)
+        )
+        
+        // Mock CalendarProvider to return our event with reminders
+        mockkObject(CalendarProvider)
+        every { CalendarProvider.getEvent(any(), eq(eventId)) } returns createMockEventRecord(
+            eventId = eventId,
+            startTime = eventStartTime,
+            reminders = reminders
+        )
+        
+        // Create the test event (EventAlertRecord)
+        val event = createTestEvent(
+            eventId = eventId,
+            startTime = eventStartTime,
+            endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS
+        )
+        
+        // Create a new formatter to pick up the setting
+        val testFormatter = EventFormatter(context, testClock)
+        
+        val result = testFormatter.formatNotificationSecondaryText(event)
+        
+        DevLog.info(LOG_TAG, "Result with setting enabled: $result")
+        DevLog.info(LOG_TAG, "Event start time: $eventStartTime, Base time: $baseTime")
+        DevLog.info(LOG_TAG, "Reminder 1 fires at: ${eventStartTime - 60 * Consts.MINUTE_IN_MILLISECONDS}")
+        DevLog.info(LOG_TAG, "Reminder 2 fires at: ${eventStartTime - 30 * Consts.MINUTE_IN_MILLISECONDS}")
+        
+        // Should contain 📅 when GCal setting is enabled and there are future reminders
+        assertTrue(
+            "Should contain 📅 when setting is enabled and future GCal reminders exist. Result: $result",
+            result.contains("📅")
+        )
     }
 }
 

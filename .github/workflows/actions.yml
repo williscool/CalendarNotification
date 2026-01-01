@@ -54,9 +54,25 @@ jobs:
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
 
+  safety_checks:
+    name: Safety Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            android/app/src/main/res/menu/main.xml
+            scripts/check_dev_page_hidden.sh
+
+      - name: Ensure dev page is not exposed
+        run: |
+          chmod +x ./scripts/check_dev_page_hidden.sh
+          ./scripts/check_dev_page_hidden.sh
+
   build:
     name: Build Android App
-    needs: set_build_datetime
+    needs: [set_build_datetime, safety_checks]
     runs-on: ubuntu-latest
     strategy:
       matrix:

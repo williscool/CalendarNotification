@@ -22,14 +22,37 @@ package com.github.quarck.calnotify.textutils
 import android.content.Context
 import android.text.format.DateUtils
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.displayedEndTime
 import com.github.quarck.calnotify.calendar.displayedStartTime
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
+import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.getNextAlertTimeAfter
+import com.github.quarck.calnotify.reminders.ReminderState
+import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import java.util.*
+
+/**
+ * Type of next notification
+ */
+enum class NextNotificationType {
+    GCAL_REMINDER,
+    APP_ALERT
+}
+
+/**
+ * Result of calculating the next notification info
+ */
+data class NextNotificationInfo(
+    val type: NextNotificationType,
+    val timeUntilMillis: Long,
+    val isMuted: Boolean
+)
 
 fun dateToStr(ctx: Context, time: Long)
         = DateUtils.formatDateTime(ctx, time, DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE)
@@ -59,7 +82,9 @@ fun encodedMinuteTimestamp(modulo: Long = 60 * 24 * 30L, clock: CNPlusClockInter
 
 class EventFormatter(
     val ctx: Context,
-    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+    private val clock: CNPlusClockInterface = CNPlusSystemClock(),
+    private val calendarProvider: CalendarProviderInterface = CalendarProvider,
+    private val reminderStateProvider: () -> ReminderStateInterface = { ReminderState(ctx) }
 ) : EventFormatterInterface {
 
     private val defaultLocale by lazy { Locale.getDefault() }
@@ -79,6 +104,18 @@ class EventFormatter(
 
         sb.append(formatDateTimeOneLine(event, false))
 
+        val settings = Settings(ctx)
+        val nextNotificationDisplay = formatNextNotificationIndicator(
+            event = event,
+            displayNextGCalReminder = settings.displayNextGCalReminder,
+            displayNextAppAlert = settings.displayNextAppAlert,
+            remindersEnabled = settings.remindersEnabled
+        )
+        if (nextNotificationDisplay != null) {
+            sb.append(" ")
+            sb.append(nextNotificationDisplay)
+        }
+
         if (event.location != "") {
             sb.append("\n")
             sb.append(ctx.resources.getString(R.string.location));
@@ -87,6 +124,125 @@ class EventFormatter(
         }
 
         return sb.toString()
+    }
+
+    /**
+     * Formats the next notification indicator for a single event.
+     * Returns null if no indicator should be shown.
+     */
+    fun formatNextNotificationIndicator(
+        event: EventAlertRecord,
+        displayNextGCalReminder: Boolean,
+        displayNextAppAlert: Boolean,
+        remindersEnabled: Boolean
+    ): String? {
+        val currentTime = clock.currentTimeMillis()
+        
+        val nextInfo = calculateNextNotificationInfo(
+            event = event,
+            currentTime = currentTime,
+            displayNextGCalReminder = displayNextGCalReminder,
+            displayNextAppAlert = displayNextAppAlert,
+            remindersEnabled = remindersEnabled
+        ) ?: return null
+        
+        return formatNextNotificationInfo(nextInfo)
+    }
+
+    /**
+     * Calculates what the next notification will be for a single event.
+     */
+    fun calculateNextNotificationInfo(
+        event: EventAlertRecord,
+        currentTime: Long,
+        displayNextGCalReminder: Boolean,
+        displayNextAppAlert: Boolean,
+        remindersEnabled: Boolean
+    ): NextNotificationInfo? {
+        // Get next GCal reminder if enabled
+        val nextGCalTime: Long? = if (displayNextGCalReminder) {
+            val eventRecord = calendarProvider.getEvent(ctx, event.eventId)
+            eventRecord?.getNextAlertTimeAfter(currentTime)
+        } else null
+        
+        // Get next app alert if enabled (show for muted events too - they still get alerts on silent channel)
+        val nextAppTime: Long? = if (displayNextAppAlert && remindersEnabled) {
+            val reminderState = reminderStateProvider()
+            val nextFire = reminderState.nextFireExpectedAt
+            if (nextFire > currentTime) nextFire else null
+        } else null
+        
+        return calculateNextNotification(
+            nextGCalTime = nextGCalTime,
+            nextAppTime = nextAppTime,
+            currentTime = currentTime,
+            isMuted = event.isMuted
+        )
+    }
+
+    /**
+     * Formats the next notification indicator for collapsed notifications.
+     * Finds the soonest notification across all events.
+     */
+    fun formatNextNotificationIndicatorForCollapsed(
+        events: List<EventAlertRecord>,
+        displayNextGCalReminder: Boolean,
+        displayNextAppAlert: Boolean,
+        remindersEnabled: Boolean
+    ): String? {
+        val currentTime = clock.currentTimeMillis()
+        
+        // Find soonest GCal reminder across all events
+        val soonestGCalTime: Long? = if (displayNextGCalReminder) {
+            events.mapNotNull { event ->
+                calendarProvider.getEvent(ctx, event.eventId)?.getNextAlertTimeAfter(currentTime)
+            }.minOrNull()
+        } else null
+        
+        // App alert time is the same for all events
+        val nextAppTime: Long? = if (displayNextAppAlert && remindersEnabled) {
+            // For collapsed, check if ANY event is unmuted (app alerts only fire for unmuted)
+            val anyUnmuted = events.any { !it.isMuted }
+            if (anyUnmuted) {
+                val reminderState = reminderStateProvider()
+                val nextFire = reminderState.nextFireExpectedAt
+                if (nextFire > currentTime) nextFire else null
+            } else null
+        } else null
+        
+        // For collapsed, consider muted if ALL events are muted
+        val allMuted = events.all { it.isMuted }
+        
+        val nextInfo = calculateNextNotification(
+            nextGCalTime = soonestGCalTime,
+            nextAppTime = nextAppTime,
+            currentTime = currentTime,
+            isMuted = allMuted
+        ) ?: return null
+        
+        return formatNextNotificationInfo(nextInfo)
+    }
+
+    /**
+     * Formats a NextNotificationInfo into a display string.
+     */
+    private fun formatNextNotificationInfo(info: NextNotificationInfo): String {
+        // Round to nearest minute and format with compound units (e.g., "6h 56m")
+        val roundedMillis = roundToNearestMinute(info.timeUntilMillis)
+        val timeStr = formatDurationCompact(roundedMillis)
+        
+        val indicatorStr = when (info.type) {
+            NextNotificationType.GCAL_REMINDER -> ctx.getString(R.string.next_gcal_indicator, timeStr)
+            NextNotificationType.APP_ALERT -> ctx.getString(R.string.next_app_indicator, timeStr)
+        }
+        
+        // Add muted prefix and wrap in parentheses
+        // Note: muted_prefix already includes trailing space
+        return if (info.isMuted) {
+            "(${ctx.getString(R.string.muted_prefix)} $indicatorStr)"
+        } else {
+            "($indicatorStr)"
+        }
     }
 
     override fun formatDateTimeTwoLines(event: EventAlertRecord, showWeekDay: Boolean): Pair<String, String> =
@@ -396,4 +552,80 @@ class EventFormatter(
         return "$num $unit"
     }
 
+    companion object {
+        private const val MINUTE_MS = 60 * 1000L
+        private const val HOUR_MS = 60 * MINUTE_MS
+        private const val DAY_MS = 24 * HOUR_MS
+        
+        /**
+         * Rounds milliseconds to the nearest minute for cleaner display.
+         * Minimum of 1 minute to avoid showing "0m" or "now".
+         */
+        fun roundToNearestMinute(millis: Long): Long {
+            val rounded = ((millis + MINUTE_MS / 2) / MINUTE_MS) * MINUTE_MS
+            return maxOf(rounded, MINUTE_MS)  // At least 1 minute
+        }
+        
+        /**
+         * Formats a duration in milliseconds into a compact human-readable string.
+         * - < 1 hour: just minutes (e.g., "45m")
+         * - >= 1 hour, < 1 day: hours + minutes (e.g., "6h 56m")
+         * - >= 1 day: days + hours, no minutes (e.g., "2d 3h")
+         */
+        fun formatDurationCompact(millis: Long): String {
+            val totalMinutes = millis / MINUTE_MS
+            val totalHours = millis / HOUR_MS
+            val totalDays = millis / DAY_MS
+            
+            return when {
+                totalDays >= 1 -> {
+                    // Days + hours remainder (no minutes)
+                    val remainingHours = (millis % DAY_MS) / HOUR_MS
+                    if (remainingHours > 0) "${totalDays}d ${remainingHours}h" else "${totalDays}d"
+                }
+                totalHours >= 1 -> {
+                    // Hours + minutes remainder
+                    val remainingMinutes = (millis % HOUR_MS) / MINUTE_MS
+                    if (remainingMinutes > 0) "${totalHours}h ${remainingMinutes}m" else "${totalHours}h"
+                }
+                else -> {
+                    // Just minutes
+                    "${maxOf(totalMinutes, 1)}m"
+                }
+            }
+        }
+
+        /**
+         * Pure calculation function to determine the next notification.
+         * GCal wins ties.
+         * Returns null if neither time is available.
+         */
+        fun calculateNextNotification(
+            nextGCalTime: Long?,
+            nextAppTime: Long?,
+            currentTime: Long,
+            isMuted: Boolean
+        ): NextNotificationInfo? {
+            val gcalDuration = nextGCalTime?.let { it - currentTime }?.takeIf { it > 0 }
+            val appDuration = nextAppTime?.let { it - currentTime }?.takeIf { it > 0 }
+            
+            return when {
+                gcalDuration != null && appDuration != null -> {
+                    // Both available - GCal wins ties (<=)
+                    if (gcalDuration <= appDuration) {
+                        NextNotificationInfo(NextNotificationType.GCAL_REMINDER, gcalDuration, isMuted)
+                    } else {
+                        NextNotificationInfo(NextNotificationType.APP_ALERT, appDuration, isMuted)
+                    }
+                }
+                gcalDuration != null -> {
+                    NextNotificationInfo(NextNotificationType.GCAL_REMINDER, gcalDuration, isMuted)
+                }
+                appDuration != null -> {
+                    NextNotificationInfo(NextNotificationType.APP_ALERT, appDuration, isMuted)
+                }
+                else -> null
+            }
+        }
+    }
 }

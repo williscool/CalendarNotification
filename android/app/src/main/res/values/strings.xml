@@ -185,7 +185,6 @@
 
     <string name="multiple_events_single_notification" formatted="false">%d calendar events</string>
 
-    <string name="reminder_at" formatted="false"> (reminder at %s)</string>
 
     <string name="dismissed_events">Dismissed events</string>
     <string name="deleted_events">Bin</string>
@@ -195,6 +194,12 @@
     <string name="dismissed_from_notification" formatted="false">Dismissed via notification %s</string>
     <string name="event_moved_new_time" formatted="false">Moved, new time: %s</string>
     <string name="event_rescheduled_new_time" formatted="false">Confirmed Rescheduled on %s</string>
+    <string name="reminder_in" formatted="false">(reminder in %s)</string>
+    
+    <!-- Next notification indicators -->
+    <string name="next_gcal_indicator" formatted="false">📅 %s</string>
+    <string name="next_app_indicator" formatted="false">🔔 %s</string>
+    <string name="muted_prefix">🔇</string>
     <string name="restore">Restore notification</string>
     <string name="swipe_to_delete">Swipe to delete from history</string>
     <string name="remove_all">Remove all</string>
@@ -505,6 +510,13 @@
     <string name="collapse_everything_summary">When number of total active notifications exceeds max notifications, everything would be collapsed into a single group notification</string>
     <string name="show_event_desc_in_the_notification_title">Show event description</string>
     <string name="show_event_desc_in_the_notification_summary">Show event description in the notification</string>
+    
+    <string name="next_alert_display">Next Alert Display</string>
+    <string name="display_next_gcal_reminder_title">Show next calendar reminder</string>
+    <string name="display_next_gcal_reminder_summary">Display when the next calendar reminder will fire (📅)</string>
+    <string name="display_next_app_alert_title">Show next app alert</string>
+    <string name="display_next_app_alert_summary">Display when the app will remind you again (🔔)</string>
+    
     <string name="notifications_pure_hacks">Pure Hacks</string>
     <string name="reminders_section">Reminders</string>
     <string name="bin_setting_group_name">Bin settings</string>

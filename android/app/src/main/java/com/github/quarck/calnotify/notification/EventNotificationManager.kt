@@ -507,9 +507,19 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         val numEvents = events.size
 
-        val title = java.lang.String.format(
+        val baseTitle = java.lang.String.format(
                 context.getString(R.string.multiple_events_single_notification),
                 numEvents)
+        
+        // Add next notification indicator to title if enabled
+        val formatter = EventFormatter(context, clock)
+        val nextIndicator = formatter.formatNextNotificationIndicatorForCollapsed(
+            events = events,
+            displayNextGCalReminder = settings.displayNextGCalReminder,
+            displayNextAppAlert = settings.displayNextAppAlert,
+            remindersEnabled = settings.remindersEnabled
+        )
+        val title = if (nextIndicator != null) "$baseTitle $nextIndicator" else baseTitle
 
         val text = context.getString(R.string.multiple_events_details_2)
 
@@ -1471,7 +1481,17 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         val numEvents = events.size
 
-        val title = java.lang.String.format(context.getString(R.string.multiple_events), numEvents)
+        val baseTitle = java.lang.String.format(context.getString(R.string.multiple_events), numEvents)
+        
+        // Add next notification indicator to title if enabled
+        val formatter = EventFormatter(context, clock)
+        val nextIndicator = formatter.formatNextNotificationIndicatorForCollapsed(
+            events = events,
+            displayNextGCalReminder = settings.displayNextGCalReminder,
+            displayNextAppAlert = settings.displayNextAppAlert,
+            remindersEnabled = settings.remindersEnabled
+        )
+        val title = if (nextIndicator != null) "$baseTitle $nextIndicator" else baseTitle
 
         val text = context.getString(com.github.quarck.calnotify.R.string.multiple_events_details_2)
 
