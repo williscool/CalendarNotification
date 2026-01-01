@@ -5,7 +5,8 @@
 - [Architecture Overview](architecture/architecture_overview.md) - GlobalState and ApplicationController pattern
 - [Calendar Monitoring](architecture/calendar_monitoring.md) - How event detection works (detailed flows)
 - [Clock Implementation](architecture/clock_implementation.md) - CNPlusClockInterface for testable time
-- [Notification Architecture](architecture/notification_architecture.md) - Channels, sound logic, muting system ⭐ *New*
+- [Notification Architecture](architecture/notification_architecture.md) - Channels, sound logic, muting system
+- [Next Alert Indicator](architecture/next_alert_architecture.md) - 📅/🔔 next notification display ⭐ *New*
 
 ## Build & Development
 
