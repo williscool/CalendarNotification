@@ -1,7 +1,7 @@
 // Entry point for React Native
 import 'react-native-devsettings';
 import './global.css';
-import './lib/env';
+import './src/lib/env';
 
 import React from 'react';
 import { AppRegistry, Text } from 'react-native';
@@ -14,18 +14,18 @@ enableScreens();
 import { TouchableOpacity, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PowerSyncContext } from '@powersync/react';
-import { db as psDb } from './lib/powersync';
-import { setupPowerSyncLogCapture } from './lib/powersync/Connector';
-import { SettingsProvider } from './lib/hooks/SettingsContext';
-import { SyncDebugProvider } from './lib/hooks/SyncDebugContext';
-import { ThemeProvider, useTheme } from './lib/theme/ThemeContext';
-import { GluestackUIProvider } from './components/ui/gluestack-ui-provider';
+import { db as psDb } from './src/lib/powersync';
+import { setupPowerSyncLogCapture } from './src/lib/powersync/Connector';
+import { SettingsProvider } from './src/lib/hooks/SettingsContext';
+import { SyncDebugProvider } from './src/lib/hooks/SyncDebugContext';
+import { ThemeProvider, useTheme } from './src/lib/theme/ThemeContext';
+import { GluestackUIProvider } from './src/components/ui/gluestack-ui-provider';
 import Logger from 'js-logger';
 
 // Screens
-import HomeScreen from './app/index';
-import SettingsScreen from './app/settings';
-import SyncDebugScreen from './app/sync-debug';
+import HomeScreen from './src/screens/index';
+import SettingsScreen from './src/screens/settings';
+import SyncDebugScreen from './src/screens/sync-debug';
 
 // Initialize logger
 Logger.useDefaults();

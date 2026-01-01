@@ -14,10 +14,10 @@
     "baseUrl": ".",
     "paths": {
       "@lib/*": [
-        "lib/*"
+        "src/lib/*"
       ],
       "@/*": [
-        "./*"
+        "src/*"
       ],
       "tailwind.config": [
         "./tailwind.config.js"
@@ -29,8 +29,6 @@
     "src/**/*",
     "test/**/*",
     "index.tsx",
-    "app/**/*",
-    "lib/**/*",
     "scripts/**/*.ts",
     "nativewind-env.d.ts"
   ],

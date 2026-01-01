@@ -25,7 +25,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 // Mock the native module
-jest.mock('../../../modules/my-module', () => ({
+jest.mock('../../../../modules/my-module', () => ({
   hello: jest.fn(() => 'mocked'),
   sendRescheduleConfirmations: jest.fn(),
   addChangeListener: jest.fn(),
