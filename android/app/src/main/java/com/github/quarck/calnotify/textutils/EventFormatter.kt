@@ -228,18 +228,21 @@ class EventFormatter(
      * Formats a NextNotificationInfo into a display string.
      */
     private fun formatNextNotificationInfo(info: NextNotificationInfo): String {
-        val timeStr = PreferenceUtils.formatSnoozePreset(info.timeUntilMillis)
-        
-        val mutedPrefix = if (info.isMuted) {
-            ctx.getString(R.string.muted_prefix)
-        } else ""
+        // Round to nearest minute for cleaner display (formatSnoozePreset only shows clean units)
+        val roundedMillis = roundToNearestMinute(info.timeUntilMillis)
+        val timeStr = PreferenceUtils.formatSnoozePreset(roundedMillis)
         
         val indicatorStr = when (info.type) {
             NextNotificationType.GCAL_REMINDER -> ctx.getString(R.string.next_gcal_indicator, timeStr)
             NextNotificationType.APP_ALERT -> ctx.getString(R.string.next_app_indicator, timeStr)
         }
         
-        return "$mutedPrefix$indicatorStr"
+        // Add muted prefix with explicit space (string resource space may be trimmed by Android)
+        return if (info.isMuted) {
+            "${ctx.getString(R.string.muted_prefix)} $indicatorStr"
+        } else {
+            indicatorStr
+        }
     }
 
     override fun formatDateTimeTwoLines(event: EventAlertRecord, showWeekDay: Boolean): Pair<String, String> =
@@ -550,6 +553,16 @@ class EventFormatter(
     }
 
     companion object {
+        /**
+         * Rounds milliseconds to the nearest minute for cleaner display.
+         * Minimum of 1 minute to avoid showing "0m" or "now".
+         */
+        fun roundToNearestMinute(millis: Long): Long {
+            val minuteInMillis = 60 * 1000L
+            val rounded = ((millis + minuteInMillis / 2) / minuteInMillis) * minuteInMillis
+            return maxOf(rounded, minuteInMillis)  // At least 1 minute
+        }
+
         /**
          * Pure calculation function to determine the next notification.
          * GCal wins ties.

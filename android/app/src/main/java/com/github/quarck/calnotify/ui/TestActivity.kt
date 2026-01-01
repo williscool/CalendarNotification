@@ -350,7 +350,7 @@ class TestActivity : Activity() {
             Triple("Event 7", 8 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
             Triple("Event 8", 9 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
             Triple("Event 9", 10 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
-            Triple("Event 10 (no future reminder)", currentTime - Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(15)))  // already fired
+            Triple("Event 10 (no future reminder)", -Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(15)))  // started 1h ago, reminder already fired
         )
         
         for ((title, startOffset, reminders) in eventConfigs) {
