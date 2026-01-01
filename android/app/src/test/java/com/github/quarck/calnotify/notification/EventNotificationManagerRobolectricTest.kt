@@ -59,6 +59,106 @@ class EventNotificationManagerRobolectricTest {
         NotificationChannels.createChannels(context)
     }
 
+    // === Mode selection tests (computeNotificationMode) ===
+
+    @Test
+    fun `mode - few events returns INDIVIDUAL`() {
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 3,
+            collapseEverything = false,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.INDIVIDUAL, mode)
+    }
+
+    @Test
+    fun `mode - would collapse 1 event returns INDIVIDUAL (special case)`() {
+        // When exactly 1 event would be collapsed, show it individually instead
+        // With maxNotifications=4: recentEvents = takeLast(3), so 4 events = 3 recent + 1 collapsed
+        // Special case: 1 collapsed gets folded back to recent
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 4,
+            collapseEverything = false,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.INDIVIDUAL, mode)
+    }
+
+    @Test
+    fun `mode - overflow returns PARTIAL_COLLAPSE`() {
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 6,
+            collapseEverything = false,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.PARTIAL_COLLAPSE, mode)
+    }
+
+    @Test
+    fun `mode - collapseEverything with single event returns INDIVIDUAL`() {
+        // Edge case: collapseEverything=true but only 1 event - nothing to collapse
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 1,
+            collapseEverything = true,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.INDIVIDUAL, mode)
+    }
+
+    @Test
+    fun `mode - collapseEverything with fold-1 case returns INDIVIDUAL`() {
+        // Edge case: collapseEverything=true, but would only collapse 1 event
+        // The "fold 1 into recent" rule applies BEFORE collapseEverything check
+        // With 4 events, maxNotifications=4: recent=3, collapsed=1 → fold → all individual
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 4,
+            collapseEverything = true,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.INDIVIDUAL, mode)
+    }
+
+    @Test
+    fun `mode - collapseEverything with 2+ collapsed returns ALL_COLLAPSED`() {
+        // collapseEverything kicks in when we have 2+ events that would be collapsed
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 5,
+            collapseEverything = true,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.ALL_COLLAPSED, mode)
+    }
+
+    @Test
+    fun `mode - 50 events returns ALL_COLLAPSED (safety limit)`() {
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 50,
+            collapseEverything = false,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.ALL_COLLAPSED, mode)
+    }
+
+    @Test
+    fun `mode - 100 events returns ALL_COLLAPSED (safety limit)`() {
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 100,
+            collapseEverything = false,
+            maxNotifications = 4
+        )
+        assertEquals(EventNotificationManager.NotificationMode.ALL_COLLAPSED, mode)
+    }
+
+    @Test
+    fun `mode - safety limit overrides collapseEverything false`() {
+        val mode = EventNotificationManager.computeNotificationMode(
+            eventCount = 50,
+            collapseEverything = false,
+            maxNotifications = 100  // Even with high maxNotifications
+        )
+        assertEquals(EventNotificationManager.NotificationMode.ALL_COLLAPSED, mode)
+    }
+
     // === NotificationChannels.getChannelId direct tests (all 5 channels) ===
 
     @Test

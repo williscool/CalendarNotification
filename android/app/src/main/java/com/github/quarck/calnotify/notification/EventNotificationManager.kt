@@ -185,6 +185,18 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         return Pair(recentEvents, collapsedEvents)
     }
 
+    /**
+     * Notification display modes based on event arrangement.
+     */
+    enum class NotificationMode {
+        /** Each event gets its own notification */
+        INDIVIDUAL,
+        /** Some events shown individually, rest collapsed into "X more" summary */
+        PARTIAL_COLLAPSE,
+        /** All events collapsed into a single notification */
+        ALL_COLLAPSED
+    }
+
     private fun arrangeEvents(
             db: EventsStorage,
             currentTime: Long,
@@ -1678,6 +1690,54 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             
             // Apply override using ACTUAL PRODUCTION CODE
             return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+        }
+
+        /**
+         * Computes the notification mode based on event count and settings.
+         * THIS IS ACTUAL PRODUCTION CODE - reflects the logic in arrangeEvents().
+         * 
+         * The logic order matters and matches production:
+         * 1. Safety limit check (≥50 events)
+         * 2. Split into recent (maxNotifications-1) and collapsed (rest)
+         * 3. Special case: if only 1 would be collapsed, fold into recent
+         * 4. collapseEverything check (only if we still have collapsed events)
+         * 
+         * @param eventCount Number of events to display
+         * @param collapseEverything User setting to collapse all events
+         * @param maxNotifications Maximum individual notifications before overflow
+         * @return The notification mode that will be used
+         */
+        fun computeNotificationMode(
+            eventCount: Int,
+            collapseEverything: Boolean,
+            maxNotifications: Int
+        ): NotificationMode {
+            // Safety limit - always collapse at 50+
+            if (eventCount >= Consts.MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING) {
+                return NotificationMode.ALL_COLLAPSED
+            }
+            
+            // Calculate how the split would work
+            // recentEvents = takeLast(maxNotifications - 1)
+            // collapsedEvents = rest
+            val recentCount = minOf(eventCount, maxNotifications - 1)
+            var collapsedCount = eventCount - recentCount
+            
+            // Special case: if only 1 event would be collapsed, show it individually instead
+            if (collapsedCount == 1) {
+                collapsedCount = 0
+            }
+            
+            // Now check collapseEverything - only applies if we have events to collapse
+            if (collapseEverything && collapsedCount > 0) {
+                return NotificationMode.ALL_COLLAPSED
+            }
+            
+            // Determine mode based on whether we have collapsed events
+            return when {
+                collapsedCount == 0 -> NotificationMode.INDIVIDUAL
+                else -> NotificationMode.PARTIAL_COLLAPSE
+            }
         }
 
         /**
