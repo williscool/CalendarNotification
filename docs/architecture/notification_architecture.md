@@ -50,41 +50,137 @@ This is critical because `hasAlarms` is used by `applyReminderSoundOverride()` t
 
 ## Notification Posting Modes
 
-The `EventNotificationManager` supports multiple notification display modes based on settings and event count:
+The `EventNotificationManager` supports multiple notification display modes based on settings and event count.
+
+### Mode Selection Flow
+
+The `arrangeEvents()` function determines which mode to use:
+
+```mermaid
+flowchart TD
+    A[Events to display] --> B{events >= 50?}
+    B -->|Yes| C[EVERYTHING COLLAPSED<br/>Safety limit]
+    B -->|No| D{collapseEverything<br/>setting enabled?}
+    D -->|Yes| E{Any events to collapse?}
+    E -->|Yes| C
+    E -->|No| F[INDIVIDUAL ONLY]
+    D -->|No| G{events > maxNotifications?}
+    G -->|Yes| H[PARTIAL COLLAPSE<br/>Recent shown individually<br/>Older collapsed]
+    G -->|No| F
+```
+
+**ASCII version:**
+```
+                        ┌─────────────────────────┐
+                        │   events.size >= 50?    │
+                        └───────────┬─────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                   YES                              NO
+                    │                               │
+                    ▼                               ▼
+        ┌───────────────────┐         ┌─────────────────────────┐
+        │ EVERYTHING        │         │ collapseEverything      │
+        │ COLLAPSED         │         │ setting enabled?        │
+        │ (safety limit)    │         └───────────┬─────────────┘
+        └───────────────────┘                     │
+                                  ┌───────────────┴───────────────┐
+                                 YES                              NO
+                                  │                               │
+                                  ▼                               ▼
+                      ┌───────────────────┐         ┌─────────────────────────┐
+                      │ EVERYTHING        │         │ events > maxNotifications?│
+                      │ COLLAPSED         │         └───────────┬─────────────┘
+                      └───────────────────┘                     │
+                                                ┌───────────────┴───────────────┐
+                                               YES                              NO
+                                                │                               │
+                                                ▼                               ▼
+                                    ┌───────────────────┐         ┌───────────────────┐
+                                    │ PARTIAL COLLAPSE  │         │ INDIVIDUAL ONLY   │
+                                    │ recent: newest N-1│         │ (no collapse)     │
+                                    │ collapsed: rest   │         └───────────────────┘
+                                    └───────────────────┘
+```
+
+### Settings That Control Mode Selection
+
+| Setting | Default | Location | Effect |
+|---------|---------|----------|--------|
+| `collapseEverything` | `false` | Settings | If true, always use everything collapsed mode |
+| `maxNotifications` | `4` | Settings | Max individual notifications before partial collapse |
+| Hard limit | `50` | `Consts.kt` | Force everything collapsed (memory protection) |
+
+### Example Scenarios
+
+| Events | `collapseEverything` | `maxNotifications` | Result |
+|--------|---------------------|-------------------|--------|
+| 3 | `false` | 4 | 3 individual notifications |
+| 5 | `false` | 4 | 3 individual + "2 more" partial collapse |
+| 7 | `true` | 4 | Everything collapsed |
+| 60 | `false` | 4 | Everything collapsed (≥50 safety) |
 
 ### 1. Individual Notifications (`postNotification`)
 
 Each event gets its own notification. Used when:
-- Event count ≤ `MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING` (user setting)
-- "Collapse everything" is NOT enabled
+- `collapseEverything = false` AND
+- Event count ≤ `maxNotifications`
 
 **Channel selection**: Uses `NotificationChannels.getChannelId()` per-event with:
 - `isAlarm = event.isAlarm || forceAlarmStream`
 - `isMuted = event.isMuted`
 - `isReminder` = whether this is a reminder re-post
 
+| Scenario | `isReminder` | Channel |
+|----------|--------------|---------|
+| First notification | `false` | DEFAULT |
+| First notification (alarm) | `false` | ALARM |
+| First notification (muted) | `false` | SILENT |
+| Reminder re-alert | `true` | REMINDERS |
+| Reminder re-alert (alarm) | `true` | ALARM_REMINDERS |
+| Reminder re-alert (muted) | N/A | *Muted events filtered from reminders* |
+
 ### 2. Everything Collapsed (`postEverythingCollapsed`)
 
 All events collapsed into a single notification. Used when:
-- "Collapse everything" is enabled, OR
-- Event count > `MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING`
+- `collapseEverything = true`, OR
+- Event count ≥ 50 (safety limit)
 
 **Channel selection**: Uses `computeCollapsedChannelId()`:
-- `hasAlarms` = any event has `isAlarm && !isMuted`
+- `hasAlarms` = any event has `isAlarm && !isTask && !isMuted`
 - `allEventsMuted` = all events have `isMuted = true`
-- `isReminder` = whether triggered by reminder alarm
+- `isReminder` = whether triggered by reminder alarm (`playReminderSound` parameter)
+
+| Scenario | `playReminderSound` | Channel |
+|----------|---------------------|---------|
+| First collapse | `false` | DEFAULT |
+| First collapse (has unmuted alarm) | `false` | ALARM |
+| First collapse (all muted) | `false` | SILENT |
+| Reminder collapse | `true` | REMINDERS |
+| Reminder collapse (has unmuted alarm) | `true` | ALARM_REMINDERS |
+| Reminder collapse (all muted) | `true` | SILENT |
 
 ### 3. Partial Collapse (`collapseDisplayedNotifications` + `postNumNotificationsCollapsed`)
 
-Recent events shown individually, older events collapsed into "X more events" summary. Used when individual mode is active but some events are older.
+Recent events shown individually, older events collapsed into "X more events" summary. Used when:
+- `collapseEverything = false` AND
+- Event count > `maxNotifications`
 
-**Channel selection**: Uses `computePartialCollapseChannelId()`:
+The split is:
+- `recentEvents` = most recent `(maxNotifications - 1)` events → shown individually
+- `collapsedEvents` = older events → shown as "X more events" summary
+
+**Special case**: If only 1 event would be collapsed, it's added to recent instead (no partial collapse for just 1 event).
+
+**Channel selection for collapsed summary**: Uses `computePartialCollapseChannelId()`:
 - Returns `SILENT` if all collapsed events are muted
 - Returns `DEFAULT` otherwise
 
+**Note**: Partial collapse summary has no alarm/reminder channel variants - it's passive and uses only DEFAULT or SILENT.
+
 ### 4. Group Summary (`postGroupNotification`)
 
-Android bundled notification summary. This is a passive grouping mechanism - individual notifications handle their own sound/channel.
+Android bundled notification summary (when using bundled notifications). This is a passive grouping mechanism - individual notifications handle their own sound/channel.
 
 **Channel**: Always `DEFAULT` with `setOnlyAlertOnce(true)` - never makes sound.
 
