@@ -30,7 +30,6 @@ import com.github.quarck.calnotify.calendar.displayedStartTime
 import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.getNextAlertTimeAfter
-import com.github.quarck.calnotify.prefs.PreferenceUtils
 import com.github.quarck.calnotify.reminders.ReminderState
 import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.utils.DateTimeUtils
@@ -228,9 +227,9 @@ class EventFormatter(
      * Formats a NextNotificationInfo into a display string.
      */
     private fun formatNextNotificationInfo(info: NextNotificationInfo): String {
-        // Round to nearest minute for cleaner display (formatSnoozePreset only shows clean units)
+        // Round to nearest minute and format with compound units (e.g., "6h 56m")
         val roundedMillis = roundToNearestMinute(info.timeUntilMillis)
-        val timeStr = PreferenceUtils.formatSnoozePreset(roundedMillis)
+        val timeStr = formatDurationCompact(roundedMillis)
         
         val indicatorStr = when (info.type) {
             NextNotificationType.GCAL_REMINDER -> ctx.getString(R.string.next_gcal_indicator, timeStr)
@@ -553,14 +552,46 @@ class EventFormatter(
     }
 
     companion object {
+        private const val MINUTE_MS = 60 * 1000L
+        private const val HOUR_MS = 60 * MINUTE_MS
+        private const val DAY_MS = 24 * HOUR_MS
+        
         /**
          * Rounds milliseconds to the nearest minute for cleaner display.
          * Minimum of 1 minute to avoid showing "0m" or "now".
          */
         fun roundToNearestMinute(millis: Long): Long {
-            val minuteInMillis = 60 * 1000L
-            val rounded = ((millis + minuteInMillis / 2) / minuteInMillis) * minuteInMillis
-            return maxOf(rounded, minuteInMillis)  // At least 1 minute
+            val rounded = ((millis + MINUTE_MS / 2) / MINUTE_MS) * MINUTE_MS
+            return maxOf(rounded, MINUTE_MS)  // At least 1 minute
+        }
+        
+        /**
+         * Formats a duration in milliseconds into a compact human-readable string.
+         * - < 1 hour: just minutes (e.g., "45m")
+         * - >= 1 hour, < 1 day: hours + minutes (e.g., "6h 56m")
+         * - >= 1 day: days + hours, no minutes (e.g., "2d 3h")
+         */
+        fun formatDurationCompact(millis: Long): String {
+            val totalMinutes = millis / MINUTE_MS
+            val totalHours = millis / HOUR_MS
+            val totalDays = millis / DAY_MS
+            
+            return when {
+                totalDays >= 1 -> {
+                    // Days + hours remainder (no minutes)
+                    val remainingHours = (millis % DAY_MS) / HOUR_MS
+                    if (remainingHours > 0) "${totalDays}d ${remainingHours}h" else "${totalDays}d"
+                }
+                totalHours >= 1 -> {
+                    // Hours + minutes remainder
+                    val remainingMinutes = (millis % HOUR_MS) / MINUTE_MS
+                    if (remainingMinutes > 0) "${totalHours}h ${remainingMinutes}m" else "${totalHours}h"
+                }
+                else -> {
+                    // Just minutes
+                    "${maxOf(totalMinutes, 1)}m"
+                }
+            }
         }
 
         /**
