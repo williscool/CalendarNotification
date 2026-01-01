@@ -7,14 +7,17 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.calendar.EventReminderRecord
 import com.github.quarck.calnotify.calendar.EventStatus
+import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import org.junit.After
@@ -48,10 +51,11 @@ class EventFormatterRobolectricTest {
 
     @After
     fun cleanup() {
-        // Reset the displayNextAlertTime setting to default (false)
+        // Reset the next alert settings to defaults
         PreferenceManager.getDefaultSharedPreferences(context)
             .edit()
-            .remove("pref_display_next_alert_time")
+            .remove("pref_display_next_gcal_reminder")
+            .remove("pref_display_next_app_alert")
             .commit()
         // Unmock CalendarProvider if it was mocked
         try {
@@ -330,12 +334,19 @@ class EventFormatterRobolectricTest {
         assertTrue("Encoded timestamp with modulo should not be empty", result.isNotEmpty())
     }
 
-    // === Next Alert Time feature tests ===
+    // === Next Notification Indicator feature tests ===
 
-    private fun setDisplayNextAlertTimeSetting(enabled: Boolean) {
+    private fun setNextGCalReminderSetting(enabled: Boolean) {
         PreferenceManager.getDefaultSharedPreferences(context)
             .edit()
-            .putBoolean("pref_display_next_alert_time", enabled)
+            .putBoolean("pref_display_next_gcal_reminder", enabled)
+            .commit()
+    }
+
+    private fun setNextAppAlertSetting(enabled: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .putBoolean("pref_display_next_app_alert", enabled)
             .commit()
     }
 
@@ -368,9 +379,10 @@ class EventFormatterRobolectricTest {
     }
 
     @Test
-    fun testFormatNotificationSecondaryTextNextAlertTimeDisabled() {
-        // Ensure the setting is disabled (default)
-        setDisplayNextAlertTimeSetting(false)
+    fun testFormatNotificationSecondaryTextNextGCalDisabled() {
+        // Disable the GCal setting
+        setNextGCalReminderSetting(false)
+        setNextAppAlertSetting(false)
         
         // Create a new formatter to pick up the setting
         val testFormatter = EventFormatter(context, testClock)
@@ -385,26 +397,30 @@ class EventFormatterRobolectricTest {
         
         val result = testFormatter.formatNotificationSecondaryText(event)
         
-        // Should NOT contain "reminder in" when setting is disabled
+        // Should NOT contain 📅 or 🔔 when settings are disabled
         assertFalse(
-            "Should NOT contain 'reminder in' when setting is disabled",
-            result.contains("reminder in", ignoreCase = true)
+            "Should NOT contain calendar emoji when setting is disabled",
+            result.contains("📅")
+        )
+        assertFalse(
+            "Should NOT contain bell emoji when setting is disabled",
+            result.contains("🔔")
         )
     }
 
     @Test
-    fun testFormatNotificationSecondaryTextNextAlertTimeEnabled() {
-        // Enable the setting
-        setDisplayNextAlertTimeSetting(true)
+    fun testFormatNotificationSecondaryTextNextGCalEnabled() {
+        // Enable the GCal setting (default is true, but explicit for test)
+        setNextGCalReminderSetting(true)
+        setNextAppAlertSetting(false)
         
         // Event starts 2 hours from now
         val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
         val eventId = 101L
         
-        // Create reminders: one in the future (30min before = baseTime + 1.5h)
+        // Create reminders: one in the future (60min before = baseTime + 1h)
         val reminders = listOf(
-            EventReminderRecord.minutes(60),  // fires at baseTime + 1h (future from baseTime)
-            EventReminderRecord.minutes(30)   // fires at baseTime + 1.5h (future from baseTime)
+            EventReminderRecord.minutes(60)  // fires at baseTime + 1h (future from baseTime)
         )
         
         // Mock CalendarProvider to return our event with reminders
@@ -427,17 +443,18 @@ class EventFormatterRobolectricTest {
         
         val result = testFormatter.formatNotificationSecondaryText(event)
         
-        // Should contain "reminder in" when setting is enabled and there are future reminders
+        // Should contain 📅 when setting is enabled and there are future reminders
         assertTrue(
-            "Should contain 'reminder in' when setting is enabled and future reminders exist. Result: $result",
-            result.contains("reminder in", ignoreCase = true)
+            "Should contain 📅 when setting is enabled and future GCal reminders exist. Result: $result",
+            result.contains("📅")
         )
     }
 
     @Test
-    fun testFormatNotificationSecondaryTextNextAlertNoFutureReminders() {
-        // Enable the setting
-        setDisplayNextAlertTimeSetting(true)
+    fun testFormatNotificationSecondaryTextNoFutureReminders() {
+        // Enable the GCal setting
+        setNextGCalReminderSetting(true)
+        setNextAppAlertSetting(false)
         
         // Event started 30 minutes ago, reminder was 15 minutes before that (so already fired)
         val eventStartTime = baseTime - 30 * Consts.MINUTE_IN_MILLISECONDS
@@ -445,7 +462,7 @@ class EventFormatterRobolectricTest {
         
         // Reminder at 15 min before event = baseTime - 45min (which is in the PAST from baseTime)
         val reminders = listOf(
-            EventReminderRecord.minutes(15)   // fires at eventStartTime - 15min = baseTime - 45min
+            EventReminderRecord.minutes(15)
         )
         
         // Mock CalendarProvider to return our event with reminders
@@ -468,11 +485,290 @@ class EventFormatterRobolectricTest {
         
         val result = testFormatter.formatNotificationSecondaryText(event)
         
-        // Should NOT contain "reminder in" because the reminder already fired (is in the past)
+        // Should NOT contain 📅 because the reminder already fired (is in the past)
         assertFalse(
-            "Should NOT contain 'reminder in' when all reminders are in the past. Result: $result",
-            result.contains("reminder in", ignoreCase = true)
+            "Should NOT contain 📅 when all reminders are in the past. Result: $result",
+            result.contains("📅")
         )
+    }
+
+    // === calculateNextNotification companion object tests ===
+
+    @Test
+    fun `calculateNextNotification - only gcal available`() {
+        val currentTime = 1000L
+        val nextGCalTime = 2000L  // 1 second later
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = nextGCalTime,
+            nextAppTime = null,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNotNull(result)
+        assertEquals(NextNotificationType.GCAL_REMINDER, result!!.type)
+        assertEquals(1000L, result.timeUntilMillis)
+        assertFalse(result.isMuted)
+    }
+
+    @Test
+    fun `calculateNextNotification - only app available`() {
+        val currentTime = 1000L
+        val nextAppTime = 3000L  // 2 seconds later
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = null,
+            nextAppTime = nextAppTime,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNotNull(result)
+        assertEquals(NextNotificationType.APP_ALERT, result!!.type)
+        assertEquals(2000L, result.timeUntilMillis)
+        assertFalse(result.isMuted)
+    }
+
+    @Test
+    fun `calculateNextNotification - both available, gcal sooner`() {
+        val currentTime = 1000L
+        val nextGCalTime = 2000L  // 1 second later
+        val nextAppTime = 5000L   // 4 seconds later
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = nextGCalTime,
+            nextAppTime = nextAppTime,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNotNull(result)
+        assertEquals(NextNotificationType.GCAL_REMINDER, result!!.type)
+        assertEquals(1000L, result.timeUntilMillis)
+    }
+
+    @Test
+    fun `calculateNextNotification - both available, app sooner`() {
+        val currentTime = 1000L
+        val nextGCalTime = 10000L  // 9 seconds later
+        val nextAppTime = 3000L    // 2 seconds later
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = nextGCalTime,
+            nextAppTime = nextAppTime,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNotNull(result)
+        assertEquals(NextNotificationType.APP_ALERT, result!!.type)
+        assertEquals(2000L, result.timeUntilMillis)
+    }
+
+    @Test
+    fun `calculateNextNotification - tie goes to gcal`() {
+        val currentTime = 1000L
+        val sameTime = 5000L  // Both 4 seconds later
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = sameTime,
+            nextAppTime = sameTime,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNotNull(result)
+        assertEquals("GCal should win ties", NextNotificationType.GCAL_REMINDER, result!!.type)
+        assertEquals(4000L, result.timeUntilMillis)
+    }
+
+    @Test
+    fun `calculateNextNotification - muted flag passed through`() {
+        val currentTime = 1000L
+        val nextGCalTime = 2000L
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = nextGCalTime,
+            nextAppTime = null,
+            currentTime = currentTime,
+            isMuted = true
+        )
+        
+        assertNotNull(result)
+        assertTrue("Muted flag should be passed through", result!!.isMuted)
+    }
+
+    @Test
+    fun `calculateNextNotification - neither available returns null`() {
+        val currentTime = 1000L
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = null,
+            nextAppTime = null,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNull(result)
+    }
+
+    @Test
+    fun `calculateNextNotification - past times filtered out`() {
+        val currentTime = 5000L
+        val pastTime = 3000L  // In the past
+        
+        val result = EventFormatter.calculateNextNotification(
+            nextGCalTime = pastTime,
+            nextAppTime = null,
+            currentTime = currentTime,
+            isMuted = false
+        )
+        
+        assertNull("Past times should be filtered out", result)
+    }
+
+    // === formatNextNotificationIndicator tests with mocked dependencies ===
+
+    private fun createTestEventWithMuted(
+        eventId: Long = 1L,
+        isMuted: Boolean = false
+    ): EventAlertRecord {
+        return EventAlertRecord(
+            calendarId = 1L,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = baseTime,
+            notificationId = eventId.toInt(),
+            title = "Test Event",
+            desc = "Test Description",
+            startTime = baseTime + Consts.HOUR_IN_MILLISECONDS,
+            endTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS,
+            instanceStartTime = baseTime + Consts.HOUR_IN_MILLISECONDS,
+            instanceEndTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS,
+            location = "",
+            lastStatusChangeTime = baseTime,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = baseTime,
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = if (isMuted) 0x0100 else 0  // MUTED_FLAG = 0x0100
+        )
+    }
+
+    @Test
+    fun `formatNextNotificationIndicator - muted event shows muted prefix`() {
+        val eventId = 200L
+        val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        
+        // Create reminders for GCal
+        val reminders = listOf(EventReminderRecord.minutes(60))
+        
+        // Mock CalendarProvider
+        val mockCalendarProvider = mockk<CalendarProviderInterface>()
+        every { mockCalendarProvider.getEvent(any(), eq(eventId)) } returns createMockEventRecord(
+            eventId = eventId,
+            startTime = eventStartTime,
+            reminders = reminders
+        )
+        
+        // Create formatter with mocked calendar provider
+        val testFormatter = EventFormatter(
+            ctx = context,
+            clock = testClock,
+            calendarProvider = mockCalendarProvider
+        )
+        
+        // Create muted event
+        val event = EventAlertRecord(
+            calendarId = 1L,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = baseTime,
+            notificationId = eventId.toInt(),
+            title = "Test Event",
+            desc = "Test Description",
+            startTime = eventStartTime,
+            endTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS,
+            instanceStartTime = eventStartTime,
+            instanceEndTime = eventStartTime + Consts.HOUR_IN_MILLISECONDS,
+            location = "",
+            lastStatusChangeTime = baseTime,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = baseTime,
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0x0100  // MUTED_FLAG
+        )
+        
+        val result = testFormatter.formatNextNotificationIndicator(
+            event = event,
+            displayNextGCalReminder = true,
+            displayNextAppAlert = false,
+            remindersEnabled = false
+        )
+        
+        assertNotNull(result)
+        assertTrue("Muted event should show 🔇 prefix", result!!.contains("🔇"))
+        assertTrue("Should still show 📅", result.contains("📅"))
+    }
+
+    @Test
+    fun `formatNextNotificationIndicatorForCollapsed - finds soonest across events`() {
+        val event1Id = 301L
+        val event2Id = 302L
+        
+        // Event 1 has GCal reminder in 2 hours
+        val event1StartTime = baseTime + 3 * Consts.HOUR_IN_MILLISECONDS
+        val event1Reminders = listOf(EventReminderRecord.minutes(60))  // fires at baseTime + 2h
+        
+        // Event 2 has GCal reminder in 30 minutes (sooner!)
+        val event2StartTime = baseTime + Consts.HOUR_IN_MILLISECONDS
+        val event2Reminders = listOf(EventReminderRecord.minutes(30))  // fires at baseTime + 30m
+        
+        // Mock CalendarProvider
+        val mockCalendarProvider = mockk<CalendarProviderInterface>()
+        every { mockCalendarProvider.getEvent(any(), eq(event1Id)) } returns createMockEventRecord(
+            eventId = event1Id,
+            startTime = event1StartTime,
+            reminders = event1Reminders
+        )
+        every { mockCalendarProvider.getEvent(any(), eq(event2Id)) } returns createMockEventRecord(
+            eventId = event2Id,
+            startTime = event2StartTime,
+            reminders = event2Reminders
+        )
+        
+        // Create formatter with mocked calendar provider
+        val testFormatter = EventFormatter(
+            ctx = context,
+            clock = testClock,
+            calendarProvider = mockCalendarProvider
+        )
+        
+        val events = listOf(
+            createTestEvent(eventId = event1Id, startTime = event1StartTime),
+            createTestEvent(eventId = event2Id, startTime = event2StartTime)
+        )
+        
+        val result = testFormatter.formatNextNotificationIndicatorForCollapsed(
+            events = events,
+            displayNextGCalReminder = true,
+            displayNextAppAlert = false,
+            remindersEnabled = false
+        )
+        
+        assertNotNull(result)
+        assertTrue("Should show 📅", result!!.contains("📅"))
+        assertTrue("Should show 30m (the soonest)", result.contains("30m"))
     }
 }
 

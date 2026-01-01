@@ -171,13 +171,20 @@ class SettingsTest {
         assertEquals("45s", PreferenceUtils.formatSnoozePreset(45 * 1000L))
     }
 
-    // === Display Next Alert Time Tests ===
+    // === Display Next Alert Settings Tests ===
 
     @Test
-    fun testDisplayNextAlertTimeDefaultValue() {
-        DevLog.info(LOG_TAG, "Running testDisplayNextAlertTimeDefaultValue")
+    fun testDisplayNextGCalReminderDefaultValue() {
+        DevLog.info(LOG_TAG, "Running testDisplayNextGCalReminderDefaultValue")
+        // The default value should be true
+        assertTrue("displayNextGCalReminder should default to true", settings.displayNextGCalReminder)
+    }
+
+    @Test
+    fun testDisplayNextAppAlertDefaultValue() {
+        DevLog.info(LOG_TAG, "Running testDisplayNextAppAlertDefaultValue")
         // The default value should be false
-        assertFalse("displayNextAlertTime should default to false", settings.displayNextAlertTime)
+        assertFalse("displayNextAppAlert should default to false", settings.displayNextAppAlert)
     }
 }
 

@@ -32,11 +32,14 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventReminderRecord
+import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
@@ -232,9 +235,10 @@ class TestActivity : Activity() {
     fun OnButtonAddReminderInEventClick(v: View) {
         val LOG_TAG = "TestActivity"
         
-        // Enable the displayNextAlertTime setting
-        settings.displayNextAlertTime = true
-        DevLog.info(LOG_TAG, "Enabled displayNextAlertTime setting")
+        // Enable the displayNextGCalReminder setting (default is true but be explicit)
+        settings.displayNextGCalReminder = true
+        settings.displayNextAppAlert = false
+        DevLog.info(LOG_TAG, "Enabled displayNextGCalReminder setting")
         
         // Find a calendar to use
         val calendars = CalendarProvider.getCalendars(this)
@@ -260,7 +264,7 @@ class TestActivity : Activity() {
         
         val details = CalendarEventDetails(
             title = "Test Reminder In Feature - ${System.currentTimeMillis() % 10000}",
-            desc = "This event tests the 'reminder in X' notification feature",
+            desc = "This event tests the next notification indicator feature",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,
             startTime = eventStart,
@@ -304,7 +308,173 @@ class TestActivity : Activity() {
         ApplicationController.postEventNotifications(this, listOf(event))
         ApplicationController.afterCalendarEventFired(this)
         
-        DevLog.info(LOG_TAG, "Posted notification - look for '(reminder in X)' in the notification text!")
+        DevLog.info(LOG_TAG, "Posted notification - look for '📅 in X' in the notification text!")
+    }
+    
+    /**
+     * Test collapsed notifications with next alert indicator.
+     * Creates 5 events to trigger collapsed view with soonest indicator shown.
+     */
+    @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonTestCollapsedNextAlertClick(v: View) {
+        val LOG_TAG = "TestActivity"
+        
+        // Enable settings
+        settings.displayNextGCalReminder = true
+        settings.displayNextAppAlert = false
+        settings.collapseEverything = true  // Force collapse mode
+        DevLog.info(LOG_TAG, "Testing collapsed notifications with next alert indicator")
+        
+        val calendars = CalendarProvider.getCalendars(this)
+        val calendar = calendars.firstOrNull()
+        
+        if (calendar == null) {
+            DevLog.error(LOG_TAG, "No calendars available - cannot create test events")
+            return
+        }
+        
+        val currentTime = clock.currentTimeMillis()
+        val events = mutableListOf<EventAlertRecord>()
+        
+        // Create 5 events with different reminder times
+        // Event 1: reminder in 30m (soonest)
+        // Event 2: reminder in 1h
+        // Event 3: reminder in 2h
+        // Event 4: reminder in 3h
+        // Event 5: no future reminders
+        val eventConfigs = listOf(
+            Triple("Event 1 (30m reminder)", 2 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(90))),  // fires in 30m
+            Triple("Event 2 (1h reminder)", 3 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),  // fires in 1h
+            Triple("Event 3 (2h reminder)", 4 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),  // fires in 2h
+            Triple("Event 4 (3h reminder)", 5 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),  // fires in 3h
+            Triple("Event 5 (no future reminder)", currentTime - Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(15)))  // already fired
+        )
+        
+        for ((title, startOffset, reminders) in eventConfigs) {
+            val eventStart = currentTime + startOffset
+            val eventEnd = eventStart + Consts.HOUR_IN_MILLISECONDS
+            
+            val details = CalendarEventDetails(
+                title = "$title - ${System.currentTimeMillis() % 10000}",
+                desc = "Collapsed notification test",
+                location = "",
+                timezone = java.util.TimeZone.getDefault().id,
+                startTime = eventStart,
+                endTime = eventEnd,
+                isAllDay = false,
+                reminders = reminders,
+                color = 0xff0066aa.toInt()
+            )
+            
+            val eventId = CalendarProvider.createEvent(this, calendar.calendarId, calendar.owner, details)
+            
+            if (eventId != -1L) {
+                val event = EventAlertRecord(
+                    calendarId = calendar.calendarId,
+                    eventId = eventId,
+                    isAllDay = false,
+                    isRepeating = false,
+                    alertTime = currentTime,
+                    notificationId = 0,
+                    title = details.title,
+                    desc = details.desc,
+                    startTime = eventStart,
+                    endTime = eventEnd,
+                    instanceStartTime = eventStart,
+                    instanceEndTime = eventEnd,
+                    location = details.location,
+                    lastStatusChangeTime = currentTime,
+                    snoozedUntil = 0L,
+                    displayStatus = EventDisplayStatus.Hidden,
+                    color = details.color
+                )
+                events.add(event)
+                ApplicationController.registerNewEvent(this, event)
+            }
+        }
+        
+        ApplicationController.postEventNotifications(this, events)
+        ApplicationController.afterCalendarEventFired(this)
+        
+        DevLog.info(LOG_TAG, "Posted ${events.size} collapsed notifications - look for '📅 in 30m' in the title!")
+    }
+    
+    /**
+     * Test muted event with next alert indicator.
+     * Creates a muted event to show the 🔇 prefix.
+     */
+    @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonTestMutedNextAlertClick(v: View) {
+        val LOG_TAG = "TestActivity"
+        
+        settings.displayNextGCalReminder = true
+        settings.displayNextAppAlert = false
+        DevLog.info(LOG_TAG, "Testing muted event with next alert indicator")
+        
+        val calendars = CalendarProvider.getCalendars(this)
+        val calendar = calendars.firstOrNull()
+        
+        if (calendar == null) {
+            DevLog.error(LOG_TAG, "No calendars available - cannot create test event")
+            return
+        }
+        
+        val currentTime = clock.currentTimeMillis()
+        val eventStart = currentTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        val eventEnd = eventStart + Consts.HOUR_IN_MILLISECONDS
+        
+        val reminders = listOf(EventReminderRecord.minutes(60))  // fires in 1h
+        
+        val details = CalendarEventDetails(
+            title = "Muted Test Event - ${System.currentTimeMillis() % 10000}",
+            desc = "This event is muted - should show 🔇 📅 in X",
+            location = "",
+            timezone = java.util.TimeZone.getDefault().id,
+            startTime = eventStart,
+            endTime = eventEnd,
+            isAllDay = false,
+            reminders = reminders,
+            color = 0xffaa0000.toInt()
+        )
+        
+        val eventId = CalendarProvider.createEvent(this, calendar.calendarId, calendar.owner, details)
+        
+        if (eventId == -1L) {
+            DevLog.error(LOG_TAG, "Failed to create calendar event")
+            return
+        }
+        
+        // Create muted event (flags = 0x0100 for MUTED_FLAG)
+        val event = EventAlertRecord(
+            calendarId = calendar.calendarId,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = currentTime,
+            notificationId = 0,
+            title = details.title,
+            desc = details.desc,
+            startTime = eventStart,
+            endTime = eventEnd,
+            instanceStartTime = eventStart,
+            instanceEndTime = eventEnd,
+            location = details.location,
+            lastStatusChangeTime = currentTime,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = details.color,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = currentTime,
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0x0100  // MUTED_FLAG
+        )
+        
+        ApplicationController.registerNewEvent(this, event)
+        ApplicationController.postEventNotifications(this, listOf(event))
+        ApplicationController.afterCalendarEventFired(this)
+        
+        DevLog.info(LOG_TAG, "Posted muted notification - look for '🔇 📅 in X' in the notification text!")
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")

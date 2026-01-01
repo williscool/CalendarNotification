@@ -51,10 +51,11 @@ class EventFormatterTest {
     @After
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up after test")
-        // Reset the displayNextAlertTime setting to default (false)
+        // Reset the next alert settings to defaults
         PreferenceManager.getDefaultSharedPreferences(context)
             .edit()
-            .remove("pref_display_next_alert_time")
+            .remove("pref_display_next_gcal_reminder")
+            .remove("pref_display_next_app_alert")
             .commit()
         // Unmock CalendarProvider if it was mocked
         try {
