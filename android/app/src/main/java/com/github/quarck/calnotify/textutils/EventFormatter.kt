@@ -160,9 +160,10 @@ class EventFormatter(
         remindersEnabled: Boolean
     ): NextNotificationInfo? {
         // Get next GCal reminder if enabled
+        // Pass instanceStartTime for recurring events (master event's startTime would be wrong)
         val nextGCalTime: Long? = if (displayNextGCalReminder) {
             val eventRecord = calendarProvider.getEvent(ctx, event.eventId)
-            eventRecord?.getNextAlertTimeAfter(currentTime)
+            eventRecord?.getNextAlertTimeAfter(currentTime, event.instanceStartTime)
         } else null
         
         // Get next app alert if enabled (show for muted events too - they still get alerts on silent channel)
@@ -193,9 +194,10 @@ class EventFormatter(
         val currentTime = clock.currentTimeMillis()
         
         // Find soonest GCal reminder across all events
+        // Pass instanceStartTime for recurring events (master event's startTime would be wrong)
         val soonestGCalTime: Long? = if (displayNextGCalReminder) {
             events.mapNotNull { event ->
-                calendarProvider.getEvent(ctx, event.eventId)?.getNextAlertTimeAfter(currentTime)
+                calendarProvider.getEvent(ctx, event.eventId)?.getNextAlertTimeAfter(currentTime, event.instanceStartTime)
             }.minOrNull()
         } else null
         

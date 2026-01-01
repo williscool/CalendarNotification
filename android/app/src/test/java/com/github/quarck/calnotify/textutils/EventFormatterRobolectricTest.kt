@@ -14,6 +14,7 @@ import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.calendar.EventReminderRecord
 import com.github.quarck.calnotify.calendar.EventStatus
+import com.github.quarck.calnotify.calendar.getNextAlertTimeAfter
 import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.every
@@ -801,6 +802,92 @@ class EventFormatterRobolectricTest {
     fun `formatDurationCompact - minimum 1 minute`() {
         assertEquals("1m", EventFormatter.formatDurationCompact(0))
         assertEquals("1m", EventFormatter.formatDurationCompact(30 * 1000L))  // 30 seconds
+    }
+
+    // === Recurring event tests ===
+
+    @Test
+    fun `getNextAlertTimeAfter - recurring event uses instance start time not master start time`() {
+        // Simulate a recurring weekly meeting that started 6 months ago
+        val sixMonthsAgo = baseTime - 180 * Consts.DAY_IN_MILLISECONDS
+        val thisWeeksInstance = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        
+        // Master event (from CalendarProvider) has old start time
+        val masterEventRecord = createMockEventRecord(
+            eventId = 100L,
+            startTime = sixMonthsAgo,  // Master event started 6 months ago!
+            reminders = listOf(EventReminderRecord.minutes(60))  // 1 hour before
+        )
+        
+        // Without instance time: reminder would be 6 months ago (wrong!)
+        val wrongResult = masterEventRecord.getNextAlertTimeAfter(baseTime)
+        assertNull("Without instanceStartTime, recurring event reminder would be in past", wrongResult)
+        
+        // With instance time: reminder should be 1 hour before this week's instance
+        val correctResult = masterEventRecord.getNextAlertTimeAfter(baseTime, thisWeeksInstance)
+        assertNotNull("With instanceStartTime, should find future reminder", correctResult)
+        
+        val expectedReminderTime = thisWeeksInstance - Consts.HOUR_IN_MILLISECONDS
+        assertEquals("Reminder should be 1hr before instance start", expectedReminderTime, correctResult)
+    }
+
+    @Test
+    fun `formatNextNotificationIndicator - recurring event shows correct indicator`() {
+        val eventId = 500L
+        val sixMonthsAgo = baseTime - 180 * Consts.DAY_IN_MILLISECONDS
+        val thisWeeksInstance = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        
+        // Master event has old start time (simulating recurring event)
+        val mockCalendarProvider = mockk<CalendarProviderInterface>()
+        every { mockCalendarProvider.getEvent(any(), eq(eventId)) } returns createMockEventRecord(
+            eventId = eventId,
+            startTime = sixMonthsAgo,  // Master started 6 months ago
+            reminders = listOf(EventReminderRecord.minutes(60))  // 1 hour before
+        )
+        
+        val testFormatter = EventFormatter(
+            ctx = context,
+            clock = testClock,
+            calendarProvider = mockCalendarProvider
+        )
+        
+        // Create EventAlertRecord with THIS WEEK's instance time
+        val event = EventAlertRecord(
+            calendarId = 1L,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = true,  // This is a recurring event!
+            alertTime = baseTime,
+            notificationId = eventId.toInt(),
+            title = "Weekly Team Meeting",
+            desc = "",
+            startTime = sixMonthsAgo,  // Master event start (old)
+            endTime = sixMonthsAgo + Consts.HOUR_IN_MILLISECONDS,
+            instanceStartTime = thisWeeksInstance,  // THIS WEEK's instance
+            instanceEndTime = thisWeeksInstance + Consts.HOUR_IN_MILLISECONDS,
+            location = "",
+            lastStatusChangeTime = baseTime,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = baseTime,
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0L
+        )
+        
+        val result = testFormatter.formatNextNotificationIndicator(
+            event = event,
+            displayNextGCalReminder = true,
+            displayNextAppAlert = false,
+            remindersEnabled = false
+        )
+        
+        // Should show indicator because reminder is 1hr before THIS WEEK's instance
+        assertNotNull("Recurring event should show GCal indicator using instance time", result)
+        assertTrue("Should contain calendar emoji", result!!.contains("📅"))
+        assertTrue("Should show 1h duration", result.contains("1h"))
     }
 }
 

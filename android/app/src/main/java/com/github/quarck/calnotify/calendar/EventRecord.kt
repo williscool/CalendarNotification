@@ -169,10 +169,18 @@ fun EventRecord.nextAlarmTime(currentTime: Long): Long {
     return ret
 }
 
-fun EventRecord.getNextAlertTimeAfter(anchor: Long): Long? {
+/**
+ * Gets the next alert time after the given anchor time.
+ * 
+ * @param anchor The time to compare against (typically current time)
+ * @param instanceStartTime For recurring events, pass the instance's start time.
+ *                          If null, uses the master event's startTime (wrong for recurring!)
+ */
+fun EventRecord.getNextAlertTimeAfter(anchor: Long, instanceStartTime: Long? = null): Long? {
+    val effectiveStartTime = instanceStartTime ?: this.startTime
     val futureReminders = this
         .reminders
-        .map { this.startTime - it.millisecondsBefore }
+        .map { effectiveStartTime - it.millisecondsBefore }
         .filter { it > anchor }
     return futureReminders.maxOrNull()
 }
