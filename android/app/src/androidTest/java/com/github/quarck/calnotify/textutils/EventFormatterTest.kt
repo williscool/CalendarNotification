@@ -292,12 +292,19 @@ class EventFormatterTest {
         assertNotEquals("Different times should produce different timestamps", result1, result2)
     }
 
-    // === Next Alert Time feature tests ===
+    // === Next Alert Indicator feature tests ===
 
-    private fun setDisplayNextAlertTimeSetting(enabled: Boolean) {
+    private fun setNextGCalReminderSetting(enabled: Boolean) {
         PreferenceManager.getDefaultSharedPreferences(context)
             .edit()
-            .putBoolean("pref_display_next_alert_time", enabled)
+            .putBoolean("pref_display_next_gcal_reminder", enabled)
+            .commit()
+    }
+
+    private fun setNextAppAlertSetting(enabled: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+            .edit()
+            .putBoolean("pref_display_next_app_alert", enabled)
             .commit()
     }
 
@@ -334,7 +341,7 @@ class EventFormatterTest {
         DevLog.info(LOG_TAG, "Running testFormatNotificationSecondaryTextNextAlertTimeDisabled")
         
         // Ensure the setting is disabled (default)
-        setDisplayNextAlertTimeSetting(false)
+        setNextGCalReminderSetting(false)
         
         // Create a new formatter to pick up the setting
         val testFormatter = EventFormatter(context, testClock)
@@ -359,18 +366,18 @@ class EventFormatterTest {
     }
 
     @Test
-    fun testFormatNotificationSecondaryTextNextAlertTimeEnabled() {
-        DevLog.info(LOG_TAG, "Running testFormatNotificationSecondaryTextNextAlertTimeEnabled")
+    fun testFormatNotificationSecondaryTextNextGCalEnabled() {
+        DevLog.info(LOG_TAG, "Running testFormatNotificationSecondaryTextNextGCalEnabled")
         
-        // Enable the setting
-        setDisplayNextAlertTimeSetting(true)
+        // Enable GCal setting, disable app alert
+        setNextGCalReminderSetting(true)
+        setNextAppAlertSetting(false)
         
         // Event starts 2 hours from now
         val eventStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
         val eventId = 101L
         
-        // Create reminders: one that already fired (60min before = baseTime + 1h) 
-        // and one in the future (30min before = baseTime + 1.5h)
+        // Create reminders: one that fires in the future (60min before = baseTime + 1h)
         val reminders = listOf(
             EventReminderRecord.minutes(60),  // fires at baseTime + 1h (future from baseTime)
             EventReminderRecord.minutes(30)   // fires at baseTime + 1.5h (future from baseTime)
@@ -401,10 +408,10 @@ class EventFormatterTest {
         DevLog.info(LOG_TAG, "Reminder 1 fires at: ${eventStartTime - 60 * Consts.MINUTE_IN_MILLISECONDS}")
         DevLog.info(LOG_TAG, "Reminder 2 fires at: ${eventStartTime - 30 * Consts.MINUTE_IN_MILLISECONDS}")
         
-        // Should contain "reminder in" when setting is enabled and there are future reminders
+        // Should contain 📅 when GCal setting is enabled and there are future reminders
         assertTrue(
-            "Should contain 'reminder in' when setting is enabled and future reminders exist. Result: $result",
-            result.contains("reminder in", ignoreCase = true)
+            "Should contain 📅 when setting is enabled and future GCal reminders exist. Result: $result",
+            result.contains("📅")
         )
     }
 }
