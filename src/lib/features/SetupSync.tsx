@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState, memo } from 'react';
 import { Linking, ScrollView } from 'react-native';
-import { hello, sendRescheduleConfirmations, addChangeListener } from '../../modules/my-module';
+import { hello, sendRescheduleConfirmations, addChangeListener } from '../../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -15,7 +15,7 @@ import { ActionButton, WarningBanner, AlertText } from '@lib/components/ui';
 import { emitSyncLog } from '@lib/logging/syncLog';
 import { VStack, Card, Text, Link, LinkText, Button, ButtonText } from '@/components/ui';
 
-import type { RawRescheduleConfirmation } from '../../modules/my-module';
+import type { RawRescheduleConfirmation } from '../../../modules/my-module';
 import type { Settings } from '@lib/hooks/SettingsContext';
 
 /** Isolated component for polling timestamp - re-renders every second without affecting parent */
