@@ -1,9 +1,10 @@
 import { OPSqliteOpenFactory } from '@powersync/op-sqlite';
 import { PowerSyncDatabase } from '@powersync/react-native';
-import { Connector } from './Connector';
+import { Connector, createHS256Token } from './Connector';
 import { emitSyncLog } from '../logging/syncLog';
 import { AppSchema } from './Schema';
 import { Settings } from '../hooks/SettingsContext';
+import { getOrCreateDeviceId } from './deviceId';
 
 const factory = new OPSqliteOpenFactory({
     dbFilename: 'powerSyncEvents.db',
@@ -78,11 +79,18 @@ async function testNetworkConnectivity(settings: Settings): Promise<void> {
   
   try {
     emitSyncLog('debug', 'Testing network connectivity...');
+    
+    // Generate a JWT for authentication (don't send raw secret!)
+    const deviceId = await getOrCreateDeviceId();
+    const now = Math.floor(Date.now() / 1000);
+    const payload = { sub: deviceId, aud: 'powersync', iat: now, exp: now + 300 };
+    const token = createHS256Token(payload, settings.powersyncToken, 'powersync');
+    
     const testUrl = `${settings.powersyncUrl}/sync/stream`;
     const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${settings.powersyncToken}`,
+        'Authorization': `Bearer ${token}`,
       },
       signal: controller.signal,
     });

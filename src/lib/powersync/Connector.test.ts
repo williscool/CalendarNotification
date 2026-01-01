@@ -14,16 +14,6 @@ import {
 } from './Connector';
 import * as deviceIdModule from './deviceId';
 
-// Mock jose SignJWT
-jest.mock('jose', () => ({
-  SignJWT: jest.fn().mockImplementation(() => ({
-    setProtectedHeader: jest.fn().mockReturnThis(),
-    setIssuedAt: jest.fn().mockReturnThis(),
-    setExpirationTime: jest.fn().mockReturnThis(),
-    sign: jest.fn().mockResolvedValue('mock-generated-jwt-token'),
-  })),
-}));
-
 // Mock deviceId module
 jest.mock('./deviceId', () => ({
   getOrCreateDeviceId: jest.fn().mockResolvedValue('mock-device-uuid'),
@@ -107,12 +97,27 @@ describe('Connector', () => {
       const connector = new Connector(settings);
       const credentials = await connector.fetchCredentials();
 
-      // Should return the endpoint and generated JWT
+      // Should return the endpoint
       expect(credentials.endpoint).toBe(settings.powersyncUrl);
-      expect(credentials.token).toBe('mock-generated-jwt-token');
       
       // Should have called getOrCreateDeviceId
       expect(deviceIdModule.getOrCreateDeviceId).toHaveBeenCalled();
+      
+      // Should return a valid JWT (three base64url parts separated by dots)
+      const parts = credentials.token.split('.');
+      expect(parts).toHaveLength(3);
+      
+      // Decode and verify header
+      const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+      expect(header.alg).toBe('HS256');
+      expect(header.kid).toBe('powersync');
+      
+      // Decode and verify payload has required claims
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      expect(payload.sub).toBe('mock-device-uuid');
+      expect(payload.iat).toBeDefined();
+      expect(payload.exp).toBeDefined();
+      expect(payload.exp).toBeGreaterThan(payload.iat);
     });
   });
 

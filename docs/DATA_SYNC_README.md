@@ -33,10 +33,12 @@ This guide will help you set up data synchronization for Calendar Notifications 
    - Make sure to configure the necessary permissions and access controls
 4. Configure HS256 authentication:
    - Go to your instance settings → Client Auth tab
-   - Under "HS256 authentication tokens (ADVANCED)", click the "+" button
-   - Generate a secret: `openssl rand -base64 32`
-   - Paste the generated secret and save
-   - Click "Save and deploy"
+   - Under **"JWT Audience (optional)"**, click the "+" button and add: `powersync`
+   - Under **"HS256 authentication tokens (ADVANCED)"**, click the "+" button
+   - For **KID**, enter: `powersync`
+   - For **HS256 secret**, generate one: `openssl rand -base64url 32`
+   - Copy the generated secret (you'll need it for the app)
+   - Click **"Save and deploy"**
 
 ### 3. Calendar Notifications Plus Configuration
 
@@ -48,7 +50,7 @@ This guide will help you set up data synchronization for Calendar Notifications 
    - PowerSync Instance URL (from step 2.2)
    - PowerSync Token (paste the same HS256 secret from step 2.4)
 
-> **Note:** The app automatically generates short-lived JWT tokens using this secret. Unlike development tokens, the HS256 secret doesn't expire - you only need to configure it once.
+> **Note:** The app automatically generates short-lived JWT tokens (5 min expiry) using this secret. The JWTs include `sub` (device ID), `aud` (powersync), `iat`, and `exp` claims. Unlike development tokens, the HS256 secret doesn't expire - you only need to configure it once.
 
 ## Verification
 
@@ -64,6 +66,8 @@ This guide will help you set up data synchronization for Calendar Notifications 
 - Review the app logs for any error messages
 - **JWT errors:** Make sure the HS256 secret in the app matches exactly what's configured in PowerSync dashboard
 - **"Invalid token" errors:** Verify the HS256 secret is properly configured under Client Auth → HS256 authentication tokens
+- **"Missing aud claim" errors:** Add `powersync` to JWT Audience in the PowerSync dashboard (Client Auth → JWT Audience)
+- **"Unexpected aud claim" errors:** The JWT Audience in PowerSync dashboard must include `powersync`
 
 ## Additional Resources
 
