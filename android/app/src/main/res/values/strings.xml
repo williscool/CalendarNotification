@@ -197,9 +197,9 @@
     <string name="reminder_in" formatted="false">(reminder in %s)</string>
     
     <!-- Next notification indicators -->
-    <string name="next_gcal_indicator" formatted="false">📅 in %s</string>
-    <string name="next_app_indicator" formatted="false">🔔 in %s</string>
-    <string name="muted_prefix">🔇 </string>
+    <string name="next_gcal_indicator" formatted="false">📅 %s</string>
+    <string name="next_app_indicator" formatted="false">🔔 %s</string>
+    <string name="muted_prefix">🔇</string>
     <string name="restore">Restore notification</string>
     <string name="swipe_to_delete">Swipe to delete from history</string>
     <string name="remove_all">Remove all</string>

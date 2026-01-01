@@ -12,12 +12,14 @@ The next alert indicator displays in notifications to help users understand:
 
 | Muted? | Alert Type | Display |
 |--------|------------|---------|
-| No | GCal reminder | `📅 in 7m` |
-| No | App alert | `🔔 in 7m` |
-| Yes | GCal reminder | `🔇 📅 in 2d` |
-| Yes | App alert | `🔇 🔔 in 7m` |
+| No | GCal reminder | `(📅 7m)` |
+| No | App alert | `(🔔 7m)` |
+| Yes | GCal reminder | `(🔇 📅 2d)` |
+| Yes | App alert | `(🔇 🔔 7m)` |
 
-**Time format**: Uses compact notation (7m, 2h, 1d) via `PreferenceUtils.formatSnoozePreset()`.
+**Time format**: Uses compact notation (7m, 2h 30m, 1d 5h) via `EventFormatter.formatDurationCompact()`.
+
+**Note**: The format omits "in" to make it clear this is a snapshot of when the next alert was calculated, not a live countdown. The time shown refreshes whenever the notification is reposted (e.g., when app reminders fire).
 
 ## Settings
 
@@ -76,7 +78,7 @@ The app's "reminder" feature that re-notifies every X minutes about active event
 Shows in the notification secondary text after the date/time:
 
 ```
-"6:05 - 7:05 PM 📅 in 1h"
+"6:05 - 7:05 PM (📅 1h)"
 "Location: Conference Room A"
 ```
 
@@ -87,7 +89,7 @@ Shows in the notification secondary text after the date/time:
 Shows in the notification **title** after the event count:
 
 ```
-"5 calendar events 📅 in 30m"
+"5 calendar events (📅 30m)"
 ```
 
 For collapsed, we find the **soonest** next alert across all events:
@@ -131,10 +133,12 @@ data class NextNotificationInfo(
 ### String Resources
 
 ```xml
-<string name="next_gcal_indicator">📅 in %s</string>
-<string name="next_app_indicator">🔔 in %s</string>
-<string name="muted_prefix">🔇 </string>
+<string name="next_gcal_indicator">📅 %s</string>
+<string name="next_app_indicator">🔔 %s</string>
+<string name="muted_prefix">🔇</string>
 ```
+
+Note: The format omits "in" to make it clear this is a snapshot timestamp, not a live countdown.
 
 ## Testing
 

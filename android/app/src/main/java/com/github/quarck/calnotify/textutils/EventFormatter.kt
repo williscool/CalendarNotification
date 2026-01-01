@@ -236,7 +236,8 @@ class EventFormatter(
             NextNotificationType.APP_ALERT -> ctx.getString(R.string.next_app_indicator, timeStr)
         }
         
-        // Add muted prefix with explicit space and wrap in parentheses
+        // Add muted prefix and wrap in parentheses
+        // Note: muted_prefix already includes trailing space
         return if (info.isMuted) {
             "(${ctx.getString(R.string.muted_prefix)} $indicatorStr)"
         } else {

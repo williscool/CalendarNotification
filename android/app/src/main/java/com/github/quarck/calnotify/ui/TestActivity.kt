@@ -399,7 +399,7 @@ class TestActivity : Activity() {
         ApplicationController.postEventNotifications(this, events)
         ApplicationController.afterCalendarEventFired(this)
         
-        DevLog.info(LOG_TAG, "Posted ${events.size} collapsed notifications - look for '📅 in 30m' in the title!")
+        DevLog.info(LOG_TAG, "Posted ${events.size} collapsed notifications - look for '(📅 30m)' in the title!")
     }
     
     /**
@@ -557,7 +557,7 @@ class TestActivity : Activity() {
         ApplicationController.postEventNotifications(this, listOf(event))
         ApplicationController.afterCalendarEventFired(this)
         
-        DevLog.info(LOG_TAG, "Posted notification - look for '(🔔 in Xm)' based on reminder interval!")
+        DevLog.info(LOG_TAG, "Posted notification - look for '(🔔 Xm)' based on reminder interval!")
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
