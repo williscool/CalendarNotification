@@ -30,7 +30,7 @@ const base64UrlDecode = (str: string): CryptoJS.lib.WordArray => {
  * @param base64UrlSecret - The HS256 secret (base64url encoded, as stored in PowerSync)
  * @param kid - Key ID to include in the JWT header
  */
-export const createHS256Token = (payload: Record<string, unknown>, base64UrlSecret: string, kid: string): string => {
+const createHS256Token = (payload: Record<string, unknown>, base64UrlSecret: string, kid: string): string => {
   const header = { alg: 'HS256', typ: 'JWT', kid };
   
   const base64UrlEncode = (str: string): string => {
@@ -54,6 +54,27 @@ export const createHS256Token = (payload: Record<string, unknown>, base64UrlSecr
     .replace(/=+$/, '');
   
   return `${dataToSign}.${signatureEncoded}`;
+};
+
+/**
+ * Generates a PowerSync JWT for authentication.
+ * Centralizes token generation to ensure consistent claims across the app.
+ * 
+ * @param secret - The HS256 secret (base64url encoded) from PowerSync dashboard
+ * @returns Promise resolving to the signed JWT string
+ */
+export const generatePowerSyncJWT = async (secret: string): Promise<string> => {
+  const deviceId = await getOrCreateDeviceId();
+  const now = Math.floor(Date.now() / 1000);
+  
+  const payload = {
+    sub: deviceId,
+    aud: 'powersync',  // Must match JWT Audience in PowerSync dashboard
+    iat: now,
+    exp: now + 300,    // 5 minutes, auto-renewed by PowerSync
+  };
+  
+  return createHS256Token(payload, secret, 'powersync');
 };
 
 const log = Logger.get('PowerSync');
@@ -204,20 +225,9 @@ export class Connector implements PowerSyncBackendConnector {
             hasSecret: !!this.settings.powersyncSecret,
         });
         
-        // Generate a fresh JWT signed with the HS256 secret
-        const deviceId = await getOrCreateDeviceId();
-        const now = Math.floor(Date.now() / 1000);
+        const token = await generatePowerSyncJWT(this.settings.powersyncSecret);
         
-        const payload = {
-            sub: deviceId,
-            aud: 'powersync',  // Must match JWT Audience in PowerSync dashboard
-            iat: now,
-            exp: now + 300,  // 5 minutes, auto-renewed by PowerSync
-        };
-        
-        const token = createHS256Token(payload, this.settings.powersyncSecret, 'powersync');
-        
-        emitSyncLog('debug', 'Generated JWT for device', { deviceId });
+        emitSyncLog('debug', 'Generated JWT for PowerSync');
         return { endpoint: this.settings.powersyncUrl, token };
     }
 
