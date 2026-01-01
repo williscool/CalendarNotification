@@ -2,10 +2,12 @@ import 'react-native-url-polyfill/auto'
 
 import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
 import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
+import { SignJWT } from 'jose';
 import { Settings } from '../hooks/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logger from 'js-logger';
 import { SyncLogEntry, emitSyncLog, emitCapturedLog } from '../logging/syncLog';
+import { getOrCreateDeviceId } from './deviceId';
 
 const log = Logger.get('PowerSync');
 
@@ -152,14 +154,21 @@ export class Connector implements PowerSyncBackendConnector {
     async fetchCredentials() {
         emitSyncLog('debug', 'fetchCredentials called', {
             endpoint: this.settings.powersyncUrl,
-            tokenLength: this.settings.powersyncToken?.length || 0,
+            hasSecret: !!this.settings.powersyncToken,
         });
-        const credentials = {
-            endpoint: this.settings.powersyncUrl,
-            token: this.settings.powersyncToken  // TODO: programattically generate token from user id (i.e. email or phone number) + random secret
-        };
-        emitSyncLog('debug', 'Returning credentials');
-        return credentials;
+        
+        // Generate a fresh JWT signed with the HS256 secret
+        const deviceId = await getOrCreateDeviceId();
+        const secret = new TextEncoder().encode(this.settings.powersyncToken);
+        
+        const token = await new SignJWT({ sub: deviceId })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
+            .setExpirationTime('5m')  // Short-lived, auto-renewed by PowerSync
+            .sign(secret);
+        
+        emitSyncLog('debug', 'Generated JWT for device', { deviceId });
+        return { endpoint: this.settings.powersyncUrl, token };
     }
 
     private async executeOperation(op: CrudEntry): Promise<PostgrestSingleResponse<null> | null> {

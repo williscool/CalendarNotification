@@ -12,6 +12,22 @@ import {
   FailedOperation,
   LogFilterLevel,
 } from './Connector';
+import * as deviceIdModule from './deviceId';
+
+// Mock jose SignJWT
+jest.mock('jose', () => ({
+  SignJWT: jest.fn().mockImplementation(() => ({
+    setProtectedHeader: jest.fn().mockReturnThis(),
+    setIssuedAt: jest.fn().mockReturnThis(),
+    setExpirationTime: jest.fn().mockReturnThis(),
+    sign: jest.fn().mockResolvedValue('mock-generated-jwt-token'),
+  })),
+}));
+
+// Mock deviceId module
+jest.mock('./deviceId', () => ({
+  getOrCreateDeviceId: jest.fn().mockResolvedValue('mock-device-uuid'),
+}));
 
 // Type the mocked modules
 const mockedAsyncStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
@@ -84,17 +100,19 @@ describe('Connector', () => {
   });
 
   describe('fetchCredentials', () => {
-    it('should return PowerSync credentials from settings', async () => {
+    it('should generate JWT using HS256 secret and device ID', async () => {
       const settings = createMockSettings();
       mockedCreateClient.mockReturnValue({} as any);
       
       const connector = new Connector(settings);
       const credentials = await connector.fetchCredentials();
 
-      expect(credentials).toEqual({
-        endpoint: settings.powersyncUrl,
-        token: settings.powersyncToken,
-      });
+      // Should return the endpoint and generated JWT
+      expect(credentials.endpoint).toBe(settings.powersyncUrl);
+      expect(credentials.token).toBe('mock-generated-jwt-token');
+      
+      // Should have called getOrCreateDeviceId
+      expect(deviceIdModule.getOrCreateDeviceId).toHaveBeenCalled();
     });
   });
 
