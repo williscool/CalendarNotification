@@ -324,7 +324,7 @@ class TestActivity : Activity() {
 
 //            startActivity(
 //                    Intent(Intent.ACTION_VIEW).setData(
-//                          )v_dfadsfadfadsf  ContentUris.withAppendedId(
+//                          )ContentUris.withAppendedId(
 //                                    CalendarContract.Events.CONTENT_URI,
 //                                    id)))
 
