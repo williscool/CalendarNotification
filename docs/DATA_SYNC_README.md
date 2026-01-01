@@ -36,7 +36,7 @@ This guide will help you set up data synchronization for Calendar Notifications 
    - Under **"JWT Audience (optional)"**, click the "+" button and add: `powersync`
    - Under **"HS256 authentication tokens (ADVANCED)"**, click the "+" button
    - For **KID**, enter: `powersync`
-   - For **HS256 secret**, generate one: `openssl rand -base64url 32`
+   - For **HS256 secret**, generate one: `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='`
    - Copy the generated secret (you'll need it for the app)
    - Click **"Save and deploy"**
 
