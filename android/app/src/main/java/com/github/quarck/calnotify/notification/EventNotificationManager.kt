@@ -159,30 +159,43 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             events: List<EventAlertRecord>,
             settings: Settings
     ): Pair<List<EventAlertRecord>, List<EventAlertRecord>> {
-
-        if (events.size >= Consts.MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING) {
-            // short-cut to avoid heavy memory load on dealing with lots of requests...
-            return Pair(listOf(), events)
-        }
-
         val activeEvents = events.sortedBy { it.lastStatusChangeTime }
-
-        val maxNotifications = settings.maxNotifications
-        val collapseEverything = settings.collapseEverything
-
-        var recentEvents = activeEvents.takeLast(maxNotifications - 1)
-        var collapsedEvents = activeEvents.take(activeEvents.size - recentEvents.size)
-
-        if (collapsedEvents.size == 1) {
-            recentEvents += collapsedEvents
-            collapsedEvents = listOf()
+        
+        // Use computeNotificationMode as single source of truth for mode decision
+        val mode = computeNotificationMode(
+            eventCount = events.size,
+            collapseEverything = settings.collapseEverything,
+            maxNotifications = settings.maxNotifications
+        )
+        
+        return when (mode) {
+            NotificationMode.ALL_COLLAPSED -> {
+                // All events go to collapsed
+                Pair(listOf(), activeEvents)
+            }
+            NotificationMode.PARTIAL_COLLAPSE -> {
+                // Split: recent events shown individually, rest collapsed
+                val recentEvents = activeEvents.takeLast(settings.maxNotifications - 1)
+                val collapsedEvents = activeEvents.take(activeEvents.size - recentEvents.size)
+                Pair(recentEvents, collapsedEvents)
+            }
+            NotificationMode.INDIVIDUAL -> {
+                // All events shown individually
+                Pair(activeEvents, listOf())
+            }
         }
-        else if (collapseEverything && !collapsedEvents.isEmpty()) {
-            collapsedEvents = recentEvents + collapsedEvents
-            recentEvents = listOf()
-        }
+    }
 
-        return Pair(recentEvents, collapsedEvents)
+    /**
+     * Notification display modes based on event arrangement.
+     */
+    enum class NotificationMode {
+        /** Each event gets its own notification */
+        INDIVIDUAL,
+        /** Some events shown individually, rest collapsed into "X more" summary */
+        PARTIAL_COLLAPSE,
+        /** All events collapsed into a single notification */
+        ALL_COLLAPSED
     }
 
     private fun arrangeEvents(
@@ -222,7 +235,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
             val (recentEvents, collapsedEvents) = arrangeEvents(db, currentTime, settings)
 
-            val anyAlarms = recentEvents.any { it.isAlarm } || collapsedEvents.any { it.isAlarm }
+            // Only count unmuted, non-task alarms (muted alarms should stay silent)
+            val anyAlarms = recentEvents.any { it.isAlarm && !it.isTask && !it.isMuted } || 
+                           collapsedEvents.any { it.isAlarm && !it.isTask && !it.isMuted }
 
             if (!recentEvents.isEmpty())
                 collapseDisplayedNotifications(
@@ -482,8 +497,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             }
         }
 
-        if (playReminderSound)
-            shouldPlayAndVibrate = shouldPlayAndVibrate || !isQuietPeriodActive || hasAlarms
+        // Apply reminder sound override using shared helper (testable)
+        shouldPlayAndVibrate = applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
 
         // now build actual notification and notify
         val intent = Intent(context, MainActivity::class.java)
@@ -513,8 +528,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
-        // Use alarm channel if there are alarms, otherwise default
-        val channelId = if (hasAlarms) NotificationChannels.CHANNEL_ID_ALARM else NotificationChannels.CHANNEL_ID_DEFAULT
+        // Use appropriate channel using shared helper (testable)
+        val channelId = computeCollapsedChannelId(events, hasAlarms, playReminderSound)
         
         val builder =
                 NotificationCompat.Builder(context, channelId)
@@ -530,6 +545,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(false)
                         .setOngoing(true)
+                        .setOnlyAlertOnce(!shouldPlayAndVibrate)
                         .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
                         .setNumber(numEvents)
                         .setShowWhen(false)
@@ -991,6 +1007,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 )
                 .setWhen(clock.currentTimeMillis())
                 .setShowWhen(false)
+                .setOnlyAlertOnce(true)
                 .setNumber(numTotalEvents)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
 
@@ -1130,6 +1147,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setOngoing(
                         !notificationSettings.behavior.allowNotificationSwipe
                 )
+                .setOnlyAlertOnce(isForce || wasCollapsed)
                 .setStyle(
                         NotificationCompat.BigTextStyle().bigText(notificationTextString)
                 )
@@ -1474,8 +1492,11 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
+        // Use silent channel if all collapsed events are muted
+        val channelId = computePartialCollapseChannelId(events)
+
         val builder =
-                NotificationCompat.Builder(context, NotificationChannels.CHANNEL_ID_DEFAULT)
+                NotificationCompat.Builder(context, channelId)
                         .setContentTitle(title)
                         .setContentText(text)
                         .setSmallIcon(com.github.quarck.calnotify.R.drawable.stat_notify_calendar_multiple)
@@ -1483,6 +1504,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .setContentIntent(pendingIntent)
                         .setAutoCancel(false)
                         .setOngoing(true)
+                        .setOnlyAlertOnce(true)
                         .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
                         .setShowWhen(false)
                         .setCategory(
@@ -1612,5 +1634,154 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         const val MAIN_ACTIVITY_NUM_NOTIFICATIONS_COLLAPSED_CODE = 1
         const val MAIN_ACTIVITY_REMINDER_CODE = 2
         const val MAIN_ACTIVITY_GROUP_NOTIFICATION_CODE = 3
+
+        /**
+         * Applies the reminder sound override logic.
+         * THIS IS THE ACTUAL PRODUCTION CODE - used by postEverythingCollapsed.
+         * 
+         * Fixed bug: Previously was `currentValue || !isQuietPeriodActive || hasAlarms`
+         * which would force sound when NOT in quiet period, ignoring muted status.
+         * Now only hasAlarms can override the muted status.
+         * 
+         * @param currentShouldPlayAndVibrate The value computed by the event loop
+         * @param playReminderSound Whether this is a reminder notification
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return Final shouldPlayAndVibrate value
+         */
+        fun applyReminderSoundOverride(
+            currentShouldPlayAndVibrate: Boolean,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Boolean {
+            return if (playReminderSound) {
+                currentShouldPlayAndVibrate || hasAlarms
+            } else {
+                currentShouldPlayAndVibrate
+            }
+        }
+
+        /**
+         * Computes whether sound/vibration should play for collapsed notification.
+         * Uses a simplified loop (only checks muted status) + applyReminderSoundOverride.
+         * 
+         * Note: The loop here is simplified compared to postEverythingCollapsed which also
+         * handles force, displayStatus, and isQuietPeriodActive. This function is used by
+         * tests to verify muted event behavior without needing full production dependencies.
+         * 
+         * @param events List of events to display
+         * @param playReminderSound Whether this is a reminder (affects sound logic)
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return true if sound should play, false otherwise
+         */
+        fun computeShouldPlayAndVibrateForCollapsed(
+            events: List<EventAlertRecord>,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Boolean {
+            // Simplified loop logic - checks muted status (matches production for basic cases)
+            var shouldPlayAndVibrate = false
+            for (event in events) {
+                if (event.snoozedUntil == 0L) {
+                    val shouldBeQuiet = event.isMuted
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
+                } else {
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || !event.isMuted
+                }
+            }
+            
+            // Apply override using ACTUAL PRODUCTION CODE
+            return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+        }
+
+        /**
+         * Computes the notification mode based on event count and settings.
+         * THIS IS ACTUAL PRODUCTION CODE - reflects the logic in arrangeEvents().
+         * 
+         * The logic order matters and matches production:
+         * 1. Safety limit check (≥50 events)
+         * 2. Split into recent (maxNotifications-1) and collapsed (rest)
+         * 3. Special case: if only 1 would be collapsed, fold into recent
+         * 4. collapseEverything check (only if we still have collapsed events)
+         * 
+         * @param eventCount Number of events to display
+         * @param collapseEverything User setting to collapse all events
+         * @param maxNotifications Maximum individual notifications before overflow
+         * @return The notification mode that will be used
+         */
+        fun computeNotificationMode(
+            eventCount: Int,
+            collapseEverything: Boolean,
+            maxNotifications: Int
+        ): NotificationMode {
+            // short-cut to avoid heavy memory load on dealing with lots of requests...
+            // Safety limit - always collapse at 50+
+            if (eventCount >= Consts.MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING) {
+                return NotificationMode.ALL_COLLAPSED
+            }
+            
+            // Calculate how the split would work
+            // recentEvents = takeLast(maxNotifications - 1)
+            // collapsedEvents = rest
+            val recentCount = minOf(eventCount, maxNotifications - 1)
+            var collapsedCount = eventCount - recentCount
+            
+            // Special case: if only 1 event would be collapsed, show it individually instead
+            if (collapsedCount == 1) {
+                collapsedCount = 0
+            }
+            
+            // Now check collapseEverything - only applies if we have events to collapse
+            if (collapseEverything && collapsedCount > 0) {
+                return NotificationMode.ALL_COLLAPSED
+            }
+            
+            // Determine mode based on whether we have collapsed events
+            return when {
+                collapsedCount == 0 -> NotificationMode.INDIVIDUAL
+                else -> NotificationMode.PARTIAL_COLLAPSE
+            }
+        }
+
+        /**
+         * Computes the notification channel ID for collapsed notifications (postEverythingCollapsed).
+         * THIS IS ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
+         * 
+         * @param events List of events to display
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @param isReminder Whether this is a reminder notification
+         * @return The appropriate channel ID
+         */
+        fun computeCollapsedChannelId(
+            events: List<EventAlertRecord>,
+            hasAlarms: Boolean,
+            isReminder: Boolean
+        ): String {
+            val allEventsMuted = events.all { it.isMuted }
+            return NotificationChannels.getChannelId(
+                isAlarm = hasAlarms,
+                isMuted = allEventsMuted,
+                isReminder = isReminder
+            )
+        }
+
+        /**
+         * Computes the notification channel ID for partial collapse notifications (postNumNotificationsCollapsed).
+         * THIS IS ACTUAL PRODUCTION CODE - called by postNumNotificationsCollapsed.
+         * 
+         * This is for the "X more events" summary notification when some events are shown
+         * individually and older ones are collapsed. Uses DEFAULT or SILENT channel only
+         * (no alarm/reminder variants since this is a passive summary).
+         * 
+         * @param events List of collapsed events
+         * @return SILENT if all events are muted, DEFAULT otherwise
+         */
+        fun computePartialCollapseChannelId(events: List<EventAlertRecord>): String {
+            val allEventsMuted = events.all { it.isMuted }
+            return if (allEventsMuted) {
+                NotificationChannels.CHANNEL_ID_SILENT
+            } else {
+                NotificationChannels.CHANNEL_ID_DEFAULT
+            }
+        }
     }
 }
