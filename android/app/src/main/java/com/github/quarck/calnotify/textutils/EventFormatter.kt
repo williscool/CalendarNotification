@@ -165,8 +165,8 @@ class EventFormatter(
             eventRecord?.getNextAlertTimeAfter(currentTime)
         } else null
         
-        // Get next app alert if enabled
-        val nextAppTime: Long? = if (displayNextAppAlert && remindersEnabled && !event.isMuted) {
+        // Get next app alert if enabled (show for muted events too - they still get alerts on silent channel)
+        val nextAppTime: Long? = if (displayNextAppAlert && remindersEnabled) {
             val reminderState = reminderStateProvider()
             val nextFire = reminderState.nextFireExpectedAt
             if (nextFire > currentTime) nextFire else null
