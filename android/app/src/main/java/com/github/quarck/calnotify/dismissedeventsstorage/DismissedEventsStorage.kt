@@ -45,7 +45,7 @@ class DismissedEventsStorage private constructor(
     val isUsingRoom: Boolean = result.second
     
     constructor(context: Context, clock: CNPlusClockInterface = CNPlusSystemClock()) : this(createStorage(context, clock))
-    
+
     override fun close() {
         (delegate as? Closeable)?.close()
     }

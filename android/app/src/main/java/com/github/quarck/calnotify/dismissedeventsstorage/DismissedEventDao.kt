@@ -36,6 +36,9 @@ interface DismissedEventDao {
     @Query("SELECT * FROM ${DismissedEventEntity.TABLE_NAME}")
     fun getAll(): List<DismissedEventEntity>
 
+    @Query("SELECT COUNT(*) FROM ${DismissedEventEntity.TABLE_NAME}")
+    fun count(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(entity: DismissedEventEntity)
 

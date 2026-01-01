@@ -76,15 +76,20 @@ abstract class MonitorDatabase : RoomDatabase() {
         fun getInstance(context: Context): MonitorDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    val db = buildDatabase(context)
+                    var db: MonitorDatabase? = null
                     try {
+                        db = buildDatabase(context)
                         // Copy from legacy DB if needed (throws MigrationException on failure)
                         copyFromLegacyIfNeeded(context, db)
                         INSTANCE = db
                         db
                     } catch (e: MigrationException) {
-                        db.close() // Clean up on failure to avoid leaking connection
+                        db?.close()
                         throw e
+                    } catch (e: RuntimeException) {
+                        // Wrap unexpected runtime exceptions so caller can fall back to legacy
+                        db?.close()
+                        throw MigrationException("Migration failed with unexpected error: ${e.message}", e)
                     }
                 }
             }
@@ -126,7 +131,7 @@ abstract class MonitorDatabase : RoomDatabase() {
             
             try {
                 // Check if Room DB already has data (migration already done)
-                val existingCount = dao.getAll().size
+                val existingCount = dao.count()
                 if (existingCount > 0) {
                     DevLog.info(LOG_TAG, "Room database already has $existingCount rows - skipping migration")
                     return
@@ -160,7 +165,7 @@ abstract class MonitorDatabase : RoomDatabase() {
                 dao.insertAll(entities)
                 
                 // Validate row count in Room matches legacy
-                val newCount = dao.getAll().size
+                val newCount = dao.count()
                 DevLog.info(LOG_TAG, "Inserted $newCount rows into Room database")
                 
                 if (newCount != legacyCount) {

@@ -22,7 +22,7 @@ package com.github.quarck.calnotify.database.poc
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.eventsstorage.LegacyEventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import org.junit.After
 import org.junit.Assert.*
@@ -100,8 +100,8 @@ class RoomCrSqlitePocTest {
             DevLog.error(LOG_TAG, "Native lib dir does not exist!")
         }
         
-        // Use EventsStorage which uses the main app's SQLiteOpenHelper
-        val eventsStorage = EventsStorage(context)
+        // Use LegacyEventsStorage which extends SQLiteOpenHelper directly
+        val eventsStorage = LegacyEventsStorage(context)
         
         try {
             // Get the underlying database directly

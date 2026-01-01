@@ -17,7 +17,7 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.dismissedeventsstorage
+package com.github.quarck.calnotify.eventsstorage
 
 import android.content.Context
 import android.database.SQLException
@@ -33,72 +33,72 @@ import java.io.File
  * Exception thrown when migration from legacy database fails.
  * Signals that the caller should fall back to legacy storage.
  */
-class DismissedEventsMigrationException(message: String, cause: Throwable? = null) : Exception(message, cause)
+class EventsMigrationException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
- * Room database for DismissedEventsStorage.
+ * Room database for EventsStorage.
  * 
- * Uses a NEW database file "RoomDismissedEvents" (not the legacy "DismissedEvents").
+ * Uses a NEW database file "RoomEvents" (not the legacy "Events").
  * On first use, copies data from legacy database if it exists.
  * Uses CrSqliteRoomFactory for cr-sqlite extension support.
  * 
  * MIGRATION STRATEGY: Copy data from old DB to new Room DB.
- * - Legacy DB "DismissedEvents" is preserved (not modified)
- * - If migration fails, throws DismissedEventsMigrationException so caller can fall back to legacy
+ * - Legacy DB "Events" is preserved (not modified)
+ * - If migration fails, throws EventsMigrationException so caller can fall back to legacy
  * - This allows retry on future app versions if bugs are found
  */
 @Database(
-    entities = [DismissedEventEntity::class],
+    entities = [EventAlertEntity::class],
     version = 1,
     exportSchema = false
 )
-abstract class DismissedEventsDatabase : RoomDatabase() {
+abstract class EventsDatabase : RoomDatabase() {
     
-    abstract fun dismissedEventDao(): DismissedEventDao
+    abstract fun eventAlertDao(): EventAlertDao
 
     companion object {
-        private const val LOG_TAG = "DismissedEventsDatabase"
+        private const val LOG_TAG = "EventsDatabase"
         
         /** New Room database name - separate from legacy */
-        internal const val DATABASE_NAME = "RoomDismissedEvents"
+        internal const val DATABASE_NAME = "RoomEvents"
         
         /** Legacy SQLiteOpenHelper database name */
-        internal const val LEGACY_DATABASE_NAME = "DismissedEvents"
+        internal const val LEGACY_DATABASE_NAME = "Events"
 
         @Volatile
-        private var INSTANCE: DismissedEventsDatabase? = null
+        private var INSTANCE: EventsDatabase? = null
 
         /**
          * Get the Room database instance.
          * 
-         * @throws DismissedEventsMigrationException if migration from legacy DB fails
+         * @throws EventsMigrationException if migration from legacy DB fails
          */
-        fun getInstance(context: Context): DismissedEventsDatabase {
+        fun getInstance(context: Context): EventsDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    var db: DismissedEventsDatabase? = null
+                    var db: EventsDatabase? = null
                     try {
                         db = buildDatabase(context)
                         // Copy from legacy DB if needed (throws exception on failure)
                         copyFromLegacyIfNeeded(context, db)
                         INSTANCE = db
                         db
-                    } catch (e: DismissedEventsMigrationException) {
+                    } catch (e: EventsMigrationException) {
                         db?.close()
                         throw e
                     } catch (e: RuntimeException) {
                         // Wrap unexpected runtime exceptions so caller can fall back to legacy
                         db?.close()
-                        throw DismissedEventsMigrationException("Migration failed with unexpected error: ${e.message}", e)
+                        throw EventsMigrationException("Migration failed with unexpected error: ${e.message}", e)
                     }
                 }
             }
         }
 
-        private fun buildDatabase(context: Context): DismissedEventsDatabase {
+        private fun buildDatabase(context: Context): EventsDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,
-                DismissedEventsDatabase::class.java,
+                EventsDatabase::class.java,
                 DATABASE_NAME
             )
                 .openHelperFactory(CrSqliteRoomFactory())
@@ -108,17 +108,17 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
         }
         
         /**
-         * Copy data from legacy "DismissedEvents" database to new Room database.
+         * Copy data from legacy "Events" database to new Room database.
          * 
          * This is a one-time migration that:
          * 1. Checks if Room DB already has data (skip if so)
-         * 2. Reads all events from legacy DB using DismissedEventsStorageImplV2
+         * 2. Reads all events from legacy DB using EventsStorageImplV9
          * 3. Inserts them into Room DB
          * 4. Validates row counts match
          * 
-         * @throws DismissedEventsMigrationException if row count mismatch (data loss detected)
+         * @throws EventsMigrationException if row count mismatch (data loss detected)
          */
-        private fun copyFromLegacyIfNeeded(context: Context, roomDb: DismissedEventsDatabase) {
+        private fun copyFromLegacyIfNeeded(context: Context, roomDb: EventsDatabase) {
             val legacyDbFile = context.getDatabasePath(LEGACY_DATABASE_NAME)
             
             // No legacy DB = fresh install, nothing to migrate
@@ -127,7 +127,7 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 return
             }
             
-            val dao = roomDb.dismissedEventDao()
+            val dao = roomDb.eventAlertDao()
             
             try {
                 // Check if Room DB already has data (migration already done)
@@ -149,19 +149,19 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 }
                 
                 // Read from legacy DB using the legacy implementation
-                val legacyEvents = readFromLegacyDatabase(legacyDbFile)
+                val legacyEvents = readFromLegacyDatabase(context, legacyDbFile)
                 
                 // Validate read count matches actual count (detect partial reads)
                 if (legacyEvents.size != legacyCount) {
                     val msg = "Partial read detected! DB has $legacyCount rows but only read ${legacyEvents.size}"
                     DevLog.error(LOG_TAG, msg)
-                    throw DismissedEventsMigrationException(msg)
+                    throw EventsMigrationException(msg)
                 }
                 
                 DevLog.info(LOG_TAG, "Read ${legacyEvents.size} events from legacy database")
                 
                 // Insert into Room DB
-                val entities = legacyEvents.map { DismissedEventEntity.fromRecord(it) }
+                val entities = legacyEvents.map { EventAlertEntity.fromRecord(it) }
                 dao.insertAll(entities)
                 
                 // Validate row count in Room matches legacy
@@ -171,21 +171,21 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 if (newCount != legacyCount) {
                     val msg = "Migration row count mismatch! Legacy=$legacyCount, Room=$newCount"
                     DevLog.error(LOG_TAG, msg)
-                    throw DismissedEventsMigrationException(msg)
+                    throw EventsMigrationException(msg)
                 }
                 
                 DevLog.info(LOG_TAG, "✅ Migration complete: $legacyCount events copied successfully")
                 
-            } catch (e: DismissedEventsMigrationException) {
+            } catch (e: EventsMigrationException) {
                 throw e
             } catch (e: SQLException) {
                 val msg = "Migration failed with database error: ${e.message}"
                 DevLog.error(LOG_TAG, msg)
-                throw DismissedEventsMigrationException(msg, e)
+                throw EventsMigrationException(msg, e)
             } catch (e: IllegalStateException) {
                 val msg = "Migration failed with Room validation error: ${e.message}"
                 DevLog.error(LOG_TAG, msg)
-                throw DismissedEventsMigrationException(msg, e)
+                throw EventsMigrationException(msg, e)
             }
         }
         
@@ -200,7 +200,7 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
                 io.requery.android.database.sqlite.SQLiteDatabase.OPEN_READONLY
             )
             return try {
-                db.rawQuery("SELECT COUNT(*) FROM ${DismissedEventEntity.TABLE_NAME}", null).use { cursor ->
+                db.rawQuery("SELECT COUNT(*) FROM ${EventAlertEntity.TABLE_NAME}", null).use { cursor ->
                     if (cursor.moveToFirst()) cursor.getInt(0) else 0
                 }
             } finally {
@@ -212,7 +212,7 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
          * Read all events from the legacy database.
          * Uses requery SQLiteDatabase directly to avoid opening the legacy SQLiteOpenHelper.
          */
-        private fun readFromLegacyDatabase(dbFile: File): List<DismissedEventAlertRecord> {
+        private fun readFromLegacyDatabase(context: Context, dbFile: File): List<com.github.quarck.calnotify.calendar.EventAlertRecord> {
             val db = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
                 dbFile.absolutePath,
                 null,
@@ -220,7 +220,7 @@ abstract class DismissedEventsDatabase : RoomDatabase() {
             )
             
             return try {
-                val impl = DismissedEventsStorageImplV2()
+                val impl = EventsStorageImplV9(context)
                 impl.getEventsImpl(db)
             } finally {
                 db.close()
