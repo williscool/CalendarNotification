@@ -770,5 +770,37 @@ class EventFormatterRobolectricTest {
         assertTrue("Should show 📅", result!!.contains("📅"))
         assertTrue("Should show 30m (the soonest)", result.contains("30m"))
     }
+
+    // === formatDurationCompact tests ===
+
+    @Test
+    fun `formatDurationCompact - less than 1 hour shows minutes only`() {
+        assertEquals("1m", EventFormatter.formatDurationCompact(1 * 60 * 1000L))
+        assertEquals("30m", EventFormatter.formatDurationCompact(30 * 60 * 1000L))
+        assertEquals("59m", EventFormatter.formatDurationCompact(59 * 60 * 1000L))
+    }
+
+    @Test
+    fun `formatDurationCompact - 1 hour or more shows hours and minutes`() {
+        assertEquals("1h", EventFormatter.formatDurationCompact(60 * 60 * 1000L))
+        assertEquals("1h 30m", EventFormatter.formatDurationCompact(90 * 60 * 1000L))
+        assertEquals("6h 56m", EventFormatter.formatDurationCompact((6 * 60 + 56) * 60 * 1000L))
+        assertEquals("23h 59m", EventFormatter.formatDurationCompact((23 * 60 + 59) * 60 * 1000L))
+    }
+
+    @Test
+    fun `formatDurationCompact - 1 day or more shows days and hours only`() {
+        assertEquals("1d", EventFormatter.formatDurationCompact(24 * 60 * 60 * 1000L))
+        assertEquals("1d 3h", EventFormatter.formatDurationCompact((24 + 3) * 60 * 60 * 1000L))
+        assertEquals("2d 12h", EventFormatter.formatDurationCompact((48 + 12) * 60 * 60 * 1000L))
+        // Minutes should NOT show for 1+ days
+        assertEquals("1d 1h", EventFormatter.formatDurationCompact((25 * 60 + 30) * 60 * 1000L))
+    }
+
+    @Test
+    fun `formatDurationCompact - minimum 1 minute`() {
+        assertEquals("1m", EventFormatter.formatDurationCompact(0))
+        assertEquals("1m", EventFormatter.formatDurationCompact(30 * 1000L))  // 30 seconds
+    }
 }
 

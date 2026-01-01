@@ -137,6 +137,24 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:title="@string/next_alert_display"
+        android:key="_notifications_next_alert">
+
+        <CheckBoxPreference
+            android:key="pref_display_next_gcal_reminder"
+            android:title="@string/display_next_gcal_reminder_title"
+            android:summary="@string/display_next_gcal_reminder_summary"
+            android:defaultValue="true" />
+
+        <CheckBoxPreference
+            android:key="pref_display_next_app_alert"
+            android:title="@string/display_next_app_alert_title"
+            android:summary="@string/display_next_app_alert_summary"
+            android:defaultValue="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/notifications_pure_hacks"
         android:key="_notification_hacks">
 

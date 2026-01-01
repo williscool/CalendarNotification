@@ -510,6 +510,13 @@
     <string name="collapse_everything_summary">When number of total active notifications exceeds max notifications, everything would be collapsed into a single group notification</string>
     <string name="show_event_desc_in_the_notification_title">Show event description</string>
     <string name="show_event_desc_in_the_notification_summary">Show event description in the notification</string>
+    
+    <string name="next_alert_display">Next Alert Display</string>
+    <string name="display_next_gcal_reminder_title">Show next calendar reminder</string>
+    <string name="display_next_gcal_reminder_summary">Display when the next calendar reminder will fire (📅)</string>
+    <string name="display_next_app_alert_title">Show next app alert</string>
+    <string name="display_next_app_alert_summary">Display when the app will remind you again (🔔)</string>
+    
     <string name="notifications_pure_hacks">Pure Hacks</string>
     <string name="reminders_section">Reminders</string>
     <string name="bin_setting_group_name">Bin settings</string>
