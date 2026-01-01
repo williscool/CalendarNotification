@@ -59,11 +59,114 @@ class EventNotificationManagerRobolectricTest {
         NotificationChannels.createChannels(context)
     }
 
-    // === Channel selection tests using production code ===
+    // === NotificationChannels.getChannelId direct tests (all 5 channels) ===
 
     @Test
-    fun `collapsed notification with all muted events uses silent channel`() {
-        // Given - all events are muted
+    fun `getChannelId - muted always returns SILENT regardless of other flags`() {
+        // Muted takes precedence over everything
+        assertEquals(NotificationChannels.CHANNEL_ID_SILENT, 
+            NotificationChannels.getChannelId(isAlarm = false, isMuted = true, isReminder = false))
+        assertEquals(NotificationChannels.CHANNEL_ID_SILENT, 
+            NotificationChannels.getChannelId(isAlarm = true, isMuted = true, isReminder = false))
+        assertEquals(NotificationChannels.CHANNEL_ID_SILENT, 
+            NotificationChannels.getChannelId(isAlarm = false, isMuted = true, isReminder = true))
+        assertEquals(NotificationChannels.CHANNEL_ID_SILENT, 
+            NotificationChannels.getChannelId(isAlarm = true, isMuted = true, isReminder = true))
+    }
+
+    @Test
+    fun `getChannelId - unmuted alarm reminder returns ALARM_REMINDERS`() {
+        assertEquals(NotificationChannels.CHANNEL_ID_ALARM_REMINDERS,
+            NotificationChannels.getChannelId(isAlarm = true, isMuted = false, isReminder = true))
+    }
+
+    @Test
+    fun `getChannelId - unmuted non-alarm reminder returns REMINDERS`() {
+        assertEquals(NotificationChannels.CHANNEL_ID_REMINDERS,
+            NotificationChannels.getChannelId(isAlarm = false, isMuted = false, isReminder = true))
+    }
+
+    @Test
+    fun `getChannelId - unmuted alarm first notification returns ALARM`() {
+        assertEquals(NotificationChannels.CHANNEL_ID_ALARM,
+            NotificationChannels.getChannelId(isAlarm = true, isMuted = false, isReminder = false))
+    }
+
+    @Test
+    fun `getChannelId - unmuted non-alarm first notification returns DEFAULT`() {
+        assertEquals(NotificationChannels.CHANNEL_ID_DEFAULT,
+            NotificationChannels.getChannelId(isAlarm = false, isMuted = false, isReminder = false))
+    }
+
+    // === First collapse (isReminder=false) channel tests ===
+
+    @Test
+    fun `first collapse with all muted events uses silent channel`() {
+        val mutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true)
+        )
+        val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
+        
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = mutedEvents,
+            hasAlarms = hasAlarms,
+            isReminder = false  // First collapse, NOT a reminder
+        )
+        
+        assertEquals(
+            "First collapse with all muted should use SILENT",
+            NotificationChannels.CHANNEL_ID_SILENT,
+            channelId
+        )
+    }
+
+    @Test
+    fun `first collapse with unmuted events no alarms uses default channel`() {
+        val unmutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = false)
+        )
+        val hasAlarms = unmutedEvents.any { it.isAlarm && !it.isMuted }
+        
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = unmutedEvents,
+            hasAlarms = hasAlarms,
+            isReminder = false  // First collapse, NOT a reminder
+        )
+        
+        assertEquals(
+            "First collapse with unmuted, no alarms should use DEFAULT",
+            NotificationChannels.CHANNEL_ID_DEFAULT,
+            channelId
+        )
+    }
+
+    @Test
+    fun `first collapse with unmuted alarm uses alarm channel`() {
+        val eventsWithAlarm = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = false, isAlarm = true)
+        )
+        val hasAlarms = eventsWithAlarm.any { it.isAlarm && !it.isMuted }
+        
+        val channelId = EventNotificationManager.computeCollapsedChannelId(
+            events = eventsWithAlarm,
+            hasAlarms = hasAlarms,
+            isReminder = false  // First collapse, NOT a reminder
+        )
+        
+        assertEquals(
+            "First collapse with unmuted alarm should use ALARM",
+            NotificationChannels.CHANNEL_ID_ALARM,
+            channelId
+        )
+    }
+
+    // === Reminder collapse (isReminder=true) channel tests ===
+
+    @Test
+    fun `reminder collapse with all muted events uses silent channel`() {
         val mutedEvents = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = true),
@@ -71,24 +174,21 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val channelId = EventNotificationManager.computeCollapsedChannelId(
             events = mutedEvents,
             hasAlarms = hasAlarms,
             isReminder = true
         )
         
-        // Then - should use silent channel
         assertEquals(
-            "All muted events should use silent channel",
+            "Reminder collapse with all muted should use SILENT",
             NotificationChannels.CHANNEL_ID_SILENT,
             channelId
         )
     }
 
     @Test
-    fun `collapsed notification with some unmuted events uses reminders channel`() {
-        // Given - mix of muted and unmuted events
+    fun `reminder collapse with some unmuted events uses reminders channel`() {
         val mixedEvents = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = false),
@@ -96,24 +196,21 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = mixedEvents.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val channelId = EventNotificationManager.computeCollapsedChannelId(
             events = mixedEvents,
             hasAlarms = hasAlarms,
             isReminder = true
         )
         
-        // Then - should use reminders channel (not silent)
         assertEquals(
-            "Mixed events should use reminders channel for reminder",
+            "Reminder collapse with unmuted, no alarms should use REMINDERS",
             NotificationChannels.CHANNEL_ID_REMINDERS,
             channelId
         )
     }
 
     @Test
-    fun `collapsed notification with unmuted alarm uses alarm reminders channel`() {
-        // Given - has unmuted alarm event
+    fun `reminder collapse with unmuted alarm uses alarm reminders channel`() {
         val eventsWithAlarm = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = false, isAlarm = true),
@@ -121,24 +218,21 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = eventsWithAlarm.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val channelId = EventNotificationManager.computeCollapsedChannelId(
             events = eventsWithAlarm,
             hasAlarms = hasAlarms,
             isReminder = true
         )
         
-        // Then - should use alarm reminders channel
         assertEquals(
-            "Events with unmuted alarm should use alarm reminders channel",
+            "Reminder collapse with unmuted alarm should use ALARM_REMINDERS",
             NotificationChannels.CHANNEL_ID_ALARM_REMINDERS,
             channelId
         )
     }
 
     @Test
-    fun `collapsed notification with muted alarm uses silent channel`() {
-        // Given - alarm event is muted
+    fun `reminder collapse with muted alarm uses silent channel`() {
         val eventsWithMutedAlarm = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = true, isAlarm = true),
@@ -146,16 +240,14 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val channelId = EventNotificationManager.computeCollapsedChannelId(
             events = eventsWithMutedAlarm,
             hasAlarms = hasAlarms,
             isReminder = true
         )
         
-        // Then - should use silent channel (muted takes precedence)
         assertEquals(
-            "Muted alarm should use silent channel",
+            "Reminder collapse with muted alarm should use SILENT",
             NotificationChannels.CHANNEL_ID_SILENT,
             channelId
         )
@@ -222,98 +314,127 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
-    // === Sound/vibrate logic tests using production code ===
+    // === Sound/vibrate logic tests - first notification (playReminderSound=false) ===
 
     @Test
-    fun `shouldPlayAndVibrate is false when all events are muted`() {
-        // Given - all events muted
+    fun `first notification - all muted should not play sound`() {
         val mutedEvents = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = true)
         )
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = mutedEvents,
+            playReminderSound = false,
+            hasAlarms = hasAlarms
+        )
+        
+        assertFalse("First notification with all muted should not play sound", shouldPlayAndVibrate)
+    }
+
+    @Test
+    fun `first notification - unmuted events should play sound`() {
+        val unmutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = false)
+        )
+        val hasAlarms = unmutedEvents.any { it.isAlarm && !it.isMuted }
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = unmutedEvents,
+            playReminderSound = false,
+            hasAlarms = hasAlarms
+        )
+        
+        assertTrue("First notification with unmuted should play sound", shouldPlayAndVibrate)
+    }
+
+    @Test
+    fun `first notification - hasAlarms does not force sound when not reminder`() {
+        // Even with hasAlarms=true, if playReminderSound=false, it shouldn't override
+        val mutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true)
+        )
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = mutedEvents,
+            playReminderSound = false,
+            hasAlarms = true  // Even with alarms, shouldn't override for non-reminder
+        )
+        
+        assertFalse("First notification should not use hasAlarms override", shouldPlayAndVibrate)
+    }
+
+    // === Sound/vibrate logic tests - reminder (playReminderSound=true) ===
+
+    @Test
+    fun `reminder - all muted should not play sound`() {
+        val mutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true)
+        )
+        val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
+        
         val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
             events = mutedEvents,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
         
-        // Then
-        assertFalse(
-            "All muted events should not play sound",
-            shouldPlayAndVibrate
-        )
+        assertFalse("Reminder with all muted should not play sound", shouldPlayAndVibrate)
     }
 
     @Test
-    fun `shouldPlayAndVibrate is true when at least one event is not muted`() {
-        // Given - one unmuted event
+    fun `reminder - unmuted events should play sound`() {
         val mixedEvents = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = false)
         )
         val hasAlarms = mixedEvents.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
             events = mixedEvents,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
         
-        // Then
-        assertTrue(
-            "Unmuted event should trigger sound",
-            shouldPlayAndVibrate
-        )
+        assertTrue("Reminder with unmuted should play sound", shouldPlayAndVibrate)
     }
 
     @Test
-    fun `shouldPlayAndVibrate is true when there is unmuted alarm`() {
-        // Given - all regular events muted, but there's an unmuted alarm
+    fun `reminder - unmuted alarm forces sound via hasAlarms`() {
         val eventsWithUnmutedAlarm = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = false, isAlarm = true)
         )
         val hasAlarms = eventsWithUnmutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
             events = eventsWithUnmutedAlarm,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
         
-        // Then - alarm overrides
-        assertTrue(
-            "Unmuted alarm should force sound",
-            shouldPlayAndVibrate
-        )
+        assertTrue("Reminder with unmuted alarm should force sound", shouldPlayAndVibrate)
     }
 
     @Test
-    fun `shouldPlayAndVibrate is false when alarm is also muted`() {
-        // Given - all events including alarm are muted
+    fun `reminder - muted alarm does not force sound`() {
         val eventsWithMutedAlarm = listOf(
             createTestEvent(eventId = 1, isMuted = true),
             createTestEvent(eventId = 2, isMuted = true, isAlarm = true)
         )
         val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code
         val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
             events = eventsWithMutedAlarm,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
         
-        // Then - muted alarm doesn't force sound
-        assertFalse(
-            "Muted alarm should not force sound",
-            shouldPlayAndVibrate
-        )
+        assertFalse("Reminder with muted alarm should not force sound", shouldPlayAndVibrate)
     }
 
     // === hasAlarms calculation tests (verifies correct filtering) ===
