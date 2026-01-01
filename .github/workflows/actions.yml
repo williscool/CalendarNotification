@@ -63,23 +63,12 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             android/app/src/main/res/menu/main.xml
+            scripts/check_dev_page_hidden.sh
 
       - name: Ensure dev page is not exposed
         run: |
-          # Use xmllint (pre-installed) with XPath to check the dev page visibility
-          # local-name() ignores XML namespace prefixes
-          VISIBLE=$(xmllint --xpath "string(//*[local-name()='item'][@*[local-name()='id']='@+id/action_test_page']/@*[local-name()='visible'])" android/app/src/main/res/menu/main.xml 2>/dev/null || echo "")
-          
-          if [ -z "$VISIBLE" ]; then
-            echo "⚠️ Warning: Dev page item not found or has no visible attribute"
-            echo "If visible attribute is missing, Android defaults to true - this is unsafe!"
-            exit 1
-          elif [ "$VISIBLE" != "false" ]; then
-            echo "❌ FATAL: Dev page has visible=\"$VISIBLE\" (must be \"false\")"
-            exit 1
-          else
-            echo "✅ Dev page visibility check passed (visible=\"false\")"
-          fi
+          chmod +x ./scripts/check_dev_page_hidden.sh
+          ./scripts/check_dev_page_hidden.sh
 
   build:
     name: Build Android App
