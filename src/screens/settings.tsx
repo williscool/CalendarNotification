@@ -214,12 +214,12 @@ export default function Settings() {
 
             <VStack className="py-2">
               <Text className="text-base mb-2" style={{ color: colors.text }}>
-                PowerSync Token
+                PowerSync Secret
               </Text>
               <SecureInput
                 value={tempSettings.powersyncToken}
                 onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
-                placeholder="your-powersync-token"
+                placeholder="HS256 secret from PowerSync dashboard"
                 isVisible={showPowerSyncToken}
                 onVisibilityChange={setShowPowerSyncToken}
               />
