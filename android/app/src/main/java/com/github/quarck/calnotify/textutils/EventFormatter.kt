@@ -237,11 +237,11 @@ class EventFormatter(
             NextNotificationType.APP_ALERT -> ctx.getString(R.string.next_app_indicator, timeStr)
         }
         
-        // Add muted prefix with explicit space (string resource space may be trimmed by Android)
+        // Add muted prefix with explicit space and wrap in parentheses
         return if (info.isMuted) {
-            "${ctx.getString(R.string.muted_prefix)} $indicatorStr"
+            "(${ctx.getString(R.string.muted_prefix)} $indicatorStr)"
         } else {
-            indicatorStr
+            "($indicatorStr)"
         }
     }
 
