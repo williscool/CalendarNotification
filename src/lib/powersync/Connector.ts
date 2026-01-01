@@ -201,7 +201,7 @@ export class Connector implements PowerSyncBackendConnector {
     async fetchCredentials() {
         emitSyncLog('debug', 'fetchCredentials called', {
             endpoint: this.settings.powersyncUrl,
-            hasSecret: !!this.settings.powersyncToken,
+            hasSecret: !!this.settings.powersyncSecret,
         });
         
         // Generate a fresh JWT signed with the HS256 secret
@@ -215,7 +215,7 @@ export class Connector implements PowerSyncBackendConnector {
             exp: now + 300,  // 5 minutes, auto-renewed by PowerSync
         };
         
-        const token = createHS256Token(payload, this.settings.powersyncToken, 'powersync');
+        const token = createHS256Token(payload, this.settings.powersyncSecret, 'powersync');
         
         emitSyncLog('debug', 'Generated JWT for device', { deviceId });
         return { endpoint: this.settings.powersyncUrl, token };

@@ -23,7 +23,7 @@ const testState = {
     supabaseUrl: '',
     supabaseAnonKey: '',
     powersyncUrl: '',
-    powersyncToken: '',
+    powersyncSecret: '',
   },
   powerSyncStatus: {
     connected: null as boolean | null,
@@ -78,7 +78,7 @@ const configureSettings = (configured: boolean) => {
       supabaseUrl: 'https://example.supabase.co',
       supabaseAnonKey: 'anon-key-123',
       powersyncUrl: 'https://example.powersync.com',
-      powersyncToken: 'token123',
+      powersyncSecret: 'token123',
     };
   } else {
     testState.settings = {
@@ -87,7 +87,7 @@ const configureSettings = (configured: boolean) => {
       supabaseUrl: '',
       supabaseAnonKey: '',
       powersyncUrl: '',
-      powersyncToken: '',
+      powersyncSecret: '',
     };
   }
 };
@@ -174,7 +174,7 @@ describe('SetupSync UI States', () => {
         supabaseUrl: 'https://example.supabase.co',
         supabaseAnonKey: 'anon-key-123',
         powersyncUrl: 'https://example.powersync.com',
-        powersyncToken: 'token123',
+        powersyncSecret: 'token123',
       };
       configurePowerSyncStatus(null);
     });

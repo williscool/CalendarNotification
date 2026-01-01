@@ -84,7 +84,7 @@ async function testNetworkConnectivity(settings: Settings): Promise<void> {
     const deviceId = await getOrCreateDeviceId();
     const now = Math.floor(Date.now() / 1000);
     const payload = { sub: deviceId, aud: 'powersync', iat: now, exp: now + 300 };
-    const token = createHS256Token(payload, settings.powersyncToken, 'powersync');
+    const token = createHS256Token(payload, settings.powersyncSecret, 'powersync');
     
     const testUrl = `${settings.powersyncUrl}/sync/stream`;
     const response = await fetch(testUrl, {

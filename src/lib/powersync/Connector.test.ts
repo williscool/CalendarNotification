@@ -30,7 +30,7 @@ const createMockSettings = () => ({
   supabaseUrl: 'https://test.supabase.co',
   supabaseAnonKey: 'test-anon-key',
   powersyncUrl: 'https://test.powersync.com',
-  powersyncToken: 'test-token',
+  powersyncSecret: 'test-token',
 });
 
 // Helper to create mock CrudEntry

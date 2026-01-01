@@ -27,7 +27,7 @@ export default function Settings() {
     return s.supabaseUrl.trim() !== '' &&
            s.supabaseAnonKey.trim() !== '' &&
            s.powersyncUrl.trim() !== '' &&
-           s.powersyncToken.trim() !== '';
+           s.powersyncSecret.trim() !== '';
   };
 
   const handleSettingChange = (newSettings: typeof settings) => {
@@ -41,14 +41,14 @@ export default function Settings() {
       supabaseUrl: tempSettings.supabaseUrl.trim(),
       supabaseAnonKey: tempSettings.supabaseAnonKey.trim(),
       powersyncUrl: tempSettings.powersyncUrl.trim(),
-      powersyncToken: tempSettings.powersyncToken.trim()
+      powersyncSecret: tempSettings.powersyncSecret.trim()
     };
 
     const hasActualChanges =
       trimmedSettings.supabaseUrl !== settings.supabaseUrl.trim() ||
       trimmedSettings.supabaseAnonKey !== settings.supabaseAnonKey.trim() ||
       trimmedSettings.powersyncUrl !== settings.powersyncUrl.trim() ||
-      trimmedSettings.powersyncToken !== settings.powersyncToken.trim() ||
+      trimmedSettings.powersyncSecret !== settings.powersyncSecret.trim() ||
       trimmedSettings.syncEnabled !== settings.syncEnabled ||
       trimmedSettings.syncType !== settings.syncType;
 
@@ -143,7 +143,7 @@ export default function Settings() {
               {JSON.stringify({
                 ...tempSettings,
                 supabaseAnonKey: showSupabaseKey ? tempSettings.supabaseAnonKey : '[Hidden Reveal Below]',
-                powersyncToken: showPowerSyncToken ? tempSettings.powersyncToken : '[Hidden Reveal Below]'
+                powersyncSecret: showPowerSyncToken ? tempSettings.powersyncSecret : '[Hidden Reveal Below]'
               }, null, 2)}
             </Text>
           </Box>
@@ -217,8 +217,8 @@ export default function Settings() {
                 PowerSync Secret
               </Text>
               <SecureInput
-                value={tempSettings.powersyncToken}
-                onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncToken: text })}
+                value={tempSettings.powersyncSecret}
+                onChangeText={(text) => handleSettingChange({ ...tempSettings, powersyncSecret: text })}
                 placeholder="HS256 secret from PowerSync dashboard"
                 isVisible={showPowerSyncToken}
                 onVisibilityChange={setShowPowerSyncToken}

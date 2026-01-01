@@ -41,7 +41,7 @@ export const isSettingsConfigured = (settings: Settings): boolean => Boolean(
   settings.supabaseUrl &&
   settings.supabaseAnonKey &&
   settings.powersyncUrl &&
-  settings.powersyncToken
+  settings.powersyncSecret
 );
 
 export const SetupSync = () => {
