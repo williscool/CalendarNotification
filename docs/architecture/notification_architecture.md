@@ -345,3 +345,64 @@ fun `applyReminderSoundOverride - muted events stay silent when playReminderSoun
 - [Calendar Monitoring](calendar_monitoring.md) - How events trigger notifications
 - [Clock Implementation](clock_implementation.md) - Time handling in notifications
 
+---
+
+## Appendix: Complete Notification Scenario Matrix
+
+This table shows every notification scenario and the resulting channel/sound behavior.
+
+| Scenario | Event Count | `collapseEverything` | `maxNotifications` | Mode | `isReminder` / `playReminderSound` | Muted Status | `hasAlarms` | Channel | Sound? |
+|----------|-------------|---------------------|-------------------|------|-----------------------------------|--------------|-------------|---------|--------|
+| Few events, first alert | 3 | `false` | 4 | Individual | `false` | Unmuted | `false` | DEFAULT | ✅ |
+| Few events, first alert (alarm) | 3 | `false` | 4 | Individual | `false` | Unmuted | `true` | ALARM | ✅ |
+| Few events, first alert (muted) | 3 | `false` | 4 | Individual | `false` | Muted | - | SILENT | ❌ |
+| Few events, reminder | 3 | `false` | 4 | Individual | `true` | Unmuted | `false` | REMINDERS | ✅ |
+| Few events, reminder (alarm) | 3 | `false` | 4 | Individual | `true` | Unmuted | `true` | ALARM_REMINDERS | ✅ |
+| Few events, reminder (muted) | 3 | `false` | 4 | Individual | `true` | Muted | - | *Filtered* | ❌ |
+| | | | | | | | | | |
+| Overflow, individual events | 5 | `false` | 4 | Partial (individual) | `false` | Unmuted | `false` | DEFAULT | ✅ |
+| Overflow, individual (alarm) | 5 | `false` | 4 | Partial (individual) | `false` | Unmuted | `true` | ALARM | ✅ |
+| Overflow, individual (muted) | 5 | `false` | 4 | Partial (individual) | `false` | Muted | - | SILENT | ❌ |
+| Overflow, "X more" summary | 5 | `false` | 4 | Partial (summary) | N/A | All muted | - | SILENT | ❌ |
+| Overflow, "X more" summary | 5 | `false` | 4 | Partial (summary) | N/A | Any unmuted | - | DEFAULT | ❌* |
+| | | | | | | | | | |
+| Collapse all, first alert | 7 | `true` | 4 | All Collapsed | `false` | All muted | - | SILENT | ❌ |
+| Collapse all, first alert | 7 | `true` | 4 | All Collapsed | `false` | Any unmuted | `false` | DEFAULT | ✅ |
+| Collapse all, first alert | 7 | `true` | 4 | All Collapsed | `false` | Any unmuted | `true` | ALARM | ✅ |
+| Collapse all, reminder | 7 | `true` | 4 | All Collapsed | `true` | All muted | - | SILENT | ❌ |
+| Collapse all, reminder | 7 | `true` | 4 | All Collapsed | `true` | Any unmuted | `false` | REMINDERS | ✅ |
+| Collapse all, reminder | 7 | `true` | 4 | All Collapsed | `true` | Any unmuted | `true` | ALARM_REMINDERS | ✅ |
+| | | | | | | | | | |
+| Safety limit, first alert | 50+ | any | any | All Collapsed | `false` | Any unmuted | `false` | DEFAULT | ✅ |
+| Safety limit, reminder | 50+ | any | any | All Collapsed | `true` | Any unmuted | `false` | REMINDERS | ✅ |
+
+### Legend
+
+- `hasAlarms` = `events.any { it.isAlarm && !it.isTask && !it.isMuted }`
+- *Filtered* = Muted events excluded from reminder processing at line 302
+- ❌* = Partial summary uses `setOnlyAlertOnce(true)`, never re-alerts
+- "Any unmuted" = at least one event has `isMuted = false`
+- "All muted" = all events have `isMuted = true`
+
+### State Space Complexity
+
+The notification system has significant combinatorial complexity:
+
+**Input variables:**
+- `collapseEverything`: 2 states (true/false)
+- Event count bucket: 3 states (≤ max, > max but < 50, ≥ 50)
+- `isReminder` / `playReminderSound`: 2 states
+- Muted aggregate: 2 states (all muted, any unmuted)
+- `hasAlarms`: 2 states
+
+**Theoretical combinations:** 2 × 3 × 2 × 2 × 2 = **48 states**
+
+**After constraint reduction:**
+- If `allMuted = true`, then `hasAlarms = false` (muted alarms don't count)
+- Some mode × reminder combinations are invalid
+- Muted events filtered from reminder processing
+
+**Actual unique scenarios:** ~18-20 valid states (as shown in table above)
+
+This complexity is why the 2025 bug fix was needed—the interaction between `playReminderSound`, `isQuietPeriodActive`, and muted status wasn't obvious from reading any single code path.
+
