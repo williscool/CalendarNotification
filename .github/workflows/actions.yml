@@ -54,9 +54,36 @@ jobs:
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
 
+  safety_checks:
+    name: Safety Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            android/app/src/main/res/menu/main.xml
+
+      - name: Ensure dev page is not exposed
+        run: |
+          # Use xmllint (pre-installed) with XPath to check the dev page visibility
+          # local-name() ignores XML namespace prefixes
+          VISIBLE=$(xmllint --xpath "string(//*[local-name()='item'][@*[local-name()='id']='@+id/action_test_page']/@*[local-name()='visible'])" android/app/src/main/res/menu/main.xml 2>/dev/null || echo "")
+          
+          if [ -z "$VISIBLE" ]; then
+            echo "⚠️ Warning: Dev page item not found or has no visible attribute"
+            echo "If visible attribute is missing, Android defaults to true - this is unsafe!"
+            exit 1
+          elif [ "$VISIBLE" != "false" ]; then
+            echo "❌ FATAL: Dev page has visible=\"$VISIBLE\" (must be \"false\")"
+            exit 1
+          else
+            echo "✅ Dev page visibility check passed (visible=\"false\")"
+          fi
+
   build:
     name: Build Android App
-    needs: set_build_datetime
+    needs: [set_build_datetime, safety_checks]
     runs-on: ubuntu-latest
     strategy:
       matrix:
