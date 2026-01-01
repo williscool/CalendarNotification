@@ -14,11 +14,6 @@ export interface Settings {
   powersyncSecret: string;
 }
 
-// Legacy settings interface for migration
-interface LegacySettings {
-  powersyncToken?: string;
-}
-
 const DEFAULT_SETTINGS: Settings = {
   syncEnabled: false,
   syncType: 'unidirectional',
@@ -26,28 +21,6 @@ const DEFAULT_SETTINGS: Settings = {
   supabaseAnonKey: '',
   powersyncUrl: '',
   powersyncSecret: '',
-};
-
-/**
- * Migrates old settings format to new format.
- * - Renames powersyncToken to powersyncSecret (and clears it since old tokens are invalid)
- */
-const migrateSettings = (stored: Settings & LegacySettings): Settings => {
-  const migrated = { ...stored };
-  
-  // If old powersyncToken exists, clear it (old dev tokens won't work with new HS256 auth)
-  if ('powersyncToken' in migrated) {
-    delete (migrated as LegacySettings).powersyncToken;
-    // Don't migrate the value - old tokens are incompatible with new HS256 secret
-    migrated.powersyncSecret = '';
-  }
-  
-  // Ensure powersyncSecret exists
-  if (!('powersyncSecret' in migrated)) {
-    migrated.powersyncSecret = '';
-  }
-  
-  return migrated;
 };
 
 const SETTINGS_STORAGE_KEY = '@calendar_notifications_settings';
@@ -75,19 +48,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       if (storedSettingsStr) {
         const parsedSettings = JSON.parse(storedSettingsStr);
-        // Migrate old settings format if needed
-        const migratedSettings = migrateSettings(parsedSettings);
+        // Merge with defaults to handle any missing keys (old keys like powersyncToken are just ignored)
+        const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...parsedSettings };
         if (__DEV__) {
-          console.log('[SettingsContext] Using stored settings (migrated if needed)');
+          console.log('[SettingsContext] Using stored settings');
         }
-        setSettings(migratedSettings);
-        // Save migrated settings back
-        if (JSON.stringify(parsedSettings) !== JSON.stringify(migratedSettings)) {
-          await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(migratedSettings));
-          if (__DEV__) {
-            console.log('[SettingsContext] Migrated settings saved');
-          }
-        }
+        setSettings(mergedSettings);
       } else {
         // Initialize with current ConfigObj values
         if (__DEV__) {

@@ -11,6 +11,9 @@ import {
   getLogFilterLevel,
   FailedOperation,
   LogFilterLevel,
+  POWERSYNC_JWT_AUDIENCE,
+  POWERSYNC_JWT_KID,
+  POWERSYNC_JWT_EXPIRY_SECONDS,
 } from './Connector';
 import * as deviceIdModule from './deviceId';
 
@@ -110,14 +113,15 @@ describe('Connector', () => {
       // Decode and verify header
       const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
       expect(header.alg).toBe('HS256');
-      expect(header.kid).toBe('powersync');
+      expect(header.kid).toBe(POWERSYNC_JWT_KID);
       
       // Decode and verify payload has required claims
       const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
       expect(payload.sub).toBe('mock-device-uuid');
+      expect(payload.aud).toBe(POWERSYNC_JWT_AUDIENCE);
       expect(payload.iat).toBeDefined();
       expect(payload.exp).toBeDefined();
-      expect(payload.exp).toBeGreaterThan(payload.iat);
+      expect(payload.exp - payload.iat).toBe(POWERSYNC_JWT_EXPIRY_SECONDS);
     });
   });
 

@@ -9,6 +9,19 @@ import Logger from 'js-logger';
 import { SyncLogEntry, emitSyncLog, emitCapturedLog } from '../logging/syncLog';
 import { getOrCreateDeviceId } from './deviceId';
 
+// JWT Configuration Constants
+/** JWT audience claim - must match "JWT Audience" in PowerSync dashboard */
+export const POWERSYNC_JWT_AUDIENCE = 'powersync';
+/** JWT key ID - must match "KID" in PowerSync dashboard HS256 config */
+export const POWERSYNC_JWT_KID = 'powersync';
+/** JWT expiry time in seconds (5 minutes) - PowerSync auto-renews before expiry */
+export const POWERSYNC_JWT_EXPIRY_SECONDS = 300;
+/** Milliseconds per second - for timestamp conversion */
+const MS_PER_SECOND = 1000;
+
+/** Returns current Unix timestamp in seconds */
+const getCurrentUnixTimestamp = (): number => Math.floor(Date.now() / MS_PER_SECOND);
+
 /**
  * Decodes a base64url encoded string to raw bytes (as a WordArray for crypto-js).
  * PowerSync stores HS256 secrets as base64url encoded.
@@ -65,16 +78,16 @@ const createHS256Token = (payload: Record<string, unknown>, base64UrlSecret: str
  */
 export const generatePowerSyncJWT = async (secret: string): Promise<string> => {
   const deviceId = await getOrCreateDeviceId();
-  const now = Math.floor(Date.now() / 1000);
+  const now = getCurrentUnixTimestamp();
   
   const payload = {
     sub: deviceId,
-    aud: 'powersync',  // Must match JWT Audience in PowerSync dashboard
+    aud: POWERSYNC_JWT_AUDIENCE,
     iat: now,
-    exp: now + 300,    // 5 minutes, auto-renewed by PowerSync
+    exp: now + POWERSYNC_JWT_EXPIRY_SECONDS,
   };
   
-  return createHS256Token(payload, secret, 'powersync');
+  return createHS256Token(payload, secret, POWERSYNC_JWT_KID);
 };
 
 const log = Logger.get('PowerSync');
