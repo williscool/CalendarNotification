@@ -58,7 +58,7 @@ The `arrangeEvents()` function determines which mode to use:
 
 ```mermaid
 flowchart TD
-    A[Events to display] --> B{events >= 50?}
+    A[Events to display] --> B{"events >= MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING (50) ?"}
     B -->|Yes| C[EVERYTHING COLLAPSED<br/>Safety limit]
     B -->|No| D{collapseEverything<br/>setting enabled?}
     D -->|Yes| E{Any events to collapse?}
@@ -72,7 +72,7 @@ flowchart TD
 **ASCII version:**
 ```
                         ┌─────────────────────────┐
-                        │   events.size >= 50?    │
+                        │   events.size >= MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING(50)?    │
                         └───────────┬─────────────┘
                                     │
                     ┌───────────────┴───────────────┐
@@ -109,7 +109,7 @@ flowchart TD
 |---------|---------|----------|--------|
 | `collapseEverything` | `false` | Settings | If true, always use everything collapsed mode |
 | `maxNotifications` | `4` | Settings | Max individual notifications before partial collapse |
-| Hard limit | `50` | `Consts.kt` | Force everything collapsed (memory protection) |
+| Hard limit | `MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING(50)` | `Consts.kt` | Force everything collapsed (memory protection) |
 
 ### Example Scenarios
 
@@ -118,7 +118,7 @@ flowchart TD
 | 3 | `false` | 4 | 3 individual notifications |
 | 5 | `false` | 4 | 3 individual + "2 more" partial collapse |
 | 7 | `true` | 4 | Everything collapsed |
-| 60 | `false` | 4 | Everything collapsed (≥50 safety) |
+| 60 | `false` | 4 | Everything collapsed (≥MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING(50) safety) |
 
 ### 1. Individual Notifications (`postNotification`)
 
@@ -144,7 +144,7 @@ Each event gets its own notification. Used when:
 
 All events collapsed into a single notification. Used when:
 - `collapseEverything = true`, OR
-- Event count ≥ 50 (safety limit)
+- Event count ≥ MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING(50) (safety limit)
 
 **Channel selection**: Uses `computeCollapsedChannelId()`:
 - `hasAlarms` = any event has `isAlarm && !isTask && !isMuted`
