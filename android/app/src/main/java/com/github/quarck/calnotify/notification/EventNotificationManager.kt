@@ -159,30 +159,31 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             events: List<EventAlertRecord>,
             settings: Settings
     ): Pair<List<EventAlertRecord>, List<EventAlertRecord>> {
-
-        if (events.size >= Consts.MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING) {
-            // short-cut to avoid heavy memory load on dealing with lots of requests...
-            return Pair(listOf(), events)
-        }
-
         val activeEvents = events.sortedBy { it.lastStatusChangeTime }
-
-        val maxNotifications = settings.maxNotifications
-        val collapseEverything = settings.collapseEverything
-
-        var recentEvents = activeEvents.takeLast(maxNotifications - 1)
-        var collapsedEvents = activeEvents.take(activeEvents.size - recentEvents.size)
-
-        if (collapsedEvents.size == 1) {
-            recentEvents += collapsedEvents
-            collapsedEvents = listOf()
+        
+        // Use computeNotificationMode as single source of truth for mode decision
+        val mode = computeNotificationMode(
+            eventCount = events.size,
+            collapseEverything = settings.collapseEverything,
+            maxNotifications = settings.maxNotifications
+        )
+        
+        return when (mode) {
+            NotificationMode.ALL_COLLAPSED -> {
+                // All events go to collapsed
+                Pair(listOf(), activeEvents)
+            }
+            NotificationMode.PARTIAL_COLLAPSE -> {
+                // Split: recent events shown individually, rest collapsed
+                val recentEvents = activeEvents.takeLast(settings.maxNotifications - 1)
+                val collapsedEvents = activeEvents.take(activeEvents.size - recentEvents.size)
+                Pair(recentEvents, collapsedEvents)
+            }
+            NotificationMode.INDIVIDUAL -> {
+                // All events shown individually
+                Pair(activeEvents, listOf())
+            }
         }
-        else if (collapseEverything && !collapsedEvents.isEmpty()) {
-            collapsedEvents = recentEvents + collapsedEvents
-            recentEvents = listOf()
-        }
-
-        return Pair(recentEvents, collapsedEvents)
     }
 
     /**
@@ -1712,6 +1713,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             collapseEverything: Boolean,
             maxNotifications: Int
         ): NotificationMode {
+            // short-cut to avoid heavy memory load on dealing with lots of requests...
             // Safety limit - always collapse at 50+
             if (eventCount >= Consts.MAX_NUM_EVENTS_BEFORE_COLLAPSING_EVERYTHING) {
                 return NotificationMode.ALL_COLLAPSED
