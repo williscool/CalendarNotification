@@ -222,7 +222,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
             val (recentEvents, collapsedEvents) = arrangeEvents(db, currentTime, settings)
 
-            val anyAlarms = recentEvents.any { it.isAlarm } || collapsedEvents.any { it.isAlarm }
+            // Only count unmuted, non-task alarms (muted alarms should stay silent)
+            val anyAlarms = recentEvents.any { it.isAlarm && !it.isTask && !it.isMuted } || 
+                           collapsedEvents.any { it.isAlarm && !it.isTask && !it.isMuted }
 
             if (!recentEvents.isEmpty())
                 collapseDisplayedNotifications(

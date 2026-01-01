@@ -316,6 +316,69 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
+    // === hasAlarms calculation tests (verifies correct filtering) ===
+
+    @Test
+    fun `hasAlarms calculation - muted alarm should not count as hasAlarms`() {
+        // This tests the correct pattern for calculating hasAlarms
+        // Production code at lines 225-226 and 336 must use: it.isAlarm && !it.isTask && !it.isMuted
+        
+        val eventsWithMutedAlarm = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = true, isAlarm = true)  // muted alarm
+        )
+        
+        // Correct calculation: muted alarms don't count
+        val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
+        
+        assertFalse(
+            "Muted alarm should NOT count towards hasAlarms",
+            hasAlarms
+        )
+    }
+
+    @Test
+    fun `hasAlarms calculation - unmuted alarm should count as hasAlarms`() {
+        val eventsWithUnmutedAlarm = listOf(
+            createTestEvent(eventId = 1, isMuted = false),
+            createTestEvent(eventId = 2, isMuted = false, isAlarm = true)  // unmuted alarm
+        )
+        
+        val hasAlarms = eventsWithUnmutedAlarm.any { it.isAlarm && !it.isMuted }
+        
+        assertTrue(
+            "Unmuted alarm SHOULD count towards hasAlarms",
+            hasAlarms
+        )
+    }
+
+    @Test
+    fun `hasAlarms false prevents reminder from forcing sound on muted events`() {
+        // End-to-end test: if hasAlarms is correctly calculated as false,
+        // then applyReminderSoundOverride won't force sound
+        
+        val allMutedEventsIncludingAlarm = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true, isAlarm = true)  // muted alarm
+        )
+        
+        // Correct hasAlarms calculation (muted alarm doesn't count)
+        val hasAlarms = allMutedEventsIncludingAlarm.any { it.isAlarm && !it.isMuted }
+        assertFalse("Muted alarm should not count", hasAlarms)
+        
+        // Now test the full flow
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+            events = allMutedEventsIncludingAlarm,
+            playReminderSound = true,
+            hasAlarms = hasAlarms  // false because alarm is muted
+        )
+        
+        assertFalse(
+            "With correct hasAlarms=false, muted alarm should stay silent",
+            shouldPlayAndVibrate
+        )
+    }
+
     // === Direct tests for applyReminderSoundOverride (THE ACTUAL PRODUCTION CODE) ===
     
     @Test

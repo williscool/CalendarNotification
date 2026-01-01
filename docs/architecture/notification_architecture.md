@@ -34,6 +34,20 @@ fun getChannelId(isAlarm: Boolean, isMuted: Boolean, isReminder: Boolean): Strin
 
 **Key principle**: Muted status always takes precedence. A muted alarm uses the silent channel, not the alarm channel.
 
+### The `hasAlarms` Calculation
+
+When computing whether there are "alarm" events (for channel selection and sound override), **muted alarms must be excluded**:
+
+```kotlin
+// CORRECT: Excludes muted alarms and task alarms
+val hasAlarms = events.any { it.isAlarm && !it.isTask && !it.isMuted }
+
+// WRONG: Would cause muted alarms to trigger sound
+val hasAlarms = events.any { it.isAlarm }
+```
+
+This is critical because `hasAlarms` is used by `applyReminderSoundOverride()` to potentially force sound. If a muted alarm incorrectly sets `hasAlarms = true`, it would override the muted status.
+
 ## Notification Posting Modes
 
 The `EventNotificationManager` supports multiple notification display modes based on settings and event count:
