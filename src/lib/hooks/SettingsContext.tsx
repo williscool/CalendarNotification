@@ -11,7 +11,7 @@ export interface Settings {
   supabaseUrl: string;
   supabaseAnonKey: string;
   powersyncUrl: string;
-  powersyncToken: string;
+  powersyncSecret: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -20,7 +20,7 @@ const DEFAULT_SETTINGS: Settings = {
   supabaseUrl: '',
   supabaseAnonKey: '',
   powersyncUrl: '',
-  powersyncToken: '',
+  powersyncSecret: '',
 };
 
 const SETTINGS_STORAGE_KEY = '@calendar_notifications_settings';
@@ -48,10 +48,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       if (storedSettingsStr) {
         const parsedSettings = JSON.parse(storedSettingsStr);
+        // Merge with defaults to handle any missing keys (old keys like powersyncToken are just ignored)
+        const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...parsedSettings };
         if (__DEV__) {
           console.log('[SettingsContext] Using stored settings');
         }
-        setSettings(parsedSettings);
+        setSettings(mergedSettings);
       } else {
         // Initialize with current ConfigObj values
         if (__DEV__) {
@@ -59,7 +61,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             supabaseUrl: ConfigObj.supabase.url ? 'SET' : 'EMPTY',
             supabaseAnonKey: ConfigObj.supabase.anonKey ? 'SET' : 'EMPTY',
             powersyncUrl: ConfigObj.powersync.url ? 'SET' : 'EMPTY',
-            powersyncToken: ConfigObj.powersync.token ? 'SET' : 'EMPTY',
+            powersyncSecret: ConfigObj.powersync.secret ? 'SET' : 'EMPTY',
           });
         }
         const currentSettings: Settings = {
@@ -68,7 +70,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           supabaseUrl: ConfigObj.supabase.url,
           supabaseAnonKey: ConfigObj.supabase.anonKey,
           powersyncUrl: ConfigObj.powersync.url,
-          powersyncToken: ConfigObj.powersync.token,
+          powersyncSecret: ConfigObj.powersync.secret,
         };
         setSettings(currentSettings);
         await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(currentSettings));

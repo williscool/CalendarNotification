@@ -11,7 +11,16 @@ import {
   getLogFilterLevel,
   FailedOperation,
   LogFilterLevel,
+  POWERSYNC_JWT_AUDIENCE,
+  POWERSYNC_JWT_KID,
+  POWERSYNC_JWT_EXPIRY_SECONDS,
 } from './Connector';
+import * as deviceIdModule from './deviceId';
+
+// Mock deviceId module
+jest.mock('./deviceId', () => ({
+  getOrCreateDeviceId: jest.fn().mockResolvedValue('mock-device-uuid'),
+}));
 
 // Type the mocked modules
 const mockedAsyncStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
@@ -24,7 +33,7 @@ const createMockSettings = () => ({
   supabaseUrl: 'https://test.supabase.co',
   supabaseAnonKey: 'test-anon-key',
   powersyncUrl: 'https://test.powersync.com',
-  powersyncToken: 'test-token',
+  powersyncSecret: 'test-token',
 });
 
 // Helper to create mock CrudEntry
@@ -84,17 +93,35 @@ describe('Connector', () => {
   });
 
   describe('fetchCredentials', () => {
-    it('should return PowerSync credentials from settings', async () => {
+    it('should generate JWT using HS256 secret and device ID', async () => {
       const settings = createMockSettings();
       mockedCreateClient.mockReturnValue({} as any);
       
       const connector = new Connector(settings);
       const credentials = await connector.fetchCredentials();
 
-      expect(credentials).toEqual({
-        endpoint: settings.powersyncUrl,
-        token: settings.powersyncToken,
-      });
+      // Should return the endpoint
+      expect(credentials.endpoint).toBe(settings.powersyncUrl);
+      
+      // Should have called getOrCreateDeviceId
+      expect(deviceIdModule.getOrCreateDeviceId).toHaveBeenCalled();
+      
+      // Should return a valid JWT (three base64url parts separated by dots)
+      const parts = credentials.token.split('.');
+      expect(parts).toHaveLength(3);
+      
+      // Decode and verify header
+      const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+      expect(header.alg).toBe('HS256');
+      expect(header.kid).toBe(POWERSYNC_JWT_KID);
+      
+      // Decode and verify payload has required claims
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      expect(payload.sub).toBe('mock-device-uuid');
+      expect(payload.aud).toBe(POWERSYNC_JWT_AUDIENCE);
+      expect(payload.iat).toBeDefined();
+      expect(payload.exp).toBeDefined();
+      expect(payload.exp - payload.iat).toBe(POWERSYNC_JWT_EXPIRY_SECONDS);
     });
   });
 

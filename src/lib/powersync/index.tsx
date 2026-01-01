@@ -1,6 +1,6 @@
 import { OPSqliteOpenFactory } from '@powersync/op-sqlite';
 import { PowerSyncDatabase } from '@powersync/react-native';
-import { Connector } from './Connector';
+import { Connector, generatePowerSyncJWT } from './Connector';
 import { emitSyncLog } from '../logging/syncLog';
 import { AppSchema } from './Schema';
 import { Settings } from '../hooks/SettingsContext';
@@ -78,11 +78,15 @@ async function testNetworkConnectivity(settings: Settings): Promise<void> {
   
   try {
     emitSyncLog('debug', 'Testing network connectivity...');
+    
+    // Generate a JWT for authentication (don't send raw secret!)
+    const token = await generatePowerSyncJWT(settings.powersyncSecret);
+    
     const testUrl = `${settings.powersyncUrl}/sync/stream`;
     const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${settings.powersyncToken}`,
+        'Authorization': `Bearer ${token}`,
       },
       signal: controller.signal,
     });

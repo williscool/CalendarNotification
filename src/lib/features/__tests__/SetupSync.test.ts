@@ -24,7 +24,7 @@ const createSettings = (overrides: Partial<Settings> = {}): Settings => ({
   supabaseUrl: '',
   supabaseAnonKey: '',
   powersyncUrl: '',
-  powersyncToken: '',
+  powersyncSecret: '',
   ...overrides,
 });
 
@@ -34,7 +34,7 @@ const createCompleteSettings = (overrides: Partial<Settings> = {}): Settings => 
   supabaseUrl: 'https://example.supabase.co',
   supabaseAnonKey: 'anon-key-123',
   powersyncUrl: 'https://example.powersync.com',
-  powersyncToken: 'token123',
+  powersyncSecret: 'token123',
   ...overrides,
 });
 
@@ -56,8 +56,8 @@ describe('SetupSync', () => {
       expect(isSettingsConfigured(createCompleteSettings({ powersyncUrl: '' }))).toBe(false);
     });
 
-    it('returns false when powersyncToken is missing', () => {
-      expect(isSettingsConfigured(createCompleteSettings({ powersyncToken: '' }))).toBe(false);
+    it('returns false when powersyncSecret is missing', () => {
+      expect(isSettingsConfigured(createCompleteSettings({ powersyncSecret: '' }))).toBe(false);
     });
 
     it('returns true when all credentials are provided', () => {

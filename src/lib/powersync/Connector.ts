@@ -2,10 +2,93 @@ import 'react-native-url-polyfill/auto'
 
 import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
 import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
+import CryptoJS from 'crypto-js';
 import { Settings } from '../hooks/SettingsContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Logger from 'js-logger';
 import { SyncLogEntry, emitSyncLog, emitCapturedLog } from '../logging/syncLog';
+import { getOrCreateDeviceId } from './deviceId';
+
+// JWT Configuration Constants
+/** JWT audience claim - must match "JWT Audience" in PowerSync dashboard */
+export const POWERSYNC_JWT_AUDIENCE = 'powersync';
+/** JWT key ID - must match "KID" in PowerSync dashboard HS256 config */
+export const POWERSYNC_JWT_KID = 'powersync';
+/** JWT expiry time in seconds (5 minutes) - PowerSync auto-renews before expiry */
+export const POWERSYNC_JWT_EXPIRY_SECONDS = 300;
+/** Milliseconds per second - for timestamp conversion */
+const MS_PER_SECOND = 1000;
+
+/** Returns current Unix timestamp in seconds */
+const getCurrentUnixTimestamp = (): number => Math.floor(Date.now() / MS_PER_SECOND);
+
+/**
+ * Decodes a base64url encoded string to raw bytes (as a WordArray for crypto-js).
+ * PowerSync stores HS256 secrets as base64url encoded.
+ */
+const base64UrlDecode = (str: string): CryptoJS.lib.WordArray => {
+  // Convert base64url to base64
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if needed
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return CryptoJS.enc.Base64.parse(base64);
+};
+
+/**
+ * Creates a JWT token signed with HS256.
+ * Uses crypto-js which is pure JavaScript and works in React Native.
+ * @param payload - JWT payload claims
+ * @param base64UrlSecret - The HS256 secret (base64url encoded, as stored in PowerSync)
+ * @param kid - Key ID to include in the JWT header
+ */
+const createHS256Token = (payload: Record<string, unknown>, base64UrlSecret: string, kid: string): string => {
+  const header = { alg: 'HS256', typ: 'JWT', kid };
+  
+  const base64UrlEncode = (str: string): string => {
+    return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(str))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  };
+  
+  const headerEncoded = base64UrlEncode(JSON.stringify(header));
+  const payloadEncoded = base64UrlEncode(JSON.stringify(payload));
+  const dataToSign = `${headerEncoded}.${payloadEncoded}`;
+  
+  // Decode the base64url secret to raw bytes for HMAC signing
+  const secretBytes = base64UrlDecode(base64UrlSecret);
+  
+  const signature = CryptoJS.HmacSHA256(dataToSign, secretBytes);
+  const signatureEncoded = CryptoJS.enc.Base64.stringify(signature)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  
+  return `${dataToSign}.${signatureEncoded}`;
+};
+
+/**
+ * Generates a PowerSync JWT for authentication.
+ * Centralizes token generation to ensure consistent claims across the app.
+ * 
+ * @param secret - The HS256 secret (base64url encoded) from PowerSync dashboard
+ * @returns Promise resolving to the signed JWT string
+ */
+export const generatePowerSyncJWT = async (secret: string): Promise<string> => {
+  const deviceId = await getOrCreateDeviceId();
+  const now = getCurrentUnixTimestamp();
+  
+  const payload = {
+    sub: deviceId,
+    aud: POWERSYNC_JWT_AUDIENCE,
+    iat: now,
+    exp: now + POWERSYNC_JWT_EXPIRY_SECONDS,
+  };
+  
+  return createHS256Token(payload, secret, POWERSYNC_JWT_KID);
+};
 
 const log = Logger.get('PowerSync');
 
@@ -152,14 +235,13 @@ export class Connector implements PowerSyncBackendConnector {
     async fetchCredentials() {
         emitSyncLog('debug', 'fetchCredentials called', {
             endpoint: this.settings.powersyncUrl,
-            tokenLength: this.settings.powersyncToken?.length || 0,
+            hasSecret: !!this.settings.powersyncSecret,
         });
-        const credentials = {
-            endpoint: this.settings.powersyncUrl,
-            token: this.settings.powersyncToken  // TODO: programattically generate token from user id (i.e. email or phone number) + random secret
-        };
-        emitSyncLog('debug', 'Returning credentials');
-        return credentials;
+        
+        const token = await generatePowerSyncJWT(this.settings.powersyncSecret);
+        
+        emitSyncLog('debug', 'Generated JWT for PowerSync');
+        return { endpoint: this.settings.powersyncUrl, token };
     }
 
     private async executeOperation(op: CrudEntry): Promise<PostgrestSingleResponse<null> | null> {
