@@ -35,6 +35,7 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.EventAlertFlags
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
@@ -313,7 +314,7 @@ class TestActivity : Activity() {
     
     /**
      * Test collapsed notifications with next alert indicator.
-     * Creates 5 events to trigger collapsed view with soonest indicator shown.
+     * Creates 10 events to trigger collapsed view (exceeds maxNotifications).
      */
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonTestCollapsedNextAlertClick(v: View) {
@@ -322,7 +323,7 @@ class TestActivity : Activity() {
         // Enable settings
         settings.displayNextGCalReminder = true
         settings.displayNextAppAlert = false
-        settings.collapseEverything = true  // Force collapse mode
+        // Note: collapseEverything is read-only, so we create enough events to naturally trigger collapse
         DevLog.info(LOG_TAG, "Testing collapsed notifications with next alert indicator")
         
         val calendars = CalendarProvider.getCalendars(this)
@@ -336,18 +337,20 @@ class TestActivity : Activity() {
         val currentTime = clock.currentTimeMillis()
         val events = mutableListOf<EventAlertRecord>()
         
-        // Create 5 events with different reminder times
+        // Create 10 events to exceed maxNotifications and trigger collapse
         // Event 1: reminder in 30m (soonest)
-        // Event 2: reminder in 1h
-        // Event 3: reminder in 2h
-        // Event 4: reminder in 3h
-        // Event 5: no future reminders
+        // Events 2-10: various reminder times
         val eventConfigs = listOf(
             Triple("Event 1 (30m reminder)", 2 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(90))),  // fires in 30m
             Triple("Event 2 (1h reminder)", 3 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),  // fires in 1h
             Triple("Event 3 (2h reminder)", 4 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),  // fires in 2h
             Triple("Event 4 (3h reminder)", 5 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),  // fires in 3h
-            Triple("Event 5 (no future reminder)", currentTime - Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(15)))  // already fired
+            Triple("Event 5", 6 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
+            Triple("Event 6", 7 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
+            Triple("Event 7", 8 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
+            Triple("Event 8", 9 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
+            Triple("Event 9", 10 * Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(120))),
+            Triple("Event 10 (no future reminder)", currentTime - Consts.HOUR_IN_MILLISECONDS, listOf(EventReminderRecord.minutes(15)))  // already fired
         )
         
         for ((title, startOffset, reminders) in eventConfigs) {
@@ -444,7 +447,7 @@ class TestActivity : Activity() {
             return
         }
         
-        // Create muted event (flags = 0x0100 for MUTED_FLAG)
+        // Create muted event
         val event = EventAlertRecord(
             calendarId = calendar.calendarId,
             eventId = eventId,
@@ -467,7 +470,7 @@ class TestActivity : Activity() {
             timeFirstSeen = currentTime,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None,
-            flags = 0x0100  // MUTED_FLAG
+            flags = EventAlertFlags.IS_MUTED
         )
         
         ApplicationController.registerNewEvent(this, event)

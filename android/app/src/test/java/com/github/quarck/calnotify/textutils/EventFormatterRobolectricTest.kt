@@ -656,7 +656,7 @@ class EventFormatterRobolectricTest {
             timeFirstSeen = baseTime,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None,
-            flags = if (isMuted) 0x0100 else 0  // MUTED_FLAG = 0x0100
+            flags = if (isMuted) 1L else 0L  // EventAlertFlags.IS_MUTED = 1L
         )
     }
 
@@ -683,7 +683,7 @@ class EventFormatterRobolectricTest {
             calendarProvider = mockCalendarProvider
         )
         
-        // Create muted event
+        // Create muted event (IS_MUTED flag = 1L)
         val event = EventAlertRecord(
             calendarId = 1L,
             eventId = eventId,
@@ -706,7 +706,7 @@ class EventFormatterRobolectricTest {
             timeFirstSeen = baseTime,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None,
-            flags = 0x0100  // MUTED_FLAG
+            flags = 1L  // EventAlertFlags.IS_MUTED
         )
         
         val result = testFormatter.formatNextNotificationIndicator(
