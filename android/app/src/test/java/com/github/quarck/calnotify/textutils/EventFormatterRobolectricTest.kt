@@ -14,6 +14,7 @@ import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.calendar.EventReminderRecord
 import com.github.quarck.calnotify.calendar.EventStatus
+import com.github.quarck.calnotify.calendar.displayedStartTime
 import com.github.quarck.calnotify.calendar.getNextAlertTimeAfter
 import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
@@ -888,6 +889,68 @@ class EventFormatterRobolectricTest {
         assertNotNull("Recurring event should show GCal indicator using instance time", result)
         assertTrue("Should contain calendar emoji", result!!.contains("📅"))
         assertTrue("Should show 1h duration", result.contains("1h"))
+    }
+
+    @Test
+    fun `formatNextNotificationIndicator - zero instanceStartTime falls back via displayedStartTime`() {
+        val eventId = 600L
+        val futureStartTime = baseTime + 2 * Consts.HOUR_IN_MILLISECONDS
+        
+        // Master event with future start time
+        val mockCalendarProvider = mockk<CalendarProviderInterface>()
+        every { mockCalendarProvider.getEvent(any(), eq(eventId)) } returns createMockEventRecord(
+            eventId = eventId,
+            startTime = futureStartTime,
+            reminders = listOf(EventReminderRecord.minutes(60))  // 1 hour before
+        )
+        
+        val testFormatter = EventFormatter(
+            ctx = context,
+            clock = testClock,
+            calendarProvider = mockCalendarProvider
+        )
+        
+        // EventAlertRecord with instanceStartTime = 0L (not set)
+        // displayedStartTime property will fall back to startTime
+        val event = EventAlertRecord(
+            calendarId = 1L,
+            eventId = eventId,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = baseTime,
+            notificationId = eventId.toInt(),
+            title = "Test Event",
+            desc = "",
+            startTime = futureStartTime,
+            endTime = futureStartTime + Consts.HOUR_IN_MILLISECONDS,
+            instanceStartTime = 0L,  // NOT SET - should fall back to startTime
+            instanceEndTime = 0L,
+            location = "",
+            lastStatusChangeTime = baseTime,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0,
+            origin = EventOrigin.ProviderBroadcast,
+            timeFirstSeen = baseTime,
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None,
+            flags = 0L
+        )
+        
+        // Verify displayedStartTime falls back correctly
+        assertEquals("displayedStartTime should fall back to startTime when instanceStartTime is 0", 
+            futureStartTime, event.displayedStartTime)
+        
+        val result = testFormatter.formatNextNotificationIndicator(
+            event = event,
+            displayNextGCalReminder = true,
+            displayNextAppAlert = false,
+            remindersEnabled = false
+        )
+        
+        // Should show indicator because displayedStartTime falls back to startTime
+        assertNotNull("Zero instanceStartTime should fall back to startTime via displayedStartTime", result)
+        assertTrue("Should contain calendar emoji", result!!.contains("📅"))
     }
 }
 
