@@ -33,6 +33,14 @@ def isGitHubActions = System.getenv("GITHUB_ACTIONS") != null && System.getenv("
 // so now we just do it ci
 def isCIBuild = isCiBuild || isGitHubActions
 
+// Read dev page flag from local.properties (gitignored = can't leak to releases)
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+def devPageEnabled = localProperties.getProperty('devPage.enabled', 'false').toBoolean()
+
 android {
   compileSdkVersion rootProject.ext.compileSdkVersion
 
@@ -94,6 +102,7 @@ android {
     // React Native New Architecture flags
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", project.hasProperty("newArchEnabled") ? project.property("newArchEnabled") : "false"
     buildConfigField "boolean", "IS_HERMES_ENABLED", project.hasProperty("hermesEnabled") ? project.property("hermesEnabled") : "true"
+    buildConfigField "boolean", "DEV_PAGE_ENABLED", devPageEnabled.toString()
 
     // Enhanced test instrumentation with JaCoCo and Ultron/Allure
     testInstrumentationRunner "com.atiurin.ultron.allure.UltronAllureTestRunner"
