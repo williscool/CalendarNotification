@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.ui
 
 import android.view.View
 import android.widget.TextView
+import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
@@ -255,6 +256,108 @@ class MainActivityRobolectricTest {
         scenario.onActivity { activity ->
             // Verify activity supports options menu by checking menu is inflated
             assertNotNull(activity.window)
+        }
+        
+        scenario.close()
+    }
+    
+    // === Search Back Button Tests ===
+    
+    @Test
+    fun search_filter_persists_after_first_back_press() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivity()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            // Trigger menu creation
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Get adapter and set search
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Apply search filter
+            adapter.setSearchText("Alpha")
+            adapter.setEventsToDisplay()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertEquals(1, adapter.itemCount)
+            assertEquals("Alpha", adapter.searchString)
+            
+            // Press back - should keep filter
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Filter should still be active
+            assertEquals("Alpha", adapter.searchString)
+            assertEquals(1, adapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_filter_clears_after_second_back_press() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivity()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Apply search filter
+            adapter.setSearchText("Alpha")
+            adapter.setEventsToDisplay()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertEquals(1, adapter.itemCount)
+            
+            // First back - clears focus (or keeps filter if no focus)
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Second back - should clear filter
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Filter should be cleared
+            assertTrue(adapter.searchString.isNullOrEmpty())
+            assertEquals(2, adapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun back_press_without_search_finishes_activity() {
+        val scenario = fixture.launchMainActivity()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // No search active
+            assertTrue(adapter.searchString.isNullOrEmpty())
+            
+            // Back should finish activity
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertTrue(activity.isFinishing)
         }
         
         scenario.close()
