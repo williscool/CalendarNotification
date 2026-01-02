@@ -117,7 +117,8 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
-    private var searchView: SearchView? = null
+    // Visible for testing
+    internal var searchView: SearchView? = null
     private var searchMenuItem: MenuItem? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {

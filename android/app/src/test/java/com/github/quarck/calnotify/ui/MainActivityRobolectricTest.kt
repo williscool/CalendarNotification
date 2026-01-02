@@ -264,7 +264,7 @@ class MainActivityRobolectricTest {
     // === Search Back Button Tests ===
     
     @Test
-    fun search_filter_persists_after_first_back_press() {
+    fun search_filter_persists_when_searchview_has_focus_and_back_pressed() {
         fixture.createEvent(title = "Alpha Event")
         fixture.createEvent(title = "Beta Event")
         
@@ -272,23 +272,25 @@ class MainActivityRobolectricTest {
         shadowOf(Looper.getMainLooper()).idle()
         
         scenario.onActivity { activity ->
-            // Trigger menu creation
             activity.invalidateOptionsMenu()
             shadowOf(Looper.getMainLooper()).idle()
             
-            // Get adapter and set search
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
             val adapter = recyclerView.adapter as EventListAdapter
             
-            // Apply search filter
-            adapter.setSearchText("Alpha")
-            adapter.setEventsToDisplay()
+            // Expand SearchView and give it focus (simulates user tapping search icon)
+            val searchView = activity.searchView
+            assertNotNull("SearchView should be initialized", searchView)
+            searchView!!.setIconified(false)
+            searchView.requestFocus()
+            searchView.setQuery("Alpha", false)
             shadowOf(Looper.getMainLooper()).idle()
             
             assertEquals(1, adapter.itemCount)
             assertEquals("Alpha", adapter.searchString)
+            assertTrue("SearchView should have focus", searchView.hasFocus())
             
-            // Press back - should keep filter
+            // Press back - should clear focus but keep filter
             activity.onBackPressedDispatcher.onBackPressed()
             shadowOf(Looper.getMainLooper()).idle()
             
@@ -301,7 +303,7 @@ class MainActivityRobolectricTest {
     }
     
     @Test
-    fun search_filter_clears_after_second_back_press() {
+    fun search_filter_clears_on_back_when_no_focus() {
         fixture.createEvent(title = "Alpha Event")
         fixture.createEvent(title = "Beta Event")
         
@@ -315,18 +317,18 @@ class MainActivityRobolectricTest {
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
             val adapter = recyclerView.adapter as EventListAdapter
             
-            // Apply search filter
-            adapter.setSearchText("Alpha")
-            adapter.setEventsToDisplay()
+            // Set search via SearchView but clear focus (simulates submitted search)
+            val searchView = activity.searchView
+            assertNotNull(searchView)
+            searchView!!.setIconified(false)
+            searchView.setQuery("Alpha", false)
+            searchView.clearFocus()
             shadowOf(Looper.getMainLooper()).idle()
             
             assertEquals(1, adapter.itemCount)
+            assertFalse("SearchView should not have focus", searchView.hasFocus())
             
-            // First back - clears focus (or keeps filter if no focus)
-            activity.onBackPressedDispatcher.onBackPressed()
-            shadowOf(Looper.getMainLooper()).idle()
-            
-            // Second back - should clear filter
+            // Back press should clear filter (no focus to clear first)
             activity.onBackPressedDispatcher.onBackPressed()
             shadowOf(Looper.getMainLooper()).idle()
             
