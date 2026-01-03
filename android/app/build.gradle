@@ -95,8 +95,8 @@ android {
     minSdkVersion rootProject.ext.minSdkVersion
     minSdk rootProject.ext.minSdk
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 4000043
-    versionName "9.4.1"
+    versionCode 4000044
+    versionName "9.5.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
     // React Native New Architecture flags
