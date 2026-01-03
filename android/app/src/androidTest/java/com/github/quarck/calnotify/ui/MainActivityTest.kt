@@ -2,7 +2,6 @@ package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
-import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -309,8 +308,9 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").isDisplayed()
         
-        // Open search, wait for field, then type
+        // Open search (keyboard + search view = 2 navigation levels)
         withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -318,10 +318,7 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
-        // Clear search state before closing to avoid leaking to next test
-        pressBackUnconditionally()
-        pressBackUnconditionally()
-        
+        fixture.clearNavigationStack()
         scenario.close()
     }
     
@@ -335,8 +332,9 @@ class MainActivityTest : BaseUltronTest() {
         
         withText("Alpha Meeting").isDisplayed()
         
-        // Open search, wait for field, then type
+        // Open search (keyboard + search view = 2 navigation levels)
         withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -344,16 +342,15 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
-        // Press back - should keep filter active
+        // Press back - should keep filter active (hides keyboard)
         pressBack()
+        fixture.popNavigation()
         
         // Filter should still be active - only Alpha visible
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
-        // Clear search state before closing to avoid leaking to next test
-        pressBackUnconditionally()
-        
+        fixture.clearNavigationStack()
         scenario.close()
     }
     
@@ -362,14 +359,14 @@ class MainActivityTest : BaseUltronTest() {
         fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
-
         
         val scenario = fixture.launchMainActivity()
         
         withText("Alpha Meeting").isDisplayed()
         
-        // Open search, wait for field, then type
+        // Open search (keyboard + search view = 2 navigation levels)
         withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -379,15 +376,18 @@ class MainActivityTest : BaseUltronTest() {
         
         // First back - hides keyboard, keeps filter
         pressBack()
+        fixture.popNavigation()
         withText("Beta Meeting").doesNotExist()
         
         // Second back - clears filter
         pressBack()
+        fixture.popNavigation()
         
         // Both events should be visible again
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").isDisplayed()
         
+        // Navigation stack already cleared by the test itself
         scenario.close()
     }
     

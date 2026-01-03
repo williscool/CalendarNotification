@@ -28,6 +28,7 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
+import androidx.test.espresso.Espresso.pressBackUnconditionally
 import io.mockk.every
 import io.mockk.just
 import io.mockk.Runs
@@ -53,6 +54,9 @@ class UITestFixture {
     
     // Track if dialogs have been pre-suppressed (no need to dismiss them)
     private var dialogsSuppressed = false
+    
+    // Track navigation depth for automatic cleanup
+    private var navigationDepth = 0
     
     /**
      * Sets up the fixture. Call in @Before.
@@ -82,6 +86,7 @@ class UITestFixture {
         // Reset dialog flag so each test can handle dialogs if they appear
         startupDialogsDismissed = false
         dialogsSuppressed = false
+        navigationDepth = 0
         
         clearAllEvents()
         
@@ -324,6 +329,7 @@ class UITestFixture {
         
         calendarReloadPrevented = false
         dialogsSuppressed = false
+        navigationDepth = 0
         
         // Reset battery optimization dialog setting
         try {
@@ -487,6 +493,38 @@ class UITestFixture {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancelAll()
         DevLog.info(LOG_TAG, "Cancelled all notifications")
+    }
+    
+    /**
+     * Tracks navigation actions (e.g., opening search, expanding a view).
+     * Call this when entering UI states that require back presses to exit.
+     * Use [clearNavigationStack] at test end to automatically clean up.
+     * 
+     * @param count Number of navigation levels entered (e.g., 2 for search with keyboard)
+     */
+    fun pushNavigation(count: Int = 1) {
+        navigationDepth += count
+        DevLog.info(LOG_TAG, "Navigation depth: $navigationDepth (+$count)")
+    }
+    
+    /**
+     * Decrements navigation depth (e.g., after a manual back press in the test).
+     */
+    fun popNavigation(count: Int = 1) {
+        navigationDepth = maxOf(0, navigationDepth - count)
+        DevLog.info(LOG_TAG, "Navigation depth: $navigationDepth (-$count)")
+    }
+    
+    /**
+     * Presses back for each tracked navigation action.
+     * Call at the end of a test to restore initial state.
+     */
+    fun clearNavigationStack() {
+        DevLog.info(LOG_TAG, "Clearing navigation stack (depth=$navigationDepth)")
+        repeat(navigationDepth) {
+            pressBackUnconditionally()
+        }
+        navigationDepth = 0
     }
     
     /**
