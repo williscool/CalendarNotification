@@ -394,8 +394,8 @@
     <string name="system_settings_section">System Settings</string>
     <string name="system_notification_settings">All notification channels</string>
     <string name="system_notification_settings_summary">Configure system settings for all types</string>
-    <string name="all_notification_channels">All Sound channels</string>
-    <string name="all_notification_channels_summary">Configure sounds for all types</string>
+    <string name="all_sound_notification_channels">All Sound channels</string>
+    <string name="all_sound_notification_channels_summary">Configure sounds for all types</string>
     <string name="ringtone_calendar_events">Notification Ringtone - Calendar Events</string>
     <string name="ringtone_reminder">Notification Ringtone - Reminder</string>
     <string name="silent">Silent</string>

@@ -54,7 +54,7 @@ class NotificationSettingsFragmentX : PreferenceFragmentCompat() {
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
         when {
             preference.key == "pref_system_notification_settings" ||
-            preference.key == "pref_all_notification_channels" -> {
+            preference.key == "pref_all_sound_notification_channels" -> {
                 // Open the app's notification settings showing all channels
                 val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                     putExtra(Settings.EXTRA_APP_PACKAGE, requireContext().packageName)

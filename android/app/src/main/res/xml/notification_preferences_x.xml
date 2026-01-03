@@ -25,9 +25,9 @@
             app:channelId="calendar_events" />
 
         <Preference
-            android:key="pref_all_notification_channels"
-            android:title="@string/all_notification_channels"
-            android:summary="@string/all_notification_channels_summary" />
+            android:key="pref_all_sound_notification_channels"
+            android:title="@string/all_sound_notification_channels"
+            android:summary="@string/all_sound_notification_channels_summary" />
 
         <CheckBoxPreference
             android:key="use_alarm_stream_for_notification"
