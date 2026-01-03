@@ -39,7 +39,9 @@ object NotificationChannels {
     const val GROUP_ID_ALARM = "group_alarm"
     const val GROUP_ID_SILENT = "group_silent"
     
-    // Channel IDs - these are user-visible in system settings
+    // Channel IDs - IMPORTANT: These must match the string resources in strings.xml
+    // (channel_id_default, channel_id_alarm, etc.) which are used by XML preferences.
+    // See NotificationChannelsRobolectricTest for sync verification.
     const val CHANNEL_ID_DEFAULT = "calendar_events"
     const val CHANNEL_ID_ALARM = "calendar_alarm"
     const val CHANNEL_ID_SILENT = "calendar_silent"

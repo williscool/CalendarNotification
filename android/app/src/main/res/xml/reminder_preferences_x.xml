@@ -34,7 +34,7 @@
         android:title="@string/ringtone_reminder"
         android:ringtoneType="notification"
         android:dependency="reminders_custom_ringtone"
-        app:channelId="calendar_reminders" />
+        app:channelId="@string/channel_id_reminders" />
 
     <CheckBoxPreference
         android:key="reminders_custom_vibration"
