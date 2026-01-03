@@ -44,7 +44,6 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.RelativeLayout
 import android.widget.TextView
-import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.SearchView
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.app.ApplicationController
@@ -119,7 +118,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     // Visible for testing
     internal var searchView: SearchView? = null
-    private var searchMenuItem: MenuItem? = null
+    internal var searchMenuItem: MenuItem? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -173,29 +172,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             )
         }
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                when {
-                    // SearchView has focus (keyboard visible) - just hide keyboard
-                    searchView?.hasFocus() == true -> {
-                        searchView?.clearFocus()
-                    }
-                    // Has active search filter - clear it
-                    !adapter.searchString.isNullOrEmpty() -> {
-                        searchView?.setQuery("", false)
-                        adapter.setSearchText(null)
-                        adapter.setEventsToDisplay()
-                        searchMenuItem?.collapseActionView()
-                    }
-                    // Default - let system handle (finish or move to background)
-                    else -> {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                        isEnabled = true  // Re-enable for when user returns from background
-                    }
-                }
-            }
-        })
+        // Search back press is handled by searchMenuItem's OnActionExpandListener
     }
 
     public override fun onStart() {
@@ -452,6 +429,26 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         searchMenuItem?.isVisible = true
         searchMenuItem?.isEnabled = true
+        
+        // Intercept back press collapse to implement two-stage search dismissal
+        searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean = true
+            
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                // If SearchView has focus (keyboard visible), just hide keyboard
+                if (searchView?.hasFocus() == true) {
+                    searchView?.clearFocus()
+                    return false  // Prevent collapse
+                }
+                // If there's an active filter, clear it and allow collapse
+                if (!adapter.searchString.isNullOrEmpty()) {
+                    searchView?.setQuery("", false)
+                    adapter.setSearchText(null)
+                    adapter.setEventsToDisplay()
+                }
+                return true  // Allow collapse
+            }
+        })
 
         searchView = searchMenuItem?.actionView as? SearchView
         val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager

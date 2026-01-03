@@ -264,7 +264,7 @@ class MainActivityRobolectricTest {
     // === Search Back Button Tests ===
     
     @Test
-    fun search_filter_persists_when_searchview_has_focus_and_back_pressed() {
+    fun search_filter_persists_when_searchview_has_focus_and_collapse_attempted() {
         fixture.createEvent(title = "Alpha Event")
         fixture.createEvent(title = "Beta Event")
         
@@ -280,9 +280,11 @@ class MainActivityRobolectricTest {
             
             // Expand SearchView and give it focus (simulates user tapping search icon)
             val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
             assertNotNull("SearchView should be initialized", searchView)
-            searchView!!.setIconified(false)
-            searchView.requestFocus()
+            assertNotNull("SearchMenuItem should be initialized", searchMenuItem)
+            searchMenuItem!!.expandActionView()
+            searchView!!.requestFocus()
             searchView.setQuery("Alpha", false)
             shadowOf(Looper.getMainLooper()).idle()
             
@@ -290,11 +292,11 @@ class MainActivityRobolectricTest {
             assertEquals("Alpha", adapter.searchString)
             assertTrue("SearchView should have focus", searchView.hasFocus())
             
-            // Press back - should clear focus but keep filter
-            activity.onBackPressedDispatcher.onBackPressed()
+            // Try to collapse (simulates back press) - should clear focus but prevent collapse
+            searchMenuItem.collapseActionView()
             shadowOf(Looper.getMainLooper()).idle()
             
-            // Filter should still be active
+            // Filter should still be active, SearchView should still be expanded
             assertEquals("Alpha", adapter.searchString)
             assertEquals(1, adapter.itemCount)
         }
@@ -303,7 +305,7 @@ class MainActivityRobolectricTest {
     }
     
     @Test
-    fun search_filter_clears_on_back_when_no_focus() {
+    fun search_filter_clears_on_collapse_when_no_focus() {
         fixture.createEvent(title = "Alpha Event")
         fixture.createEvent(title = "Beta Event")
         
@@ -319,17 +321,19 @@ class MainActivityRobolectricTest {
             
             // Set search via SearchView but clear focus (simulates submitted search)
             val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
             assertNotNull(searchView)
-            searchView!!.setIconified(false)
-            searchView.setQuery("Alpha", false)
+            assertNotNull(searchMenuItem)
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Alpha", false)
             searchView.clearFocus()
             shadowOf(Looper.getMainLooper()).idle()
             
             assertEquals(1, adapter.itemCount)
             assertFalse("SearchView should not have focus", searchView.hasFocus())
             
-            // Back press should clear filter (no focus to clear first)
-            activity.onBackPressedDispatcher.onBackPressed()
+            // Collapse should clear filter (no focus to clear first)
+            searchMenuItem.collapseActionView()
             shadowOf(Looper.getMainLooper()).idle()
             
             // Filter should be cleared
