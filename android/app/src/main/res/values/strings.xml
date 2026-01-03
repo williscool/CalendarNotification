@@ -384,6 +384,17 @@
     <string name="notification_channel_reminders_desc">Reminders for missed events</string>
     <string name="notification_channel_alarm_reminders">Alarm Reminders</string>
     <string name="notification_channel_alarm_reminders_desc">Reminders for missed events played with alarm volume</string>
+    
+    <!-- Notification channel groups -->
+    <string name="notification_group_main">Main</string>
+    <string name="notification_group_alarm">Alarm</string>
+    <string name="notification_group_silent">Silent</string>
+    
+    <!-- System notification settings -->
+    <string name="system_notification_settings">All notification channels</string>
+    <string name="system_notification_settings_summary">Configure sounds for all notification types in system settings</string>
+    <string name="silent">Silent</string>
+    
     <string name="event_snoozed_by" formatted="false">Event snoozed by %s</string>
     <string name="debug_notifications">Debug notifications</string>
     <string name="debug_notifications_description">Used for app debugging</string>

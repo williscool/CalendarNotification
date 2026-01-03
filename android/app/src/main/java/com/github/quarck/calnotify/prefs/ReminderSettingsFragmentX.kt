@@ -29,17 +29,20 @@ import com.github.quarck.calnotify.R
 
 class ReminderSettingsFragmentX : PreferenceFragmentCompat() {
 
-    private var pendingRingtonePreference: RingtonePreferenceX? = null
+    private var pendingNotificationSoundPreference: NotificationSoundPreference? = null
 
-    private val ringtonePickerLauncher = registerForActivityResult(
+    private val activityLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        // For Android 7.x ringtone picker
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             @Suppress("DEPRECATION")
             val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            pendingRingtonePreference?.onRingtonePickerResult(uri)
+            pendingNotificationSoundPreference?.onRingtonePickerResult(uri)
         }
-        pendingRingtonePreference = null
+        // For Android 8+ system settings, refresh the summary when returning
+        pendingNotificationSoundPreference?.updateSummary()
+        pendingNotificationSoundPreference = null
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -47,12 +50,18 @@ class ReminderSettingsFragmentX : PreferenceFragmentCompat() {
     }
 
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
-        if (preference is RingtonePreferenceX) {
-            pendingRingtonePreference = preference
-            ringtonePickerLauncher.launch(preference.createRingtonePickerIntent())
+        if (preference is NotificationSoundPreference) {
+            pendingNotificationSoundPreference = preference
+            activityLauncher.launch(preference.createIntent())
             return true
         }
         return super.onPreferenceTreeClick(preference)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh sound preference summary when returning from system settings
+        findPreference<NotificationSoundPreference>("reminder_pref_key_ringtone")?.updateSummary()
     }
 
     override fun onDisplayPreferenceDialog(preference: Preference) {
