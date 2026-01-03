@@ -187,10 +187,11 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                         adapter.setEventsToDisplay()
                         searchMenuItem?.collapseActionView()
                     }
-                    // Default - finish activity
+                    // Default - let system handle (finish or move to background)
                     else -> {
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true  // Re-enable for when user returns from background
                     }
                 }
             }
