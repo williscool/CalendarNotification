@@ -4,14 +4,30 @@
     android:title="@string/notification_settings">
 
     <PreferenceCategory
+        android:title="@string/system_settings_section"
+        android:key="_system_settings">
+
+        <Preference
+            android:key="pref_system_notification_settings"
+            android:title="@string/system_notification_settings"
+            android:summary="@string/system_notification_settings_summary" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/ringtone"
         android:key="_notifications_ringtone">
 
-        <com.github.quarck.calnotify.prefs.RingtonePreferenceX
+        <com.github.quarck.calnotify.prefs.NotificationSoundPreference
             android:key="pref_key_ringtone"
-            android:summary="@string/ringtone_selection_summary"
-            android:title="@string/ringtone_selection"
-            android:ringtoneType="notification" />
+            android:title="@string/ringtone_calendar_events"
+            android:ringtoneType="notification"
+            app:channelId="calendar_events" />
+
+        <Preference
+            android:key="pref_all_sound_notification_channels"
+            android:title="@string/all_sound_notification_channels"
+            android:summary="@string/all_sound_notification_channels_summary" />
 
         <CheckBoxPreference
             android:key="use_alarm_stream_for_notification"

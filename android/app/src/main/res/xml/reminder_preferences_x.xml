@@ -29,12 +29,12 @@
         android:defaultValue="false"
         android:dependency="enable_reminding_key" />
 
-    <com.github.quarck.calnotify.prefs.RingtonePreferenceX
+    <com.github.quarck.calnotify.prefs.NotificationSoundPreference
         android:key="reminder_pref_key_ringtone"
-        android:summary="@string/ringtone_selection_summary"
-        android:title="@string/ringtone_selection"
+        android:title="@string/ringtone_reminder"
         android:ringtoneType="notification"
-        android:dependency="reminders_custom_ringtone" />
+        android:dependency="reminders_custom_ringtone"
+        app:channelId="calendar_reminders" />
 
     <CheckBoxPreference
         android:key="reminders_custom_vibration"

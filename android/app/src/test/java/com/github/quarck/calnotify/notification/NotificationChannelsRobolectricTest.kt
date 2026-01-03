@@ -32,7 +32,7 @@ import org.robolectric.annotation.Config
 
 /**
  * Tests for NotificationChannels at SDK 34 (API 26+ required for notification channels).
- * These tests verify that notification channels are created correctly.
+ * These tests verify that notification channels and groups are created correctly.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [34])
@@ -46,6 +46,8 @@ class NotificationChannelsRobolectricTest {
         context = ApplicationProvider.getApplicationContext()
         notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
+
+    // === Channel creation tests ===
 
     @Test
     fun `createChannels creates all required channels`() {
@@ -103,6 +105,83 @@ class NotificationChannelsRobolectricTest {
             NotificationManager.IMPORTANCE_LOW, silentChannel?.importance)
     }
 
+    // === Channel group tests ===
+
+    @Test
+    fun `createChannels creates all required channel groups`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert - verify all groups exist
+        val groups = notificationManager.notificationChannelGroups
+        val groupIds = groups.map { it.id }
+
+        assertTrue("Main group should exist",
+            groupIds.contains(NotificationChannels.GROUP_ID_MAIN))
+        assertTrue("Alarm group should exist",
+            groupIds.contains(NotificationChannels.GROUP_ID_ALARM))
+        assertTrue("Silent group should exist",
+            groupIds.contains(NotificationChannels.GROUP_ID_SILENT))
+        assertEquals("Should have exactly 3 groups", 3, groups.size)
+    }
+
+    @Test
+    fun `default channel is assigned to main group`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert
+        val channel = notificationManager.getNotificationChannel(NotificationChannels.CHANNEL_ID_DEFAULT)
+        assertEquals("Default channel should be in Main group",
+            NotificationChannels.GROUP_ID_MAIN, channel?.group)
+    }
+
+    @Test
+    fun `reminders channel is assigned to main group`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert
+        val channel = notificationManager.getNotificationChannel(NotificationChannels.CHANNEL_ID_REMINDERS)
+        assertEquals("Reminders channel should be in Main group",
+            NotificationChannels.GROUP_ID_MAIN, channel?.group)
+    }
+
+    @Test
+    fun `alarm channel is assigned to alarm group`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert
+        val channel = notificationManager.getNotificationChannel(NotificationChannels.CHANNEL_ID_ALARM)
+        assertEquals("Alarm channel should be in Alarm group",
+            NotificationChannels.GROUP_ID_ALARM, channel?.group)
+    }
+
+    @Test
+    fun `alarm reminders channel is assigned to alarm group`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert
+        val channel = notificationManager.getNotificationChannel(NotificationChannels.CHANNEL_ID_ALARM_REMINDERS)
+        assertEquals("Alarm reminders channel should be in Alarm group",
+            NotificationChannels.GROUP_ID_ALARM, channel?.group)
+    }
+
+    @Test
+    fun `silent channel is assigned to silent group`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert
+        val channel = notificationManager.getNotificationChannel(NotificationChannels.CHANNEL_ID_SILENT)
+        assertEquals("Silent channel should be in Silent group",
+            NotificationChannels.GROUP_ID_SILENT, channel?.group)
+    }
+
+    // === getChannelId tests ===
+
     @Test
     fun `getChannelId returns correct channel for alarm events`() {
         val channelId = NotificationChannels.getChannelId(
@@ -152,6 +231,35 @@ class NotificationChannelsRobolectricTest {
             isReminder = false
         )
         assertEquals(NotificationChannels.CHANNEL_ID_DEFAULT, channelId)
+    }
+
+    // === getChannelSoundUri tests ===
+
+    @Test
+    fun `getChannelSoundUri returns null for nonexistent channel`() {
+        // Don't create channels
+        val uri = NotificationChannels.getChannelSoundUri(context, "nonexistent_channel")
+        assertNull("Should return null for nonexistent channel", uri)
+    }
+
+    @Test
+    fun `getChannelSoundUri returns null for silent channel`() {
+        // Act
+        NotificationChannels.createChannels(context)
+        val uri = NotificationChannels.getChannelSoundUri(context, NotificationChannels.CHANNEL_ID_SILENT)
+
+        // Assert - silent channel has no sound
+        assertNull("Silent channel should have no sound URI", uri)
+    }
+
+    @Test
+    fun `getChannelSoundTitle returns Silent for channel with no sound`() {
+        // Act
+        NotificationChannels.createChannels(context)
+        val title = NotificationChannels.getChannelSoundTitle(context, NotificationChannels.CHANNEL_ID_SILENT)
+
+        // Assert
+        assertEquals("Silent", title)
     }
 }
 
