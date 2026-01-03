@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
+import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -298,6 +299,7 @@ class MainActivityTest : BaseUltronTest() {
     
     @Test
     fun search_filters_events() {
+        fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
         
@@ -316,11 +318,16 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
+        // Clear search state before closing to avoid leaking to next test
+        pressBackUnconditionally()
+        pressBackUnconditionally()
+        
         scenario.close()
     }
     
     @Test
     fun first_back_press_hides_keyboard_keeps_filter() {
+        fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
         
@@ -344,13 +351,18 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
+        // Clear search state before closing to avoid leaking to next test
+        pressBackUnconditionally()
+        
         scenario.close()
     }
     
     @Test
     fun second_back_press_clears_filter() {
+        fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
+
         
         val scenario = fixture.launchMainActivity()
         

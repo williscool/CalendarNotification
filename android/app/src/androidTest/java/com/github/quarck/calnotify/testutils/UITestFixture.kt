@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.testutils
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -476,6 +477,16 @@ class UITestFixture {
         
         seededEvents.clear()
         DevLog.info(LOG_TAG, "Cleared all events")
+    }
+    
+    /**
+     * Cancels all notifications posted by this app.
+     * This prevents notifications from interfering with UI tests.
+     */
+    fun cancelAllNotifications() {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancelAll()
+        DevLog.info(LOG_TAG, "Cancelled all notifications")
     }
     
     /**
