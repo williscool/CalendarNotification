@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.ui
 
 import android.view.View
 import android.widget.TextView
+import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
@@ -255,6 +256,110 @@ class MainActivityRobolectricTest {
         scenario.onActivity { activity ->
             // Verify activity supports options menu by checking menu is inflated
             assertNotNull(activity.window)
+        }
+        
+        scenario.close()
+    }
+    
+    // === Search Back Button Tests ===
+    
+    @Test
+    fun search_filter_persists_when_searchview_has_focus_and_back_pressed() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivity()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Expand SearchView and give it focus (simulates user tapping search icon)
+            val searchView = activity.searchView
+            assertNotNull("SearchView should be initialized", searchView)
+            searchView!!.setIconified(false)
+            searchView.requestFocus()
+            searchView.setQuery("Alpha", false)
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertEquals(1, adapter.itemCount)
+            assertEquals("Alpha", adapter.searchString)
+            assertTrue("SearchView should have focus", searchView.hasFocus())
+            
+            // Press back - should clear focus but keep filter
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Filter should still be active
+            assertEquals("Alpha", adapter.searchString)
+            assertEquals(1, adapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_filter_clears_on_back_when_no_focus() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivity()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Set search via SearchView but clear focus (simulates submitted search)
+            val searchView = activity.searchView
+            assertNotNull(searchView)
+            searchView!!.setIconified(false)
+            searchView.setQuery("Alpha", false)
+            searchView.clearFocus()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertEquals(1, adapter.itemCount)
+            assertFalse("SearchView should not have focus", searchView.hasFocus())
+            
+            // Back press should clear filter (no focus to clear first)
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Filter should be cleared
+            assertTrue(adapter.searchString.isNullOrEmpty())
+            assertEquals(2, adapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun back_press_without_search_finishes_activity() {
+        val scenario = fixture.launchMainActivity()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // No search active
+            assertTrue(adapter.searchString.isNullOrEmpty())
+            
+            // Back should finish activity
+            activity.onBackPressedDispatcher.onBackPressed()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertTrue(activity.isFinishing)
         }
         
         scenario.close()

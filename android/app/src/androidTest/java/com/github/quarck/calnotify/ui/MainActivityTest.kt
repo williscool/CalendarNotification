@@ -1,14 +1,17 @@
 package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.doesNotExist
 import com.atiurin.ultron.extensions.isClickable
 import com.atiurin.ultron.extensions.isDisplayed
 import com.atiurin.ultron.extensions.isNotDisplayed
+import com.atiurin.ultron.extensions.replaceText
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
@@ -288,6 +291,103 @@ class MainActivityTest : BaseUltronTest() {
         
         withText("Task Event").isDisplayed()
         
+        scenario.close()
+    }
+    
+    // === Search Back Button Tests ===
+    
+    @Test
+    fun search_filters_events() {
+        fixture.cancelAllNotifications()
+        fixture.createEvent(title = "Alpha Meeting")
+        fixture.createEvent(title = "Beta Meeting")
+        
+        val scenario = fixture.launchMainActivity()
+        
+        // Both events visible
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").isDisplayed()
+        
+        // Open search (keyboard + search view = 2 navigation levels)
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha should be visible (Beta is filtered out completely)
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").doesNotExist()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
+    @Test
+    fun first_back_press_hides_keyboard_keeps_filter() {
+        fixture.cancelAllNotifications()
+        fixture.createEvent(title = "Alpha Meeting")
+        fixture.createEvent(title = "Beta Meeting")
+        
+        val scenario = fixture.launchMainActivity()
+        
+        withText("Alpha Meeting").isDisplayed()
+        
+        // Open search (keyboard + search view = 2 navigation levels)
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha should be visible (Beta is filtered out completely)
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").doesNotExist()
+        
+        // Press back - should keep filter active (hides keyboard)
+        pressBack()
+        fixture.popNavigation()
+        
+        // Filter should still be active - only Alpha visible
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").doesNotExist()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
+    @Test
+    fun second_back_press_clears_filter() {
+        fixture.cancelAllNotifications()
+        fixture.createEvent(title = "Alpha Meeting")
+        fixture.createEvent(title = "Beta Meeting")
+        
+        val scenario = fixture.launchMainActivity()
+        
+        withText("Alpha Meeting").isDisplayed()
+        
+        // Open search (keyboard + search view = 2 navigation levels)
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha visible (Beta is filtered out completely)
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").doesNotExist()
+        
+        // First back - hides keyboard, keeps filter
+        pressBack()
+        fixture.popNavigation()
+        withText("Beta Meeting").doesNotExist()
+        
+        // Second back - clears filter
+        pressBack()
+        fixture.popNavigation()
+        
+        // Both events should be visible again
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").isDisplayed()
+        
+        // Navigation stack already cleared by the test itself
         scenario.close()
     }
     

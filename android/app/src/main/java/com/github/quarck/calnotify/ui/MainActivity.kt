@@ -44,6 +44,7 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.SearchView
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.app.ApplicationController
@@ -116,6 +117,10 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
+    // Visible for testing
+    internal var searchView: SearchView? = null
+    private var searchMenuItem: MenuItem? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -167,6 +172,30 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                             .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
         }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    // SearchView has focus (keyboard visible) - just hide keyboard
+                    searchView?.hasFocus() == true -> {
+                        searchView?.clearFocus()
+                    }
+                    // Has active search filter - clear it
+                    !adapter.searchString.isNullOrEmpty() -> {
+                        searchView?.setQuery("", false)
+                        adapter.setSearchText(null)
+                        adapter.setEventsToDisplay()
+                        searchMenuItem?.collapseActionView()
+                    }
+                    // Default - let system handle (finish or move to background)
+                    else -> {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true  // Re-enable for when user returns from background
+                    }
+                }
+            }
+        })
     }
 
     public override fun onStart() {
@@ -419,23 +448,22 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
 
-        val searchMenuItem = menu.findItem(R.id.action_search)
+        searchMenuItem = menu.findItem(R.id.action_search)
 
-        searchMenuItem.isVisible = true
-        searchMenuItem.isEnabled = true
+        searchMenuItem?.isVisible = true
+        searchMenuItem?.isEnabled = true
 
-        var searchView = searchMenuItem.actionView as SearchView
+        searchView = searchMenuItem?.actionView as? SearchView
         val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
 
-        searchView.queryHint = resources.getQuantityString(R.plurals.search_placeholder, adapter.getAllItemCount(), adapter.getAllItemCount())
-        searchView.setSearchableInfo(manager.getSearchableInfo(componentName))
+        searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, adapter.getAllItemCount(), adapter.getAllItemCount())
+        searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
 
-        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
           override fun onQueryTextSubmit(query: String?): Boolean {
             adapter.setSearchText(query)
-            searchView.clearFocus()
-            searchView.setQuery(query, false)
-            searchMenuItem.collapseActionView()
+            searchView?.clearFocus()  // Hide keyboard but keep SearchView expanded
+            searchView?.setQuery(query, false)
             adapter.setEventsToDisplay()
             return true
           }
@@ -447,14 +475,14 @@ class MainActivity : AppCompatActivity(), EventListCallback {
           }
         })
 
-        val closebutton: View = searchView.findViewById(androidx.appcompat.R.id.search_close_btn)
+        val closebutton: View? = searchView?.findViewById(androidx.appcompat.R.id.search_close_btn)
 
-        closebutton.setOnClickListener {
-          searchView.setQuery("",false)
-          searchView.clearFocus()
+        closebutton?.setOnClickListener {
+          searchView?.setQuery("", false)
+          searchView?.clearFocus()
           adapter.setSearchText(null)
           adapter.setEventsToDisplay()
-          true
+          searchMenuItem?.collapseActionView()
         }
 
         val menuItem = menu.findItem(R.id.action_snooze_all)
