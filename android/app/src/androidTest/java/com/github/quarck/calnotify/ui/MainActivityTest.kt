@@ -298,7 +298,6 @@ class MainActivityTest : BaseUltronTest() {
     
     @Test
     fun search_filters_events() {
-        fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
         
@@ -324,7 +323,6 @@ class MainActivityTest : BaseUltronTest() {
     
     @Test
     fun first_back_press_hides_keyboard_keeps_filter() {
-        fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
         
@@ -356,7 +354,6 @@ class MainActivityTest : BaseUltronTest() {
     
     @Test
     fun second_back_press_clears_filter() {
-        fixture.cancelAllNotifications()
         fixture.createEvent(title = "Alpha Meeting")
         fixture.createEvent(title = "Beta Meeting")
         

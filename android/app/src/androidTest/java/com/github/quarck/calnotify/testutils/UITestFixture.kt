@@ -179,6 +179,8 @@ class UITestFixture {
     /**
      * Sets up lightweight mocking to prevent calendar reloads from clearing test events.
      * This mocks ApplicationController.onMainActivityResumed to skip the calendar rescan.
+     * Also mocks alarm-triggered notification posting to prevent flaky tests from stale
+     * AlarmManager alarms that persist across test runs on local emulators.
      */
     private fun setupCalendarReloadPrevention() {
         DevLog.info(LOG_TAG, "Setting up calendar reload prevention")
@@ -194,6 +196,17 @@ class UITestFixture {
         // Also mock onCalendarChanged to prevent calendar change broadcasts from triggering rescans
         every { 
             ApplicationController.onCalendarChanged(any()) 
+        } just Runs
+        
+        // Mock alarm-triggered methods to prevent notifications from stale AlarmManager alarms.
+        // Local emulators persist alarms across test runs, causing flaky notification interference.
+        // (GitHub Actions uses fresh emulators so this is less common there.)
+        every { 
+            ApplicationController.onEventAlarm(any()) 
+        } just Runs
+        
+        every { 
+            ApplicationController.fireEventReminder(any(), any(), any()) 
         } just Runs
         
         calendarReloadPrevented = true
@@ -551,6 +564,9 @@ class UITestFixture {
     
     /**
      * Launches MainActivity with ActivityScenario.
+     * 
+     * If calendar reload prevention is active, also clears any pre-existing notifications
+     * to prevent them from interfering with UI tests (e.g., blocking toolbar buttons).
      */
     fun launchMainActivity(): ActivityScenario<MainActivity> {
         DevLog.info(LOG_TAG, "Launching MainActivity")
@@ -560,6 +576,13 @@ class UITestFixture {
             DevLog.info(LOG_TAG, "MainActivity is ready: ${activity.javaClass.simpleName}")
         }
         dismissStartupDialogs()
+        
+        // Clear any pre-existing notifications that could interfere with UI tests
+        // (e.g., heads-up notifications blocking toolbar buttons)
+        if (calendarReloadPrevented) {
+            cancelAllNotifications()
+        }
+        
         return scenario
     }
     
