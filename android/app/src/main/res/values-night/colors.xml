@@ -22,6 +22,9 @@
     <!-- Dividers (adjusted for dark mode) -->
     <color name="divider">#3D3D3D</color>
     <color name="divider_light">#2D2D2D</color>
+
+    <!-- Snoozed until text - readable but de-emphasized -->
+    <color name="snoozed_until_text">#888888</color>
     <color name="light_divider">#2A2A2A</color>
     <color name="ultra_light_divider">#1F1F1F</color>
 
