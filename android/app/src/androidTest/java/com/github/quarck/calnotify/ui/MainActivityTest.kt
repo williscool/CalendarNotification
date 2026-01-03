@@ -7,6 +7,7 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.doesNotExist
 import com.atiurin.ultron.extensions.isClickable
 import com.atiurin.ultron.extensions.isDisplayed
 import com.atiurin.ultron.extensions.isNotDisplayed
@@ -306,13 +307,14 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").isDisplayed()
         
-        // Open search and type
+        // Open search, wait for field, then type
         withId(R.id.action_search).click()
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
-        // Only Alpha should be visible
+        // Only Alpha should be visible (Beta is filtered out completely)
         withText("Alpha Meeting").isDisplayed()
-        withText("Beta Meeting").isNotDisplayed()
+        withText("Beta Meeting").doesNotExist()
         
         scenario.close()
     }
@@ -326,20 +328,21 @@ class MainActivityTest : BaseUltronTest() {
         
         withText("Alpha Meeting").isDisplayed()
         
-        // Open search and type
+        // Open search, wait for field, then type
         withId(R.id.action_search).click()
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
-        // Only Alpha should be visible
+        // Only Alpha should be visible (Beta is filtered out completely)
         withText("Alpha Meeting").isDisplayed()
-        withText("Beta Meeting").isNotDisplayed()
+        withText("Beta Meeting").doesNotExist()
         
         // Press back - should keep filter active
         pressBack()
         
         // Filter should still be active - only Alpha visible
         withText("Alpha Meeting").isDisplayed()
-        withText("Beta Meeting").isNotDisplayed()
+        withText("Beta Meeting").doesNotExist()
         
         scenario.close()
     }
@@ -353,17 +356,18 @@ class MainActivityTest : BaseUltronTest() {
         
         withText("Alpha Meeting").isDisplayed()
         
-        // Open search and type
+        // Open search, wait for field, then type
         withId(R.id.action_search).click()
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
-        // Only Alpha visible
+        // Only Alpha visible (Beta is filtered out completely)
         withText("Alpha Meeting").isDisplayed()
-        withText("Beta Meeting").isNotDisplayed()
+        withText("Beta Meeting").doesNotExist()
         
         // First back - hides keyboard, keeps filter
         pressBack()
-        withText("Beta Meeting").isNotDisplayed()
+        withText("Beta Meeting").doesNotExist()
         
         // Second back - clears filter
         pressBack()
