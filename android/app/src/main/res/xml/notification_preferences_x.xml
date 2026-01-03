@@ -22,7 +22,7 @@
             android:key="pref_key_ringtone"
             android:title="@string/ringtone_calendar_events"
             android:ringtoneType="notification"
-            app:channelId="calendar_events" />
+            app:channelId="@string/channel_id_default" />
 
         <Preference
             android:key="pref_all_sound_notification_channels"

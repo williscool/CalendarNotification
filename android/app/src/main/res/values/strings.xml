@@ -373,6 +373,14 @@
     <string name="alarm_tag">#alarm</string>
     <string name="create_event">Create Event</string>
 
+    <!-- Notification channel IDs (not translatable - must match NotificationChannels.kt constants) -->
+    <string name="channel_id_default" translatable="false">calendar_events</string>
+    <string name="channel_id_alarm" translatable="false">calendar_alarm</string>
+    <string name="channel_id_silent" translatable="false">calendar_silent</string>
+    <string name="channel_id_reminders" translatable="false">calendar_reminders</string>
+    <string name="channel_id_alarm_reminders" translatable="false">calendar_alarm_reminders</string>
+    
+    <!-- Notification channel display names -->
     <string name="notification_channel_default">Calendar Events</string>
     <string name="notification_channel_default_desc">Default channel for calendar events</string>
     <string name="notification_channel_alarm">Alarm Notifications</string>

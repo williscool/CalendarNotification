@@ -261,5 +261,43 @@ class NotificationChannelsRobolectricTest {
         // Assert
         assertEquals("Silent", title)
     }
+
+    // === String resource sync tests ===
+    // These tests ensure the Kotlin constants match the string resources used in XML preferences
+
+    @Test
+    fun `channel ID constants match string resources - default`() {
+        val stringResource = context.getString(com.github.quarck.calnotify.R.string.channel_id_default)
+        assertEquals("Channel ID constant must match string resource",
+            NotificationChannels.CHANNEL_ID_DEFAULT, stringResource)
+    }
+
+    @Test
+    fun `channel ID constants match string resources - alarm`() {
+        val stringResource = context.getString(com.github.quarck.calnotify.R.string.channel_id_alarm)
+        assertEquals("Channel ID constant must match string resource",
+            NotificationChannels.CHANNEL_ID_ALARM, stringResource)
+    }
+
+    @Test
+    fun `channel ID constants match string resources - silent`() {
+        val stringResource = context.getString(com.github.quarck.calnotify.R.string.channel_id_silent)
+        assertEquals("Channel ID constant must match string resource",
+            NotificationChannels.CHANNEL_ID_SILENT, stringResource)
+    }
+
+    @Test
+    fun `channel ID constants match string resources - reminders`() {
+        val stringResource = context.getString(com.github.quarck.calnotify.R.string.channel_id_reminders)
+        assertEquals("Channel ID constant must match string resource",
+            NotificationChannels.CHANNEL_ID_REMINDERS, stringResource)
+    }
+
+    @Test
+    fun `channel ID constants match string resources - alarm reminders`() {
+        val stringResource = context.getString(com.github.quarck.calnotify.R.string.channel_id_alarm_reminders)
+        assertEquals("Channel ID constant must match string resource",
+            NotificationChannels.CHANNEL_ID_ALARM_REMINDERS, stringResource)
+    }
 }
 
