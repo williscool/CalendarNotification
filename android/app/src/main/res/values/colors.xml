@@ -24,6 +24,9 @@
     <color name="divider">#B6B6B6</color>
     <color name="divider_light">#C6C6C6</color>
 
+    <!-- Snoozed until text - soft secondary styling -->
+    <color name="snoozed_until_text">#9E9E9E</color>
+
     <color name="event_title_color">#FFFFFF</color>
     <color name="event_title_hint_color">#CECECE</color>
 

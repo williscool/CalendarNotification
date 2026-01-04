@@ -101,7 +101,7 @@
             android:id="@+id/card_view_snoozed_until"
             android:text="@string/snoozed_until_example"
             android:textAppearance="?android:textAppearanceSmall"
-            android:textColor="@color/divider"
+            android:textColor="@color/snoozed_until_text"
 
             android:layout_below="@id/card_view_event_date"
             android:layout_toEndOf="@id/compact_view_calendar_color"
