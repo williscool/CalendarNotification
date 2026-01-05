@@ -128,6 +128,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 card_view:srcCompat="@drawable/ic_volume_off_black_24dp"
+                android:tint="@color/primary_text"
                 android:contentDescription="@string/notification_is_muted"
                 android:layout_marginTop="0dp"
                 android:layout_marginEnd="0dp"
@@ -143,6 +144,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 card_view:srcCompat="@drawable/ic_event_available_black_24dp"
+                android:tint="@color/primary_text"
                 android:layout_marginTop="0dp"
                 android:layout_marginEnd="0dp"
                 android:padding="0dp"
@@ -165,6 +167,7 @@
                 android:scaleY="0.75"
                 android:visibility="gone"
                 card_view:srcCompat="@drawable/ic_alarm_black_24dp"
+                android:tint="@color/primary_text"
                 android:alpha="0.75"
                 />
 
