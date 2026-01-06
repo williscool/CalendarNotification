@@ -1011,6 +1011,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setSubText(text)
                 .setGroupSummary(true)
                 .setGroup(NOTIFICATION_GROUP)
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
                 .setContentIntent(pendingIntent)
                 .setCategory(
                         NotificationCompat.CATEGORY_EVENT
@@ -1173,6 +1174,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         if (notificationSettings.useBundledNotifications) {
             builder.setGroup(NOTIFICATION_GROUP)
+            builder.setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
 
         var snoozePresets =
@@ -1536,6 +1538,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         if (notificationSettings.useBundledNotifications) {
             builder.setGroup(NOTIFICATION_GROUP)
+            builder.setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
 
         if (notificationSettings.led.on && (!isQuietPeriodActive || !settings.quietHoursMuteLED)) {
