@@ -34,23 +34,23 @@ Historical decisions and completed work, kept for reference:
 
 - [Constructor Mocking Limitations](dev_completed/constructor-mocking-android.md) ⭐ *Key Reference*
 - [Calendar Backup/Restore Test Isolation](dev_completed/calendar_backup_restore_test_isolation.md)
+- [Database Modernization Plan](dev_completed/database_modernization_plan.md) - Room migration complete ✅
+- [Room Database Migration](dev_completed/room_database_migration.md) - Implementation details & patterns
 - [Event Dismissal Testing Notes](dev_completed/event_dismissal_testing_notes.md)
 - [Expo Router Migration Decision](dev_completed/expo_router_migration.md) - Evaluated & intentionally deferred
 - [Intermittent Build Issue Fix](dev_completed/intermittent_build_issue_resources_npe.md)
 - [Mock Calendar Provider Refactor](dev_completed/mock_calendar_provider_refactor.md)
 - [SQLite Mocking in Robolectric](dev_completed/sqlite-mocking-robolectric.md)
+- [Test Exception Fallback](dev_completed/test_exception_fallback.md) - XML results file behavior on crash
 
 ## TODO/In Progress (`dev_todo/`)
 
 Features and changes under consideration:
 
 - [Deprecated Features Removal](dev_todo/deprecated_features.md) - QuietHours, CalendarEditor
-- [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt, Room overview
-- [Room Database Migration](dev_todo/room_database_migration.md) - SQLite → Room (preliminary research)
-- [Database Modernization Plan](dev_todo/database_modernization_plan.md) - **POC COMPLETE ✅ - Ready for Phase 1** ⭐
+- [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt DI opportunities
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations
 - [Event Deletion Issues](dev_todo/event_deletion_issues.md) - Cleanup mechanisms
 - [Event Restore Behavior](dev_todo/event_restore_behavior.md) - Restoration logic
 - [Reschedule Confirmation Handling](dev_todo/reschedule_confirmation_handling.md) - UI improvements
-- [Test Exception Fallback](dev_todo/test_exception_fallback.md) - XML results file behavior on crash
 
