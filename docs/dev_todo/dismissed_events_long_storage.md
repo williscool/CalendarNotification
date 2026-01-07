@@ -199,6 +199,9 @@ db.events.toTypedArray()
     <item>365</item>
     <item>0</item>
 </string-array>
+
+<!-- Update existing (add proper warning): -->
+<string name="remove_all_confirmation">Remove all dismissed events history?\n\nThis will permanently delete all dismissed event records.\n\nCANNOT BE UNDONE!</string>
 ```
 
 ### Phase 2: Performance Optimization (Recommended)
@@ -241,20 +244,118 @@ fun getRecentEvents(limit: Int): List<DismissedEventAlertRecord>
 fun countEventsBetween(startTime: Long, endTime: Long): Int
 ```
 
-### Phase 3: UI Improvements (Future)
+### Phase 3: Search in Dismissed Events
 
-#### 3.1 Paginated Loading in `DismissedEventsActivity`
+Port the search functionality from `MainActivity` to `DismissedEventsActivity`.
+
+#### 3.1 Add Search to Menu (`dismissed_main.xml`)
+
+```xml
+<item
+    android:id="@+id/action_search"
+    android:icon="@android:drawable/ic_menu_search"
+    android:orderInCategory="90"
+    android:title="@string/search"
+    app:showAsAction="ifRoom|collapseActionView"
+    app:actionViewClass="androidx.appcompat.widget.SearchView"/>
+
+<item
+    android:id="@+id/action_remove_all"
+    android:orderInCategory="100"
+    android:title="@string/remove_all"
+    app:showAsAction="never"/>
+```
+
+#### 3.2 Add Search Logic to `DismissedEventsActivity.kt`
+
+Port from MainActivity:
+- Add `searchView` and `searchMenuItem` fields
+- Setup `SearchView` in `onCreateOptionsMenu()`
+- Handle `OnQueryTextListener` for filtering
+- Implement two-stage dismissal (clear focus first, then close)
+
+```kotlin
+private var searchView: SearchView? = null
+private var searchMenuItem: MenuItem? = null
+
+override fun onCreateOptionsMenu(menu: Menu): Boolean {
+    menuInflater.inflate(R.menu.dismissed_main, menu)
+    
+    searchMenuItem = menu.findItem(R.id.action_search)
+    searchView = searchMenuItem?.actionView as? SearchView
+    
+    searchView?.queryHint = "Search ${adapter.itemCount} events..."
+    searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+        override fun onQueryTextSubmit(query: String?): Boolean {
+            adapter.setSearchText(query)
+            searchView?.clearFocus()
+            return true
+        }
+        override fun onQueryTextChange(newText: String?): Boolean {
+            adapter.setSearchText(newText)
+            return true
+        }
+    })
+    // ... close button handling
+    return true
+}
+```
+
+#### 3.3 Add Filter Support to `DismissedEventListAdapter.kt`
+
+```kotlin
+// Add fields:
+private var allEntries = arrayOf<DismissedEventAlertRecord>()
+var searchString: String? = null
+    private set
+
+// Add method:
+fun setSearchText(query: String?) {
+    searchString = query
+    applyFilter()
+}
+
+private fun applyFilter() {
+    entries = if (searchString.isNullOrEmpty()) {
+        allEntries
+    } else {
+        val query = searchString!!.lowercase()
+        allEntries.filter { entry ->
+            entry.event.title.lowercase().contains(query) ||
+            entry.event.desc.lowercase().contains(query) ||
+            entry.event.location.lowercase().contains(query)
+        }.toTypedArray()
+    }
+    notifyDataSetChanged()
+}
+
+// Update setEventsToDisplay:
+fun setEventsToDisplay(newEntries: Array<DismissedEventAlertRecord>) = synchronized(this) {
+    allEntries = newEntries
+    applyFilter()
+}
+```
+
+#### 3.4 Files to Modify
+
+- `android/app/src/main/res/menu/dismissed_main.xml`
+- `android/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventsActivity.kt`
+- `android/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventListAdapter.kt`
+
+### Phase 4: UI Improvements (Future)
+
+#### 4.1 Paginated Loading in `DismissedEventsActivity`
 
 - Load most recent 100 events initially
 - Add "Load more" or infinite scroll
 - Show count badge in menu
 
-#### 3.2 Date Grouping
+#### 4.2 Date Grouping
 
 - Group events by day/week/month
 - Collapsible sections
 
-#### 3.3 "What You Got Done" Report
+#### 4.3 "What You Got Done" Report
 
 - Summary view: events per day/week
 - Calendar-style heatmap
@@ -475,6 +576,16 @@ class MockEventsStorage : EventsStorageInterface {
 - `DismissedEventDaoTest.kt` - Test new date-range queries
 - Performance tests with 1000+ events
 - Database migration tests
+
+### Phase 3 Tests (Future)
+
+- `DismissedEventsActivityTest.kt` - Search UI tests
+- `DismissedEventListAdapterTest.kt` - Filter logic tests
+  - Filter by title
+  - Filter by description
+  - Filter by location
+  - Empty query returns all
+  - Case-insensitive matching
 
 ## Migration Path
 
