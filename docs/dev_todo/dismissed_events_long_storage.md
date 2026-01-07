@@ -225,11 +225,18 @@ fun countEventsBetween(startTime: Long, endTime: Long): Int
 
 ## Files to Modify
 
-### Phase 1 (Minimum):
+### Phase 1 - Production Code:
 - `android/app/src/main/java/com/github/quarck/calnotify/Settings.kt`
 - `android/app/src/main/java/com/github/quarck/calnotify/ui/MainActivity.kt`
 - `android/app/src/main/res/xml/misc_preferences.xml`
 - `android/app/src/main/res/values/strings.xml`
+
+### Phase 1 - Test Code:
+- `android/app/src/androidTest/java/com/github/quarck/calnotify/SettingsTest.kt` (update)
+- `android/app/src/test/java/com/github/quarck/calnotify/SettingsRobolectricTest.kt` (update)
+- `android/app/src/androidTest/java/com/github/quarck/calnotify/dismissedeventsstorage/DismissedEventsPurgeTest.kt` (NEW)
+- `android/app/src/androidTest/java/com/github/quarck/calnotify/dismissedeventsstorage/StorageConsistencyTest.kt` (NEW)
+- `android/app/src/test/java/com/github/quarck/calnotify/testutils/MockEventsStorage.kt` (NEW)
 
 ### Phase 2 (Performance):
 - `android/app/src/main/java/com/github/quarck/calnotify/dismissedeventsstorage/DismissedEventEntity.kt`
@@ -238,16 +245,197 @@ fun countEventsBetween(startTime: Long, endTime: Long): Int
 - `android/app/src/main/java/com/github/quarck/calnotify/dismissedeventsstorage/RoomDismissedEventsStorage.kt`
 - `android/app/src/main/java/com/github/quarck/calnotify/dismissedeventsstorage/DismissedEventsDatabase.kt` (migration)
 
-## Testing Considerations
+## Testing Plan
 
-1. **Settings persistence**: Verify setting saves and loads correctly
-2. **Purge behavior**: Test that events are/aren't purged based on setting
-3. **Forever option**: Confirm no purging occurs when "Forever" selected
-4. **Migration**: Test database migration for new index
-5. **Performance**: Load test with 1000+ dismissed events
-6. **Edge cases**: Empty bin, setting change with existing data
-7. **Consistency check**: Create orphaned state (event in both storages), verify cleanup
-8. **Error handling**: Verify cleanup errors don't crash app or block UI
+### Phase 1 Tests
+
+#### 1. Settings Tests (add to `SettingsTest.kt` / `SettingsRobolectricTest.kt`)
+
+```kotlin
+// === Keep History Settings Tests ===
+
+@Test
+fun testKeepHistoryDaysDefaultValue() {
+    // Default should be 3 days
+    assertEquals(3, settings.keepHistoryDays)
+}
+
+@Test
+fun testKeepHistoryMillisDefaultValue() {
+    // 3 days in milliseconds
+    assertEquals(3 * 24 * 60 * 60 * 1000L, settings.keepHistoryMillis)
+}
+
+@Test
+fun testKeepHistoryMillisForeverValue() {
+    // When keepHistoryDays is 0, should return Long.MAX_VALUE
+    // (Requires setting the preference to 0 first)
+    // settings.setInt("keep_history_days", 0) 
+    // assertEquals(Long.MAX_VALUE, settings.keepHistoryMillis)
+}
+
+@Test
+fun testKeepHistoryMillisVariousValues() {
+    // Test 7, 14, 30, 90, 365 days
+    val testCases = listOf(7, 14, 30, 90, 365)
+    testCases.forEach { days ->
+        val expectedMillis = days * 24L * 60L * 60L * 1000L
+        // Set and verify
+    }
+}
+```
+
+#### 2. Purge Behavior Tests (new file: `DismissedEventsPurgeTest.kt`)
+
+Use `MockDismissedEventsStorage` pattern for in-memory testing:
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class DismissedEventsPurgeTest {
+    private lateinit var mockDismissedStorage: MockDismissedEventsStorage
+    private lateinit var mockTimeProvider: MockTimeProvider
+    
+    @Before
+    fun setup() {
+        mockDismissedStorage = MockDismissedEventsStorage()
+        mockTimeProvider = MockTimeProvider(baseTime)
+    }
+    
+    @Test
+    fun testPurgeOldRemovesExpiredEvents() {
+        // Given: Events from 1, 2, 5, 10 days ago
+        // When: Purge with 3-day retention
+        // Then: Only events from 1, 2 days ago remain
+    }
+    
+    @Test
+    fun testPurgeOldWithForeverSetting() {
+        // Given: Events from various times
+        // When: keepHistoryMillis = Long.MAX_VALUE (forever)
+        // Then: No purge call made, all events remain
+    }
+    
+    @Test
+    fun testPurgeOldWithEmptyStorage() {
+        // Given: Empty storage
+        // When: Purge
+        // Then: No errors, storage still empty
+    }
+    
+    @Test
+    fun testPurgeOldPreservesRecentEvents() {
+        // Given: Events from 1 day ago
+        // When: Purge with 3-day retention
+        // Then: All events remain
+    }
+}
+```
+
+#### 3. Consistency Check Tests (new file: `StorageConsistencyTest.kt`)
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class StorageConsistencyTest {
+    private lateinit var mockDismissedStorage: MockDismissedEventsStorage
+    private lateinit var mockEventsStorage: MockEventsStorage // Need to create
+    private lateinit var mockTimeProvider: MockTimeProvider
+    
+    @Test
+    fun testCleanupOrphanedEventsRemovesDuplicates() {
+        // Given: Event exists in BOTH storages (orphaned state)
+        val event = createTestEvent(1L)
+        mockDismissedStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        mockEventsStorage.addEvent(event)
+        
+        // When: cleanupOrphanedEvents runs
+        // Then: Event is removed from EventsStorage, remains in DismissedStorage
+        assertEquals(1, mockDismissedStorage.eventCount)
+        assertEquals(0, mockEventsStorage.eventCount)
+    }
+    
+    @Test
+    fun testCleanupOrphanedEventsPreservesValidState() {
+        // Given: Different events in each storage (normal state)
+        val dismissedEvent = createTestEvent(1L)
+        val activeEvent = createTestEvent(2L)
+        mockDismissedStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, dismissedEvent)
+        mockEventsStorage.addEvent(activeEvent)
+        
+        // When: cleanupOrphanedEvents runs
+        // Then: Both remain unchanged
+        assertEquals(1, mockDismissedStorage.eventCount)
+        assertEquals(1, mockEventsStorage.eventCount)
+    }
+    
+    @Test
+    fun testCleanupOrphanedEventsWithEmptyStorages() {
+        // Given: Both storages empty
+        // When: cleanupOrphanedEvents runs
+        // Then: No errors
+    }
+    
+    @Test
+    fun testCleanupOrphanedEventsHandlesErrors() {
+        // Given: Storage throws exception
+        // When: cleanupOrphanedEvents runs
+        // Then: Error is logged, no crash
+    }
+    
+    @Test
+    fun testCleanupOrphanedEventsWithMultipleOrphans() {
+        // Given: 5 events in both storages
+        // When: cleanupOrphanedEvents runs
+        // Then: All 5 removed from EventsStorage
+    }
+}
+```
+
+#### 4. MockEventsStorage (new file: `testutils/MockEventsStorage.kt`)
+
+Need to create this for consistency check tests:
+
+```kotlin
+/**
+ * In-memory implementation of EventsStorageInterface for tests.
+ */
+class MockEventsStorage : EventsStorageInterface {
+    private val eventsMap = mutableMapOf<EventKey, EventAlertRecord>()
+    
+    data class EventKey(val eventId: Long, val instanceStartTime: Long)
+    
+    // Implement interface methods...
+    
+    override val events: List<EventAlertRecord>
+        get() = eventsMap.values.toList()
+        
+    override fun deleteEvents(events: Collection<EventAlertRecord>): Int {
+        var deleted = 0
+        events.forEach { 
+            val key = EventKey(it.eventId, it.instanceStartTime)
+            if (eventsMap.remove(key) != null) deleted++
+        }
+        return deleted
+    }
+    
+    // ... other methods
+}
+```
+
+### Test Files Summary
+
+| File | Type | Purpose |
+|------|------|---------|
+| `SettingsTest.kt` | androidTest | Add `keepHistoryDays/Millis` tests |
+| `SettingsRobolectricTest.kt` | test | Add `keepHistoryDays/Millis` tests |
+| `DismissedEventsPurgeTest.kt` | androidTest (NEW) | Purge behavior tests |
+| `StorageConsistencyTest.kt` | androidTest (NEW) | Orphaned event cleanup tests |
+| `MockEventsStorage.kt` | testutils (NEW) | In-memory EventsStorage for tests |
+
+### Phase 2 Tests (Future)
+
+- `DismissedEventDaoTest.kt` - Test new date-range queries
+- Performance tests with 1000+ events
+- Database migration tests
 
 ## Migration Path
 
