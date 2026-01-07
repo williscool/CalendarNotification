@@ -6,7 +6,7 @@
 
 This codebase was started in 2016, before many modern Android development patterns and libraries existed. This document catalogs potential modernization efforts, their benefits, and effort estimates.
 
-See also: `room_database_migration.md` for database-specific modernization.
+See also: `../dev_completed/room_database_migration.md` for database-specific modernization.
 
 ## Timeline: Android Development Evolution
 
