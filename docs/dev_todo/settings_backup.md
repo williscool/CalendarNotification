@@ -12,6 +12,32 @@ Implement manual settings import/export functionality to allow users to:
 
 **GitHub Issue:** [#29 - Import/Export settings](https://github.com/williscool/CalendarNotification/issues/29)
 
+## Research Notes (Jan 2026)
+
+We researched current Android best practices for settings backup. Key findings:
+
+**Android's Official Stance:** Google heavily promotes Auto Backup as the primary solution, with most documentation focused on cloud sync. However, Auto Backup doesn't solve our use case:
+- Different signing keys between stable↔debug releases means they're treated as different apps
+- Users have no manual control over when/where backups happen
+- Can't easily transfer settings to a new device without Google account sync
+
+**Format Decision: JSON**
+- Google's docs note "JSON is often preferred for its simplicity and human-readable format" ([developer.android.com](https://developer.android.com/identity/data/autobackup))
+- No Android-specific format exists for manual settings export
+- Other apps with manual backup (Buzzkill, etc.) use JSON, though most are closed-source
+
+**Security Consideration from Google:**
+> "Apps that provide an 'export' or 'backup' feature creating copies of data in directories accessible by other apps can lead to data leaks"
+> — [developer.android.com](https://developer.android.com/privacy-and-security/risks/backup-best-practices)
+
+This confirms our plan to use **Storage Access Framework (SAF)** - user controls file location, not sitting in shared storage.
+
+**Serialization Library: kotlinx.serialization**
+- Official Kotlin library (JetBrains)
+- No reflection (good for Android performance/size)
+- Works well with data classes
+- Modern, actively maintained
+
 ## Current Settings Architecture
 
 ### Storage Locations
@@ -88,11 +114,11 @@ android/app/src/main/java/com/github/quarck/calnotify/backup/
 }
 ```
 
-**Why JSON over XML:**
-- Easier to parse/generate in Kotlin
+**Why JSON:**
+- Researched best practices (see above) - no Android-specific format for manual export
+- Easier to parse/generate in Kotlin with kotlinx.serialization
 - Human-readable for debugging
-- Standard serialization libraries available
-- Smaller file size
+- Smaller file size than XML
 
 ### Phase 2: Storage Access Framework Integration
 
@@ -167,9 +193,9 @@ Add to existing Settings screen (`SettingsActivityX`):
 
 ### MVP (Minimum Viable)
 
+- [ ] Add kotlinx.serialization dependency to build.gradle
 - [ ] Create `SettingsBackupManager` with export/import methods
-- [ ] Define `BackupData` data class with version field
-- [ ] Implement JSON serialization (use kotlinx.serialization or Gson)
+- [ ] Define `BackupData` data class with `@Serializable` annotation
 - [ ] Add SAF intents in SettingsActivityX
 - [ ] Add UI preferences for export/import buttons
 - [ ] Add string resources for UI text
