@@ -588,7 +588,16 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         background {
 
-            getDismissedEventsStorage(this).classCustomUse { it.purgeOld(clock.currentTimeMillis(), Consts.BIN_KEEP_HISTORY_MILLISECONDS) }
+            // Purge old dismissed events based on user setting (skip if "forever")
+            val keepHistoryMillis = settings.keepHistoryMillis
+            if (keepHistoryMillis < Long.MAX_VALUE) {
+                getDismissedEventsStorage(this).classCustomUse { 
+                    it.purgeOld(clock.currentTimeMillis(), keepHistoryMillis) 
+                }
+            }
+            
+            // Clean up any orphaned events (events in both storages due to failed deletions)
+            cleanupOrphanedEvents(this)
 
             val events =
                     getEventsStorage(this).classCustomUse {
@@ -747,6 +756,39 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             reloadData()
         else
             runOnUiThread { reloadLayout.visibility = View.VISIBLE }
+    }
+
+    /**
+     * Cleans up orphaned events that exist in both active and dismissed storage.
+     * This can happen if an event fails to delete from EventsStorage during dismissal.
+     * 
+     * Events found in both storages are removed from EventsStorage (keeping them in dismissed).
+     */
+    private fun cleanupOrphanedEvents(context: Context) {
+        try {
+            getDismissedEventsStorage(context).classCustomUse { dismissedStorage ->
+                getEventsStorage(context).classCustomUse { eventsStorage ->
+                    // Get keys of all dismissed events
+                    val dismissedKeys = dismissedStorage.events.map { 
+                        Pair(it.event.eventId, it.event.instanceStartTime) 
+                    }.toSet()
+                    
+                    if (dismissedKeys.isEmpty()) return@classCustomUse
+                    
+                    // Find any active events that are also in dismissed storage
+                    val orphaned = eventsStorage.events.filter { event ->
+                        dismissedKeys.contains(Pair(event.eventId, event.instanceStartTime))
+                    }
+                    
+                    if (orphaned.isNotEmpty()) {
+                        DevLog.warn(LOG_TAG, "Found ${orphaned.size} orphaned events in both storages, cleaning up")
+                        eventsStorage.deleteEvents(orphaned)
+                    }
+                }
+            }
+        } catch (ex: Exception) {
+            DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
+        }
     }
 
     companion object {

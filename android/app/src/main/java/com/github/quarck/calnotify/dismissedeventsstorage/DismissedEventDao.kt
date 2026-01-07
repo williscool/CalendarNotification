@@ -33,7 +33,7 @@ import androidx.room.Query
 @Dao
 interface DismissedEventDao {
     
-    @Query("SELECT * FROM ${DismissedEventEntity.TABLE_NAME}")
+    @Query("SELECT * FROM ${DismissedEventEntity.TABLE_NAME} ORDER BY ${DismissedEventEntity.COL_DISMISS_TIME} DESC")
     fun getAll(): List<DismissedEventEntity>
 
     @Query("SELECT COUNT(*) FROM ${DismissedEventEntity.TABLE_NAME}")

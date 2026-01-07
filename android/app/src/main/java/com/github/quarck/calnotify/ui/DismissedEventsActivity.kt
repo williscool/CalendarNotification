@@ -66,7 +66,8 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
             val events =
                     getDismissedEventsStorage(this).classCustomUse {
                         db ->
-                        db.events.sortedByDescending { it.dismissTime }.toTypedArray()
+                        // Sorting now done in database query (ORDER BY dismissTime DESC)
+                        db.events.toTypedArray()
                     }
             runOnUiThread {
                 adapter.setEventsToDisplay(events);

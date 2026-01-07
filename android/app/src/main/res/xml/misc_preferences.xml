@@ -30,6 +30,15 @@
         android:defaultValue="30"
         />
 
+    <ListPreference
+        android:key="keep_history_days"
+        android:title="@string/bin_size"
+        android:summary="@string/bin_size_summary"
+        android:dialogTitle="@string/bin_size"
+        android:entries="@array/keep_history_entries"
+        android:entryValues="@array/keep_history_values"
+        android:defaultValue="3" />
+
     <PreferenceCategory
         android:title="@string/pebble"
         android:key="_smartwatch_pebble">

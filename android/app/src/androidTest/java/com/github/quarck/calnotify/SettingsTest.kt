@@ -186,5 +186,31 @@ class SettingsTest {
         // The default value should be false
         assertFalse("displayNextAppAlert should default to false", settings.displayNextAppAlert)
     }
+
+    // === Keep History Settings Tests ===
+
+    @Test
+    fun testKeepHistoryDaysDefaultValue() {
+        DevLog.info(LOG_TAG, "Running testKeepHistoryDaysDefaultValue")
+        // Default should be 3 days
+        assertEquals(3, settings.keepHistoryDays)
+    }
+
+    @Test
+    fun testKeepHistoryMillisDefaultValue() {
+        DevLog.info(LOG_TAG, "Running testKeepHistoryMillisDefaultValue")
+        // 3 days in milliseconds
+        val expected = 3L * Consts.DAY_IN_MILLISECONDS
+        assertEquals(expected, settings.keepHistoryMillis)
+    }
+
+    @Test
+    fun testKeepHistoryMillisCalculation() {
+        DevLog.info(LOG_TAG, "Running testKeepHistoryMillisCalculation")
+        // With default of 3 days, should be 3 * DAY_IN_MILLISECONDS
+        val days = settings.keepHistoryDays
+        val expectedMillis = days.toLong() * Consts.DAY_IN_MILLISECONDS
+        assertEquals(expectedMillis, settings.keepHistoryMillis)
+    }
 }
 

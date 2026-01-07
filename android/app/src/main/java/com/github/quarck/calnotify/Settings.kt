@@ -443,6 +443,17 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     val snoozeHideEventDescription: Boolean
         get() = getBoolean(SNOOZE_HIDE_EVENT_DESC_KEY, false)
 
+    /** Number of days to keep dismissed events in the bin. 0 means forever. */
+    val keepHistoryDays: Int
+        get() = getInt(KEEP_HISTORY_DAYS_KEY, DEFAULT_KEEP_HISTORY_DAYS)
+
+    /** Milliseconds to keep dismissed events. Returns Long.MAX_VALUE for "forever" (when days <= 0). */
+    val keepHistoryMillis: Long
+        get() {
+            val days = keepHistoryDays
+            return if (days <= 0) Long.MAX_VALUE else days.toLong() * Consts.DAY_IN_MILLISECONDS
+        }
+
     companion object {
 
         // Preferences keys
@@ -512,7 +523,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val QUIET_HOURS_MUTE_PRIMARY_KEY = "quiet_hours_mute_primary" // false -- now hard-coded to false must be
 //        private const val QUIET_HOURS_ONE_TIME_REMINDER_ENABLED_KEY = "quiet_hours_one_time_reminder"
         private const val QUIET_HOURS_MUTE_LED = "quiet_hours_mute_led" // false
-//        private const val KEEP_HISTORY_DAYS_KEY = "keep_history_days" // 3
+        private const val KEEP_HISTORY_DAYS_KEY = "keep_history_days"
         private const val ENABLE_BUNDLED_NOTIFICATIONS_KEY = "pref_enable_bundled_notifications" // false
         private const val ADD_EVENT_DEFAULT_DURATION_KEY = "default_new_event_duration" // 30
         private const val OPEN_CALENDAR_FROM_SNOOZE_KEY = "open_calendar_from_snooze" // true -- change?
@@ -529,6 +540,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val DEFAULT_REMINDER_INTERVAL_MINUTES = 10
         internal const val DEFAULT_REMINDER_INTERVAL_SECONDS = 600
         internal const val DEFAULT_MAX_REMINDERS = "0"
+        /** Default days to keep dismissed events history (3 days, matching legacy Consts.BIN_KEEP_HISTORY_DAYS) */
+        internal const val DEFAULT_KEEP_HISTORY_DAYS = 3
     }
 }
 

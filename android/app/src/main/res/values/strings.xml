@@ -204,7 +204,7 @@
     <string name="swipe_to_delete">Swipe to delete from history</string>
     <string name="remove_all">Remove all</string>
 
-    <string name="remove_all_confirmation">Remove all entries?</string>
+    <string name="remove_all_confirmation">Remove all dismissed events history?\n\nThis will permanently delete all dismissed event records.\n\nCANNOT BE UNDONE!</string>
     <string name="title_activity_privacy_policy">Privacy Policy</string>
     <string name="context_policy">As part of normal operation, this app receives and stores information about events fired by Android Calendar\n\nNo such information ever leaves application:\n\n* it is not transmitted anywhere\n\n* not shared with anyone\n\n* not provided to any 3rd party\n\nAll event details are removed once event is dismissed\n\nIf user has enabled option to keep recently dismissed events - such information is removed as soon as timeout passes or history is cleared explicitly</string>
     <string name="privacy_policy">PRIVACY POLICY</string>
@@ -577,6 +577,27 @@
     <string name="pebble_only_alarms_summary">Only forward #alarm events to PebbleAPI</string>
     <string name="skip_expired_events_title">Ignore expired events</string>
     <string name="skip_expired_events_summary">Do not process events if end time is already in the past</string>
+
+    <!-- Keep history duration options -->
+    <string-array name="keep_history_entries">
+        <item>3 days</item>
+        <item>7 days</item>
+        <item>14 days</item>
+        <item>30 days</item>
+        <item>90 days</item>
+        <item>1 year</item>
+        <item>Forever</item>
+    </string-array>
+
+    <string-array name="keep_history_values">
+        <item>3</item>
+        <item>7</item>
+        <item>14</item>
+        <item>30</item>
+        <item>90</item>
+        <item>365</item>
+        <item>0</item>
+    </string-array>
 
     <!-- Settings Backup -->
     <string name="backup_category">Backup &amp; Restore</string>
