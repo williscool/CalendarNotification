@@ -45,7 +45,7 @@ This allows any code with a `Context` to access `context.globalState?.lastNotifi
 - Notification management
 - Alarm scheduling
 - Calendar monitoring
-- Quiet hours management
+- Quiet hours management *(deprecated - see `dev_todo/deprecated_features.md`)*
 - All coordination between subsystems
 
 **Key design pattern:** Receives `Context` as a parameter rather than holding one:
