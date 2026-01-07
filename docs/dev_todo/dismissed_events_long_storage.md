@@ -78,7 +78,52 @@ if (keepTime < Long.MAX_VALUE) {
 }
 ```
 
-#### 1.3 Add Preference UI to `misc_preferences.xml`
+#### 1.3 Add Storage Consistency Check (Addresses event_deletion_issues.md)
+
+When events fail to delete from `EventsStorage` during dismissal, they can end up in both storages - creating an inconsistent state. Add a cleanup step:
+
+```kotlin
+// In reloadData(), after purge:
+cleanupOrphanedEvents(this)
+
+// New function:
+private fun cleanupOrphanedEvents(context: Context) {
+    background {
+        try {
+            val dismissedStorage = getDismissedEventsStorage(context)
+            val eventsStorage = getEventsStorage(context)
+            
+            dismissedStorage.classCustomUse { dismissed ->
+                eventsStorage.classCustomUse { active ->
+                    // Get IDs of dismissed events
+                    val dismissedKeys = dismissed.events.map { 
+                        Pair(it.event.eventId, it.event.instanceStartTime) 
+                    }.toSet()
+                    
+                    // Find any active events that are also in dismissed storage
+                    val orphaned = active.events.filter { event ->
+                        dismissedKeys.contains(Pair(event.eventId, event.instanceStartTime))
+                    }
+                    
+                    if (orphaned.isNotEmpty()) {
+                        DevLog.warn(LOG_TAG, "Found ${orphaned.size} orphaned events in both storages, cleaning up")
+                        active.deleteEvents(orphaned)
+                    }
+                }
+            }
+        } catch (ex: Exception) {
+            DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
+        }
+    }
+}
+```
+
+This addresses issues from `docs/dev_todo/event_deletion_issues.md`:
+- **Issue #3**: Events in both active and dismissed storage
+- **Issue #5**: Accumulation of stale events
+- **Issue #6**: Automatic cleanup process
+
+#### 1.4 Add Preference UI to `misc_preferences.xml`
 
 ```xml
 <ListPreference
@@ -90,7 +135,7 @@ if (keepTime < Long.MAX_VALUE) {
     android:defaultValue="3" />
 ```
 
-#### 1.4 Add String Resources to `strings.xml`
+#### 1.5 Add String Resources to `strings.xml`
 
 ```xml
 <!-- Already exists: -->
@@ -201,6 +246,8 @@ fun countEventsBetween(startTime: Long, endTime: Long): Int
 4. **Migration**: Test database migration for new index
 5. **Performance**: Load test with 1000+ dismissed events
 6. **Edge cases**: Empty bin, setting change with existing data
+7. **Consistency check**: Create orphaned state (event in both storages), verify cleanup
+8. **Error handling**: Verify cleanup errors don't crash app or block UI
 
 ## Migration Path
 
@@ -208,9 +255,22 @@ fun countEventsBetween(startTime: Long, endTime: Long): Int
 2. Implement Phase 2 before "What You Got Done" feature
 3. Phase 3 as needed based on user feedback
 
+## Related Issues
+
+This work partially addresses `docs/dev_todo/event_deletion_issues.md`:
+
+| Issue | Status | How Addressed |
+|-------|--------|---------------|
+| #3 State Inconsistency | ✅ Addressed | Cleanup function removes events from both storages |
+| #5 Memory/Performance | ✅ Addressed | Periodic cleanup prevents accumulation |
+| #6 Error Recovery | ✅ Partial | Automatic cleanup process added |
+| #1 Notification Mismatch | ❌ Not addressed | Requires notification system changes |
+| #2 Alarm Scheduling | ❌ Not addressed | Requires alarm scheduler changes |
+| #4 UI Inconsistency | ✅ Partial | Cleanup runs before UI refresh |
+
 ## Notes
 
 - Existing string resources `bin_size` and `bin_size_summary` can be reused
 - The commented-out `KEEP_HISTORY_DAYS_KEY` in Settings.kt suggests this was originally planned
-- No changes needed to EventsStorage (active events) - only DismissedEventsStorage
+- Consistency check runs in background, won't block UI
 
