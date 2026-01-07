@@ -123,7 +123,44 @@ This addresses issues from `docs/dev_todo/event_deletion_issues.md`:
 - **Issue #5**: Accumulation of stale events
 - **Issue #6**: Automatic cleanup process
 
-#### 1.4 Add Preference UI to `misc_preferences.xml`
+#### 1.4 Move Sort from Memory to Database (Performance Quick Win)
+
+Currently `DismissedEventsActivity` loads all events then sorts in memory:
+```kotlin
+// Current - slow at scale
+db.events.sortedByDescending { it.dismissTime }.toTypedArray()
+```
+
+Move sorting to the database query for better performance:
+
+**Update `DismissedEventDao.kt`:**
+```kotlin
+// Change from:
+@Query("SELECT * FROM ${TABLE_NAME}")
+fun getAll(): List<DismissedEventEntity>
+
+// To:
+@Query("SELECT * FROM ${DismissedEventEntity.TABLE_NAME} ORDER BY ${DismissedEventEntity.COL_DISMISS_TIME} DESC")
+fun getAll(): List<DismissedEventEntity>
+```
+
+**Update `DismissedEventsActivity.kt`:**
+```kotlin
+// Change from:
+db.events.sortedByDescending { it.dismissTime }.toTypedArray()
+
+// To (sorting now happens in DB):
+db.events.toTypedArray()
+```
+
+**Performance at 10,000 events:**
+| Approach | Time |
+|----------|------|
+| In-memory sort | 100-500ms |
+| DB sort (no index) | 50-100ms |
+| DB sort (with index) | <10ms |
+
+#### 1.5 Add Preference UI to `misc_preferences.xml`
 
 ```xml
 <ListPreference
@@ -135,7 +172,7 @@ This addresses issues from `docs/dev_todo/event_deletion_issues.md`:
     android:defaultValue="3" />
 ```
 
-#### 1.5 Add String Resources to `strings.xml`
+#### 1.6 Add String Resources to `strings.xml`
 
 ```xml
 <!-- Already exists: -->
@@ -228,6 +265,8 @@ fun countEventsBetween(startTime: Long, endTime: Long): Int
 ### Phase 1 - Production Code:
 - `android/app/src/main/java/com/github/quarck/calnotify/Settings.kt`
 - `android/app/src/main/java/com/github/quarck/calnotify/ui/MainActivity.kt`
+- `android/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventsActivity.kt` (remove in-memory sort)
+- `android/app/src/main/java/com/github/quarck/calnotify/dismissedeventsstorage/DismissedEventDao.kt` (add ORDER BY)
 - `android/app/src/main/res/xml/misc_preferences.xml`
 - `android/app/src/main/res/values/strings.xml`
 
