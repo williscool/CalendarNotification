@@ -330,3 +330,33 @@ However, Auto Backup is not user-controllable and doesn't work across release va
 - [Auto Backup for Apps](https://developer.android.com/guide/topics/data/autobackup)
 - [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)
 
+---
+
+## Appendix: Implementation Notes
+
+### A1. RuntimeException Catching in Best-Effort Import
+
+The import code catches `RuntimeException` in several places (per-key, per-calendar, per-section) to ensure best-effort behavior. This is broader than the workspace rule "no catching Exception" but is intentional:
+
+**Why RuntimeException (not specific exceptions):**
+- Import should be maximally resilient - one bad setting shouldn't fail the entire import
+- Errors are logged with `DevLog.error`, not silently swallowed
+- The alternative (catching only `IllegalArgumentException`, `ClassCastException`, etc.) risks missing edge cases and crashing the whole import for unexpected issues
+- `RuntimeException` is still narrower than `Exception` (excludes checked exceptions like `IOException`)
+
+**Mitigations:**
+- Each error is logged with the key/calendar name that failed
+- Stats are returned so the user sees what succeeded/failed in the summary dialog
+- The feature is opt-in (user must manually trigger import)
+
+### A2. CalendarProvider Matching Test Coverage
+
+The `CalendarProvider.findMatchingCalendarId()` tiered matching logic (account+type+owner → account+type → displayName) is tested indirectly in the backup tests (always returns -1 since no real calendars exist in Robolectric).
+
+**Why not more direct tests:**
+- Testing ContentResolver queries in Robolectric requires complex shadow setup that may not match real device behavior
+- This is existing code that has been working in production
+- The matching logic is straightforward (3 fallback queries)
+
+**Future consideration:** If bugs are reported with calendar matching, add instrumentation tests with real device calendars rather than trying to mock the ContentResolver.
+
