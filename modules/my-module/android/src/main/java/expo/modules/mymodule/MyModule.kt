@@ -74,18 +74,19 @@ class MyModule : Module() {
     }
 
     // Returns the active events database name for sync feature to use
-    // After Room migration, this returns "RoomEvents" instead of "Events"
+    // Room is the primary implementation; legacy is only used if Room migration fails
     // Reads from SharedPreferences written by EventsStorage in main app
     Function("getActiveEventsDbName") {
       val context = appContext.reactContext
       if (context == null) {
-        Log.w(TAG, "getActiveEventsDbName: context is null, returning legacy name")
-        return@Function LEGACY_DATABASE_NAME
+        Log.w(TAG, "getActiveEventsDbName: context is null, defaulting to Room")
+        return@Function ROOM_DATABASE_NAME
       }
       
       val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
-      val dbName = prefs.getString(PREF_ACTIVE_DB_NAME, LEGACY_DATABASE_NAME) ?: LEGACY_DATABASE_NAME
-      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, false)
+      // Default to Room (primary implementation) - legacy is only used if migration failed
+      val dbName = prefs.getString(PREF_ACTIVE_DB_NAME, ROOM_DATABASE_NAME) ?: ROOM_DATABASE_NAME
+      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, true)
       
       Log.i(TAG, "getActiveEventsDbName: returning '$dbName' (isUsingRoom=$isRoom)")
       dbName
@@ -96,12 +97,13 @@ class MyModule : Module() {
     Function("isUsingRoomStorage") {
       val context = appContext.reactContext
       if (context == null) {
-        Log.w(TAG, "isUsingRoomStorage: context is null, returning false")
-        return@Function false
+        Log.w(TAG, "isUsingRoomStorage: context is null, defaulting to true (Room)")
+        return@Function true
       }
       
       val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
-      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, false)
+      // Default to true (Room is primary) - only false if migration explicitly failed
+      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, true)
       
       Log.i(TAG, "isUsingRoomStorage: $isRoom")
       isRoom

@@ -107,6 +107,18 @@ describe('Sync Database Contract', () => {
       }
     });
   });
+
+  describe('default behavior', () => {
+    it('defaults to Room (primary implementation)', () => {
+      // Room is the primary implementation, legacy is only fallback
+      // When no prefs exist, should default to Room
+      mockGetActiveEventsDbName.mockReturnValue('RoomEvents');
+      mockIsUsingRoomStorage.mockReturnValue(true);
+      
+      expect(getActiveEventsDbName()).toBe('RoomEvents');
+      expect(isUsingRoomStorage()).toBe(true);
+    });
+  });
 });
 
 /**

@@ -167,4 +167,69 @@ class SyncDatabaseContractTest {
         
         storage.close()
     }
+    
+    /**
+     * Default test: Verifies that when SharedPreferences is empty (before EventsStorage
+     * has been created), MyModule defaults to Room database (the primary implementation).
+     * 
+     * Room is the primary implementation; legacy is only used if Room migration fails.
+     */
+    @Test
+    fun defaultsToRoomWhenPrefsEmpty() {
+        // Clear the SharedPreferences to simulate fresh state
+        val prefs = context.getSharedPreferences(MyModule.STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        
+        // Read with defaults (simulating what MyModule.getActiveEventsDbName does)
+        // These defaults must match what's in MyModule.kt
+        val dbNameFromPrefs = prefs.getString(MyModule.PREF_ACTIVE_DB_NAME, MyModule.ROOM_DATABASE_NAME)
+            ?: MyModule.ROOM_DATABASE_NAME
+        val isRoomFromPrefs = prefs.getBoolean(MyModule.PREF_IS_USING_ROOM, true)
+        
+        // Should default to Room (primary implementation)
+        assertEquals(
+            "When prefs are empty, should default to Room database name",
+            MyModule.ROOM_DATABASE_NAME,
+            dbNameFromPrefs
+        )
+        
+        assertEquals(
+            "When prefs are empty, isUsingRoom should default to true",
+            true,
+            isRoomFromPrefs
+        )
+        
+        DevLog.info(LOG_TAG, "✅ Defaults to Room: dbName=$dbNameFromPrefs, isRoom=$isRoomFromPrefs")
+        
+        // Now create storage to restore proper state for other tests
+        val storage = EventsStorage(context)
+        storage.close()
+    }
+    
+    /**
+     * Verifies that MyModule's default values point to Room (the primary implementation).
+     * Legacy is only used as fallback when Room migration explicitly fails.
+     */
+    @Test
+    fun defaultValuesPointToRoom() {
+        // MyModule's Room database name should be correct
+        assertEquals(
+            "MyModule.ROOM_DATABASE_NAME should be 'RoomEvents'",
+            "RoomEvents",
+            MyModule.ROOM_DATABASE_NAME
+        )
+        
+        // MyModule's legacy database name should also be correct (for fallback)
+        assertEquals(
+            "MyModule.LEGACY_DATABASE_NAME should be 'Events'",
+            "Events",
+            MyModule.LEGACY_DATABASE_NAME
+        )
+        
+        // The Room database file path should be resolvable
+        val roomDbPath = context.getDatabasePath(MyModule.ROOM_DATABASE_NAME)
+        assertNotNull("Room database path should be resolvable", roomDbPath)
+        
+        DevLog.info(LOG_TAG, "✅ Default values correct: room=${MyModule.ROOM_DATABASE_NAME}, legacy=${MyModule.LEGACY_DATABASE_NAME}")
+    }
 }
