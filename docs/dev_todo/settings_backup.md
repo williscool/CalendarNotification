@@ -10,7 +10,9 @@ Implement manual settings import/export functionality to allow users to:
 - Share settings between devices
 - Restore after reinstallation
 
-**GitHub Issue:** [#29 - Import/Export settings](https://github.com/williscool/CalendarNotification/issues/29)
+**GitHub Issues:** 
+- [#29 - Import/Export settings](https://github.com/williscool/CalendarNotification/issues/29)
+- [#159 - Car Mode crash on Android 12+](https://github.com/williscool/CalendarNotification/issues/159) (bundled fix)
 
 ## Research Notes (Jan 2026)
 
@@ -123,9 +125,10 @@ android/app/src/main/java/com/github/quarck/calnotify/backup/
 ### Phase 2: Storage Access Framework Integration
 
 Use Android's Storage Access Framework (SAF) for file access:
-- No special permissions needed
-- User chooses save location
+- **No runtime permissions needed!** SAF grants access only to user-selected files
+- User chooses save location via system file picker
 - Works with cloud storage (Google Drive, Dropbox)
+- No need to request WRITE_EXTERNAL_STORAGE or READ_EXTERNAL_STORAGE
 
 ```kotlin
 // Export
@@ -189,6 +192,40 @@ Add to existing Settings screen (`SettingsActivityX`):
 
 **Recommendation:** Start with Solution 1 (match by name+account)
 
+## Permission Strategy
+
+**Goal:** No upfront permission requests at app start. Only ask when user accesses the specific feature.
+
+| Feature | Permission Needed | When to Request |
+|---------|-------------------|-----------------|
+| Settings Export/Import | **None!** | N/A - SAF handles file access |
+| Car Mode Settings | `BLUETOOTH_CONNECT` (Android 12+) | When user opens Car Mode page |
+
+**Why this works:**
+
+1. **Backup/Export:** Storage Access Framework (SAF) doesn't require runtime permissions. The system file picker grants scoped access to just the file the user selects. No `WRITE_EXTERNAL_STORAGE` or `READ_EXTERNAL_STORAGE` needed.
+
+2. **Car Mode:** Permission requested in `CarModeActivity.onResume()` - only when user navigates to that settings page. If denied, show message explaining why it's needed.
+
+---
+
+## Bundled Fix: Car Mode Bluetooth Crash
+
+**Issue:** [#159](https://github.com/williscool/CalendarNotification/issues/159)  
+**Details:** See `car_mode_bluetooth_crash.md`
+
+Since we're working in the settings code and backing up `BTCarModeStorage`, we'll fix the Android 12+ Bluetooth permission crash at the same time:
+
+- [ ] Add `BLUETOOTH_CONNECT` permission to AndroidManifest.xml (manifest only, not runtime request at startup)
+- [ ] Add permission check methods to `PermissionsManager.kt`
+- [ ] Update `CarModeActivity.kt` to request permission when page opens (just-in-time)
+- [ ] Add defensive try-catch in `BTDeviceManager.kt`
+- [ ] Add `bluetooth_permission_required` string resource
+
+This is low additional effort (~1-2 hours) since we're already in this code.
+
+---
+
 ## Implementation Tasks
 
 ### MVP (Minimum Viable)
@@ -225,8 +262,9 @@ Add to existing Settings screen (`SettingsActivityX`):
 | Phase 2: SAF integration | 1-2 hours | High |
 | Phase 3: UI | 1-2 hours | High |
 | Phase 4: Calendar mapping | 2-4 hours | Medium |
+| Bluetooth crash fix (#159) | 1-2 hours | High |
 | Testing | 4-8 hours | High |
-| **Total** | **10-20 hours** | |
+| **Total** | **12-22 hours** | |
 
 ## Existing Android Auto Backup
 
