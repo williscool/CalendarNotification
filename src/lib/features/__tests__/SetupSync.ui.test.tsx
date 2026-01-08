@@ -11,6 +11,35 @@
  * | Not connected   | `true`       | `true`      | `false`     | Main screen + warning banner + disabled buttons      |
  * | Connected       | `true`       | `true`      | `true`      | Full UI with enabled buttons                         |
  */
+
+// Mock native module before any imports
+jest.mock('../../../../modules/my-module', () => ({
+  getActiveEventsDbName: jest.fn(() => 'RoomEvents'),
+  isUsingRoomStorage: jest.fn(() => true),
+  hello: jest.fn(() => 'Hello world!'),
+  sendRescheduleConfirmations: jest.fn(),
+  addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+  PI: 100,
+}));
+
+// Mock op-sqlite
+jest.mock('@op-engineering/op-sqlite', () => ({
+  open: jest.fn(() => ({
+    execute: jest.fn(() => Promise.resolve({ rows: [] })),
+  })),
+}));
+
+// Mock cr-sqlite install
+jest.mock('@lib/cr-sqlite/install', () => ({
+  installCrsqliteOnTable: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock orm
+jest.mock('@lib/orm', () => ({
+  psInsertDbTable: jest.fn(() => Promise.resolve()),
+  psClearTable: jest.fn(() => Promise.resolve()),
+}));
+
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { getColors } from '@lib/theme/colors';

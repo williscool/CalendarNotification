@@ -14,15 +14,18 @@
  * to get the correct database name dynamically.
  */
 
-import { getActiveEventsDbName, isUsingRoomStorage } from '../../../../modules/my-module';
-
-// Mock the native module for unit tests
-// In actual device tests, these would call real native code
+// Mock the entire native module before any imports
 jest.mock('../../../../modules/my-module', () => ({
-  ...jest.requireActual('../../../../modules/my-module'),
   getActiveEventsDbName: jest.fn(),
   isUsingRoomStorage: jest.fn(),
+  hello: jest.fn(() => 'Hello world!'),
+  sendRescheduleConfirmations: jest.fn(),
+  addChangeListener: jest.fn(),
+  PI: 100,
 }));
+
+// Now import the mocked functions
+import { getActiveEventsDbName, isUsingRoomStorage } from '../../../../modules/my-module';
 
 const mockGetActiveEventsDbName = getActiveEventsDbName as jest.MockedFunction<typeof getActiveEventsDbName>;
 const mockIsUsingRoomStorage = isUsingRoomStorage as jest.MockedFunction<typeof isUsingRoomStorage>;
