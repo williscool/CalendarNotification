@@ -222,6 +222,11 @@ class CarModeActivity : AppCompatActivity() {
         }
     }
 
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
+    }
+
     companion object {
         private const val LOG_TAG = "CarModeActivity"
     }
