@@ -26,6 +26,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.database.SQLException
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -786,7 +787,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
                     }
                 }
             }
-        } catch (ex: Exception) {
+        } catch (ex: SQLException) {
             DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
         }
     }
