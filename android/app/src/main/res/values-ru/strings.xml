@@ -245,6 +245,7 @@
     <string name="event_was_created">Событие создано</string>
     <string name="event_was_created_reminder_at" formatted="false">Событие создано, сработает в: %s</string>
     <string name="event_not_found">Событие не найдено</string>
+    <string name="event_not_found_opening_calendar_at_time">Событие не найдено в календаре - показываю календарь на время события</string>
     <string name="calendar_not_found">Календарь не найден</string>
     <string name="failed_to_update_event_details">Не удалось обновить детали события</string>
     <string name="failed_to_move_event">Не удалось переместить событие: </string>

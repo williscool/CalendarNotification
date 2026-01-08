@@ -304,6 +304,7 @@
     <string name="event_was_created_reminder_at" formatted="false">Dodano wydarzenie, następne przypomnienie: %s</string>
 
     <string name="event_not_found">Nie znaleziono wydarzenia</string>
+    <string name="event_not_found_opening_calendar_at_time">Nie znaleziono wydarzenia w kalendarzu - pokazuję kalendarz w czasie wydarzenia</string>
     <string name="calendar_not_found">Nie znaleziono kalendarza</string>
     <string name="failed_to_update_event_details">Aktualizacja szczegółów wydarzenia nie powiodła się</string>
     <string name="failed_to_move_event">Nie powiodło się przeniesienie wydarzenia: </string>

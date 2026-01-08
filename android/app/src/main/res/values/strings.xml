@@ -340,6 +340,7 @@
     <string name="event_was_created_reminder_at" formatted="false">Event was created, next reminder: %s</string>
 
     <string name="event_not_found">Event not found</string>
+    <string name="event_not_found_opening_calendar_at_time">Event not found in calendar - showing calendar at event time</string>
     <string name="calendar_not_found">Calendar not found</string>
     <string name="failed_to_update_event_details">Failed to update event details</string>
     <string name="failed_to_move_event">Failed to move event: </string>
