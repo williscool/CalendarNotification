@@ -2,6 +2,16 @@
 
 > **GitHub Issue**: [#66](https://github.com/williscool/CalendarNotification/issues/66)
 
+## Summary
+
+| Item | Details |
+|------|---------|
+| **Problem** | "Open in Calendar" silently fails when event was deleted from system calendar |
+| **Solution** | Fallback chain: check if exists → open event OR open calendar at event time + toast |
+| **Call sites** | 8 total (6 in ViewEventActivityNoRecents, 1 in notification PendingIntent, 1 ViewEventById) |
+| **New tests** | `CalendarIntentsRobolectricTest.kt` (new), updates to `ViewEventActivityRobolectricTest.kt` |
+| **Complexity** | Low - mostly routing through a new helper method |
+
 ## Problem Statement
 
 When a user tries to open an event in the calendar app, but the event no longer exists in the system calendar (e.g., after phone migration, backup restore, or manual deletion), the calendar app shows an unhelpful error or nothing at all.
@@ -152,27 +162,202 @@ The pre-check is a **pure win** for UX. The query cost is negligible (single ind
 
 ## Testing Strategy
 
-### Unit Tests (Robolectric)
-1. Test `viewCalendarEventWithFallback` returns `true` when event exists
-2. Test `viewCalendarEventWithFallback` returns `false` and calls `viewCalendarAtTime` when event missing
-3. Test `viewCalendarAtTime` creates correct intent URI
+### Robolectric Tests (Preferred for Intent Testing)
 
-### Instrumentation Tests
-1. Create event, verify `viewCalendarEventWithFallback` opens it
-2. Delete event from calendar, verify fallback behavior
-3. Verify toast is shown when fallback is used
+Robolectric is **well-suited** for testing intent creation and launching because:
+- `ShadowActivity.getNextStartedActivity()` captures intents started by the activity
+- `CalendarProvider` is already mocked in `UITestFixtureRobolectric`
+- Can control mock responses for `getEvent()` to simulate found/not-found scenarios
 
-### Manual Testing
-1. Fresh install with backup restore (events missing from calendar)
-2. Delete event from Google Calendar, try to open from notification
-3. Remove and re-add calendar account
+#### New Test File: `CalendarIntentsRobolectricTest.kt`
+
+```kotlin
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
+class CalendarIntentsRobolectricTest {
+
+    @Test
+    fun viewCalendarAtTime_creates_correct_intent() {
+        val activity = Robolectric.buildActivity(TestActivity::class.java).create().get()
+        val testTime = 1704067200000L // Jan 1, 2024 00:00:00 UTC
+        
+        CalendarIntents.viewCalendarAtTime(activity, testTime)
+        
+        val shadow = shadowOf(activity)
+        val intent = shadow.nextStartedActivity
+        
+        assertNotNull(intent)
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("content://com.android.calendar/time/$testTime", intent.data.toString())
+    }
+    
+    @Test
+    fun viewCalendarEventWithFallback_returns_true_when_event_exists() {
+        val activity = Robolectric.buildActivity(TestActivity::class.java).create().get()
+        val mockProvider = mockk<CalendarProviderInterface>()
+        val event = createTestEvent()
+        
+        every { mockProvider.getEvent(any(), event.eventId) } returns mockk<EventRecord>()
+        
+        val result = CalendarIntents.viewCalendarEventWithFallback(activity, mockProvider, event)
+        
+        assertTrue(result)
+        val shadow = shadowOf(activity)
+        val intent = shadow.nextStartedActivity
+        assertTrue(intent.data.toString().contains("/events/${event.eventId}"))
+    }
+    
+    @Test
+    fun viewCalendarEventWithFallback_returns_false_and_opens_time_view_when_event_missing() {
+        val activity = Robolectric.buildActivity(TestActivity::class.java).create().get()
+        val mockProvider = mockk<CalendarProviderInterface>()
+        val event = createTestEvent(instanceStartTime = 1704067200000L)
+        
+        every { mockProvider.getEvent(any(), event.eventId) } returns null
+        
+        val result = CalendarIntents.viewCalendarEventWithFallback(activity, mockProvider, event)
+        
+        assertFalse(result)
+        val shadow = shadowOf(activity)
+        val intent = shadow.nextStartedActivity
+        assertEquals("content://com.android.calendar/time/1704067200000", intent.data.toString())
+    }
+}
+```
+
+#### Update Existing: `ViewEventActivityRobolectricTest.kt`
+
+Add tests for the "Open in Calendar" behavior:
+
+```kotlin
+@Test
+fun openEventInCalendar_shows_toast_when_event_not_found_in_system_calendar() {
+    val event = fixture.createEvent(title = "Orphaned Event")
+    
+    // Mock CalendarProvider.getEvent to return null (event not in system calendar)
+    every { CalendarProvider.getEvent(any(), event.eventId) } returns null
+    
+    val scenario = fixture.launchViewEventActivity(event)
+    
+    scenario.onActivity { activity ->
+        // Trigger "Open in Calendar" action
+        activity.OnButtonEventDetailsClick(null)
+        
+        // Verify fallback intent was started
+        val shadow = shadowOf(activity)
+        val intent = shadow.nextStartedActivity
+        assertTrue(intent.data.toString().contains("/time/"))
+    }
+    
+    // Verify toast was shown (can use ShadowToast)
+    val latestToast = ShadowToast.getLatestToast()
+    assertNotNull(latestToast)
+    
+    scenario.close()
+}
+
+@Test
+fun openEventInCalendar_opens_event_directly_when_found_in_system_calendar() {
+    val event = fixture.createEvent(title = "Normal Event")
+    
+    // Mock CalendarProvider.getEvent to return a valid event
+    every { CalendarProvider.getEvent(any(), event.eventId) } returns mockk<EventRecord>()
+    
+    val scenario = fixture.launchViewEventActivity(event)
+    
+    scenario.onActivity { activity ->
+        activity.OnButtonEventDetailsClick(null)
+        
+        val shadow = shadowOf(activity)
+        val intent = shadow.nextStartedActivity
+        assertTrue(intent.data.toString().contains("/events/${event.eventId}"))
+    }
+    
+    scenario.close()
+}
+```
+
+### Instrumentation Tests (For Real Calendar Integration)
+
+These test with the actual Android calendar provider on a real/emulator device.
+
+#### Update Existing: `ViewEventActivityTest.kt`
+
+```kotlin
+@Test
+fun openInCalendar_menu_action_opens_calendar() {
+    val event = fixture.createEvent(title = "Test Event")
+    val scenario = fixture.launchViewEventActivity(event)
+    
+    // Open menu and click "Open in Calendar"
+    withId(R.id.snooze_view_menu).click()
+    withText(R.string.open_in_calendar).click()
+    
+    // Activity should finish after opening calendar
+    scenario.onActivity { activity ->
+        assertTrue(activity.isFinishing)
+    }
+    
+    scenario.close()
+}
+
+@Test
+fun openInCalendar_shows_toast_for_deleted_event() {
+    // Create event, then delete from calendar (but keep in app storage)
+    val event = fixture.createEvent(title = "Soon To Be Deleted")
+    fixture.deleteEventFromSystemCalendar(event.eventId) // Helper to delete from calendar only
+    
+    val scenario = fixture.launchViewEventActivity(event)
+    
+    withId(R.id.snooze_view_menu).click()
+    withText(R.string.open_in_calendar).click()
+    
+    // Should show toast about event not found
+    // Note: Toast verification in Espresso requires ToastMatcher or similar
+    
+    scenario.close()
+}
+```
+
+### Manual Testing Checklist
+
+| Scenario | Steps | Expected Behavior |
+|----------|-------|-------------------|
+| Normal event | Click "Open in Calendar" | Opens event in calendar app |
+| Deleted event | Delete event in Google Calendar, then click "Open in Calendar" | Toast + opens calendar at event time |
+| Backup restore | Restore phone from backup, open old notification | Toast + opens calendar at event time |
+| Account removed | Remove Google account, click "Open in Calendar" | Toast + opens calendar at event time |
+| Repeating event instance | For a repeating event, delete one instance | Should still work (tests instance handling) |
 
 ## Files to Modify
 
-1. `CalendarIntents.kt` - Add new methods
-2. `ViewEventActivityNoRecents.kt` - Update 6 call sites
-3. `strings.xml` (and translations) - Add new string
-4. New test file for `CalendarIntents` fallback logic
+### Production Code
+1. `CalendarIntents.kt` - Add `viewCalendarAtTime()` and `viewCalendarEventWithFallback()`
+2. `ViewEventActivityNoRecents.kt` - Add `openEventInCalendar()` helper, update 6 call sites
+3. `strings.xml` - Add `event_not_found_opening_calendar_at_time`
+4. Translation files (`values-ru`, `values-uk`, `values-de`, `values-pl`) - Add translated string
+
+### Test Code
+| File | Action | Notes |
+|------|--------|-------|
+| `CalendarIntentsRobolectricTest.kt` | **New** | Unit tests for intent creation and fallback logic |
+| `ViewEventActivityRobolectricTest.kt` | **Update** | Add tests for open calendar with fallback |
+| `ViewEventActivityTest.kt` | **Update** | Add instrumentation tests for real calendar integration |
+| `UITestFixtureRobolectric.kt` | **Update** (maybe) | May need to expose CalendarProvider mock control |
+| `UITestFixture.kt` | **Update** (maybe) | May need helper to delete from system calendar |
+
+### Robolectric Testing Notes
+
+**What works well:**
+- Testing intent creation (`ShadowActivity.getNextStartedActivity()`)
+- Mocking `CalendarProvider.getEvent()` responses
+- Testing toast display (`ShadowToast`)
+- Testing activity state changes
+
+**Limitations:**
+- Cannot test actual Google Calendar app behavior
+- Cannot verify calendar app receives and handles the intent correctly
+- Mock setup required for `CalendarProvider` (already done in `UITestFixtureRobolectric`)
 
 ## Open Questions
 
