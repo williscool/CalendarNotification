@@ -394,5 +394,127 @@ class SettingsBackupManagerRobolectricTest {
         // Note: "A" appears in carModeSettings which is empty {}, but shouldn't have 12345
         assertFalse("Runtime state value should not be in export", json.contains("12345"))
     }
+
+    // === Phase 4: Calendar Settings Mapping Tests ===
+
+    /**
+     * Calendar handled keys should be excluded from the regular settings map
+     * (they're exported separately in calendarSettings for cross-device matching)
+     */
+    @Test
+    fun testCalendarHandledKeysExcludedFromSettings() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit()
+            .putBoolean("calendar_handled_.1", true)
+            .putBoolean("calendar_handled_.2", false)
+            .putString("normal_setting", "value")
+            .commit()
+
+        // Export
+        val outputStream = ByteArrayOutputStream()
+        backupManager.exportToStream(outputStream)
+
+        val json = outputStream.toString(Charsets.UTF_8.name())
+        
+        // Normal setting should be in the settings section
+        assertTrue("Normal setting should be exported", json.contains("normal_setting"))
+        
+        // Calendar handled keys should NOT be in the settings section
+        // They're handled separately in calendarSettings with identifying info
+        assertFalse("calendar_handled_ keys should not be in settings", 
+            json.contains("\"calendar_handled_.1\""))
+        assertFalse("calendar_handled_ keys should not be in settings", 
+            json.contains("\"calendar_handled_.2\""))
+    }
+
+    /**
+     * Export should include calendarSettings field (empty list without permissions)
+     */
+    @Test
+    fun testExportIncludesCalendarSettingsField() {
+        val outputStream = ByteArrayOutputStream()
+        backupManager.exportToStream(outputStream)
+
+        val json = outputStream.toString(Charsets.UTF_8.name())
+        
+        // Should have calendarSettings field in the JSON
+        assertTrue("Export should include calendarSettings field", json.contains("calendarSettings"))
+    }
+
+    /**
+     * Import should handle calendarSettings gracefully when no matching calendars found
+     */
+    @Test
+    fun testImportCalendarSettingsNoMatchGraceful() {
+        val validJson = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {},
+            "carModeSettings": {},
+            "calendarSettings": [
+                {
+                    "accountName": "test@example.com",
+                    "accountType": "com.google",
+                    "displayName": "Test Calendar",
+                    "ownerAccount": "test@example.com",
+                    "name": "test_calendar",
+                    "enabled": true
+                }
+            ]
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(validJson.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        // Import should succeed even when no matching calendars are found
+        // (the calendar settings just won't be applied since no calendar matched)
+        assertTrue("Import should succeed even with unmatched calendars", result is ImportResult.Success)
+    }
+
+    /**
+     * Import should handle v1 backups without calendarSettings field
+     */
+    @Test
+    fun testImportV1BackupWithoutCalendarSettings() {
+        val v1Json = """
+        {
+            "version": 1,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {
+                "test_setting": "value"
+            },
+            "carModeSettings": {}
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(v1Json.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import of v1 backup should succeed", result is ImportResult.Success)
+        
+        // Verify settings were imported
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        assertEquals("Setting should be restored", "value", prefs.getString("test_setting", ""))
+    }
+
+    /**
+     * Backup version should now be 2
+     */
+    @Test
+    fun testBackupVersionIsTwo() {
+        val outputStream = ByteArrayOutputStream()
+        backupManager.exportToStream(outputStream)
+
+        val json = outputStream.toString(Charsets.UTF_8.name())
+        
+        // Version should be 2
+        assertTrue("Backup version should be 2", json.contains("\"version\": 2"))
+    }
 }
 

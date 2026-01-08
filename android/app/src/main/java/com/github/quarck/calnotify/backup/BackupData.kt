@@ -23,6 +23,20 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
+ * Per-calendar enabled/disabled setting with identifying info for cross-device matching.
+ * On import, calendars are matched by accountName+displayName.
+ */
+@Serializable
+data class CalendarSettingBackup(
+    val accountName: String,
+    val accountType: String,
+    val displayName: String,
+    val ownerAccount: String,
+    val name: String,
+    val enabled: Boolean
+)
+
+/**
  * Root backup data structure.
  * Version field allows future migrations if the schema changes.
  */
@@ -32,13 +46,15 @@ data class BackupData(
     val exportedAt: Long,
     val appVersionCode: Long,
     val appVersionName: String,
-    /** Main app settings from default SharedPreferences */
+    /** Main app settings from default SharedPreferences (excludes calendar_handled_ keys) */
     val settings: Map<String, JsonElement>,
     /** Car mode Bluetooth device settings */
-    val carModeSettings: Map<String, JsonElement>
+    val carModeSettings: Map<String, JsonElement>,
+    /** Per-calendar enabled settings with identifying info for cross-device matching */
+    val calendarSettings: List<CalendarSettingBackup> = emptyList()
 ) {
     companion object {
-        const val CURRENT_VERSION = 1
+        const val CURRENT_VERSION = 2
     }
 }
 

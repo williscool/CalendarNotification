@@ -23,6 +23,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.preference.PreferenceManager
 import com.github.quarck.calnotify.bluetooth.BTCarModeStorage
+import com.github.quarck.calnotify.calendar.CalendarBackupInfo
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.logs.DevLog
 import kotlinx.serialization.json.*
 import java.io.InputStream
@@ -74,8 +76,10 @@ class SettingsBackupManager(private val context: Context) {
         private val EXCLUDED_DEFAULT_PREF_KEYS = setOf(
             // PersistentState keys (stored in default prefs with short names)
             "A", "B", "C",  // notificationLastFireTime, nextSnoozeAlarmExpectedAt, lastCustomSnoozeIntervalMillis
-            // Note: We don't exclude calendar_handled_ keys - those ARE user settings
         )
+
+        // Calendar handled keys are exported separately with identifying info for cross-device matching
+        private const val CALENDAR_IS_HANDLED_KEY_PREFIX = "calendar_handled_."
 
         // Keys that must be stored as Long (not Int) to avoid ClassCastException
         // These are read via getLong() in the app
@@ -154,7 +158,8 @@ class SettingsBackupManager(private val context: Context) {
             appVersionCode = pInfo.versionCode.toLong(),
             appVersionName = pInfo.versionName ?: "unknown",
             settings = exportSharedPreferences(getDefaultPreferences(), excludeRuntimeState = true),
-            carModeSettings = exportSharedPreferences(getCarModePreferences(), excludeRuntimeState = false)
+            carModeSettings = exportSharedPreferences(getCarModePreferences(), excludeRuntimeState = false),
+            calendarSettings = exportCalendarSettings()
         )
     }
 
@@ -164,6 +169,7 @@ class SettingsBackupManager(private val context: Context) {
     private fun restoreBackupData(backupData: BackupData) {
         importToSharedPreferences(getDefaultPreferences(), backupData.settings, applyLongKeyFix = true)
         importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings, applyLongKeyFix = false)
+        importCalendarSettings(backupData.calendarSettings)
     }
 
     /**
@@ -176,6 +182,8 @@ class SettingsBackupManager(private val context: Context) {
         for ((key, value) in prefs.all) {
             // Skip excluded runtime state keys (only for default preferences)
             if (excludeRuntimeState && key in EXCLUDED_DEFAULT_PREF_KEYS) continue
+            // Skip calendar_handled_ keys - they're exported separately with identifying info
+            if (excludeRuntimeState && key.startsWith(CALENDAR_IS_HANDLED_KEY_PREFIX)) continue
 
             val jsonValue: JsonElement = when (value) {
                 is Boolean -> JsonPrimitive(value)
@@ -253,6 +261,89 @@ class SettingsBackupManager(private val context: Context) {
         }
 
         editor.apply()
+    }
+
+    /**
+     * Export calendar enabled/disabled settings with identifying info for cross-device matching.
+     * Uses CalendarProvider to get calendar metadata (account, name, etc.)
+     */
+    private fun exportCalendarSettings(): List<CalendarSettingBackup> {
+        val result = mutableListOf<CalendarSettingBackup>()
+        val prefs = getDefaultPreferences()
+        val calendarProvider = CalendarProvider
+
+        for ((key, value) in prefs.all) {
+            if (!key.startsWith(CALENDAR_IS_HANDLED_KEY_PREFIX)) continue
+            if (value !is Boolean) continue
+
+            // Extract calendar ID from key: "calendar_handled_.<calendarId>"
+            val calendarIdStr = key.removePrefix(CALENDAR_IS_HANDLED_KEY_PREFIX)
+            val calendarId = calendarIdStr.toLongOrNull() ?: continue
+
+            // Get calendar info for cross-device matching
+            val backupInfo = calendarProvider.getCalendarBackupInfo(context, calendarId)
+            if (backupInfo == null) {
+                DevLog.warn(LOG_TAG, "Could not get backup info for calendar $calendarId, skipping")
+                continue
+            }
+
+            result.add(CalendarSettingBackup(
+                accountName = backupInfo.accountName,
+                accountType = backupInfo.accountType,
+                displayName = backupInfo.displayName,
+                ownerAccount = backupInfo.ownerAccount,
+                name = backupInfo.name,
+                enabled = value
+            ))
+        }
+
+        DevLog.info(LOG_TAG, "Exported ${result.size} calendar settings")
+        return result
+    }
+
+    /**
+     * Import calendar settings, matching by account+name to find correct calendar IDs on this device.
+     */
+    private fun importCalendarSettings(calendarSettings: List<CalendarSettingBackup>) {
+        if (calendarSettings.isEmpty()) {
+            DevLog.info(LOG_TAG, "No calendar settings to import")
+            return
+        }
+
+        val prefs = getDefaultPreferences()
+        val editor = prefs.edit()
+        val calendarProvider = CalendarProvider
+        var matchedCount = 0
+        var unmatchedCount = 0
+
+        for (setting in calendarSettings) {
+            // Convert to CalendarBackupInfo for matching
+            val backupInfo = CalendarBackupInfo(
+                calendarId = -1,  // Not used for matching
+                accountName = setting.accountName,
+                accountType = setting.accountType,
+                ownerAccount = setting.ownerAccount,
+                displayName = setting.displayName,
+                name = setting.name
+            )
+
+            // Find matching calendar on this device
+            val newCalendarId = calendarProvider.findMatchingCalendarId(context, backupInfo)
+            if (newCalendarId == -1L) {
+                DevLog.warn(LOG_TAG, "No matching calendar found for ${setting.displayName} (${setting.accountName})")
+                unmatchedCount++
+                continue
+            }
+
+            // Set the preference for the matched calendar
+            val key = "$CALENDAR_IS_HANDLED_KEY_PREFIX$newCalendarId"
+            editor.putBoolean(key, setting.enabled)
+            DevLog.debug(LOG_TAG, "Matched calendar ${setting.displayName} -> ID $newCalendarId (enabled=${setting.enabled})")
+            matchedCount++
+        }
+
+        editor.apply()
+        DevLog.info(LOG_TAG, "Imported calendar settings: $matchedCount matched, $unmatchedCount unmatched")
     }
 
     private fun getDefaultPreferences(): SharedPreferences {

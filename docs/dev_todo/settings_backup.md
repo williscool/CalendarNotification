@@ -242,7 +242,7 @@ This is low additional effort (~1-2 hours) since we're already in this code.
 
 ### Enhanced
 
-- [ ] Calendar ID mapping by name+account
+- [x] Calendar ID mapping by name+account (Phase 4)
 - [ ] Version migration support for future schema changes
 - [ ] Progress indicator for large imports
 - [ ] Backup file validation (checksum or schema validation)
