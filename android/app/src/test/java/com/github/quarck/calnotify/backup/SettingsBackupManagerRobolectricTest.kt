@@ -299,5 +299,100 @@ class SettingsBackupManagerRobolectricTest {
     fun testBackupFileExtension() {
         assertEquals("File extension should be .json", ".json", SettingsBackupManager.BACKUP_FILE_EXTENSION)
     }
+
+    // === Bug Fix Tests ===
+
+    /**
+     * Bug fix: Car mode "A" key should NOT be excluded from backup.
+     * EXCLUDED_DEFAULT_PREF_KEYS only applies to default prefs, not car mode prefs.
+     */
+    @Test
+    fun testCarModeKeyAIsNotExcluded() {
+        // Set car mode trigger devices (uses key "A")
+        val carModePrefs = context.getSharedPreferences(BTCarModeStorage.PREFS_NAME, Context.MODE_PRIVATE)
+        carModePrefs.edit()
+            .putString("A", "AA:BB:CC:DD:EE:FF,11:22:33:44:55:66")
+            .commit()
+
+        // Export
+        val outputStream = ByteArrayOutputStream()
+        backupManager.exportToStream(outputStream)
+
+        val json = outputStream.toString(Charsets.UTF_8.name())
+        
+        // Verify the car mode "A" key IS in the export
+        assertTrue("Car mode 'A' key should be in export", json.contains("AA:BB:CC:DD:EE:FF"))
+
+        // Clear and import
+        carModePrefs.edit().clear().commit()
+        val inputStream = ByteArrayInputStream(outputStream.toByteArray())
+        backupManager.importFromStream(inputStream)
+
+        // Verify car mode devices restored
+        assertEquals(
+            "Car mode devices should be restored",
+            "AA:BB:CC:DD:EE:FF,11:22:33:44:55:66",
+            carModePrefs.getString("A", "")
+        )
+    }
+
+    /**
+     * Bug fix: Known Long keys should be stored as Long even on fresh install.
+     * This prevents ClassCastException when the app later calls getLong().
+     */
+    @Test
+    fun testKnownLongKeysStoredAsLongOnFreshInstall() {
+        // Simulate backup with Long value that fits in Int range
+        val validJson = """
+        {
+            "version": 1,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {
+                "first_installed_ver": 4000050
+            },
+            "carModeSettings": {}
+        }
+        """.trimIndent()
+
+        // Import to fresh preferences (no existing values)
+        val inputStream = ByteArrayInputStream(validJson.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import should succeed", result is ImportResult.Success)
+
+        // Verify value can be read as Long (would throw ClassCastException if stored as Int)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val value = prefs.getLong("first_installed_ver", 0L)
+        assertEquals("Long value should be restored correctly", 4000050L, value)
+    }
+
+    /**
+     * Bug fix: Default pref "A" key (runtime state) should still be excluded.
+     */
+    @Test
+    fun testDefaultPrefRuntimeStateKeysAreExcluded() {
+        // Set runtime state in default prefs
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit()
+            .putLong("A", 12345L)  // notificationLastFireTime - should be excluded
+            .putString("user_setting", "keep_me")  // normal setting - should be included
+            .commit()
+
+        // Export
+        val outputStream = ByteArrayOutputStream()
+        backupManager.exportToStream(outputStream)
+
+        val json = outputStream.toString(Charsets.UTF_8.name())
+        
+        // Verify user setting is included but runtime state "A" is excluded
+        assertTrue("User setting should be in export", json.contains("user_setting"))
+        assertTrue("User setting value should be in export", json.contains("keep_me"))
+        
+        // The settings section should not contain the runtime state value
+        // Note: "A" appears in carModeSettings which is empty {}, but shouldn't have 12345
+        assertFalse("Runtime state value should not be in export", json.contains("12345"))
+    }
 }
 

@@ -68,12 +68,20 @@ class SettingsBackupManager(private val context: Context) {
             return "cnplus_settings_$timestamp$BACKUP_FILE_EXTENSION"
         }
 
-        // Keys to exclude from backup (runtime state, not user settings)
+        // Keys to exclude from backup in DEFAULT preferences (runtime state, not user settings)
         // These are from PersistentState, ReminderState, CalendarMonitorState
-        private val EXCLUDED_KEYS = setOf(
-            // PersistentState keys
+        // NOTE: Only applied to default prefs, NOT car mode prefs (which uses "A" for trigger devices)
+        private val EXCLUDED_DEFAULT_PREF_KEYS = setOf(
+            // PersistentState keys (stored in default prefs with short names)
             "A", "B", "C",  // notificationLastFireTime, nextSnoozeAlarmExpectedAt, lastCustomSnoozeIntervalMillis
             // Note: We don't exclude calendar_handled_ keys - those ARE user settings
+        )
+
+        // Keys that must be stored as Long (not Int) to avoid ClassCastException
+        // These are read via getLong() in the app
+        private val LONG_PREFERENCE_KEYS = setOf(
+            "first_installed_ver",    // Settings.versionCodeFirstInstalled
+            "manual_quiet_until"      // Settings.manualQuietPeriodUntil
         )
 
         // Preference file for car mode settings
@@ -145,8 +153,8 @@ class SettingsBackupManager(private val context: Context) {
             exportedAt = System.currentTimeMillis(),
             appVersionCode = pInfo.versionCode.toLong(),
             appVersionName = pInfo.versionName ?: "unknown",
-            settings = exportSharedPreferences(getDefaultPreferences()),
-            carModeSettings = exportSharedPreferences(getCarModePreferences())
+            settings = exportSharedPreferences(getDefaultPreferences(), excludeRuntimeState = true),
+            carModeSettings = exportSharedPreferences(getCarModePreferences(), excludeRuntimeState = false)
         )
     }
 
@@ -154,19 +162,20 @@ class SettingsBackupManager(private val context: Context) {
      * Restore backup data to SharedPreferences.
      */
     private fun restoreBackupData(backupData: BackupData) {
-        importToSharedPreferences(getDefaultPreferences(), backupData.settings)
-        importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings)
+        importToSharedPreferences(getDefaultPreferences(), backupData.settings, applyLongKeyFix = true)
+        importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings, applyLongKeyFix = false)
     }
 
     /**
      * Export SharedPreferences to a map of JSON elements.
+     * @param excludeRuntimeState If true, excludes runtime state keys (only for default prefs)
      */
-    private fun exportSharedPreferences(prefs: SharedPreferences): Map<String, JsonElement> {
+    private fun exportSharedPreferences(prefs: SharedPreferences, excludeRuntimeState: Boolean): Map<String, JsonElement> {
         val result = mutableMapOf<String, JsonElement>()
 
         for ((key, value) in prefs.all) {
-            // Skip excluded runtime state keys
-            if (key in EXCLUDED_KEYS) continue
+            // Skip excluded runtime state keys (only for default preferences)
+            if (excludeRuntimeState && key in EXCLUDED_DEFAULT_PREF_KEYS) continue
 
             val jsonValue: JsonElement = when (value) {
                 is Boolean -> JsonPrimitive(value)
@@ -192,13 +201,14 @@ class SettingsBackupManager(private val context: Context) {
 
     /**
      * Import JSON elements to SharedPreferences.
+     * @param applyLongKeyFix If true, uses LONG_PREFERENCE_KEYS to ensure known Long values stay as Long
      */
-    private fun importToSharedPreferences(prefs: SharedPreferences, data: Map<String, JsonElement>) {
+    private fun importToSharedPreferences(prefs: SharedPreferences, data: Map<String, JsonElement>, applyLongKeyFix: Boolean) {
         val editor = prefs.edit()
 
         for ((key, jsonValue) in data) {
-            // Skip excluded keys on import too (safety)
-            if (key in EXCLUDED_KEYS) continue
+            // Skip excluded keys on import too (safety, only for default prefs)
+            if (applyLongKeyFix && key in EXCLUDED_DEFAULT_PREF_KEYS) continue
 
             when (jsonValue) {
                 is JsonPrimitive -> {
@@ -206,17 +216,21 @@ class SettingsBackupManager(private val context: Context) {
                         jsonValue.isString -> editor.putString(key, jsonValue.content)
                         jsonValue.booleanOrNull != null -> editor.putBoolean(key, jsonValue.boolean)
                         jsonValue.longOrNull != null -> {
-                            // Try to preserve int vs long based on value range
                             val longVal = jsonValue.long
-                            if (longVal in Int.MIN_VALUE..Int.MAX_VALUE) {
-                                // Check if original was likely an int by checking existing pref
+                            // Check if this key is known to be a Long type
+                            if (applyLongKeyFix && key in LONG_PREFERENCE_KEYS) {
+                                // Always store as Long for known Long keys
+                                editor.putLong(key, longVal)
+                            } else if (longVal in Int.MIN_VALUE..Int.MAX_VALUE) {
+                                // For other keys in Int range, check existing value type
                                 val existing = prefs.all[key]
-                                if (existing is Int || existing == null) {
-                                    editor.putInt(key, longVal.toInt())
-                                } else {
+                                if (existing is Long) {
                                     editor.putLong(key, longVal)
+                                } else {
+                                    editor.putInt(key, longVal.toInt())
                                 }
                             } else {
+                                // Value exceeds Int range, must be Long
                                 editor.putLong(key, longVal)
                             }
                         }
