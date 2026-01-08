@@ -22,9 +22,11 @@ package com.github.quarck.calnotify.eventsstorage
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
+import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.logs.DevLog
 import org.junit.After
 import org.junit.Assert.*
@@ -226,8 +228,8 @@ class SyncDatabaseContractTest {
             isAllDay = false,
             origin = EventOrigin.ProviderBroadcast,
             timeFirstSeen = System.currentTimeMillis(),
-            eventStatus = 0,
-            attendanceStatus = 0
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None
         )
         
         try {
@@ -331,8 +333,8 @@ class SyncDatabaseContractTest {
             isAllDay = false,
             origin = EventOrigin.ProviderBroadcast,
             timeFirstSeen = System.currentTimeMillis(),
-            eventStatus = 0,
-            attendanceStatus = 0
+            eventStatus = EventStatus.Confirmed,
+            attendanceStatus = AttendanceStatus.None
         )
         
         try {
