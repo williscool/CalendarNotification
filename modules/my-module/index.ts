@@ -59,6 +59,23 @@ export async function sendRescheduleConfirmations(value: RawRescheduleConfirmati
   }
 }
 
+/**
+ * Returns the active events database name.
+ * After Room migration, this returns "RoomEvents" instead of "Events".
+ * The sync feature should use this to open the correct database.
+ */
+export function getActiveEventsDbName(): string {
+  return MyModule.getActiveEventsDbName();
+}
+
+/**
+ * Returns whether Room storage is being used (vs legacy fallback).
+ * Useful for debugging/diagnostics.
+ */
+export function isUsingRoomStorage(): boolean {
+  return MyModule.isUsingRoomStorage();
+}
+
 const emitter = new EventEmitter(MyModule ?? NativeModulesProxy.MyModule);
 
 export function addChangeListener(listener: (event: ChangeEventPayload) => void): Subscription {

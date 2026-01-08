@@ -1,6 +1,6 @@
 # Sync Database Mismatch Fix
 
-## Status: TODO
+## Status: Phase 1-2 COMPLETE ✅ - Needs testing & Phase 3-4 (contract tests)
 
 ## Background
 
@@ -278,10 +278,10 @@ Users who upgraded with Room migration active have their events in `RoomEvents`.
 
 ## Checklist
 
-- [ ] Phase 1: Add native bridge method `getActiveEventsDbName()`
-- [ ] Phase 1: Add native bridge method `isUsingRoomStorage()`
-- [ ] Phase 2: Update `SetupSync.tsx` to use dynamic database name
-- [ ] Phase 2: Update `installCrsqliteOnTable` call
+- [x] Phase 1: Add native bridge method `getActiveEventsDbName()`
+- [x] Phase 1: Add native bridge method `isUsingRoomStorage()`
+- [x] Phase 2: Update `SetupSync.tsx` to use dynamic database name
+- [x] Phase 2: Update `installCrsqliteOnTable` call
 - [ ] Phase 3: Add contract test for database name
 - [ ] Phase 3: Add integration test documenting the bug
 - [ ] Phase 4: Add write/read roundtrip test

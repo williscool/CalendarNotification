@@ -8,6 +8,8 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import kotlinx.serialization.json.Json
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.eventsstorage.EventsDatabase
 
 
 class MyModule : Module() {
@@ -58,6 +60,41 @@ class MyModule : Module() {
       sendEvent("onChange", mapOf(
         "value" to value
       ))
+    }
+
+    // Returns the active events database name for sync feature to use
+    // After Room migration, this returns "RoomEvents" instead of "Events"
+    Function("getActiveEventsDbName") {
+      val context = appContext.reactContext
+      if (context == null) {
+        Log.w(TAG, "getActiveEventsDbName: context is null, returning legacy name")
+        return@Function EventsDatabase.LEGACY_DATABASE_NAME
+      }
+      
+      val storage = EventsStorage(context)
+      val dbName = if (storage.isUsingRoom) {
+        EventsDatabase.DATABASE_NAME
+      } else {
+        EventsDatabase.LEGACY_DATABASE_NAME
+      }
+      storage.close()
+      Log.i(TAG, "getActiveEventsDbName: returning '$dbName' (isUsingRoom=${storage.isUsingRoom})")
+      dbName
+    }
+
+    // Returns whether Room storage is being used (vs legacy fallback)
+    Function("isUsingRoomStorage") {
+      val context = appContext.reactContext
+      if (context == null) {
+        Log.w(TAG, "isUsingRoomStorage: context is null, returning false")
+        return@Function false
+      }
+      
+      val storage = EventsStorage(context)
+      val isRoom = storage.isUsingRoom
+      storage.close()
+      Log.i(TAG, "isUsingRoomStorage: $isRoom")
+      isRoom
     }
 
     // Enables the module to be used as a native view. Definition components that are accepted as part of
