@@ -1,6 +1,6 @@
 # Sync Database Mismatch Fix
 
-## Status: Phase 1-2 COMPLETE ✅ - Needs testing & Phase 3-4 (contract tests)
+## Status: ALL PHASES COMPLETE ✅ - Needs testing
 
 ## Background
 
@@ -282,9 +282,9 @@ Users who upgraded with Room migration active have their events in `RoomEvents`.
 - [x] Phase 1: Add native bridge method `isUsingRoomStorage()`
 - [x] Phase 2: Update `SetupSync.tsx` to use dynamic database name
 - [x] Phase 2: Update `installCrsqliteOnTable` call
-- [ ] Phase 3: Add contract test for database name
-- [ ] Phase 3: Add integration test documenting the bug
-- [ ] Phase 4: Add write/read roundtrip test
+- [x] Phase 3: Add RN contract test (`SyncDatabaseContract.test.ts`)
+- [x] Phase 3: Add Android integration test (`SyncDatabaseContractTest.kt`)
+- [x] Phase 4: Add write/read roundtrip test (in `SyncDatabaseContractTest.kt`)
 - [ ] Update `room_database_migration.md` with lessons learned
 - [ ] Consider: Delete orphaned `Events` database after N versions
 
@@ -306,4 +306,9 @@ Users who upgraded with Room migration active have their events in `RoomEvents`.
 
 - [Room Database Migration](../dev_completed/room_database_migration.md) - The migration that introduced this issue
 - [PowerSync Schema](../../src/lib/powersync/Schema.tsx) - Defines the `eventsV9` table schema for sync
-- [SetupSync.tsx](../../src/lib/features/SetupSync.tsx) - The sync UI that needs fixing
+- [SetupSync.tsx](../../src/lib/features/SetupSync.tsx) - The sync UI (now fixed)
+
+### Test Files Added
+
+- `src/lib/features/__tests__/SyncDatabaseContract.test.ts` - RN contract tests
+- `android/app/src/androidTest/.../eventsstorage/SyncDatabaseContractTest.kt` - Android integration tests
