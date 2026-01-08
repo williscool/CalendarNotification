@@ -37,11 +37,25 @@ import java.util.Locale
  * Result of a backup import operation.
  */
 sealed class ImportResult {
-    object Success : ImportResult()
+    /**
+     * Import succeeded. Contains stats about what was imported.
+     */
+    data class Success(val stats: ImportStats) : ImportResult()
     data class VersionTooNew(val backupVersion: Int, val supportedVersion: Int) : ImportResult()
     data class ParseError(val message: String) : ImportResult()
     data class IoError(val message: String) : ImportResult()
 }
+
+/**
+ * Statistics about an import operation for user feedback.
+ */
+data class ImportStats(
+    val settingsCount: Int = 0,
+    val carModeSettingsCount: Int = 0,
+    val calendarsMatched: Int = 0,
+    val calendarsUnmatched: Int = 0,
+    val unmatchedCalendarNames: List<String> = emptyList()
+)
 
 /**
  * Manages export and import of app settings.
@@ -138,9 +152,9 @@ class SettingsBackupManager(private val context: Context) {
                 return ImportResult.VersionTooNew(backupData.version, BackupData.CURRENT_VERSION)
             }
 
-            restoreBackupData(backupData)
+            val stats = restoreBackupData(backupData)
             DevLog.info(LOG_TAG, "Settings imported successfully from backup created at ${backupData.exportedAt}")
-            ImportResult.Success
+            ImportResult.Success(stats)
         } catch (e: java.io.IOException) {
             DevLog.error(LOG_TAG, "IO error importing settings: ${e.message}")
             ImportResult.IoError(e.message ?: "Failed to read backup file")
@@ -166,28 +180,46 @@ class SettingsBackupManager(private val context: Context) {
     /**
      * Restore backup data to SharedPreferences.
      * Each section is restored independently - failure in one doesn't stop others (best-effort).
+     * @return ImportStats with counts of what was imported
      */
-    private fun restoreBackupData(backupData: BackupData) {
+    private fun restoreBackupData(backupData: BackupData): ImportStats {
+        var settingsCount = 0
+        var carModeSettingsCount = 0
+        var calendarsMatched = 0
+        var calendarsUnmatched = 0
+        var unmatchedCalendarNames = listOf<String>()
+
         // Restore main settings (best-effort)
         try {
-            importToSharedPreferences(getDefaultPreferences(), backupData.settings, applyLongKeyFix = true)
+            settingsCount = importToSharedPreferences(getDefaultPreferences(), backupData.settings, applyLongKeyFix = true)
         } catch (e: RuntimeException) {
             DevLog.error(LOG_TAG, "Failed to restore main settings, continuing with other sections: ${e.message}")
         }
 
         // Restore car mode settings (best-effort)
         try {
-            importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings, applyLongKeyFix = false)
+            carModeSettingsCount = importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings, applyLongKeyFix = false)
         } catch (e: RuntimeException) {
             DevLog.error(LOG_TAG, "Failed to restore car mode settings, continuing with other sections: ${e.message}")
         }
 
         // Restore calendar settings (best-effort)
         try {
-            importCalendarSettings(backupData.calendarSettings)
+            val calendarResult = importCalendarSettings(backupData.calendarSettings)
+            calendarsMatched = calendarResult.first
+            calendarsUnmatched = calendarResult.second
+            unmatchedCalendarNames = calendarResult.third
         } catch (e: RuntimeException) {
             DevLog.error(LOG_TAG, "Failed to restore calendar settings: ${e.message}")
         }
+
+        return ImportStats(
+            settingsCount = settingsCount,
+            carModeSettingsCount = carModeSettingsCount,
+            calendarsMatched = calendarsMatched,
+            calendarsUnmatched = calendarsUnmatched,
+            unmatchedCalendarNames = unmatchedCalendarNames
+        )
     }
 
     /**
@@ -229,9 +261,11 @@ class SettingsBackupManager(private val context: Context) {
      * Import JSON elements to SharedPreferences.
      * Best-effort: each key is imported independently, failures are logged and skipped.
      * @param applyLongKeyFix If true, uses LONG_PREFERENCE_KEYS to ensure known Long values stay as Long
+     * @return count of settings successfully imported
      */
-    private fun importToSharedPreferences(prefs: SharedPreferences, data: Map<String, JsonElement>, applyLongKeyFix: Boolean) {
+    private fun importToSharedPreferences(prefs: SharedPreferences, data: Map<String, JsonElement>, applyLongKeyFix: Boolean): Int {
         val editor = prefs.edit()
+        var importedCount = 0
 
         for ((key, jsonValue) in data) {
             try {
@@ -264,15 +298,18 @@ class SettingsBackupManager(private val context: Context) {
                             }
                             jsonValue.floatOrNull != null -> editor.putFloat(key, jsonValue.float)
                         }
+                        importedCount++
                     }
                     is JsonArray -> {
                         val stringSet = jsonValue.mapNotNull { 
                             (it as? JsonPrimitive)?.contentOrNull 
                         }.toSet()
                         editor.putStringSet(key, stringSet)
+                        importedCount++
                     }
                     is JsonNull -> {
                         editor.remove(key)
+                        // Don't count removals as imports
                     }
                     else -> {
                         DevLog.warn(LOG_TAG, "Skipping unsupported JSON type for key $key")
@@ -284,6 +321,7 @@ class SettingsBackupManager(private val context: Context) {
         }
 
         editor.apply()
+        return importedCount
     }
 
     /**
@@ -332,11 +370,12 @@ class SettingsBackupManager(private val context: Context) {
     /**
      * Import calendar settings, matching by account+name to find correct calendar IDs on this device.
      * Best-effort: failures for individual calendars are logged and skipped.
+     * @return Triple of (matched count, unmatched count, list of unmatched calendar names)
      */
-    private fun importCalendarSettings(calendarSettings: List<CalendarSettingBackup>) {
+    private fun importCalendarSettings(calendarSettings: List<CalendarSettingBackup>): Triple<Int, Int, List<String>> {
         if (calendarSettings.isEmpty()) {
             DevLog.info(LOG_TAG, "No calendar settings to import")
-            return
+            return Triple(0, 0, emptyList())
         }
 
         val prefs = getDefaultPreferences()
@@ -344,7 +383,7 @@ class SettingsBackupManager(private val context: Context) {
         val calendarProvider = CalendarProvider
         var matchedCount = 0
         var unmatchedCount = 0
-        var errorCount = 0
+        val unmatchedNames = mutableListOf<String>()
 
         for (setting in calendarSettings) {
             try {
@@ -363,6 +402,7 @@ class SettingsBackupManager(private val context: Context) {
                 if (newCalendarId == -1L) {
                     DevLog.warn(LOG_TAG, "No matching calendar found for ${setting.displayName} (${setting.accountName})")
                     unmatchedCount++
+                    unmatchedNames.add(setting.displayName)
                     continue
                 }
 
@@ -373,12 +413,14 @@ class SettingsBackupManager(private val context: Context) {
                 matchedCount++
             } catch (e: RuntimeException) {
                 DevLog.error(LOG_TAG, "Failed to import calendar setting for ${setting.displayName}, skipping: ${e.message}")
-                errorCount++
+                unmatchedCount++
+                unmatchedNames.add("${setting.displayName} (error)")
             }
         }
 
         editor.apply()
-        DevLog.info(LOG_TAG, "Imported calendar settings: $matchedCount matched, $unmatchedCount unmatched, $errorCount errors")
+        DevLog.info(LOG_TAG, "Imported calendar settings: $matchedCount matched, $unmatchedCount unmatched")
+        return Triple(matchedCount, unmatchedCount, unmatchedNames)
     }
 
     private fun getDefaultPreferences(): SharedPreferences {

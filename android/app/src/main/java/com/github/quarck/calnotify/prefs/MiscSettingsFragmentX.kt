@@ -29,6 +29,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.backup.ImportResult
+import com.github.quarck.calnotify.backup.ImportStats
 import com.github.quarck.calnotify.backup.SettingsBackupManager
 import com.github.quarck.calnotify.logs.DevLog
 
@@ -137,7 +138,7 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
             requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
                 when (val result = backupManager.importFromStream(inputStream)) {
                     is ImportResult.Success -> {
-                        showToast(R.string.import_success)
+                        showImportSummaryDialog(result.stats)
                     }
                     is ImportResult.VersionTooNew -> {
                         showToast(R.string.import_version_too_new)
@@ -162,6 +163,39 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
             DevLog.error(LOG_TAG, "Security error during import: ${e.message}")
             showToast(R.string.import_failed)
         }
+    }
+
+    private fun showImportSummaryDialog(stats: ImportStats) {
+        val message = buildString {
+            appendLine(getString(R.string.import_summary_settings, stats.settingsCount))
+            
+            if (stats.carModeSettingsCount > 0) {
+                appendLine(getString(R.string.import_summary_car_mode, stats.carModeSettingsCount))
+            }
+            
+            val totalCalendars = stats.calendarsMatched + stats.calendarsUnmatched
+            if (totalCalendars > 0) {
+                appendLine(getString(R.string.import_summary_calendars_matched, stats.calendarsMatched))
+                if (stats.calendarsUnmatched > 0) {
+                    appendLine(getString(R.string.import_summary_calendars_not_found, stats.calendarsUnmatched))
+                    if (stats.unmatchedCalendarNames.isNotEmpty()) {
+                        appendLine(getString(R.string.import_summary_unmatched_list))
+                        stats.unmatchedCalendarNames.forEach { name ->
+                            appendLine("  • $name")
+                        }
+                    }
+                }
+            }
+            
+            appendLine()
+            append(getString(R.string.import_summary_restart_note))
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.import_summary_title)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun showToast(messageResId: Int) {

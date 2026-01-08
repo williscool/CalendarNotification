@@ -633,5 +633,117 @@ class SettingsBackupManagerRobolectricTest {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         assertEquals("Other settings should be restored", "test_value", prefs.getString("test_key", ""))
     }
+
+    // === Import Stats Tests ===
+
+    /**
+     * Import should return stats with correct settings count
+     */
+    @Test
+    fun testImportReturnsCorrectSettingsCount() {
+        val validJson = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {
+                "setting1": "value1",
+                "setting2": true,
+                "setting3": 42
+            },
+            "carModeSettings": {
+                "A": "AA:BB:CC:DD:EE:FF"
+            },
+            "calendarSettings": []
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(validJson.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import should succeed", result is ImportResult.Success)
+        val stats = (result as ImportResult.Success).stats
+        assertEquals("Should report 3 settings imported", 3, stats.settingsCount)
+        assertEquals("Should report 1 car mode setting imported", 1, stats.carModeSettingsCount)
+        assertEquals("Should report 0 calendars matched", 0, stats.calendarsMatched)
+        assertEquals("Should report 0 calendars unmatched", 0, stats.calendarsUnmatched)
+    }
+
+    /**
+     * Import should track unmatched calendars in stats
+     */
+    @Test
+    fun testImportStatsTracksUnmatchedCalendars() {
+        val jsonWithCalendars = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {},
+            "carModeSettings": {},
+            "calendarSettings": [
+                {
+                    "accountName": "user@example.com",
+                    "accountType": "com.google",
+                    "displayName": "Work Calendar",
+                    "ownerAccount": "user@example.com",
+                    "name": "work",
+                    "enabled": true
+                },
+                {
+                    "accountName": "user@example.com",
+                    "accountType": "com.google",
+                    "displayName": "Personal",
+                    "ownerAccount": "user@example.com",
+                    "name": "personal",
+                    "enabled": false
+                }
+            ]
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(jsonWithCalendars.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import should succeed", result is ImportResult.Success)
+        val stats = (result as ImportResult.Success).stats
+        // Without real calendars in test, none will match
+        assertEquals("Should report 0 calendars matched", 0, stats.calendarsMatched)
+        assertEquals("Should report 2 calendars unmatched", 2, stats.calendarsUnmatched)
+        assertEquals("Should list 2 unmatched calendar names", 2, stats.unmatchedCalendarNames.size)
+        assertTrue("Should include Work Calendar in unmatched", stats.unmatchedCalendarNames.contains("Work Calendar"))
+        assertTrue("Should include Personal in unmatched", stats.unmatchedCalendarNames.contains("Personal"))
+    }
+
+    /**
+     * Import with empty backup should return zero stats
+     */
+    @Test
+    fun testImportEmptyBackupReturnsZeroStats() {
+        val emptyJson = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {},
+            "carModeSettings": {},
+            "calendarSettings": []
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(emptyJson.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import should succeed", result is ImportResult.Success)
+        val stats = (result as ImportResult.Success).stats
+        assertEquals("Should report 0 settings imported", 0, stats.settingsCount)
+        assertEquals("Should report 0 car mode settings imported", 0, stats.carModeSettingsCount)
+        assertEquals("Should report 0 calendars matched", 0, stats.calendarsMatched)
+        assertEquals("Should report 0 calendars unmatched", 0, stats.calendarsUnmatched)
+        assertTrue("Unmatched calendar names should be empty", stats.unmatchedCalendarNames.isEmpty())
+    }
 }
 

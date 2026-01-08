@@ -590,6 +590,13 @@
     <string name="import_failed">Failed to import settings</string>
     <string name="import_version_too_new">Backup file is from a newer app version and cannot be imported</string>
     <string name="import_invalid_file">Invalid backup file format</string>
+    <string name="import_summary_title">Import Complete</string>
+    <string name="import_summary_settings">Settings imported: %d</string>
+    <string name="import_summary_car_mode">Car mode settings imported: %d</string>
+    <string name="import_summary_calendars_matched">Calendars matched: %d</string>
+    <string name="import_summary_calendars_not_found">Calendars not found: %d</string>
+    <string name="import_summary_unmatched_list">Not found:</string>
+    <string name="import_summary_restart_note">Restart the app for all changes to take effect.</string>
     <string name="import_confirm_title">Import settings?</string>
     <string name="import_confirm_message">This will replace your current settings with the ones from the backup file. Continue?</string>
 
