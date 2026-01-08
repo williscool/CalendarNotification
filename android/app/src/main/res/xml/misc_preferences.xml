@@ -62,5 +62,20 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:title="@string/backup_category"
+        android:key="_backup_restore">
+
+        <Preference
+            android:key="export_settings"
+            android:title="@string/export_settings"
+            android:summary="@string/export_settings_summary" />
+
+        <Preference
+            android:key="import_settings"
+            android:title="@string/import_settings"
+            android:summary="@string/import_settings_summary" />
+
+    </PreferenceCategory>
 
 </PreferenceScreen>

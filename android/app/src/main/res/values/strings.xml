@@ -577,4 +577,22 @@
     <string name="pebble_only_alarms_summary">Only forward #alarm events to PebbleAPI</string>
     <string name="skip_expired_events_title">Ignore expired events</string>
     <string name="skip_expired_events_summary">Do not process events if end time is already in the past</string>
+
+    <!-- Settings Backup -->
+    <string name="backup_category">Backup &amp; Restore</string>
+    <string name="export_settings">Export settings</string>
+    <string name="export_settings_summary">Save all settings to a file</string>
+    <string name="import_settings">Import settings</string>
+    <string name="import_settings_summary">Restore settings from a backup file</string>
+    <string name="export_success">Settings exported successfully</string>
+    <string name="export_failed">Failed to export settings</string>
+    <string name="import_success">Settings imported successfully. Restart the app for all changes to take effect.</string>
+    <string name="import_failed">Failed to import settings</string>
+    <string name="import_version_too_new">Backup file is from a newer app version and cannot be imported</string>
+    <string name="import_invalid_file">Invalid backup file format</string>
+    <string name="import_confirm_title">Import settings?</string>
+    <string name="import_confirm_message">This will replace your current settings with the ones from the backup file. Continue?</string>
+
+    <!-- Bluetooth Permission (Car Mode) -->
+    <string name="bluetooth_permission_required">Bluetooth permission is required to configure Car Mode devices</string>
 </resources>

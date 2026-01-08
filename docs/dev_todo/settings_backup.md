@@ -220,7 +220,7 @@ Since we're working in the settings code and backing up `BTCarModeStorage`, we'l
 - [ ] Add permission check methods to `PermissionsManager.kt`
 - [ ] Update `CarModeActivity.kt` to request permission when page opens (just-in-time)
 - [ ] Add defensive try-catch in `BTDeviceManager.kt`
-- [ ] Add `bluetooth_permission_required` string resource
+- [x] Add `bluetooth_permission_required` string resource
 
 This is low additional effort (~1-2 hours) since we're already in this code.
 
@@ -230,14 +230,14 @@ This is low additional effort (~1-2 hours) since we're already in this code.
 
 ### MVP (Minimum Viable)
 
-- [ ] Add kotlinx.serialization dependency to build.gradle
-- [ ] Create `SettingsBackupManager` with export/import methods
-- [ ] Define `BackupData` data class with `@Serializable` annotation
-- [ ] Add SAF intents in SettingsActivityX
-- [ ] Add UI preferences for export/import buttons
-- [ ] Add string resources for UI text
-- [ ] Handle import errors gracefully (show toast, don't crash)
-- [ ] Add confirmation dialog before import (overwrites existing)
+- [x] Add kotlinx.serialization dependency to build.gradle *(already present)*
+- [x] Create `SettingsBackupManager` with export/import methods
+- [x] Define `BackupData` data class with `@Serializable` annotation
+- [x] Add SAF intents in MiscSettingsFragmentX
+- [x] Add UI preferences for export/import buttons
+- [x] Add string resources for UI text
+- [x] Handle import errors gracefully (show toast, don't crash)
+- [x] Add confirmation dialog before import (overwrites existing)
 
 ### Enhanced
 
@@ -248,10 +248,10 @@ This is low additional effort (~1-2 hours) since we're already in this code.
 
 ### Testing
 
-- [ ] Unit tests for `SettingsBackupManager`
-- [ ] Export → import round-trip test
-- [ ] Version migration tests
-- [ ] Invalid/corrupted file handling tests
+- [x] Unit tests for `SettingsBackupManager` (Robolectric)
+- [x] Export → import round-trip test
+- [x] Version migration tests (version too new rejection)
+- [x] Invalid/corrupted file handling tests
 - [ ] Instrumentation test for SAF integration
 
 ## Effort Estimate
