@@ -789,6 +789,8 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             }
         } catch (ex: SQLException) {
             DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
+        } catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
         }
     }
 
