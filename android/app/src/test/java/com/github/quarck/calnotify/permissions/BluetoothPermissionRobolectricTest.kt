@@ -35,6 +35,7 @@ import org.robolectric.annotation.Config
  * BLUETOOTH_CONNECT permission is required on SDK 31+ (Android 12+).
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])  // Default SDK for class setup; individual tests override as needed
 class BluetoothPermissionRobolectricTest {
 
     private lateinit var application: Application
