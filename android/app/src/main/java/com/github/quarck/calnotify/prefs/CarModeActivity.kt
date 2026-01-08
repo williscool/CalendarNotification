@@ -204,10 +204,18 @@ class CarModeActivity : AppCompatActivity() {
 
             runOnUiThread {
                 if (devices != null) {
-                    noDevicesText.visibility = if (devices.isNotEmpty()) View.GONE else View.VISIBLE
+                    if (devices.isNotEmpty()) {
+                        noDevicesText.visibility = View.GONE
+                    } else {
+                        // Reset text in case it was changed to permission message
+                        noDevicesText.text = getString(R.string.no_known_bluetooth_devices)
+                        noDevicesText.visibility = View.VISIBLE
+                    }
                     adapter.entries = devices.toTypedArray()
                     adapter.notifyDataSetChanged()
                 } else {
+                    // devices is null - likely permission issue or Bluetooth error
+                    noDevicesText.text = getString(R.string.bluetooth_permission_required)
                     noDevicesText.visibility = View.VISIBLE
                 }
             }
