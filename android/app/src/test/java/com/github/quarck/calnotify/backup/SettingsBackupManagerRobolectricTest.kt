@@ -315,15 +315,16 @@ class SettingsBackupManagerRobolectricTest {
     // === Bug Fix Tests ===
 
     /**
-     * Bug fix: Car mode "A" key should NOT be excluded from backup.
-     * EXCLUDED_DEFAULT_PREF_KEYS only applies to default prefs, not car mode prefs.
+     * Bug fix: Car mode "A" key (trigger devices) should be included in backup.
+     * Car mode "B" key (silentUntil timestamp) should be EXCLUDED as runtime state.
      */
     @Test
-    fun testCarModeKeyAIsNotExcluded() {
-        // Set car mode trigger devices (uses key "A")
+    fun testCarModeKeyAIncludedKeyBExcluded() {
+        // Set car mode settings: "A" = trigger devices (user config), "B" = silentUntil (runtime state)
         val carModePrefs = context.getSharedPreferences(BTCarModeStorage.PREFS_NAME, Context.MODE_PRIVATE)
         carModePrefs.edit()
             .putString("A", "AA:BB:CC:DD:EE:FF,11:22:33:44:55:66")
+            .putLong("B", 1704672000000L)  // Some future timestamp - should NOT be exported
             .commit()
 
         // Export
@@ -332,19 +333,29 @@ class SettingsBackupManagerRobolectricTest {
 
         val json = outputStream.toString(Charsets.UTF_8.name())
         
-        // Verify the car mode "A" key IS in the export
-        assertTrue("Car mode 'A' key should be in export", json.contains("AA:BB:CC:DD:EE:FF"))
+        // Verify the car mode "A" key (user config) IS in the export
+        assertTrue("Car mode 'A' key (trigger devices) should be in export", json.contains("AA:BB:CC:DD:EE:FF"))
+        
+        // Verify the car mode "B" key (runtime state) is NOT in the export
+        assertFalse("Car mode 'B' key (silentUntil) should NOT be in export", json.contains("1704672000000"))
 
         // Clear and import
         carModePrefs.edit().clear().commit()
         val inputStream = ByteArrayInputStream(outputStream.toByteArray())
         backupManager.importFromStream(inputStream)
 
-        // Verify car mode devices restored
+        // Verify car mode trigger devices (A) restored
         assertEquals(
-            "Car mode devices should be restored",
+            "Car mode trigger devices should be restored",
             "AA:BB:CC:DD:EE:FF,11:22:33:44:55:66",
             carModePrefs.getString("A", "")
+        )
+        
+        // Verify car mode silentUntil (B) was NOT restored (should be default 0)
+        assertEquals(
+            "Car mode silentUntil should NOT be restored",
+            0L,
+            carModePrefs.getLong("B", 0L)
         )
     }
 

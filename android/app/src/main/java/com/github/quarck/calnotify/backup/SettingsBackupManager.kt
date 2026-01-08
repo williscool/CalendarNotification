@@ -86,10 +86,16 @@ class SettingsBackupManager(private val context: Context) {
 
         // Keys to exclude from backup in DEFAULT preferences (runtime state, not user settings)
         // These are from PersistentState, ReminderState, CalendarMonitorState
-        // NOTE: Only applied to default prefs, NOT car mode prefs (which uses "A" for trigger devices)
+        // NOTE: Only applied to default prefs, NOT car mode prefs
         private val EXCLUDED_DEFAULT_PREF_KEYS = setOf(
             // PersistentState keys (stored in default prefs with short names)
             "A", "B", "C",  // notificationLastFireTime, nextSnoozeAlarmExpectedAt, lastCustomSnoozeIntervalMillis
+        )
+
+        // Keys to exclude from CAR MODE preferences (runtime state, not user settings)
+        // Car mode uses: "A" = trigger devices (user config, KEEP), "B" = silentUntil timestamp (runtime, EXCLUDE)
+        private val EXCLUDED_CAR_MODE_PREF_KEYS = setOf(
+            "B",  // carModeSilentUntil - runtime state, would cause incorrect silent mode if restored
         )
 
         // Calendar handled keys are exported separately with identifying info for cross-device matching
@@ -171,8 +177,8 @@ class SettingsBackupManager(private val context: Context) {
             exportedAt = System.currentTimeMillis(),
             appVersionCode = pInfo.versionCode.toLong(),
             appVersionName = pInfo.versionName ?: "unknown",
-            settings = exportSharedPreferences(getDefaultPreferences(), excludeRuntimeState = true),
-            carModeSettings = exportSharedPreferences(getCarModePreferences(), excludeRuntimeState = false),
+            settings = exportSharedPreferences(getDefaultPreferences(), EXCLUDED_DEFAULT_PREF_KEYS),
+            carModeSettings = exportSharedPreferences(getCarModePreferences(), EXCLUDED_CAR_MODE_PREF_KEYS),
             calendarSettings = exportCalendarSettings()
         )
     }
@@ -191,14 +197,14 @@ class SettingsBackupManager(private val context: Context) {
 
         // Restore main settings (best-effort)
         try {
-            settingsCount = importToSharedPreferences(getDefaultPreferences(), backupData.settings, applyLongKeyFix = true)
+            settingsCount = importToSharedPreferences(getDefaultPreferences(), backupData.settings, EXCLUDED_DEFAULT_PREF_KEYS, applyLongKeyFix = true)
         } catch (e: RuntimeException) {
             DevLog.error(LOG_TAG, "Failed to restore main settings, continuing with other sections: ${e.message}")
         }
 
         // Restore car mode settings (best-effort)
         try {
-            carModeSettingsCount = importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings, applyLongKeyFix = false)
+            carModeSettingsCount = importToSharedPreferences(getCarModePreferences(), backupData.carModeSettings, EXCLUDED_CAR_MODE_PREF_KEYS, applyLongKeyFix = false)
         } catch (e: RuntimeException) {
             DevLog.error(LOG_TAG, "Failed to restore car mode settings, continuing with other sections: ${e.message}")
         }
@@ -224,16 +230,17 @@ class SettingsBackupManager(private val context: Context) {
 
     /**
      * Export SharedPreferences to a map of JSON elements.
-     * @param excludeRuntimeState If true, excludes runtime state keys (only for default prefs)
+     * @param excludedKeys Set of keys to exclude from export (runtime state)
      */
-    private fun exportSharedPreferences(prefs: SharedPreferences, excludeRuntimeState: Boolean): Map<String, JsonElement> {
+    private fun exportSharedPreferences(prefs: SharedPreferences, excludedKeys: Set<String>): Map<String, JsonElement> {
         val result = mutableMapOf<String, JsonElement>()
+        val isDefaultPrefs = (excludedKeys === EXCLUDED_DEFAULT_PREF_KEYS)
 
         for ((key, value) in prefs.all) {
-            // Skip excluded runtime state keys (only for default preferences)
-            if (excludeRuntimeState && key in EXCLUDED_DEFAULT_PREF_KEYS) continue
-            // Skip calendar_handled_ keys - they're exported separately with identifying info
-            if (excludeRuntimeState && key.startsWith(CALENDAR_IS_HANDLED_KEY_PREFIX)) continue
+            // Skip excluded runtime state keys
+            if (key in excludedKeys) continue
+            // Skip calendar_handled_ keys - they're exported separately with identifying info (default prefs only)
+            if (isDefaultPrefs && key.startsWith(CALENDAR_IS_HANDLED_KEY_PREFIX)) continue
 
             val jsonValue: JsonElement = when (value) {
                 is Boolean -> JsonPrimitive(value)
@@ -260,17 +267,18 @@ class SettingsBackupManager(private val context: Context) {
     /**
      * Import JSON elements to SharedPreferences.
      * Best-effort: each key is imported independently, failures are logged and skipped.
+     * @param excludedKeys Set of keys to skip on import (runtime state)
      * @param applyLongKeyFix If true, uses LONG_PREFERENCE_KEYS to ensure known Long values stay as Long
      * @return count of settings successfully imported
      */
-    private fun importToSharedPreferences(prefs: SharedPreferences, data: Map<String, JsonElement>, applyLongKeyFix: Boolean): Int {
+    private fun importToSharedPreferences(prefs: SharedPreferences, data: Map<String, JsonElement>, excludedKeys: Set<String>, applyLongKeyFix: Boolean): Int {
         val editor = prefs.edit()
         var importedCount = 0
 
         for ((key, jsonValue) in data) {
             try {
-                // Skip excluded keys on import too (safety, only for default prefs)
-                if (applyLongKeyFix && key in EXCLUDED_DEFAULT_PREF_KEYS) continue
+                // Skip excluded keys on import (safety - shouldn't be in backup but just in case)
+                if (key in excludedKeys) continue
 
                 when (jsonValue) {
                     is JsonPrimitive -> {
