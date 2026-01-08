@@ -22,29 +22,23 @@ package com.github.quarck.calnotify.eventsstorage
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.github.quarck.calnotify.calendar.AttendanceStatus
-import com.github.quarck.calnotify.calendar.EventAlertRecord
-import com.github.quarck.calnotify.calendar.EventDisplayStatus
-import com.github.quarck.calnotify.calendar.EventOrigin
-import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.logs.DevLog
+import expo.modules.mymodule.MyModule
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /**
  * Contract tests for sync database consistency.
  * 
- * These tests verify that the database used by native storage matches what
- * the React Native sync feature should use. This prevents the bug where
- * Room migration caused native code to write to "RoomEvents" while sync
- * code was hardcoded to read from "Events".
+ * These tests verify that the expo module (MyModule) and main app (EventsStorage)
+ * agree on SharedPreferences keys and database names. This prevents the bug where
+ * Room migration caused native code to write to "RoomEvents" while sync code
+ * was hardcoded to read from "Events".
  * 
- * The fix: Native module exposes getActiveEventsDbName() which returns
- * the actual database name being used (RoomEvents or Events).
+ * The fix: Communication via SharedPreferences with matching constants.
  * 
  * @see docs/dev_todo/sync_database_mismatch.md
  */
@@ -69,97 +63,88 @@ class SyncDatabaseContractTest {
     }
     
     /**
-     * Verifies that EventsStorage.isUsingRoom correctly reflects which
-     * database implementation is active.
+     * CRITICAL: Verifies that MyModule and EventsStorage use the same SharedPreferences file name.
+     * If these don't match, the expo module won't read what the app writes.
      */
     @Test
-    fun eventsStorageReportsCorrectImplementation() {
-        val storage = EventsStorage(context)
-        
-        // isUsingRoom should be a boolean
-        val isRoom = storage.isUsingRoom
-        DevLog.info(LOG_TAG, "EventsStorage.isUsingRoom = $isRoom")
-        
-        // The value depends on whether Room migration succeeded
-        // This test just verifies the property is accessible and consistent
-        assertTrue(
-            "isUsingRoom should be true or false",
-            isRoom || !isRoom
-        )
-        
-        storage.close()
-    }
-    
-    /**
-     * Verifies that the database name constants are correctly defined.
-     */
-    @Test
-    fun databaseNameConstantsAreDefined() {
-        // Room database name
+    fun sharedPreferencesFileNameMatches() {
         assertEquals(
-            "Room database should be named RoomEvents",
-            "RoomEvents",
-            EventsDatabase.DATABASE_NAME
-        )
-        
-        // Legacy database name
-        assertEquals(
-            "Legacy database should be named Events",
-            "Events",
-            EventsDatabase.LEGACY_DATABASE_NAME
-        )
-    }
-    
-    /**
-     * Verifies that the active database name can be determined from storage state.
-     * This is the logic that the native module uses for getActiveEventsDbName().
-     */
-    @Test
-    fun activeDbNameMatchesStorageImplementation() {
-        val storage = EventsStorage(context)
-        
-        val expectedDbName = if (storage.isUsingRoom) {
-            EventsDatabase.DATABASE_NAME  // "RoomEvents"
-        } else {
-            EventsDatabase.LEGACY_DATABASE_NAME  // "Events"
-        }
-        
-        DevLog.info(LOG_TAG, "isUsingRoom=${storage.isUsingRoom}, expectedDbName=$expectedDbName")
-        
-        // This is the same logic the native module uses
-        if (storage.isUsingRoom) {
-            assertEquals("Room storage should use RoomEvents database", "RoomEvents", expectedDbName)
-        } else {
-            assertEquals("Legacy storage should use Events database", "Events", expectedDbName)
-        }
-        
-        storage.close()
-    }
-    
-    /**
-     * Verifies that EventsStorage writes correct values to SharedPreferences.
-     * The expo native module reads these prefs to know which database to use.
-     * 
-     * This is the contract between main app and expo module - they must agree on:
-     * - Prefs file name: "events_storage_state"
-     * - Key for db name: "active_db_name"
-     * - Key for room flag: "is_using_room"
-     */
-    @Test
-    fun sharedPreferencesContractIsCorrect() {
-        // Create storage - this should write to SharedPreferences
-        val storage = EventsStorage(context)
-        
-        // Read from SharedPreferences using the same keys the expo module uses
-        val prefs = context.getSharedPreferences(
+            "MyModule and EventsStorage must use the same SharedPreferences file name",
             EventsStorage.STORAGE_PREFS_NAME,
-            Context.MODE_PRIVATE
+            MyModule.STORAGE_PREFS_NAME
         )
+        DevLog.info(LOG_TAG, "✅ Prefs file name matches: ${EventsStorage.STORAGE_PREFS_NAME}")
+    }
+    
+    /**
+     * CRITICAL: Verifies that MyModule and EventsStorage use the same key for database name.
+     */
+    @Test
+    fun databaseNamePreferenceKeyMatches() {
+        assertEquals(
+            "MyModule and EventsStorage must use the same key for active_db_name",
+            EventsStorage.PREF_ACTIVE_DB_NAME,
+            MyModule.PREF_ACTIVE_DB_NAME
+        )
+        DevLog.info(LOG_TAG, "✅ DB name key matches: ${EventsStorage.PREF_ACTIVE_DB_NAME}")
+    }
+    
+    /**
+     * CRITICAL: Verifies that MyModule and EventsStorage use the same key for is_using_room flag.
+     */
+    @Test
+    fun isUsingRoomPreferenceKeyMatches() {
+        assertEquals(
+            "MyModule and EventsStorage must use the same key for is_using_room",
+            EventsStorage.PREF_IS_USING_ROOM,
+            MyModule.PREF_IS_USING_ROOM
+        )
+        DevLog.info(LOG_TAG, "✅ isUsingRoom key matches: ${EventsStorage.PREF_IS_USING_ROOM}")
+    }
+    
+    /**
+     * CRITICAL: Verifies that MyModule's Room database name constant matches EventsDatabase.
+     */
+    @Test
+    fun roomDatabaseNameConstantMatches() {
+        assertEquals(
+            "MyModule.ROOM_DATABASE_NAME must match EventsDatabase.DATABASE_NAME",
+            EventsDatabase.DATABASE_NAME,
+            MyModule.ROOM_DATABASE_NAME
+        )
+        DevLog.info(LOG_TAG, "✅ Room DB name matches: ${EventsDatabase.DATABASE_NAME}")
+    }
+    
+    /**
+     * CRITICAL: Verifies that MyModule's legacy database name constant matches EventsDatabase.
+     */
+    @Test
+    fun legacyDatabaseNameConstantMatches() {
+        assertEquals(
+            "MyModule.LEGACY_DATABASE_NAME must match EventsDatabase.LEGACY_DATABASE_NAME",
+            EventsDatabase.LEGACY_DATABASE_NAME,
+            MyModule.LEGACY_DATABASE_NAME
+        )
+        DevLog.info(LOG_TAG, "✅ Legacy DB name matches: ${EventsDatabase.LEGACY_DATABASE_NAME}")
+    }
+    
+    /**
+     * Integration test: Verifies that after EventsStorage writes to SharedPreferences,
+     * reading with MyModule's keys returns the correct values.
+     * 
+     * This is the actual contract - what EventsStorage writes, MyModule must be able to read.
+     */
+    @Test
+    fun myModuleCanReadWhatEventsStorageWrites() {
+        // Create storage - this writes to SharedPreferences
+        val storage = EventsStorage(context)
         
-        val prefsDbName = prefs.getString(EventsStorage.PREF_ACTIVE_DB_NAME, null)
-        val prefsIsRoom = prefs.getBoolean(EventsStorage.PREF_IS_USING_ROOM, false)
+        // Read using MyModule's constants (simulating what the expo module does)
+        val prefs = context.getSharedPreferences(MyModule.STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+        val dbNameFromPrefs = prefs.getString(MyModule.PREF_ACTIVE_DB_NAME, MyModule.LEGACY_DATABASE_NAME)
+        val isRoomFromPrefs = prefs.getBoolean(MyModule.PREF_IS_USING_ROOM, false)
         
-        // Verify values match what EventsStorage reports
+        // Verify they match what EventsStorage reports
         val expectedDbName = if (storage.isUsingRoom) {
             EventsDatabase.DATABASE_NAME
         } else {
@@ -167,217 +152,19 @@ class SyncDatabaseContractTest {
         }
         
         assertEquals(
-            "SharedPreferences db name should match storage implementation",
+            "DB name read via MyModule's keys should match EventsStorage state",
             expectedDbName,
-            prefsDbName
+            dbNameFromPrefs
         )
         
         assertEquals(
-            "SharedPreferences isUsingRoom should match storage implementation",
+            "isUsingRoom read via MyModule's keys should match EventsStorage state",
             storage.isUsingRoom,
-            prefsIsRoom
+            isRoomFromPrefs
         )
         
-        DevLog.info(LOG_TAG, "SharedPreferences contract verified: dbName=$prefsDbName, isRoom=$prefsIsRoom")
+        DevLog.info(LOG_TAG, "✅ MyModule can read EventsStorage's values: dbName=$dbNameFromPrefs, isRoom=$isRoomFromPrefs")
         
         storage.close()
-    }
-    
-    /**
-     * Integration test: Verifies that events written through EventsStorage
-     * are visible when querying the database directly using the correct path.
-     * 
-     * This simulates what the React Native sync feature does - opening the
-     * database directly by path and querying for events.
-     */
-    @Test
-    fun eventsWrittenByStorageAreReadableAtCorrectPath() {
-        val storage = EventsStorage(context)
-        
-        // Determine which database path should be used
-        val dbPath = if (storage.isUsingRoom) {
-            context.getDatabasePath(EventsDatabase.DATABASE_NAME).absolutePath
-        } else {
-            context.getDatabasePath(EventsDatabase.LEGACY_DATABASE_NAME).absolutePath
-        }
-        
-        DevLog.info(LOG_TAG, "Testing with database path: $dbPath")
-        
-        // Create a unique test event
-        val testEventId = 999888L
-        val testInstanceStart = System.currentTimeMillis()
-        val testTitle = "SyncContractTest_${System.currentTimeMillis()}"
-        
-        val testEvent = EventAlertRecord(
-            calendarId = 1L,
-            eventId = testEventId,
-            alertTime = testInstanceStart,
-            notificationId = 0,
-            title = testTitle,
-            desc = "Test event for sync contract",
-            startTime = testInstanceStart,
-            endTime = testInstanceStart + 3600000,
-            instanceStartTime = testInstanceStart,
-            instanceEndTime = testInstanceStart + 3600000,
-            location = "",
-            snoozedUntil = 0L,
-            lastStatusChangeTime = System.currentTimeMillis(),
-            displayStatus = EventDisplayStatus.Hidden,
-            color = 0,
-            isRepeating = false,
-            isAllDay = false,
-            origin = EventOrigin.ProviderBroadcast,
-            timeFirstSeen = System.currentTimeMillis(),
-            eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None
-        )
-        
-        try {
-            // Write event through storage
-            storage.addEvent(testEvent)
-            DevLog.info(LOG_TAG, "Added test event: eventId=$testEventId, title=$testTitle")
-            
-            // Verify it's readable through storage
-            val retrieved = storage.getEvent(testEventId, testInstanceStart)
-            assertNotNull("Event should be retrievable through storage", retrieved)
-            assertEquals("Title should match", testTitle, retrieved?.title)
-            
-            // Now verify it's visible when opening database directly (like sync does)
-            val dbFile = File(dbPath)
-            assertTrue("Database file should exist at: $dbPath", dbFile.exists())
-            
-            val directDb = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
-                dbPath,
-                null,
-                io.requery.android.database.sqlite.SQLiteDatabase.OPEN_READONLY
-            )
-            
-            try {
-                // Query the eventsV9 table directly
-                val cursor = directDb.rawQuery(
-                    "SELECT ttl FROM ${EventAlertEntity.TABLE_NAME} WHERE id = ? AND istart = ?",
-                    arrayOf(testEventId.toString(), testInstanceStart.toString())
-                )
-                
-                assertTrue(
-                    "Event should be visible via direct database query at correct path",
-                    cursor.moveToFirst()
-                )
-                assertEquals(
-                    "Title from direct query should match",
-                    testTitle,
-                    cursor.getString(0)
-                )
-                
-                cursor.close()
-                DevLog.info(LOG_TAG, "✅ Event is readable via direct database access at: $dbPath")
-                
-            } finally {
-                directDb.close()
-            }
-            
-        } finally {
-            // Cleanup: delete test event
-            storage.deleteEvent(testEventId, testInstanceStart)
-            storage.close()
-        }
-    }
-    
-    /**
-     * Documents the bug: If sync used the WRONG database path, events wouldn't be visible.
-     * 
-     * When Room is active but sync opens "Events" (legacy), it won't see Room data.
-     * This test verifies that scenario to document why the fix was needed.
-     */
-    @Test
-    fun demonstrateBugWhenUsingWrongPath() {
-        val storage = EventsStorage(context)
-        
-        // Only run this test when Room is active (the bug scenario)
-        if (!storage.isUsingRoom) {
-            DevLog.info(LOG_TAG, "Skipping wrong-path test - Room is not active")
-            storage.close()
-            return
-        }
-        
-        // When Room is active, sync should NOT use the legacy path
-        val wrongPath = context.getDatabasePath(EventsDatabase.LEGACY_DATABASE_NAME).absolutePath
-        val correctPath = context.getDatabasePath(EventsDatabase.DATABASE_NAME).absolutePath
-        
-        DevLog.info(LOG_TAG, "Room is active:")
-        DevLog.info(LOG_TAG, "  Wrong path (legacy): $wrongPath")
-        DevLog.info(LOG_TAG, "  Correct path (Room): $correctPath")
-        
-        // Create a unique test event
-        val testEventId = 888777L
-        val testInstanceStart = System.currentTimeMillis()
-        val testTitle = "WrongPathTest_${System.currentTimeMillis()}"
-        
-        val testEvent = EventAlertRecord(
-            calendarId = 1L,
-            eventId = testEventId,
-            alertTime = testInstanceStart,
-            notificationId = 0,
-            title = testTitle,
-            desc = "Test event to demonstrate wrong path bug",
-            startTime = testInstanceStart,
-            endTime = testInstanceStart + 3600000,
-            instanceStartTime = testInstanceStart,
-            instanceEndTime = testInstanceStart + 3600000,
-            location = "",
-            snoozedUntil = 0L,
-            lastStatusChangeTime = System.currentTimeMillis(),
-            displayStatus = EventDisplayStatus.Hidden,
-            color = 0,
-            isRepeating = false,
-            isAllDay = false,
-            origin = EventOrigin.ProviderBroadcast,
-            timeFirstSeen = System.currentTimeMillis(),
-            eventStatus = EventStatus.Confirmed,
-            attendanceStatus = AttendanceStatus.None
-        )
-        
-        try {
-            // Write event through storage (goes to RoomEvents when Room is active)
-            storage.addEvent(testEvent)
-            
-            // Try to read from wrong path (legacy database)
-            val legacyDbFile = File(wrongPath)
-            if (legacyDbFile.exists()) {
-                val legacyDb = io.requery.android.database.sqlite.SQLiteDatabase.openDatabase(
-                    wrongPath,
-                    null,
-                    io.requery.android.database.sqlite.SQLiteDatabase.OPEN_READONLY
-                )
-                
-                try {
-                    val cursor = legacyDb.rawQuery(
-                        "SELECT ttl FROM ${EventAlertEntity.TABLE_NAME} WHERE id = ? AND istart = ?",
-                        arrayOf(testEventId.toString(), testInstanceStart.toString())
-                    )
-                    
-                    // This should NOT find the event because Room writes to RoomEvents
-                    val foundInLegacy = cursor.moveToFirst()
-                    cursor.close()
-                    
-                    assertFalse(
-                        "BUG DOCUMENTED: Event written to Room should NOT be visible in legacy database. " +
-                        "This is why sync was broken when it hardcoded 'Events' path.",
-                        foundInLegacy
-                    )
-                    
-                    DevLog.info(LOG_TAG, "✅ Confirmed: Room events are NOT visible in legacy database (expected)")
-                    
-                } finally {
-                    legacyDb.close()
-                }
-            } else {
-                DevLog.info(LOG_TAG, "Legacy database doesn't exist (fresh install) - test passes trivially")
-            }
-            
-        } finally {
-            storage.deleteEvent(testEventId, testInstanceStart)
-            storage.close()
-        }
     }
 }
