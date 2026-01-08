@@ -135,6 +135,53 @@ class SyncDatabaseContractTest {
     }
     
     /**
+     * Verifies that EventsStorage writes correct values to SharedPreferences.
+     * The expo native module reads these prefs to know which database to use.
+     * 
+     * This is the contract between main app and expo module - they must agree on:
+     * - Prefs file name: "events_storage_state"
+     * - Key for db name: "active_db_name"
+     * - Key for room flag: "is_using_room"
+     */
+    @Test
+    fun sharedPreferencesContractIsCorrect() {
+        // Create storage - this should write to SharedPreferences
+        val storage = EventsStorage(context)
+        
+        // Read from SharedPreferences using the same keys the expo module uses
+        val prefs = context.getSharedPreferences(
+            EventsStorage.STORAGE_PREFS_NAME,
+            Context.MODE_PRIVATE
+        )
+        
+        val prefsDbName = prefs.getString(EventsStorage.PREF_ACTIVE_DB_NAME, null)
+        val prefsIsRoom = prefs.getBoolean(EventsStorage.PREF_IS_USING_ROOM, false)
+        
+        // Verify values match what EventsStorage reports
+        val expectedDbName = if (storage.isUsingRoom) {
+            EventsDatabase.DATABASE_NAME
+        } else {
+            EventsDatabase.LEGACY_DATABASE_NAME
+        }
+        
+        assertEquals(
+            "SharedPreferences db name should match storage implementation",
+            expectedDbName,
+            prefsDbName
+        )
+        
+        assertEquals(
+            "SharedPreferences isUsingRoom should match storage implementation",
+            storage.isUsingRoom,
+            prefsIsRoom
+        )
+        
+        DevLog.info(LOG_TAG, "SharedPreferences contract verified: dbName=$prefsDbName, isRoom=$prefsIsRoom")
+        
+        storage.close()
+    }
+    
+    /**
      * Integration test: Verifies that events written through EventsStorage
      * are visible when querying the database directly using the correct path.
      * 

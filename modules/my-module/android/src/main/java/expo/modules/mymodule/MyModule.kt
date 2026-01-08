@@ -1,5 +1,6 @@
 package expo.modules.mymodule
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -8,8 +9,6 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import kotlinx.serialization.json.Json
-import com.github.quarck.calnotify.eventsstorage.EventsStorage
-import com.github.quarck.calnotify.eventsstorage.EventsDatabase
 
 
 class MyModule : Module() {
@@ -17,7 +16,19 @@ class MyModule : Module() {
   // that describes the module's functionality and behavior.
   // See https://docs.expo.dev/modules/module-api for more details about available components.
 
-  val TAG = "MyModule"
+  companion object {
+    private const val TAG = "MyModule"
+    
+    // SharedPreferences for cross-module communication (not backed up - see backup_rules.xml)
+    // These constants must match EventsStorage.kt in the main app
+    const val STORAGE_PREFS_NAME = "events_storage_state"
+    const val PREF_ACTIVE_DB_NAME = "active_db_name"
+    const val PREF_IS_USING_ROOM = "is_using_room"
+    
+    // Database name constants (must match EventsDatabase.kt)
+    const val ROOM_DATABASE_NAME = "RoomEvents"
+    const val LEGACY_DATABASE_NAME = "Events"
+  }
 
   override fun definition() = ModuleDefinition {
     // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
@@ -64,25 +75,24 @@ class MyModule : Module() {
 
     // Returns the active events database name for sync feature to use
     // After Room migration, this returns "RoomEvents" instead of "Events"
+    // Reads from SharedPreferences written by EventsStorage in main app
     Function("getActiveEventsDbName") {
       val context = appContext.reactContext
       if (context == null) {
         Log.w(TAG, "getActiveEventsDbName: context is null, returning legacy name")
-        return@Function EventsDatabase.LEGACY_DATABASE_NAME
+        return@Function LEGACY_DATABASE_NAME
       }
       
-      val storage = EventsStorage(context)
-      val dbName = if (storage.isUsingRoom) {
-        EventsDatabase.DATABASE_NAME
-      } else {
-        EventsDatabase.LEGACY_DATABASE_NAME
-      }
-      storage.close()
-      Log.i(TAG, "getActiveEventsDbName: returning '$dbName' (isUsingRoom=${storage.isUsingRoom})")
+      val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+      val dbName = prefs.getString(PREF_ACTIVE_DB_NAME, LEGACY_DATABASE_NAME) ?: LEGACY_DATABASE_NAME
+      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, false)
+      
+      Log.i(TAG, "getActiveEventsDbName: returning '$dbName' (isUsingRoom=$isRoom)")
       dbName
     }
 
     // Returns whether Room storage is being used (vs legacy fallback)
+    // Reads from SharedPreferences written by EventsStorage in main app
     Function("isUsingRoomStorage") {
       val context = appContext.reactContext
       if (context == null) {
@@ -90,9 +100,9 @@ class MyModule : Module() {
         return@Function false
       }
       
-      val storage = EventsStorage(context)
-      val isRoom = storage.isUsingRoom
-      storage.close()
+      val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, false)
+      
       Log.i(TAG, "isUsingRoomStorage: $isRoom")
       isRoom
     }

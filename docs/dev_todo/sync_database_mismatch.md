@@ -48,29 +48,47 @@ internal const val LEGACY_DATABASE_NAME = "Events"     // ← Preserved but stal
 
 ### Phase 1: Add Native Bridge Method
 
-Expose the active database name from native to React Native.
+Expose the active database name from native to React Native via SharedPreferences.
 
-#### 1.1 Add Method to Native Module
+**Note:** The expo module (`modules/my-module`) cannot import from the main app directly - they're separate Gradle modules. Communication happens via SharedPreferences, which is process-wide.
+
+#### 1.1 Main App Writes to SharedPreferences
+
+```kotlin
+// android/app/src/main/java/com/github/quarck/calnotify/eventsstorage/EventsStorage.kt
+
+companion object {
+    // SharedPreferences for cross-module communication (not backed up - see backup_rules.xml)
+    const val STORAGE_PREFS_NAME = "events_storage_state"
+    const val PREF_ACTIVE_DB_NAME = "active_db_name"
+    const val PREF_IS_USING_ROOM = "is_using_room"
+}
+
+init {
+    // Write storage state to SharedPreferences for cross-module communication
+    context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putString(PREF_ACTIVE_DB_NAME, if (isUsingRoom) "RoomEvents" else "Events")
+        .putBoolean(PREF_IS_USING_ROOM, isUsingRoom)
+        .apply()
+}
+```
+
+#### 1.2 Expo Module Reads from SharedPreferences
 
 ```kotlin
 // modules/my-module/android/src/main/java/expo/modules/mymodule/MyModule.kt
 
-@ExpoMethod
-fun getActiveEventsDbName(): String {
-    // Return the database name that EventsStorage is actually using
-    return EventsDatabase.DATABASE_NAME  // "RoomEvents"
-}
-
-// Optional: Also expose whether Room migration succeeded
-@ExpoMethod
-fun isUsingRoomStorage(): Boolean {
-    val context = appContext.reactContext ?: return false
-    val storage = EventsStorage(context)
-    val result = storage.isUsingRoom
-    storage.close()
-    return result
+Function("getActiveEventsDbName") {
+    val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+    prefs.getString(PREF_ACTIVE_DB_NAME, LEGACY_DATABASE_NAME) ?: LEGACY_DATABASE_NAME
 }
 ```
+
+**Why SharedPreferences?**
+- Synchronous read (no async intent dance)
+- Uses separate prefs file `events_storage_state.xml` NOT in `backup_rules.xml` include list
+- Device-specific state shouldn't be restored from backups
 
 #### 1.2 Export from TypeScript Module
 
@@ -278,12 +296,14 @@ Users who upgraded with Room migration active have their events in `RoomEvents`.
 
 ## Checklist
 
-- [x] Phase 1: Add native bridge method `getActiveEventsDbName()`
-- [x] Phase 1: Add native bridge method `isUsingRoomStorage()`
+- [x] Phase 1: Add native bridge via SharedPreferences (not direct import - separate Gradle modules)
+- [x] Phase 1: EventsStorage writes to `events_storage_state.xml` prefs (excluded from backup)
+- [x] Phase 1: MyModule reads from SharedPreferences
 - [x] Phase 2: Update `SetupSync.tsx` to use dynamic database name
 - [x] Phase 2: Update `installCrsqliteOnTable` call
 - [x] Phase 3: Add RN contract test (`SyncDatabaseContract.test.ts`)
 - [x] Phase 3: Add Android integration test (`SyncDatabaseContractTest.kt`)
+- [x] Phase 3: Add SharedPreferences contract test (`sharedPreferencesContractIsCorrect`)
 - [x] Phase 4: Add write/read roundtrip test (in `SyncDatabaseContractTest.kt`)
 - [ ] Update `room_database_migration.md` with lessons learned
 - [ ] Consider: Delete orphaned `Events` database after N versions
