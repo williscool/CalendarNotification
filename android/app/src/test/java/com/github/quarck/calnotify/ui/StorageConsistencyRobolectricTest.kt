@@ -44,7 +44,7 @@ import org.robolectric.shadows.ShadowLog
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [24])
-class StorageConsistencyTest {
+class StorageConsistencyRobolectricTest {
     
     private lateinit var eventsStorage: MockEventsStorage
     private lateinit var dismissedStorage: MockDismissedEventsStorage

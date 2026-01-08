@@ -42,7 +42,7 @@ import org.robolectric.shadows.ShadowLog
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [24])
-class DismissedEventsPurgeTest {
+class DismissedEventsPurgeRobolectricTest {
     
     private lateinit var storage: MockDismissedEventsStorage
     
@@ -223,11 +223,11 @@ class DismissedEventsPurgeTest {
         // Purge with 90-day retention
         storage.purgeOld(currentTime, 90 * dayInMillis)
         
-        // Events from days 20, 50, 90 should remain (within 90 days of day 100)
-        assertEquals("Should have 3 events after 90-day purge", 3, storage.eventCount)
+        // Events from days 10, 20, 50, 90 should remain (day 10 is exactly at cutoff, < not <=)
+        assertEquals("Should have 4 events after 90-day purge", 4, storage.eventCount)
         
         val remainingEventIds = storage.events.map { it.event.eventId }.sorted()
-        assertEquals(listOf(20L, 50L, 90L), remainingEventIds)
+        assertEquals(listOf(10L, 20L, 50L, 90L), remainingEventIds)
     }
     
     @Test
