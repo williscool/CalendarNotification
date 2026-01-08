@@ -759,41 +759,6 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             runOnUiThread { reloadLayout.visibility = View.VISIBLE }
     }
 
-    /**
-     * Cleans up orphaned events that exist in both active and dismissed storage.
-     * This can happen if an event fails to delete from EventsStorage during dismissal.
-     * 
-     * Events found in both storages are removed from EventsStorage (keeping them in dismissed).
-     */
-    private fun cleanupOrphanedEvents(context: Context) {
-        try {
-            getDismissedEventsStorage(context).classCustomUse { dismissedStorage ->
-                getEventsStorage(context).classCustomUse { eventsStorage ->
-                    // Get keys of all dismissed events
-                    val dismissedKeys = dismissedStorage.events.map { 
-                        Pair(it.event.eventId, it.event.instanceStartTime) 
-                    }.toSet()
-                    
-                    if (dismissedKeys.isEmpty()) return@classCustomUse
-                    
-                    // Find any active events that are also in dismissed storage
-                    val orphaned = eventsStorage.events.filter { event ->
-                        dismissedKeys.contains(Pair(event.eventId, event.instanceStartTime))
-                    }
-                    
-                    if (orphaned.isNotEmpty()) {
-                        DevLog.warn(LOG_TAG, "Found ${orphaned.size} orphaned events in both storages, cleaning up")
-                        eventsStorage.deleteEvents(orphaned)
-                    }
-                }
-            }
-        } catch (ex: SQLException) {
-            DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
-        } catch (ex: IllegalStateException) {
-            DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
-        }
-    }
-
     companion object {
         private const val LOG_TAG = "MainActivity"
         
@@ -819,6 +784,39 @@ class MainActivity : AppCompatActivity(), EventListCallback {
          */
         fun getEventsStorage(context: android.content.Context): com.github.quarck.calnotify.eventsstorage.EventsStorageInterface {
             return eventsStorageProvider?.invoke(context) ?: EventsStorage(context)
+        }
+        
+        /**
+         * Cleans up orphaned events that exist in both active and dismissed storage.
+         * This can happen if an event fails to delete from EventsStorage during dismissal.
+         * 
+         * Events found in both storages are removed from EventsStorage (keeping them in dismissed).
+         */
+        fun cleanupOrphanedEvents(context: android.content.Context) {
+            try {
+                getDismissedEventsStorage(context).classCustomUse { dismissedStorage ->
+                    getEventsStorage(context).classCustomUse { eventsStorage ->
+                        val dismissedKeys = dismissedStorage.events.map { 
+                            Pair(it.event.eventId, it.event.instanceStartTime) 
+                        }.toSet()
+                        
+                        if (dismissedKeys.isEmpty()) return@classCustomUse
+                        
+                        val orphaned = eventsStorage.events.filter { event ->
+                            dismissedKeys.contains(Pair(event.eventId, event.instanceStartTime))
+                        }
+                        
+                        if (orphaned.isNotEmpty()) {
+                            DevLog.warn(LOG_TAG, "Found ${orphaned.size} orphaned events in both storages, cleaning up")
+                            eventsStorage.deleteEvents(orphaned)
+                        }
+                    }
+                }
+            } catch (ex: SQLException) {
+                DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
+            } catch (ex: IllegalStateException) {
+                DevLog.error(LOG_TAG, "Error during orphaned event cleanup: ${ex.message}")
+            }
         }
     }
 }

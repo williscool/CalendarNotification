@@ -32,6 +32,7 @@ import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.ui.MainActivity
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -108,28 +109,10 @@ class StorageConsistencyTest {
     }
     
     /**
-     * Implements the cleanupOrphanedEvents logic for testing.
-     * This mirrors MainActivity.cleanupOrphanedEvents().
+     * Calls the real cleanupOrphanedEvents from MainActivity.
      */
     private fun cleanupOrphanedEvents() {
-        dismissedStorage.classCustomUse { dismissed ->
-            eventsStorage.classCustomUse { events ->
-                val dismissedKeys = dismissed.events.map { 
-                    Pair(it.event.eventId, it.event.instanceStartTime) 
-                }.toSet()
-                
-                if (dismissedKeys.isEmpty()) return@classCustomUse
-                
-                val orphaned = events.events.filter { event ->
-                    dismissedKeys.contains(Pair(event.eventId, event.instanceStartTime))
-                }
-                
-                if (orphaned.isNotEmpty()) {
-                    DevLog.warn(LOG_TAG, "Found ${orphaned.size} orphaned events, cleaning up")
-                    events.deleteEvents(orphaned)
-                }
-            }
-        }
+        MainActivity.cleanupOrphanedEvents(context)
     }
     
     @Test
