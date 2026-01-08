@@ -87,7 +87,7 @@
         <activity
             android:name=".prefs.CalendarsActivity"
             android:label="@string/title_calendars_activity"
-            android:parentActivityName=".ui.SettingsActivity"
+            android:parentActivityName=".ui.SettingsActivityX"
             android:theme="@style/AppTheme.NoActionBar"
             android:exported="true">
             <intent-filter>
@@ -100,7 +100,7 @@
         <activity
             android:name=".prefs.CarModeActivity"
             android:label="@string/title_car_mode_activity"
-            android:parentActivityName=".ui.SettingsActivity"
+            android:parentActivityName=".ui.SettingsActivityX"
             android:theme="@style/AppTheme.NoActionBar"
             android:exported="true">
             <intent-filter>
