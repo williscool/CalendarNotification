@@ -112,8 +112,11 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
                 DevLog.error(LOG_TAG, "Failed to open output stream for export")
                 showToast(R.string.export_failed)
             }
-        } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "Export failed: ${e.message}")
+        } catch (e: java.io.IOException) {
+            DevLog.error(LOG_TAG, "IO error during export: ${e.message}")
+            showToast(R.string.export_failed)
+        } catch (e: SecurityException) {
+            DevLog.error(LOG_TAG, "Security error during export: ${e.message}")
             showToast(R.string.export_failed)
         }
     }
@@ -152,8 +155,11 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
                 DevLog.error(LOG_TAG, "Failed to open input stream for import")
                 showToast(R.string.import_failed)
             }
-        } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "Import failed: ${e.message}")
+        } catch (e: java.io.IOException) {
+            DevLog.error(LOG_TAG, "IO error during import: ${e.message}")
+            showToast(R.string.import_failed)
+        } catch (e: SecurityException) {
+            DevLog.error(LOG_TAG, "Security error during import: ${e.message}")
             showToast(R.string.import_failed)
         }
     }

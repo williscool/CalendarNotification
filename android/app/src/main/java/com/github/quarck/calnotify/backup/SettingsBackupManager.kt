@@ -97,8 +97,11 @@ class SettingsBackupManager(private val context: Context) {
             outputStream.flush()
             DevLog.info(LOG_TAG, "Settings exported successfully")
             true
-        } catch (e: Exception) {
-            DevLog.error(LOG_TAG, "Failed to export settings: ${e.message}")
+        } catch (e: java.io.IOException) {
+            DevLog.error(LOG_TAG, "IO error exporting settings: ${e.message}")
+            false
+        } catch (e: kotlinx.serialization.SerializationException) {
+            DevLog.error(LOG_TAG, "Serialization error exporting settings: ${e.message}")
             false
         }
     }
