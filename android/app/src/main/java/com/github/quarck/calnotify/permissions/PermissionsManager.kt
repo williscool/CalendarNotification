@@ -33,6 +33,7 @@ object PermissionsManager {
     const val PERMISSION_REQUEST_CALENDAR = 0
     const val PERMISSION_REQUEST_LOCATION = 1
     const val PERMISSION_REQUEST_NOTIFICATIONS = 2
+    const val PERMISSION_REQUEST_BLUETOOTH_CONNECT = 3
     
     private fun Context.hasPermission(perm: String) =
             ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED
@@ -125,6 +126,43 @@ object PermissionsManager {
             ActivityCompat.requestPermissions(activity,
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     PERMISSION_REQUEST_NOTIFICATIONS)
+        }
+    }
+
+    /**
+     * Check if we have Bluetooth connect permission.
+     * On Android 12+ (API 31), BLUETOOTH_CONNECT is required to access paired devices.
+     * On older versions, the legacy BLUETOOTH permission (declared in manifest) is sufficient.
+     */
+    fun hasBluetoothConnectPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            true // Legacy BLUETOOTH permission covers this on older versions
+        }
+    }
+
+    /**
+     * Check if we should show rationale for Bluetooth connect permission.
+     * Only applicable on Android 12+ (API 31).
+     */
+    fun shouldShowBluetoothConnectRationale(activity: Activity): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            activity.shouldShowRationale(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            false
+        }
+    }
+
+    /**
+     * Request Bluetooth connect permission (BLUETOOTH_CONNECT).
+     * Only applicable on Android 12+ (API 31). No-op on older versions.
+     */
+    fun requestBluetoothConnectPermission(activity: Activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ActivityCompat.requestPermissions(activity,
+                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                    PERMISSION_REQUEST_BLUETOOTH_CONNECT)
         }
     }
 }

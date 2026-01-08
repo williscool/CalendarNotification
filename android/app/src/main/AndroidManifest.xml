@@ -13,8 +13,13 @@
 
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <!-- Legacy Bluetooth permission - only needed on API 30 and below -->
+    <uses-permission android:name="android.permission.BLUETOOTH" 
+        android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /> <!-- this is also required for BlueTooth - according to google bluetooth device discovery can be used for coarse location -->
+    
+    <!-- Android 12+ (API 31) - Required for accessing paired Bluetooth devices -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     
     <!-- TODO: figure out how to only enable these for dev build -->
     <uses-permission android:name="android.permission.INTERNET" />

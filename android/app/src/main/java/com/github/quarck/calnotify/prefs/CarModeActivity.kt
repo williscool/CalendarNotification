@@ -1,6 +1,7 @@
 //
 //   Calendar Notifications Plus
 //   Copyright (C) 2019 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
@@ -21,6 +22,7 @@ package com.github.quarck.calnotify.prefs
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -150,28 +152,70 @@ class CarModeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
+        // Check Bluetooth permission first (required on Android 12+)
+        if (!PermissionsManager.hasBluetoothConnectPermission(this)) {
+            DevLog.info(LOG_TAG, "Requesting Bluetooth connect permission")
+            PermissionsManager.requestBluetoothConnectPermission(this)
+            return
+        }
+
+        // Also check location permission for older Android versions
         if (!PermissionsManager.hasAccessCoarseLocation(this)) {
             PermissionsManager.requestLocationPermissions(this)
         }
 
+        loadBluetoothDevices()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            PermissionsManager.PERMISSION_REQUEST_BLUETOOTH_CONNECT -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    DevLog.info(LOG_TAG, "Bluetooth connect permission granted")
+                    loadBluetoothDevices()
+                } else {
+                    DevLog.info(LOG_TAG, "Bluetooth connect permission denied")
+                    noDevicesText.text = getString(R.string.bluetooth_permission_required)
+                    noDevicesText.visibility = View.VISIBLE
+                }
+            }
+            PermissionsManager.PERMISSION_REQUEST_LOCATION -> {
+                // Location permission result - try to load devices regardless
+                loadBluetoothDevices()
+            }
+        }
+    }
+
+    private fun loadBluetoothDevices() {
         background {
-
             val triggers = bluetoothManager.storage.carModeTriggerDevices
-
             DevLog.info(LOG_TAG, "Known triggers: ${triggers.joinToString { ", " }}")
 
             val triggersHash = triggers.toHashSet()
-            val devices = bluetoothManager.pairedDevices?.map { BlueboothDeviceListEntry(triggersHash.contains(it.address), it)}?.toList()
+            val devices = bluetoothManager.pairedDevices?.map { 
+                BlueboothDeviceListEntry(triggersHash.contains(it.address), it)
+            }?.toList()
 
             runOnUiThread {
-                // update activity finally
-
                 if (devices != null) {
-                    noDevicesText.visibility = if (devices.isNotEmpty()) View.GONE else View.VISIBLE
-
+                    if (devices.isNotEmpty()) {
+                        noDevicesText.visibility = View.GONE
+                    } else {
+                        // Reset text in case it was changed to permission message
+                        noDevicesText.text = getString(R.string.no_known_bluetooth_devices)
+                        noDevicesText.visibility = View.VISIBLE
+                    }
                     adapter.entries = devices.toTypedArray()
                     adapter.notifyDataSetChanged()
                 } else {
+                    // devices is null - likely permission issue or Bluetooth error
+                    noDevicesText.text = getString(R.string.bluetooth_permission_required)
                     noDevicesText.visibility = View.VISIBLE
                 }
             }

@@ -1,4 +1,5 @@
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
+    <include domain="sharedpref" path="car_mode_state.xml" />
 </full-backup-content>

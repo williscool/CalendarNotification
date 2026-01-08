@@ -3,6 +3,7 @@ package com.github.quarck.calnotify.bluetooth
 import android.bluetooth.*
 import android.content.Context
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
@@ -13,6 +14,9 @@ class BTDeviceManager(
     val ctx: Context,
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
 ){
+    companion object {
+        private const val LOG_TAG = "BTDeviceManager"
+    }
 
     val adapter: BluetoothAdapter? by lazy { BluetoothAdapter.getDefaultAdapter() }
 
@@ -20,11 +24,21 @@ class BTDeviceManager(
 
     val storage: BTCarModeStorage by lazy { ctx.btCarModeSettings }
 
+    /**
+     * Get list of paired Bluetooth devices.
+     * Returns null if Bluetooth is not available or if permission is denied.
+     * On Android 12+ (API 31), BLUETOOTH_CONNECT permission is required.
+     */
     val pairedDevices: List<BTDeviceSummary>?
-        get() = adapter
+        get() = try {
+            adapter
                 ?.bondedDevices
-                ?.map { BTDeviceSummary(it.name, it.address, isDeviceConnected(it))}
+                ?.map { BTDeviceSummary(it.name ?: "Unknown", it.address, isDeviceConnected(it)) }
                 ?.toList()
+        } catch (e: SecurityException) {
+            DevLog.error(LOG_TAG, "SecurityException accessing bonded devices - missing BLUETOOTH_CONNECT permission: ${e.message}")
+            null
+        }
 
     fun isDeviceConnected(device: BluetoothDevice) =
             manager?.getConnectionState(device, android.bluetooth.BluetoothProfile.GATT) ==
