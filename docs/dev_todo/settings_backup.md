@@ -216,11 +216,12 @@ Add to existing Settings screen (`SettingsActivityX`):
 
 Since we're working in the settings code and backing up `BTCarModeStorage`, we'll fix the Android 12+ Bluetooth permission crash at the same time:
 
-- [ ] Add `BLUETOOTH_CONNECT` permission to AndroidManifest.xml (manifest only, not runtime request at startup)
-- [ ] Add permission check methods to `PermissionsManager.kt`
-- [ ] Update `CarModeActivity.kt` to request permission when page opens (just-in-time)
-- [ ] Add defensive try-catch in `BTDeviceManager.kt`
+- [x] Add `BLUETOOTH_CONNECT` permission to AndroidManifest.xml (manifest only, not runtime request at startup)
+- [x] Add permission check methods to `PermissionsManager.kt`
+- [x] Update `CarModeActivity.kt` to request permission when page opens (just-in-time)
+- [x] Add defensive try-catch in `BTDeviceManager.kt`
 - [x] Add `bluetooth_permission_required` string resource
+- [x] Add unit tests for Bluetooth permission methods (Robolectric)
 
 This is low additional effort (~1-2 hours) since we're already in this code.
 

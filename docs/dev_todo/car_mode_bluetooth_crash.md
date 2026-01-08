@@ -2,6 +2,20 @@
 
 **Issue:** [#159](https://github.com/williscool/CalendarNotification/issues/159)
 
+## Status: ✅ COMPLETED
+
+Implemented as part of the Settings Backup feature work. See `settings_backup.md`.
+
+**Changes made:**
+- Added `BLUETOOTH_CONNECT` permission to AndroidManifest.xml (with `maxSdkVersion="30"` on legacy `BLUETOOTH`)
+- Added `hasBluetoothConnectPermission()`, `shouldShowBluetoothConnectRationale()`, `requestBluetoothConnectPermission()` to `PermissionsManager.kt`
+- Updated `CarModeActivity.kt` to check/request permission on resume, handle permission results
+- Added defensive try-catch in `BTDeviceManager.pairedDevices` for `SecurityException`
+- Added `bluetooth_permission_required` string resource
+- Added Robolectric tests for Bluetooth permission methods
+
+---
+
 ## Problem Summary
 
 The Car Mode Settings page crashes immediately when opened on Android 12+ devices due to missing `BLUETOOTH_CONNECT` runtime permission.
