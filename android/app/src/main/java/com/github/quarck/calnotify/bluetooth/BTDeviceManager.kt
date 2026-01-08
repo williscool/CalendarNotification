@@ -36,7 +36,7 @@ class BTDeviceManager(
                 ?.map { BTDeviceSummary(it.name ?: "Unknown", it.address, isDeviceConnected(it)) }
                 ?.toList()
         } catch (e: SecurityException) {
-            DevLog.error(LOG_TAG, "SecurityException accessing bonded devices - missing BLUETOOTH_CONNECT permission", e)
+            DevLog.error(LOG_TAG, "SecurityException accessing bonded devices - missing BLUETOOTH_CONNECT permission: ${e.message}")
             null
         }
 
