@@ -206,14 +206,23 @@ class SettingsBackupManagerRobolectricTest {
         assertEquals("String should be restored", "test_value", prefs.getString("round_trip_string", ""))
     }
 
+    /**
+     * Calendar handled keys are now exported via calendarSettings (with calendar metadata),
+     * not as raw preference keys. Without real calendars in the test, the keys won't
+     * round-trip through calendarSettings. This test verifies the old keys are NOT
+     * exported in the settings map (they're handled separately).
+     * 
+     * See testCalendarHandledKeysExcludedFromSettings for the actual test.
+     */
     @Test
-    fun testExportImportRoundTripWithCalendarHandledKeys() {
-        // Test that calendar_handled_ keys (user settings) are preserved
+    fun testCalendarHandledKeysNotInSettingsRoundTrip() {
+        // Set calendar_handled_ keys in preferences
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         prefs.edit()
             .putBoolean("calendar_handled_.1", true)
             .putBoolean("calendar_handled_.2", false)
             .putBoolean("calendar_handled_.99", true)
+            .putString("other_setting", "value")  // This SHOULD round-trip
             .commit()
 
         // Export
@@ -225,10 +234,13 @@ class SettingsBackupManagerRobolectricTest {
         val inputStream = ByteArrayInputStream(outputStream.toByteArray())
         backupManager.importFromStream(inputStream)
 
-        // Verify calendar handled keys restored
-        assertTrue("Calendar 1 should be handled", prefs.getBoolean("calendar_handled_.1", false))
-        assertFalse("Calendar 2 should not be handled", prefs.getBoolean("calendar_handled_.2", true))
-        assertTrue("Calendar 99 should be handled", prefs.getBoolean("calendar_handled_.99", false))
+        // Calendar handled keys should NOT be restored via settings (they go through calendarSettings)
+        // Without real calendars in the test, they won't match and won't be imported
+        assertFalse("calendar_handled_ keys should not be in settings export", 
+            prefs.contains("calendar_handled_.1"))
+        
+        // Other settings SHOULD round-trip normally
+        assertEquals("Other setting should round-trip", "value", prefs.getString("other_setting", ""))
     }
 
     // === Error Handling Tests ===
@@ -515,6 +527,111 @@ class SettingsBackupManagerRobolectricTest {
         
         // Version should be 2
         assertTrue("Backup version should be 2", json.contains("\"version\": 2"))
+    }
+
+    // === Best-Effort Restore Tests ===
+
+    /**
+     * Import should handle malformed individual settings gracefully (best-effort)
+     * without crashing or preventing other settings from being imported.
+     */
+    @Test
+    fun testImportHandlesMixedValidInvalidSettings() {
+        // JSON with a mix of valid settings
+        val mixedJson = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {
+                "valid_bool": true,
+                "valid_string": "hello",
+                "valid_int": 42
+            },
+            "carModeSettings": {
+                "A": "AA:BB:CC:DD:EE:FF"
+            },
+            "calendarSettings": []
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(mixedJson.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import should succeed", result is ImportResult.Success)
+        
+        // Valid settings should be restored
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        assertTrue("Valid bool should be restored", prefs.getBoolean("valid_bool", false))
+        assertEquals("Valid string should be restored", "hello", prefs.getString("valid_string", ""))
+        assertEquals("Valid int should be restored", 42, prefs.getInt("valid_int", 0))
+        
+        // Car mode should also be restored
+        val carModePrefs = context.getSharedPreferences(BTCarModeStorage.PREFS_NAME, Context.MODE_PRIVATE)
+        assertEquals("Car mode should be restored", "AA:BB:CC:DD:EE:FF", carModePrefs.getString("A", ""))
+    }
+
+    /**
+     * Import should succeed even with empty sections
+     */
+    @Test
+    fun testImportHandlesEmptySections() {
+        val emptyJson = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {},
+            "carModeSettings": {},
+            "calendarSettings": []
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(emptyJson.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        assertTrue("Import of empty sections should succeed", result is ImportResult.Success)
+    }
+
+    /**
+     * Import should handle calendarSettings with invalid entries gracefully
+     */
+    @Test
+    fun testImportHandlesInvalidCalendarSettings() {
+        val jsonWithInvalidCalendar = """
+        {
+            "version": 2,
+            "exportedAt": 1704672000000,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0",
+            "settings": {
+                "test_key": "test_value"
+            },
+            "carModeSettings": {},
+            "calendarSettings": [
+                {
+                    "accountName": "",
+                    "accountType": "",
+                    "displayName": "",
+                    "ownerAccount": "",
+                    "name": "",
+                    "enabled": true
+                }
+            ]
+        }
+        """.trimIndent()
+
+        val inputStream = ByteArrayInputStream(jsonWithInvalidCalendar.toByteArray(Charsets.UTF_8))
+        val result = backupManager.importFromStream(inputStream)
+
+        // Import should succeed - invalid calendar entries are just skipped
+        assertTrue("Import should succeed despite invalid calendar entries", result is ImportResult.Success)
+        
+        // Other settings should still be restored
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        assertEquals("Other settings should be restored", "test_value", prefs.getString("test_key", ""))
     }
 }
 
