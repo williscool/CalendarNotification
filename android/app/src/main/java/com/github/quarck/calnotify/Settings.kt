@@ -445,7 +445,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
 
     /** Number of days to keep dismissed events in the bin. 0 means forever. */
     val keepHistoryDays: Int
-        get() = getInt(KEEP_HISTORY_DAYS_KEY, DEFAULT_KEEP_HISTORY_DAYS)
+        get() = getString(KEEP_HISTORY_DAYS_KEY, DEFAULT_KEEP_HISTORY_DAYS.toString()).toIntOrNull() 
+            ?: DEFAULT_KEEP_HISTORY_DAYS
 
     /** Milliseconds to keep dismissed events. Returns Long.MAX_VALUE for "forever" (when days <= 0). */
     val keepHistoryMillis: Long
