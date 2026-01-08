@@ -1,6 +1,8 @@
 # Forward to Calendar Search When Event Not Found
 
 > **GitHub Issue**: [#66](https://github.com/williscool/CalendarNotification/issues/66)
+> 
+> **Status**: ✅ **IMPLEMENTED** (January 2026)
 
 ## Summary
 
@@ -8,9 +10,22 @@
 |------|---------|
 | **Problem** | "Open in Calendar" silently fails when event was deleted from system calendar |
 | **Solution** | Fallback chain: check if exists → open event OR open calendar at event time + toast |
-| **Call sites** | 8 total (6 in ViewEventActivityNoRecents, 1 in notification PendingIntent, 1 ViewEventById) |
-| **New tests** | `CalendarIntentsRobolectricTest.kt` (new), updates to `ViewEventActivityRobolectricTest.kt` |
+| **Call sites** | 5 updated, 2 intentionally skipped, 1 deferred (see below) |
+| **New tests** | `CalendarIntentsRobolectricTest.kt` (8 tests), `ViewEventActivityRobolectricTest.kt` (+3 tests) |
 | **Complexity** | Low - mostly routing through a new helper method |
+
+## Implementation Status
+
+| Call Site | Status | Notes |
+|-----------|--------|-------|
+| `ViewEventByEvent.run()` | ✅ Done | Uses `viewCalendarEventWithFallback` |
+| FAB click (repeating events) | ✅ Done | Uses `openEventInCalendar` helper |
+| Menu "Open in Calendar" | ✅ Done | Uses `openEventInCalendar` helper |
+| `OnButtonEventDetailsClick` | ✅ Done | Uses `openEventInCalendar` helper |
+| After move (viewAfterEdit) | ✅ Done | Uses `openEventInCalendar` helper |
+| `ViewEventById.run()` | ⏭️ Skipped | Not used anywhere; only has eventId |
+| After moveAsCopy (new event) | ⏭️ Skipped | Newly created event should always exist |
+| Notification PendingIntent | 📋 Deferred | Requires intermediate activity; users can use snooze screen |
 
 ## Problem Statement
 
@@ -41,30 +56,26 @@ Since **Google Calendar doesn't have a public search intent**, we'll implement a
    - URI: `content://com.android.calendar/time/{instanceStartTimeMillis}`
    - Toast: "Event not found in calendar - showing calendar at event time"
 
-## Locations to Update
+## Locations Updated
 
 ### All `viewCalendarEvent` Call Sites (8 total)
 
-| # | File | Line | Context | Action |
+| # | File | Line | Context | Status |
 |---|------|------|---------|--------|
-| 1 | `ViewEventActivityNoRecents.kt` | 101 | `ViewEventById.run()` | Update - only has eventId, need to pass title/time |
-| 2 | `ViewEventActivityNoRecents.kt` | 107 | `ViewEventByEvent.run()` | Update - has full event, easy |
-| 3 | `ViewEventActivityNoRecents.kt` | 379 | FAB click for repeating events | Update - has `event` |
-| 4 | `ViewEventActivityNoRecents.kt` | 500 | Menu "Open in Calendar" | Update - has `event` |
-| 5 | `ViewEventActivityNoRecents.kt` | 558 | `OnButtonEventDetailsClick` | Update - has `event` |
-| 6 | `ViewEventActivityNoRecents.kt` | 855 | After edit, viewAfterEdit setting | Update - has `event` |
-| 7 | `ViewEventActivityNoRecents.kt` | 875 | After edit with new event ID | Tricky - new event, might not need fallback |
-| 8 | `EventNotificationManager.kt` | 1085 | Notification content intent | **Note**: This is a PendingIntent, special handling needed |
+| 1 | `ViewEventActivityNoRecents.kt` | 102 | `ViewEventById.run()` | ⏭️ Skipped - not used, only has eventId |
+| 2 | `ViewEventActivityNoRecents.kt` | 113 | `ViewEventByEvent.run()` | ✅ Updated - uses `viewCalendarEventWithFallback` |
+| 3 | `ViewEventActivityNoRecents.kt` | 385 | FAB click for repeating events | ✅ Updated - uses `openEventInCalendar` |
+| 4 | `ViewEventActivityNoRecents.kt` | 506 | Menu "Open in Calendar" | ✅ Updated - uses `openEventInCalendar` |
+| 5 | `ViewEventActivityNoRecents.kt` | 564 | `OnButtonEventDetailsClick` | ✅ Updated - uses `openEventInCalendar` |
+| 6 | `ViewEventActivityNoRecents.kt` | 874 | After move, viewAfterEdit setting | ✅ Updated - uses `openEventInCalendar` |
+| 7 | `ViewEventActivityNoRecents.kt` | 894 | After moveAsCopy with new event ID | ⏭️ Skipped - newly created event |
+| 8 | `EventNotificationManager.kt` | 1085 | Notification content intent | 📋 Deferred - PendingIntent limitation |
 
-### Notification Intent (Special Case)
+### Notification Intent (Deferred)
 
-`EventNotificationManager.kt` line 1085 creates a `PendingIntent` for when users tap notifications. This can't do a pre-check since the intent is created ahead of time. Options:
+`EventNotificationManager.kt` line 1085 creates a `PendingIntent` for when users tap notifications. This can't do a pre-check since the intent is created ahead of time.
 
-**Option A**: Route notification tap through an intermediate activity that does the check
-**Option B**: Leave notification tap as-is (current behavior) - user can use "Open in Calendar" from snooze screen
-**Option C**: Create a `ViewCalendarActivity` that wraps the logic
-
-**Recommendation**: Start with Option B (leave notifications as-is), tackle separately if needed.
+**Decision**: Option B chosen - leave notification tap as-is. Users can use "Open in Calendar" from the snooze screen which has the fallback. A separate issue can address this if needed by routing through an intermediate activity.
 
 ## Implementation Plan
 
