@@ -121,7 +121,7 @@ class StorageConsistencyTest {
         
         // Add different events to dismissed storage
         dismissedStorage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime,
             createTestEvent(3, baseTime + 7200000)
         )
@@ -141,7 +141,7 @@ class StorageConsistencyTest {
         
         // Add event to both storages (simulating failed deletion)
         eventsStorage.addEvent(orphanedEvent)
-        dismissedStorage.addEvent(EventDismissType.ManuallyDismissed, baseTime, orphanedEvent)
+        dismissedStorage.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, orphanedEvent)
         
         // Add normal event only to active storage
         eventsStorage.addEvent(createTestEvent(2, baseTime + 3600000))
@@ -162,7 +162,7 @@ class StorageConsistencyTest {
         for (i in 1L..3L) {
             val event = createTestEvent(i, baseTime + i * 3600000)
             eventsStorage.addEvent(event)
-            dismissedStorage.addEvent(EventDismissType.ManuallyDismissed, baseTime, event)
+            dismissedStorage.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, event)
         }
         
         // Add 2 normal events only to active storage
@@ -198,12 +198,12 @@ class StorageConsistencyTest {
     fun testOnlyDismissedEventsNoActive() {
         // Add events only to dismissed storage
         dismissedStorage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime,
             createTestEvent(1, baseTime)
         )
         dismissedStorage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime,
             createTestEvent(2, baseTime + 3600000)
         )
@@ -225,7 +225,7 @@ class StorageConsistencyTest {
         
         eventsStorage.addEvent(event1)
         dismissedStorage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime,
             event1DifferentInstance
         )
@@ -246,7 +246,7 @@ class StorageConsistencyTest {
         val event1 = createTestEvent(1, baseTime)
         
         eventsStorage.addEvent(event1)
-        dismissedStorage.addEvent(EventDismissType.ManuallyDismissed, baseTime, event1)
+        dismissedStorage.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, event1)
         
         assertEquals("Active storage should have 1 event", 1, eventsStorage.eventCount)
         assertEquals("Dismissed storage should have 1 event", 1, dismissedStorage.eventCount)

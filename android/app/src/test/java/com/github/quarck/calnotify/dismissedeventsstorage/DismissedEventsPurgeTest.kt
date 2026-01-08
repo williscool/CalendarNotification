@@ -96,14 +96,14 @@ class DismissedEventsPurgeTest {
         
         // Event dismissed on day 1 (9 days old) - should be purged with 3-day retention
         storage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime + 1 * dayInMillis,
             createTestEvent(1, baseTime)
         )
         
         // Event dismissed on day 8 (2 days old) - should NOT be purged
         storage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime + 8 * dayInMillis,
             createTestEvent(2, baseTime + 8 * dayInMillis)
         )
@@ -125,14 +125,14 @@ class DismissedEventsPurgeTest {
         
         // Event dismissed on day 1 (364 days old)
         storage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime + 1 * dayInMillis,
             createTestEvent(1, baseTime)
         )
         
         // Event dismissed on day 100
         storage.addEvent(
-            EventDismissType.ManuallyDismissed,
+            EventDismissType.ManuallyDismissedFromNotification,
             baseTime + 100 * dayInMillis,
             createTestEvent(2, baseTime + 100 * dayInMillis)
         )
@@ -154,7 +154,7 @@ class DismissedEventsPurgeTest {
         // Add events dismissed at different times
         for (day in listOf(5, 50, 80, 95, 99)) {
             storage.addEvent(
-                EventDismissType.ManuallyDismissed,
+                EventDismissType.ManuallyDismissedFromNotification,
                 baseTime + day * dayInMillis,
                 createTestEvent(day.toLong(), baseTime + day * dayInMillis)
             )
@@ -190,7 +190,7 @@ class DismissedEventsPurgeTest {
         // Add 5 events all within the retention period
         for (i in 1..5) {
             storage.addEvent(
-                EventDismissType.ManuallyDismissed,
+                EventDismissType.ManuallyDismissedFromNotification,
                 baseTime + (10 - i) * dayInMillis, // Days 9, 8, 7, 6, 5 - all within 7 days
                 createTestEvent(i.toLong(), baseTime + (10 - i) * dayInMillis)
             )
@@ -212,7 +212,7 @@ class DismissedEventsPurgeTest {
         // Add events from various times
         for (day in listOf(1, 10, 20, 50, 90)) {
             storage.addEvent(
-                EventDismissType.ManuallyDismissed,
+                EventDismissType.ManuallyDismissedFromNotification,
                 baseTime + day * dayInMillis,
                 createTestEvent(day.toLong(), baseTime + day * dayInMillis)
             )
@@ -237,7 +237,7 @@ class DismissedEventsPurgeTest {
         // Add events from various times
         for (day in listOf(1, 100, 200, 350, 399)) {
             storage.addEvent(
-                EventDismissType.ManuallyDismissed,
+                EventDismissType.ManuallyDismissedFromNotification,
                 baseTime + day * dayInMillis,
                 createTestEvent(day.toLong(), baseTime + day * dayInMillis)
             )

@@ -69,7 +69,7 @@ class MockEventsStorage : EventsStorageInterface {
         val key = EventKey(event.eventId, event.instanceStartTime)
         val existing = eventsMap[key] ?: return Pair(false, event)
         
-        val updated = existing.copy(
+        var updated = existing.copy(
             alertTime = alertTime ?: existing.alertTime,
             title = title ?: existing.title,
             snoozedUntil = snoozedUntil ?: existing.snoozedUntil,
@@ -79,9 +79,12 @@ class MockEventsStorage : EventsStorageInterface {
             lastStatusChangeTime = lastStatusChangeTime ?: existing.lastStatusChangeTime,
             displayStatus = displayStatus ?: existing.displayStatus,
             color = color ?: existing.color,
-            isRepeating = isRepeating ?: existing.isRepeating,
-            isMuted = isMuted ?: existing.isMuted
+            isRepeating = isRepeating ?: existing.isRepeating
         )
+        // isMuted is a computed property from flags, update it separately if needed
+        if (isMuted != null) {
+            updated.isMuted = isMuted
+        }
         eventsMap[key] = updated
         DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}")
         return Pair(true, updated)
