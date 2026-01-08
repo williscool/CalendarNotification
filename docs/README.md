@@ -52,5 +52,6 @@ Features and changes under consideration:
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations
 - [Event Deletion Issues](dev_todo/event_deletion_issues.md) - Cleanup mechanisms
 - [Event Restore Behavior](dev_todo/event_restore_behavior.md) - Restoration logic
+- [Forward to Calendar Search](dev_todo/forward_to_calendar_search.md) - Fallback when event not found ([#66](https://github.com/williscool/CalendarNotification/issues/66))
 - [Reschedule Confirmation Handling](dev_todo/reschedule_confirmation_handling.md) - UI improvements
 

@@ -1,0 +1,186 @@
+# Forward to Calendar Search When Event Not Found
+
+> **GitHub Issue**: [#66](https://github.com/williscool/CalendarNotification/issues/66)
+
+## Problem Statement
+
+When a user tries to open an event in the calendar app, but the event no longer exists in the system calendar (e.g., after phone migration, backup restore, or manual deletion), the calendar app shows an unhelpful error or nothing at all.
+
+**Common scenarios**:
+- Phone backup/restore where calendar events didn't sync properly
+- Event was deleted from calendar but notification still exists
+- Calendar account removed/re-added
+- Sync issues between devices
+
+## Current Behavior
+
+Currently, `CalendarIntents.viewCalendarEvent()` opens the calendar with a specific event ID URI:
+```kotlin
+content://com.android.calendar/events/{eventId}
+```
+
+If the event doesn't exist, Google Calendar silently fails or shows a generic error.
+
+## Proposed Solution: Fallback Chain
+
+Since **Google Calendar doesn't have a public search intent**, we'll implement a fallback chain:
+
+1. **First**: Check if event exists in system calendar via `CalendarProvider.getEvent()`
+2. **If exists**: Open event directly (current behavior)
+3. **If not found**: Open calendar at the event's scheduled time + show toast
+   - URI: `content://com.android.calendar/time/{instanceStartTimeMillis}`
+   - Toast: "Event not found in calendar - showing calendar at event time"
+
+## Locations to Update
+
+### All `viewCalendarEvent` Call Sites (8 total)
+
+| # | File | Line | Context | Action |
+|---|------|------|---------|--------|
+| 1 | `ViewEventActivityNoRecents.kt` | 101 | `ViewEventById.run()` | Update - only has eventId, need to pass title/time |
+| 2 | `ViewEventActivityNoRecents.kt` | 107 | `ViewEventByEvent.run()` | Update - has full event, easy |
+| 3 | `ViewEventActivityNoRecents.kt` | 379 | FAB click for repeating events | Update - has `event` |
+| 4 | `ViewEventActivityNoRecents.kt` | 500 | Menu "Open in Calendar" | Update - has `event` |
+| 5 | `ViewEventActivityNoRecents.kt` | 558 | `OnButtonEventDetailsClick` | Update - has `event` |
+| 6 | `ViewEventActivityNoRecents.kt` | 855 | After edit, viewAfterEdit setting | Update - has `event` |
+| 7 | `ViewEventActivityNoRecents.kt` | 875 | After edit with new event ID | Tricky - new event, might not need fallback |
+| 8 | `EventNotificationManager.kt` | 1085 | Notification content intent | **Note**: This is a PendingIntent, special handling needed |
+
+### Notification Intent (Special Case)
+
+`EventNotificationManager.kt` line 1085 creates a `PendingIntent` for when users tap notifications. This can't do a pre-check since the intent is created ahead of time. Options:
+
+**Option A**: Route notification tap through an intermediate activity that does the check
+**Option B**: Leave notification tap as-is (current behavior) - user can use "Open in Calendar" from snooze screen
+**Option C**: Create a `ViewCalendarActivity` that wraps the logic
+
+**Recommendation**: Start with Option B (leave notifications as-is), tackle separately if needed.
+
+## Implementation Plan
+
+### Phase 1: Add Infrastructure to `CalendarIntents.kt`
+
+```kotlin
+object CalendarIntents {
+    // ... existing code ...
+
+    /**
+     * Opens calendar at a specific time (when event not found)
+     */
+    fun viewCalendarAtTime(context: Context, timeMillis: Long) {
+        val uri = Uri.parse("content://com.android.calendar/time/$timeMillis")
+        val intent = Intent(Intent.ACTION_VIEW).setData(uri)
+        context.startActivity(intent)
+    }
+
+    /**
+     * Attempts to view event, falls back to time-based view if event not found.
+     * @return true if event was found, false if fallback was used
+     */
+    fun viewCalendarEventWithFallback(
+        context: Context,
+        calendarProvider: CalendarProviderInterface,
+        event: EventAlertRecord
+    ): Boolean {
+        // Check if event exists in system calendar
+        val calendarEvent = calendarProvider.getEvent(context, event.eventId)
+        
+        if (calendarEvent != null) {
+            // Event exists, open normally
+            viewCalendarEvent(context, event)
+            return true
+        } else {
+            // Event not found, fallback to time-based view
+            DevLog.info(LOG_TAG, "Event ${event.eventId} not found in calendar, " +
+                "falling back to time view at ${event.instanceStartTime}")
+            viewCalendarAtTime(context, event.instanceStartTime)
+            return false
+        }
+    }
+}
+```
+
+### Phase 2: Add String Resources
+
+```xml
+<!-- strings.xml -->
+<string name="event_not_found_opening_calendar_at_time">Event not found in calendar - showing calendar at event time</string>
+```
+
+### Phase 3: Update Call Sites
+
+Create a helper in `ViewEventActivityNoRecents.kt`:
+
+```kotlin
+private fun openEventInCalendar(event: EventAlertRecord) {
+    val found = CalendarIntents.viewCalendarEventWithFallback(this, calendarProvider, event)
+    if (!found) {
+        Toast.makeText(this, R.string.event_not_found_opening_calendar_at_time, Toast.LENGTH_LONG).show()
+    }
+}
+```
+
+Then update all 6 direct call sites in `ViewEventActivityNoRecents.kt` to use this helper.
+
+### Phase 4: Handle `ViewEventById` Case
+
+The `ViewEventById` class only has `eventId`, not the full event. Options:
+1. Query the event from EventsStorage first
+2. Pass the full event instead of just ID
+3. Add a method that takes eventId + fallbackTime
+
+## Pros and Cons of Pre-Check Approach
+
+### Pros ✅
+1. **Better UX**: User sees calendar at the right time instead of an error
+2. **Informative**: Toast tells user what happened
+3. **Graceful degradation**: App handles edge cases instead of failing silently
+4. **Debugging**: Logs help diagnose sync issues
+5. **No extra network**: Query is local to device
+
+### Cons ⚠️
+1. **Extra query**: One additional `ContentResolver.query()` per open
+   - **Mitigation**: Query is fast (single row by ID, indexed)
+   - **Mitigation**: Only happens on user action (button tap), not in loops
+2. **Slight code complexity**: Need to pass `calendarProvider` to `CalendarIntents`
+   - **Mitigation**: Already available in all call sites via `calendarProvider` property
+3. **Edge case**: User might be confused why calendar opens to "wrong" view
+   - **Mitigation**: Toast explains what happened
+
+### Verdict
+The pre-check is a **pure win** for UX. The query cost is negligible (single indexed lookup on user action). Current behavior of silently failing is much worse.
+
+## Testing Strategy
+
+### Unit Tests (Robolectric)
+1. Test `viewCalendarEventWithFallback` returns `true` when event exists
+2. Test `viewCalendarEventWithFallback` returns `false` and calls `viewCalendarAtTime` when event missing
+3. Test `viewCalendarAtTime` creates correct intent URI
+
+### Instrumentation Tests
+1. Create event, verify `viewCalendarEventWithFallback` opens it
+2. Delete event from calendar, verify fallback behavior
+3. Verify toast is shown when fallback is used
+
+### Manual Testing
+1. Fresh install with backup restore (events missing from calendar)
+2. Delete event from Google Calendar, try to open from notification
+3. Remove and re-add calendar account
+
+## Files to Modify
+
+1. `CalendarIntents.kt` - Add new methods
+2. `ViewEventActivityNoRecents.kt` - Update 6 call sites
+3. `strings.xml` (and translations) - Add new string
+4. New test file for `CalendarIntents` fallback logic
+
+## Open Questions
+
+1. **Should we handle the notification PendingIntent case?** (Recommendation: defer to separate issue)
+2. **Should the fallback also try to search Google Calendar web?** (Recommendation: no, keep it simple)
+3. **Should we add a setting to disable the pre-check?** (Recommendation: no, it's always better)
+
+## Related Issues
+
+- This complements the dismissed events long storage feature (`docs/dev_todo/dismissed_events_long_storage.md`)
+- Related to event deletion cleanup (`docs/dev_todo/event_deletion_issues.md`)
