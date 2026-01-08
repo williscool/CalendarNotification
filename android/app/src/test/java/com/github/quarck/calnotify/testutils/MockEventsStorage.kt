@@ -1,16 +1,34 @@
+//
+//   Calendar Notifications Plus
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
+//
+//   This program is free software; you can redistribute it and/or modify
+//   it under the terms of the GNU General Public License as published by
+//   the Free Software Foundation; either version 3 of the License, or
+//   (at your option) any later version.
+//
+//   This program is distributed in the hope that it will be useful,
+//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//   GNU General Public License for more details.
+//
+//   You should have received a copy of the GNU General Public License
+//   along with this program; if not, write to the Free Software Foundation,
+//   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+//
+
 package com.github.quarck.calnotify.testutils
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
-import com.github.quarck.calnotify.eventsstorage.EventWithNewInstanceTime
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
+import com.github.quarck.calnotify.eventsstorage.EventWithNewInstanceTime
 import com.github.quarck.calnotify.logs.DevLog
 
 /**
  * In-memory implementation of EventsStorageInterface for Robolectric tests.
  * 
  * This avoids the need for native SQLite libraries by storing events in memory.
- * The storage is scoped to the test and cleared between tests.
  */
 class MockEventsStorage : EventsStorageInterface {
     private val LOG_TAG = "MockEventsStorage"
@@ -22,7 +40,7 @@ class MockEventsStorage : EventsStorageInterface {
     data class EventKey(val eventId: Long, val instanceStartTime: Long)
     
     override fun addEvent(event: EventAlertRecord): Boolean {
-        DevLog.info(LOG_TAG, "Adding event: eventId=${event.eventId}, title=${event.title}")
+        DevLog.info(LOG_TAG, "Adding event: eventId=${event.eventId}")
         val key = EventKey(event.eventId, event.instanceStartTime)
         eventsMap[key] = event
         return true
@@ -51,7 +69,7 @@ class MockEventsStorage : EventsStorageInterface {
         val key = EventKey(event.eventId, event.instanceStartTime)
         val existing = eventsMap[key] ?: return Pair(false, event)
         
-        val updated = existing.copy(
+        var updated = existing.copy(
             alertTime = alertTime ?: existing.alertTime,
             title = title ?: existing.title,
             snoozedUntil = snoozedUntil ?: existing.snoozedUntil,
@@ -63,14 +81,12 @@ class MockEventsStorage : EventsStorageInterface {
             color = color ?: existing.color,
             isRepeating = isRepeating ?: existing.isRepeating
         )
-        
-        // isMuted is a computed property from flags, set it via the property setter
+        // isMuted is a computed property from flags, update it separately if needed
         if (isMuted != null) {
             updated.isMuted = isMuted
         }
-        
         eventsMap[key] = updated
-        DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}, isMuted=${updated.isMuted}")
+        DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}")
         return Pair(true, updated)
     }
     
@@ -88,44 +104,37 @@ class MockEventsStorage : EventsStorageInterface {
         isRepeating: Boolean?
     ): Boolean {
         events.forEach { event ->
-            updateEvent(event, alertTime, title, snoozedUntil, startTime, endTime, location, 
-                lastStatusChangeTime, displayStatus, color, isRepeating, null)
+            updateEvent(event, alertTime, title, snoozedUntil, startTime, endTime, 
+                location, lastStatusChangeTime, displayStatus, color, isRepeating)
         }
         return true
     }
     
     override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
-        val key = EventKey(event.eventId, event.instanceStartTime)
-        val existing = eventsMap[key] ?: return false
+        val oldKey = EventKey(event.eventId, event.instanceStartTime)
+        eventsMap.remove(oldKey)
         
-        // Remove old entry
-        eventsMap.remove(key)
-        
-        // Add new entry with updated instance times
-        val updated = existing.copy(
+        val updated = event.copy(
             instanceStartTime = instanceStart,
             instanceEndTime = instanceEnd
         )
         val newKey = EventKey(event.eventId, instanceStart)
         eventsMap[newKey] = updated
-        
         return true
     }
     
     override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean {
-        events.forEach { (event, newStart, newEnd) ->
-            updateEventAndInstanceTimes(event, newStart, newEnd)
+        events.forEach { 
+            updateEventAndInstanceTimes(it.event, it.newInstanceStartTime, it.newInstanceEndTime)
         }
         return true
     }
     
     override fun updateEvent(event: EventAlertRecord): Boolean {
         val key = EventKey(event.eventId, event.instanceStartTime)
-        if (eventsMap.containsKey(key)) {
-            eventsMap[key] = event
-            return true
-        }
-        return false
+        eventsMap[key] = event
+        DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}")
+        return true
     }
     
     override fun updateEvents(events: List<EventAlertRecord>): Boolean {
@@ -144,9 +153,9 @@ class MockEventsStorage : EventsStorageInterface {
     
     override fun deleteEvent(eventId: Long, instanceStartTime: Long): Boolean {
         val key = EventKey(eventId, instanceStartTime)
-        val removed = eventsMap.remove(key) != null
-        DevLog.info(LOG_TAG, "Deleted event: eventId=$eventId, success=$removed")
-        return removed
+        val removed = eventsMap.remove(key)
+        DevLog.info(LOG_TAG, "Deleted event: eventId=$eventId, found=${removed != null}")
+        return removed != null
     }
     
     override fun deleteEvent(ev: EventAlertRecord): Boolean {
@@ -155,24 +164,21 @@ class MockEventsStorage : EventsStorageInterface {
     
     override fun deleteEvents(events: Collection<EventAlertRecord>): Int {
         var count = 0
-        events.forEach { event ->
-            val key = EventKey(event.eventId, event.instanceStartTime)
-            if (eventsMap.remove(key) != null) {
-                count++
-            }
+        events.forEach { 
+            if (deleteEvent(it)) count++
         }
         DevLog.info(LOG_TAG, "Deleted $count events")
         return count
     }
-    
-    override val events: List<EventAlertRecord>
-        get() = eventsMap.values.toList()
     
     override fun deleteAllEvents(): Boolean {
         DevLog.info(LOG_TAG, "Deleting all ${eventsMap.size} events")
         eventsMap.clear()
         return true
     }
+    
+    override val events: List<EventAlertRecord>
+        get() = eventsMap.values.toList()
     
     /**
      * Clears all events - useful for test cleanup
@@ -188,4 +194,3 @@ class MockEventsStorage : EventsStorageInterface {
     val eventCount: Int
         get() = eventsMap.size
 }
-

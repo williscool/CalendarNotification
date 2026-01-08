@@ -1,5 +1,7 @@
 # Event Deletion Issues and Cleanup
 
+> **Note**: Issues #3, #5, and #6 are being addressed as part of the dismissed events long storage feature. See `docs/dev_todo/dismissed_events_long_storage.md` for implementation details.
+
 ## Current Issues
 
 ### Failed Event Deletions
