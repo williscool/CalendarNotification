@@ -37,7 +37,7 @@
         android:dialogTitle="@string/bin_size"
         android:entries="@array/keep_history_entries"
         android:entryValues="@array/keep_history_values"
-        android:defaultValue="3" />
+        android:defaultValue="14" />
 
     <PreferenceCategory
         android:title="@string/pebble"

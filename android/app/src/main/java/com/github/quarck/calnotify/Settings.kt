@@ -541,8 +541,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val DEFAULT_REMINDER_INTERVAL_MINUTES = 10
         internal const val DEFAULT_REMINDER_INTERVAL_SECONDS = 600
         internal const val DEFAULT_MAX_REMINDERS = "0"
-        /** Default days to keep dismissed events history (3 days, matching legacy Consts.BIN_KEEP_HISTORY_DAYS) */
-        internal const val DEFAULT_KEEP_HISTORY_DAYS = 3
+        /** Default days to keep dismissed events history */
+        internal const val DEFAULT_KEEP_HISTORY_DAYS = 14
     }
 }
 

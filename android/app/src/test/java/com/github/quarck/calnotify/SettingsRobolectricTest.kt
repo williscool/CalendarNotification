@@ -183,20 +183,20 @@ class SettingsRobolectricTest {
 
     @Test
     fun testKeepHistoryDaysDefaultValue() {
-        // Default should be 3 days
-        assertEquals(3, settings.keepHistoryDays)
+        // Default should be 14 days
+        assertEquals(14, settings.keepHistoryDays)
     }
 
     @Test
     fun testKeepHistoryMillisDefaultValue() {
-        // 3 days in milliseconds
-        val expected = 3L * Consts.DAY_IN_MILLISECONDS
+        // 14 days in milliseconds
+        val expected = 14L * Consts.DAY_IN_MILLISECONDS
         assertEquals(expected, settings.keepHistoryMillis)
     }
 
     @Test
     fun testKeepHistoryMillisCalculation() {
-        // With default of 3 days, should be 3 * DAY_IN_MILLISECONDS
+        // With default of 14 days, should be 14 * DAY_IN_MILLISECONDS
         val days = settings.keepHistoryDays
         val expectedMillis = days.toLong() * Consts.DAY_IN_MILLISECONDS
         assertEquals(expectedMillis, settings.keepHistoryMillis)
