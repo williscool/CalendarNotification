@@ -49,10 +49,16 @@ User opens "Handled Calendars"
 
 ## Affected Files
 
+### Production Code
 - `android/app/src/main/java/com/github/quarck/calnotify/prefs/CalendarsActivity.kt` - Main UI for calendar list
 - `android/app/src/main/res/layout/content_calendars.xml` - Layout needs SwipeRefreshLayout
 - `android/app/src/main/res/values/strings.xml` - New string resources
+- `android/app/src/main/res/menu/menu_calendars.xml` - New menu resource
+- `android/app/src/main/res/drawable/ic_refresh.xml` - Refresh icon (if not already present)
 - Possibly `AndroidManifest.xml` if additional permissions needed
+
+### Test Files (New)
+- `android/app/src/test/java/com/github/quarck/calnotify/prefs/CalendarsActivityRobolectricTest.kt` - Robolectric UI tests
 
 ## Implementation Plan
 
@@ -257,29 +263,123 @@ The `ContentResolver.requestSync(null, authority, extras)` call with `null` acco
 
 ## Testing Plan
 
-### Unit Tests (Robolectric)
+### What's Testable vs What's Not
 
-1. **CalendarsActivity refresh tests:**
-   - Test swipe-to-refresh triggers sync request
-   - Test toolbar refresh button triggers sync request
-   - Test help dialog shows correct content
+**Testable (automated):**
+- UI logic: SwipeRefreshLayout triggers callback, menu item clicks
+- That `ContentResolver.requestSync()` is called with correct parameters
+- That calendar list reloads after the sync/refresh flow
+- Help dialog content and "Open Settings" intent creation
+- Error handling (SecurityException catch)
 
-### Instrumentation Tests
+**NOT practically testable (requires manual verification):**
+- That sync actually happens (system-level SyncManager behavior)
+- That new calendars appear after sync (requires real Google account + network + time)
+- Device-specific sync quirks
 
-1. **Sync request integration:**
-   - Test `ContentResolver.requestSync()` is called with correct parameters
-   - Test calendar list reloads after sync request
+**Why sync is hard to test:**
+The `ContentResolver.requestSync()` call is a *request* to the Android SyncManager - a system service we don't control. Even instrumentation tests run on a real device can't easily verify that:
+1. The sync request was received by SyncManager
+2. The sync adapter actually ran
+3. New data was fetched from Google servers
 
-### Manual Testing
+This is similar to testing "did this notification actually show" - we can verify we called the right APIs, but the system behavior is opaque.
 
-1. Fresh install on device with multiple Google calendars
-2. Open "Handled Calendars" immediately after install
-3. Note how many calendars appear
-4. Pull to refresh
-5. Verify sync is requested (may see brief sync indicator in status bar)
-6. After refresh completes, check if missing calendars now appear
-7. Test the help dialog and "Open Sync Settings" button
-8. Test on various Android versions (10, 11, 12, 13, 14, 15)
+### Recommended Test Structure
+
+Following existing patterns in the codebase (see `CalendarProviderBasicTest.kt`, `CalendarProviderBasicRobolectricTest.kt`):
+
+#### 1. Extract Sync Logic into Testable Helper
+
+Instead of putting all logic in the Activity, extract to a helper:
+
+```kotlin
+// CalendarSyncHelper.kt
+object CalendarSyncHelper {
+    private const val LOG_TAG = "CalendarSyncHelper"
+    
+    /**
+     * Requests Android to sync calendar data.
+     * @return true if request was made, false if failed
+     */
+    fun requestCalendarSync(): Boolean {
+        return try {
+            val extras = Bundle().apply {
+                putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true)
+                putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true)
+            }
+            ContentResolver.requestSync(null, CalendarContract.AUTHORITY, extras)
+            DevLog.info(LOG_TAG, "Requested calendar sync")
+            true
+        } catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "SecurityException requesting sync: ${ex.message}")
+            false
+        }
+    }
+}
+```
+
+#### 2. Robolectric Tests (Unit-level)
+
+File: `android/app/src/test/java/com/github/quarck/calnotify/prefs/CalendarsActivityRobolectricTest.kt`
+
+```kotlin
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = "AndroidManifest.xml", sdk = [28])
+class CalendarsActivityRobolectricTest {
+    
+    @Test
+    fun testSwipeRefreshLayoutIsConfigured() {
+        val activity = Robolectric.buildActivity(CalendarsActivity::class.java)
+            .create()
+            .start()
+            .resume()
+            .get()
+        
+        val swipeRefresh = activity.findViewById<SwipeRefreshLayout>(R.id.swipe_refresh_calendars)
+        assertNotNull("SwipeRefreshLayout should exist", swipeRefresh)
+    }
+    
+    @Test
+    fun testMenuInflation() {
+        val activity = Robolectric.buildActivity(CalendarsActivity::class.java)
+            .create()
+            .start()
+            .resume()
+            .get()
+        
+        val menu = ShadowActivity.shadowOf(activity).optionsMenu
+        assertNotNull("Menu should be inflated", menu)
+        assertNotNull("Refresh item should exist", menu.findItem(R.id.action_refresh_calendars))
+        assertNotNull("Help item should exist", menu.findItem(R.id.action_calendar_sync_help))
+    }
+    
+    @Test
+    fun testHelpDialogContent() {
+        // Test that help dialog shows expected strings
+        // Use Robolectric's ShadowAlertDialog to verify
+    }
+}
+```
+
+#### 3. Instrumentation Tests (Optional)
+
+Skip for now - can't mock `ContentResolver.requestSync()` easily per `docs/dev_completed/constructor-mocking-android.md`. The actual sync behavior is system-level and untestable anyway.
+
+### Manual Testing (Basic Smoke Test)
+
+Quick verification after implementation:
+- Pull-to-refresh shows spinner and reloads list
+- Menu refresh button works
+- Help dialog opens and "Open Settings" launches system settings
+- No crash when calendar permissions missing
+
+## Test Priority
+
+1. **Robolectric UI tests** - Verify menu/swipe setup, no crashes, intent creation
+2. **Instrumentation tests** - Optional, limited value (can't verify actual sync behavior)
+
+The feature is mostly UI plumbing + one system API call. Robolectric can catch layout/menu issues.
 
 ## Future Enhancements
 
