@@ -18,7 +18,6 @@
 //
 package com.github.quarck.calnotify.prefs
 
-import android.view.Menu
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
 import org.junit.Assert.*
@@ -63,18 +62,16 @@ class CalendarsActivityRobolectricTest {
 
     @Test
     fun testMenuInflation() {
-        val activityController = Robolectric.buildActivity(CalendarsActivity::class.java)
+        val activity = Robolectric.buildActivity(CalendarsActivity::class.java)
             .create()
             .start()
             .resume()
+            .visible()
+            .get()
 
-        val activity = activityController.get()
-        
-        // Trigger menu creation
         val shadowActivity = Shadows.shadowOf(activity)
-        shadowActivity.onCreateOptionsMenu(Menu.NONE)
-        
         val menu = shadowActivity.optionsMenu
+        
         assertNotNull("Menu should be inflated", menu)
         assertNotNull("Refresh item should exist", menu?.findItem(R.id.action_refresh_calendars))
         assertNotNull("Help item should exist", menu?.findItem(R.id.action_calendar_sync_help))
@@ -86,6 +83,7 @@ class CalendarsActivityRobolectricTest {
             .create()
             .start()
             .resume()
+            .visible()
             .get()
 
         val swipeRefresh = activity.findViewById<SwipeRefreshLayout>(R.id.swipe_refresh_calendars)
@@ -93,15 +91,16 @@ class CalendarsActivityRobolectricTest {
         // Initially not refreshing
         assertFalse("Should not be refreshing initially", swipeRefresh.isRefreshing)
         
+        // Get the menu item properly from the options menu
+        val shadowActivity = Shadows.shadowOf(activity)
+        val menu = shadowActivity.optionsMenu
+        assertNotNull("Menu should be inflated", menu)
+        
+        val refreshItem = menu?.findItem(R.id.action_refresh_calendars)
+        assertNotNull("Refresh menu item should exist", refreshItem)
+        
         // Trigger refresh via menu item
-        activity.onOptionsItemSelected(
-            activity.findViewById<android.view.View>(R.id.action_refresh_calendars)?.let {
-                // Menu item click
-                val shadowActivity = Shadows.shadowOf(activity)
-                val menu = shadowActivity.optionsMenu
-                menu?.findItem(R.id.action_refresh_calendars)
-            } ?: return
-        )
+        activity.onOptionsItemSelected(refreshItem!!)
         
         // Should now be refreshing
         assertTrue("Should be refreshing after menu item click", swipeRefresh.isRefreshing)
@@ -113,11 +112,11 @@ class CalendarsActivityRobolectricTest {
             .create()
             .start()
             .resume()
+            .visible()
             .get()
 
-        // Trigger help menu item
+        // Get menu from shadow activity
         val shadowActivity = Shadows.shadowOf(activity)
-        shadowActivity.onCreateOptionsMenu(Menu.NONE)
         val menu = shadowActivity.optionsMenu
         val helpItem = menu?.findItem(R.id.action_calendar_sync_help)
         
