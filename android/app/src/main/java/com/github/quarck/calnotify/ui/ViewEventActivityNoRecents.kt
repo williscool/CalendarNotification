@@ -97,23 +97,6 @@ data class ViewEventActivityState(
     }
 }
 
-class ViewEventById(private val context: Context, internal var eventId: Long) : Runnable {
-    override fun run() {
-        CalendarIntents.viewCalendarEvent(context, eventId)
-    }
-}
-
-/**
- * Runnable that opens an event in the calendar with fallback if event not found.
- * Uses CalendarProvider singleton to check event existence.
- */
-class ViewEventByEvent(private val context: Context, internal var event: EventAlertRecord) : Runnable {
-    override fun run() {
-        // Use fallback method - if event not found, opens calendar at event time
-        CalendarIntents.viewCalendarEventWithFallback(context, CalendarProvider, event)
-    }
-}
-
 open class ViewEventActivityNoRecents : AppCompatActivity() {
 
     var state = ViewEventActivityState()
