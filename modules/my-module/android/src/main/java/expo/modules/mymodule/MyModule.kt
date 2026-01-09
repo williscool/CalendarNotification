@@ -1,5 +1,6 @@
 package expo.modules.mymodule
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -15,7 +16,19 @@ class MyModule : Module() {
   // that describes the module's functionality and behavior.
   // See https://docs.expo.dev/modules/module-api for more details about available components.
 
-  val TAG = "MyModule"
+  companion object {
+    private const val TAG = "MyModule"
+    
+    // SharedPreferences for cross-module communication (not backed up - see backup_rules.xml)
+    // These constants must match EventsStorage.kt in the main app
+    const val STORAGE_PREFS_NAME = "events_storage_state"
+    const val PREF_ACTIVE_DB_NAME = "active_db_name"
+    const val PREF_IS_USING_ROOM = "is_using_room"
+    
+    // Database name constants (must match EventsDatabase.kt)
+    const val ROOM_DATABASE_NAME = "RoomEvents"
+    const val LEGACY_DATABASE_NAME = "Events"
+  }
 
   override fun definition() = ModuleDefinition {
     // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
@@ -58,6 +71,42 @@ class MyModule : Module() {
       sendEvent("onChange", mapOf(
         "value" to value
       ))
+    }
+
+    // Returns the active events database name for sync feature to use
+    // Room is the primary implementation; legacy is only used if Room migration fails
+    // Reads from SharedPreferences written by EventsStorage in main app
+    Function("getActiveEventsDbName") {
+      val context = appContext.reactContext
+      if (context == null) {
+        Log.w(TAG, "getActiveEventsDbName: context is null, defaulting to Room")
+        return@Function ROOM_DATABASE_NAME
+      }
+      
+      val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+      // Default to Room (primary implementation) - legacy is only used if migration failed
+      val dbName = prefs.getString(PREF_ACTIVE_DB_NAME, ROOM_DATABASE_NAME) ?: ROOM_DATABASE_NAME
+      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, true)
+      
+      Log.i(TAG, "getActiveEventsDbName: returning '$dbName' (isUsingRoom=$isRoom)")
+      dbName
+    }
+
+    // Returns whether Room storage is being used (vs legacy fallback)
+    // Reads from SharedPreferences written by EventsStorage in main app
+    Function("isUsingRoomStorage") {
+      val context = appContext.reactContext
+      if (context == null) {
+        Log.w(TAG, "isUsingRoomStorage: context is null, defaulting to true (Room)")
+        return@Function true
+      }
+      
+      val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+      // Default to true (Room is primary) - only false if migration explicitly failed
+      val isRoom = prefs.getBoolean(PREF_IS_USING_ROOM, true)
+      
+      Log.i(TAG, "isUsingRoomStorage: $isRoom")
+      isRoom
     }
 
     // Enables the module to be used as a native view. Definition components that are accepted as part of

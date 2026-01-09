@@ -47,6 +47,7 @@ Historical decisions and completed work, kept for reference:
 
 Features and changes under consideration:
 
+- [Sync Database Mismatch Fix](dev_todo/sync_database_mismatch.md) - **Critical:** RN sync reads wrong DB after Room migration ⚠️
 - [Deprecated Features Removal](dev_todo/deprecated_features.md) - QuietHours, CalendarEditor
 - [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt DI opportunities
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations

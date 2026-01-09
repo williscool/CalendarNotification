@@ -1,6 +1,6 @@
-import React, { useContext, useEffect, useState, memo } from 'react';
+import React, { useContext, useEffect, useState, memo, useMemo } from 'react';
 import { Linking, ScrollView } from 'react-native';
-import { hello, sendRescheduleConfirmations, addChangeListener } from '../../../modules/my-module';
+import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName } from '../../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -65,7 +65,11 @@ export const SetupSync = () => {
   const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
   const [tempTableEvents, setTempTableEvents] = useState<any[]>([]);
   const [dbStatus, setDbStatus] = useState<string>('');
-  const regDb = open({ name: 'Events' });
+  
+  // Get the active database name from native module (Room or Legacy)
+  const eventsDbName = useMemo(() => getActiveEventsDbName(), []);
+  const regDb = useMemo(() => open({ name: eventsDbName }), [eventsDbName]);
+  
   const providerDb = useContext(PowerSyncContext);
 
   useEffect(() => {
@@ -77,7 +81,7 @@ export const SetupSync = () => {
 
     (async () => {
       if (settings.syncEnabled && settings.syncType === 'bidirectional') {
-        await installCrsqliteOnTable('Events', 'eventsV9');
+        await installCrsqliteOnTable(eventsDbName, 'eventsV9');
       }
 
       const result = await regDb.execute(debugDisplayQuery);
@@ -122,13 +126,13 @@ export const SetupSync = () => {
     }, 1000);
 
     return () => clearInterval(statusInterval);
-  }, [settings.syncEnabled, settings.syncType]);
+  }, [settings.syncEnabled, settings.syncType, eventsDbName]);
 
   const handleSync = async () => {
     if (!providerDb || !settings.syncEnabled) return;
 
     try {
-      await psInsertDbTable('Events', 'eventsV9', providerDb);
+      await psInsertDbTable(eventsDbName, 'eventsV9', providerDb);
       const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
         setSqliteEvents(result.rows || []);

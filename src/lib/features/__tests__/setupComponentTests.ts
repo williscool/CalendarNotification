@@ -28,7 +28,10 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('../../../../modules/my-module', () => ({
   hello: jest.fn(() => 'mocked'),
   sendRescheduleConfirmations: jest.fn(),
-  addChangeListener: jest.fn(),
+  addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+  getActiveEventsDbName: jest.fn(() => 'RoomEvents'),
+  isUsingRoomStorage: jest.fn(() => true),
+  PI: 100,
 }));
 
 // Mock op-sqlite
