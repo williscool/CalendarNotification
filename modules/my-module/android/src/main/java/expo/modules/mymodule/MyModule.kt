@@ -20,7 +20,8 @@ class MyModule : Module() {
     private const val TAG = "MyModule"
     
     // SharedPreferences for cross-module communication (not backed up - see backup_rules.xml)
-    // These constants must match EventsStorage.kt in the main app
+    // CONTRACT: These constants must match EventsStorageState.kt in the main app
+    // See EventsStorageState for documentation on the contract
     const val STORAGE_PREFS_NAME = "events_storage_state"
     const val PREF_ACTIVE_DB_NAME = "active_db_name"
     const val PREF_IS_USING_ROOM = "is_using_room"

@@ -44,10 +44,16 @@ class EventsStorage private constructor(
     val isUsingRoom: Boolean = result.second
     
     init {
-        // Write storage state to SharedPreferences for cross-module communication
+        // Write storage state for cross-module communication
         // (expo native module reads this to know which database to use for sync)
-        // This prefs file is NOT in backup_rules.xml, so it won't be backed up
-        writeStorageState(context, isUsingRoom)
+        val state = EventsStorageState(context)
+        state.isUsingRoom = isUsingRoom
+        state.activeDbName = if (isUsingRoom) {
+            EventsDatabase.DATABASE_NAME
+        } else {
+            EventsDatabase.LEGACY_DATABASE_NAME
+        }
+        DevLog.info(LOG_TAG, "Wrote storage state: dbName=${state.activeDbName}, isUsingRoom=$isUsingRoom")
     }
     
     constructor(context: Context) : this(context, createStorage(context))
@@ -58,12 +64,6 @@ class EventsStorage private constructor(
 
     companion object {
         private const val LOG_TAG = "EventsStorage"
-        
-        // SharedPreferences for cross-module communication (not backed up - see backup_rules.xml)
-        // These constants must match MyModule.kt in the expo module
-        const val STORAGE_PREFS_NAME = "events_storage_state"
-        const val PREF_ACTIVE_DB_NAME = "active_db_name"
-        const val PREF_IS_USING_ROOM = "is_using_room"
 
         private fun createStorage(context: Context): Pair<EventsStorageInterface, Boolean> {
             return try {
@@ -75,22 +75,6 @@ class EventsStorage private constructor(
                 DevLog.error(LOG_TAG, "⚠️ Room migration failed, falling back to legacy storage: ${e.message}")
                 Pair(LegacyEventsStorage(context), false)
             }
-        }
-        
-        private fun writeStorageState(context: Context, isUsingRoom: Boolean) {
-            val dbName = if (isUsingRoom) {
-                EventsDatabase.DATABASE_NAME
-            } else {
-                EventsDatabase.LEGACY_DATABASE_NAME
-            }
-            
-            context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putString(PREF_ACTIVE_DB_NAME, dbName)
-                .putBoolean(PREF_IS_USING_ROOM, isUsingRoom)
-                .apply()
-            
-            DevLog.info(LOG_TAG, "Wrote storage state to prefs: dbName=$dbName, isUsingRoom=$isUsingRoom")
         }
     }
 }
