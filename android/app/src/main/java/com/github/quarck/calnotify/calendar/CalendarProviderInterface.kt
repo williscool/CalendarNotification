@@ -83,4 +83,6 @@ interface CalendarProviderInterface {
     fun getCalendarBackupInfo(context: Context, calendarId: Long): CalendarBackupInfo?
 
     fun findMatchingCalendarId(context: Context, backupInfo: CalendarBackupInfo): Long
+
+    fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int = 7): Map<Long, Int>
 }

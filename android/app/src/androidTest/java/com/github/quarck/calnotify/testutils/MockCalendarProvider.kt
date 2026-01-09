@@ -124,6 +124,10 @@ class MockCalendarProvider(
             DevLog.info(LOG_TAG, "Delegating updateEvent to real implementation: eventId=$eventId, calendarId=$calendarId")
             callOriginal()
         }
+        
+        every { CalendarProvider.getUpcomingEventCountsByCalendar(any(), any()) } answers {
+            callOriginal()
+        }
     }
     
     /**

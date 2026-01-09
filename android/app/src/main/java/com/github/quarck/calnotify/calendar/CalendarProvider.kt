@@ -1840,4 +1840,38 @@ object CalendarProvider : CalendarProviderInterface {
     private fun checkPermissions(context: Context): Boolean {
         return PermissionsManager.hasAllCalendarPermissionsNoCache(context)
     }
+
+    override fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int): Map<Long, Int> {
+        val counts = mutableMapOf<Long, Int>()
+
+        if (!PermissionsManager.hasReadCalendar(context)) {
+            DevLog.error(LOG_TAG, "getUpcomingEventCountsByCalendar: no permissions")
+            return counts
+        }
+
+        try {
+            val now = clock.currentTimeMillis()
+            val endTime = now + daysAhead * Consts.DAY_IN_MILLISECONDS
+
+            val uri = CalendarContract.Instances.CONTENT_URI.buildUpon()
+                .appendPath(now.toString())
+                .appendPath(endTime.toString())
+                .build()
+
+            val projection = arrayOf(CalendarContract.Events.CALENDAR_ID)
+
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val calendarId = cursor.getLong(0)
+                    counts[calendarId] = (counts[calendarId] ?: 0) + 1
+                }
+            }
+
+            DevLog.info(LOG_TAG, "getUpcomingEventCountsByCalendar: found events in ${counts.size} calendars")
+        } catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "getUpcomingEventCountsByCalendar: SecurityException ${ex.message}")
+        }
+
+        return counts
+    }
 }

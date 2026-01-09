@@ -261,6 +261,11 @@ class MockCalendarProvider(
         every {
             CalendarProvider.getEventAlertsForInstancesInRange(any(), any<Long>(), any<Long>())
         } returns emptyList()
+        
+        // Stub getUpcomingEventCountsByCalendar - return empty map by default
+        every {
+            CalendarProvider.getUpcomingEventCountsByCalendar(any(), any())
+        } returns emptyMap()
     }
     
     /**

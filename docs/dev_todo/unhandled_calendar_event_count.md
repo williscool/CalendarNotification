@@ -2,7 +2,7 @@
 
 **Origin:** User restored Android backup which had a calendar marked as unhandled. Didn't realize they were missing events from that calendar.
 
-## Status: 📋 PLANNING
+## Status: ✅ COMPLETED
 
 ---
 

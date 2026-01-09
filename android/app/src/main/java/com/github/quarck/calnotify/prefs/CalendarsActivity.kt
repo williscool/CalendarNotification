@@ -57,7 +57,8 @@ class CalendarListEntry(
         val type: CalendarListEntryType,
         val headerTitle: String? = null,
         val calendar: CalendarRecord? = null,
-        var isHandled: Boolean = true
+        var isHandled: Boolean = true,
+        val upcomingEventCount: Int = 0
 )
 
 
@@ -122,7 +123,14 @@ class CalendarListAdapter(val context: Context, var entries: Array<CalendarListE
                 }
 
                 CalendarListEntryType.Calendar -> {
-                    holder.checkboxCalendarName.text = entry.calendar?.name ?: ""
+                    val calendarName = entry.calendar?.name ?: ""
+                    // Show upcoming event count for unhandled calendars with events
+                    val displayText = if (!entry.isHandled && entry.upcomingEventCount > 0) {
+                        context.getString(R.string.calendar_name_with_event_count, calendarName, entry.upcomingEventCount)
+                    } else {
+                        calendarName
+                    }
+                    holder.checkboxCalendarName.text = displayText
                     holder.calendarAccountName.visibility = View.GONE
                     holder.calendarEntryLayout.visibility = View.VISIBLE
                     holder.colorView.background = ColorDrawable(entry.calendar?.color ?: Consts.DEFAULT_CALENDAR_EVENT_COLOR)
@@ -256,6 +264,7 @@ class CalendarsActivity : AppCompatActivity() {
 
     private fun loadCalendars() {
         val calendars = CalendarProvider.getCalendars(this).toTypedArray()
+        val upcomingCounts = CalendarProvider.getUpcomingEventCountsByCalendar(this, UPCOMING_EVENTS_DAYS)
 
         val entries = mutableListOf<CalendarListEntry>()
 
@@ -274,7 +283,8 @@ class CalendarsActivity : AppCompatActivity() {
                                 CalendarListEntry(
                                         type = CalendarListEntryType.Calendar,
                                         calendar = it,
-                                        isHandled = settings.getCalendarIsHandled(it.calendarId))
+                                        isHandled = settings.getCalendarIsHandled(it.calendarId),
+                                        upcomingEventCount = upcomingCounts[it.calendarId] ?: 0)
                             })
 
             // Add a divider
@@ -311,5 +321,6 @@ class CalendarsActivity : AppCompatActivity() {
     companion object {
         private const val LOG_TAG = "CalendarsActivity"
         private const val SYNC_WAIT_MS = 2000L
+        private const val UPCOMING_EVENTS_DAYS = 7
     }
 }
