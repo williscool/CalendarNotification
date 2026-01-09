@@ -2,7 +2,7 @@
 
 **Issue:** User reported only 1 of 2 Google calendars showing in "Handled Calendars" on fresh install (Pixel Fold). Required phone restart to see both.
 
-## Status: 📋 PLANNING
+## Status: ✅ COMPLETED
 
 ---
 
