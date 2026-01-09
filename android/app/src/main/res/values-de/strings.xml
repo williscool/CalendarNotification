@@ -305,6 +305,7 @@
     <string name="event_was_created_reminder_at" formatted="false">Termin wurde erstellt, nächste Erinnerung: %s</string>
 
     <string name="event_not_found">Termin nicht gefunden</string>
+    <string name="event_not_found_opening_calendar_at_time">Termin nicht im Kalender gefunden - zeige Kalender zur Terminzeit</string>
     <string name="calendar_not_found">Kalender nicht gefunden</string>
     <string name="failed_to_update_event_details">Fehler beim Aktualisieren der Details</string>
     <string name="failed_to_move_event">Termin konnte nicht verschoben werden: </string>

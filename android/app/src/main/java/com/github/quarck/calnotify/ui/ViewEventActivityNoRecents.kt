@@ -1,6 +1,7 @@
 //
 //   Calendar Notifications Plus  
 //   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
@@ -102,9 +103,14 @@ class ViewEventById(private val context: Context, internal var eventId: Long) : 
     }
 }
 
+/**
+ * Runnable that opens an event in the calendar with fallback if event not found.
+ * Uses CalendarProvider singleton to check event existence.
+ */
 class ViewEventByEvent(private val context: Context, internal var event: EventAlertRecord) : Runnable {
     override fun run() {
-        CalendarIntents.viewCalendarEvent(context, event)
+        // Use fallback method - if event not found, opens calendar at event time
+        CalendarIntents.viewCalendarEventWithFallback(context, CalendarProvider, event)
     }
 }
 
@@ -376,7 +382,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
             } else {
                 fab.setOnClickListener { _ ->
-                    CalendarIntents.viewCalendarEvent(this, event)
+                    openEventInCalendar(event)
                     finish()
                 }
             }
@@ -497,7 +503,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                 }
 
                 R.id.action_open_in_calendar -> {
-                    CalendarIntents.viewCalendarEvent(this, event)
+                    openEventInCalendar(event)
                     finish()
                     true
                 }
@@ -555,7 +561,20 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonEventDetailsClick(v: View?) {
-        CalendarIntents.viewCalendarEvent(this, event)
+        openEventInCalendar(event)
+    }
+
+    /**
+     * Opens an event in the calendar with fallback to time-based view if event not found.
+     * Shows a toast if the event was not found in the system calendar.
+     * 
+     * @see <a href="https://github.com/williscool/CalendarNotification/issues/66">Issue #66</a>
+     */
+    private fun openEventInCalendar(event: EventAlertRecord) {
+        val found = CalendarIntents.viewCalendarEventWithFallback(this, calendarProvider, event)
+        if (!found) {
+            Toast.makeText(this, R.string.event_not_found_opening_calendar_at_time, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun snoozeEvent(snoozeDelay: Long) {
@@ -852,7 +871,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                 // Show
                 if (Settings(this).viewAfterEdit) {
                     handler.postDelayed({
-                        CalendarIntents.viewCalendarEvent(this, event)
+                        openEventInCalendar(event)
                         finish()
                     }, 100)
                 }

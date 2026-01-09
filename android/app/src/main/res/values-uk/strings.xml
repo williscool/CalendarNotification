@@ -244,6 +244,7 @@
     <string name="event_was_created">Подія створена</string>
     <string name="event_was_created_reminder_at" formatted="false">Подія створена, спрацює о: %s</string>
     <string name="event_not_found">Подія не знайдена</string>
+    <string name="event_not_found_opening_calendar_at_time">Подія не знайдена в календарі - показую календар на час події</string>
     <string name="calendar_not_found">Календар не знайдений</string>
     <string name="failed_to_update_event_details">Не вдалося оновити деталі події</string>
     <string name="failed_to_move_event">Не вдалося перемістити подію: </string>
