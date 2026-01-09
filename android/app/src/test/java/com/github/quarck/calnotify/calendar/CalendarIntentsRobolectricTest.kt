@@ -183,9 +183,34 @@ class CalendarIntentsRobolectricTest {
         val shadow = shadowOf(activity)
         val intent = shadow.nextStartedActivity
 
-        // Should use instanceStartTime, not startTime
+        // Should use instanceStartTime (via displayedStartTime), not startTime
         assertEquals(
             "content://com.android.calendar/time/1704067200000",
+            intent.data.toString()
+        )
+    }
+
+    @Test
+    fun viewCalendarEventWithFallback_falls_back_to_start_time_when_instance_start_is_zero() {
+        val activity = Robolectric.buildActivity(Activity::class.java).create().get()
+        val mockProvider = mockk<CalendarProviderInterface>()
+        // instanceStartTime is 0, should fall back to startTime (via displayedStartTime)
+        val event = createTestEvent(
+            eventId = 12345L,
+            startTime = 1700000000000L,
+            instanceStartTime = 0L
+        )
+
+        every { mockProvider.getEvent(any(), event.eventId) } returns null
+
+        CalendarIntents.viewCalendarEventWithFallback(activity, mockProvider, event)
+
+        val shadow = shadowOf(activity)
+        val intent = shadow.nextStartedActivity
+
+        // Should use startTime since instanceStartTime is 0
+        assertEquals(
+            "content://com.android.calendar/time/1700000000000",
             intent.data.toString()
         )
     }

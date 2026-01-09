@@ -117,9 +117,11 @@ object CalendarIntents {
             true
         } else {
             // Event not found, fallback to time-based view
+            // Use displayedStartTime which falls back to startTime if instanceStartTime is 0
+            val fallbackTime = event.displayedStartTime
             DevLog.info(LOG_TAG, "Event ${event.eventId} not found in calendar, " +
-                "falling back to time view at ${event.instanceStartTime}")
-            viewCalendarAtTime(context, event.instanceStartTime)
+                "falling back to time view at $fallbackTime")
+            viewCalendarAtTime(context, fallbackTime)
             false
         }
     }
