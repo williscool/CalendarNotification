@@ -11,11 +11,18 @@
         tools:showIn="@layout/activity_calendars"
 	>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/list_calendars"
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh_calendars"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/cardview_light_background" />
+        android:layout_height="match_parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list_calendars"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/cardview_light_background" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 	<TextView
 		android:id="@+id/no_calendars_text"

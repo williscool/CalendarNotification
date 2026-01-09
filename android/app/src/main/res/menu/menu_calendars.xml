@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".prefs.CalendarsActivity">
+
+    <item
+        android:id="@+id/action_refresh_calendars"
+        android:icon="@drawable/ic_refresh_white_24dp"
+        android:orderInCategory="100"
+        android:title="@string/refresh_calendars"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_calendar_sync_help"
+        android:orderInCategory="200"
+        android:title="@string/calendar_sync_help"
+        app:showAsAction="never" />
+
+</menu>

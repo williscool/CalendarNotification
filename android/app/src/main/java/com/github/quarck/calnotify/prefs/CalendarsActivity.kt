@@ -1,6 +1,7 @@
 //
 //   Calendar Notifications Plus
 //   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 //
 //   This program is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU General Public License as published by
@@ -18,26 +19,34 @@
 //
 package com.github.quarck.calnotify.prefs
 
+import android.content.ActivityNotFoundException
+import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.StaggeredGridLayoutManager
-import androidx.appcompat.widget.Toolbar
+import android.provider.CalendarContract
+import android.provider.Settings
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
-import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.Settings as AppSettings
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.CalendarRecord
 import com.github.quarck.calnotify.logs.DevLog
-//import com.github.quarck.calnotify.logs.Logger
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
@@ -142,8 +151,9 @@ class CalendarsActivity : AppCompatActivity() {
     private lateinit var staggeredLayoutManager: StaggeredGridLayoutManager
     private lateinit var recyclerView: RecyclerView
     private lateinit var noCalendarsText: TextView
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
-    private lateinit var settings: Settings
+    private lateinit var settings: AppSettings
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -155,7 +165,7 @@ class CalendarsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
 
-        settings = Settings(this)
+        settings = AppSettings(this)
 
         adapter = CalendarListAdapter(this, arrayOf<CalendarListEntry>())
 
@@ -172,53 +182,124 @@ class CalendarsActivity : AppCompatActivity() {
         recyclerView.adapter = adapter;
 
         noCalendarsText = findOrThrow<TextView>(R.id.no_calendars_text)
+
+        swipeRefreshLayout = findOrThrow<SwipeRefreshLayout>(R.id.swipe_refresh_calendars)
+        swipeRefreshLayout.setOnRefreshListener {
+            requestCalendarSyncAndRefresh()
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_calendars, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_refresh_calendars -> {
+                swipeRefreshLayout.isRefreshing = true
+                requestCalendarSyncAndRefresh()
+                true
+            }
+            R.id.action_calendar_sync_help -> {
+                showCalendarSyncHelp()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun requestCalendarSyncAndRefresh() {
+        background {
+            try {
+                val extras = Bundle().apply {
+                    putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true)
+                    putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true)
+                }
+                ContentResolver.requestSync(null, CalendarContract.AUTHORITY, extras)
+                DevLog.info(LOG_TAG, "Requested calendar sync")
+
+                // Wait for sync to start/complete
+                Thread.sleep(SYNC_WAIT_MS)
+            } catch (ex: SecurityException) {
+                DevLog.error(LOG_TAG, "SecurityException requesting sync: ${ex.message}")
+            }
+
+            loadCalendars()
+
+            runOnUiThread {
+                swipeRefreshLayout.isRefreshing = false
+            }
+        }
+    }
+
+    private fun showCalendarSyncHelp() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.calendar_sync_help_title)
+            .setMessage(R.string.calendar_sync_help_message)
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.open_sync_settings) { _, _ ->
+                openSyncSettings()
+            }
+            .show()
+    }
+
+    private fun openSyncSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_SYNC_SETTINGS)
+            startActivity(intent)
+        } catch (ex: ActivityNotFoundException) {
+            DevLog.error(LOG_TAG, "Could not open sync settings: ${ex.message}")
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        }
+    }
+
+    private fun loadCalendars() {
+        val calendars = CalendarProvider.getCalendars(this).toTypedArray()
+
+        val entries = mutableListOf<CalendarListEntry>()
+
+        // Arrange entries by accountName calendar
+        for ((accountName, type) in calendars.map { Pair(it.accountName, it.accountType) }.toSet()) {
+
+            // Add group title
+            entries.add(CalendarListEntry(type = CalendarListEntryType.Header, headerTitle = accountName))
+
+            // Add all the calendars for this accountName
+            entries.addAll(
+                    calendars
+                            .filter { it.accountName == accountName && it.accountType == type }
+                            .sortedBy { it.calendarId }
+                            .map {
+                                CalendarListEntry(
+                                        type = CalendarListEntryType.Calendar,
+                                        calendar = it,
+                                        isHandled = settings.getCalendarIsHandled(it.calendarId))
+                            })
+
+            // Add a divider
+            entries.add(CalendarListEntry(type = CalendarListEntryType.Divider))
+        }
+
+        // remove last divider
+        if (entries.size >= 1 && entries[entries.size - 1].type == CalendarListEntryType.Divider)
+            entries.removeAt(entries.size - 1)
+
+        val entriesFinal = entries.toTypedArray()
+
+        runOnUiThread {
+            noCalendarsText.visibility = if (entriesFinal.isNotEmpty()) View.GONE else View.VISIBLE
+
+            adapter.entries = entriesFinal
+            adapter.notifyDataSetChanged();
+        }
     }
 
     override fun onResume() {
         super.onResume()
 
         background {
-            // load the data here
-            val calendars = CalendarProvider.getCalendars(this).toTypedArray()
-
-            val entries = mutableListOf<CalendarListEntry>()
-
-            // Arrange entries by accountName calendar
-            for ((accountName, type) in calendars.map { Pair(it.accountName, it.accountType) }.toSet()) {
-
-                // Add group title
-                entries.add(CalendarListEntry(type = CalendarListEntryType.Header, headerTitle = accountName))
-
-                // Add all the calendars for this accountName
-                entries.addAll(
-                        calendars
-                                .filter { it.accountName == accountName && it.accountType == type }
-                                .sortedBy { it.calendarId }
-                                .map {
-                                    CalendarListEntry(
-                                            type = CalendarListEntryType.Calendar,
-                                            calendar = it,
-                                            isHandled = settings.getCalendarIsHandled(it.calendarId))
-                                })
-
-                // Add a divider
-                entries.add(CalendarListEntry(type = CalendarListEntryType.Divider))
-            }
-
-            // remove last divider
-            if (entries.size >= 1 && entries[entries.size - 1].type == CalendarListEntryType.Divider)
-                entries.removeAt(entries.size - 1)
-
-            val entriesFinal = entries.toTypedArray()
-
-            runOnUiThread {
-                // update activity finally
-
-                noCalendarsText.visibility = if (entriesFinal.isNotEmpty()) View.GONE else View.VISIBLE
-
-                adapter.entries = entriesFinal
-                adapter.notifyDataSetChanged();
-            }
+            loadCalendars()
         }
     }
 
@@ -229,5 +310,6 @@ class CalendarsActivity : AppCompatActivity() {
 
     companion object {
         private const val LOG_TAG = "CalendarsActivity"
+        private const val SYNC_WAIT_MS = 2000L
     }
 }
