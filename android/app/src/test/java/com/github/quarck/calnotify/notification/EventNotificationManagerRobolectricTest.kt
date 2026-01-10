@@ -824,6 +824,40 @@ class EventNotificationManagerRobolectricTest {
             setOnlyAlertOnce
         )
     }
+    
+    @Test
+    fun `POTENTIAL BUG - individual reminder uses isForce which sets setOnlyAlertOnce`() {
+        // This test documents a potential issue with individual notification reminders:
+        // In fireEventReminderNoSeparateNotification, postNotification is called with isForce=true
+        // This causes setOnlyAlertOnce(true) to be set.
+        // 
+        // The notification IS cancelled first, so theoretically Android should treat it as new.
+        // But there might be timing issues or Android quirks that prevent sound from playing.
+        //
+        // The code path:
+        // 1. context.notificationManager.cancel(firstEvent.notificationId)
+        // 2. postNotification(..., isForce = true, ...)
+        // 3. In postNotification: .setOnlyAlertOnce(isForce || wasCollapsed) = true
+        //
+        // This test just documents the current behavior. If individual reminders are broken,
+        // we might need to change the logic to use isForce=false for reminders, or add a
+        // separate isReminder check for setOnlyAlertOnce.
+        
+        // Current individual reminder path settings:
+        val isForce = true  // As passed from fireEventReminderNoSeparateNotification
+        val wasCollapsed = false
+        val isReminder = true  // This is a reminder
+        
+        // Current setOnlyAlertOnce logic in postNotification:
+        val currentSetOnlyAlertOnce = isForce || wasCollapsed
+        
+        // This is TRUE, which tells Android "don't alert if already showing"
+        assertTrue("Current logic sets setOnlyAlertOnce=true for reminders", currentSetOnlyAlertOnce)
+        
+        // PROPOSED FIX: Don't set setOnlyAlertOnce for reminders (since we want sound to play)
+        // val proposedSetOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
+        // assertFalse("Proposed fix: reminders should alert", proposedSetOnlyAlertOnce)
+    }
 
     @Test
     fun `individual notification setOnlyAlertOnce - expanding from collapsed should not alert`() {
@@ -836,6 +870,185 @@ class EventNotificationManagerRobolectricTest {
         assertTrue(
             "Expanding from collapsed should set onlyAlertOnce to prevent re-alerting",
             setOnlyAlertOnce
+        )
+    }
+
+    // === BUG DEMONSTRATION TESTS: Recurring event reminder sound not playing ===
+    // These tests demonstrate the bug where reminders don't play sound for collapsed events
+    // because the displayStatus check skips the sound update block.
+    
+    @Test
+    fun `BUG - reminder sound SHOULD play for collapsed event with DisplayedCollapsed status`() {
+        // This test demonstrates the bug where reminders don't work for recurring events.
+        // 
+        // Scenario:
+        // 1. Event fires and gets displayed collapsed → displayStatus = DisplayedCollapsed
+        // 2. Reminder alarm fires → calls postEverythingCollapsed with force=false
+        // 3. Production code checks: (displayStatus != DisplayedCollapsed) || force
+        // 4. Since displayStatus IS DisplayedCollapsed and force IS false → condition is FALSE
+        // 5. The inner block is SKIPPED entirely → shouldPlayAndVibrate is NOT updated
+        // 6. Sound doesn't play!
+        //
+        // Expected: Sound SHOULD play for reminders regardless of displayStatus
+        // Actual (BUG): Sound doesn't play because the block is skipped
+        
+        val eventWithDisplayedCollapsedStatus = listOf(
+            createTestEvent(
+                eventId = 1, 
+                isMuted = false,
+                displayStatus = EventDisplayStatus.DisplayedCollapsed  // Already shown as collapsed
+            )
+        )
+        val hasAlarms = false
+        
+        // This is the reminder path: force = false, playReminderSound = true
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = eventWithDisplayedCollapsedStatus,
+            force = false,  // Reminder path uses force=false
+            isQuietPeriodActive = false,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
+        
+        // THIS TEST SHOULD FAIL - demonstrating the bug!
+        // Once we fix the bug, this test will pass.
+        assertTrue(
+            "BUG: Reminder sound SHOULD play for collapsed events, but currently doesn't because " +
+            "the displayStatus==DisplayedCollapsed check causes the sound update block to be skipped",
+            shouldPlayAndVibrate
+        )
+    }
+    
+    @Test
+    fun `WORKING - first notification sound plays for new event with Hidden status`() {
+        // This test shows the working case: new events have displayStatus=Hidden,
+        // so the condition (displayStatus != DisplayedCollapsed) is TRUE and sound plays.
+        
+        val newEvent = listOf(
+            createTestEvent(
+                eventId = 1,
+                isMuted = false,
+                displayStatus = EventDisplayStatus.Hidden  // New event, not yet displayed
+            )
+        )
+        val hasAlarms = false
+        
+        // First notification path: force = false, playReminderSound = false
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = newEvent,
+            force = false,
+            isQuietPeriodActive = false,
+            playReminderSound = false,
+            hasAlarms = hasAlarms
+        )
+        
+        // This should pass - new events work correctly
+        assertTrue(
+            "First notification for new event should play sound",
+            shouldPlayAndVibrate
+        )
+    }
+    
+    @Test
+    fun `WORKING - snoozed event sound plays when snooze expires`() {
+        // This test shows why snoozing "fixes" the problem: snoozed events go through
+        // a different code path that ALWAYS updates shouldPlayAndVibrate.
+        
+        val snoozedEvent = listOf(
+            createTestEvent(
+                eventId = 1,
+                isMuted = false,
+                snoozedUntil = baseTime + 1000,  // Event is snoozed
+                displayStatus = EventDisplayStatus.Hidden
+            )
+        )
+        val hasAlarms = false
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = snoozedEvent,
+            force = false,
+            isQuietPeriodActive = false,
+            playReminderSound = false,
+            hasAlarms = hasAlarms
+        )
+        
+        // This should pass - snoozed events have their own path that works correctly
+        assertTrue(
+            "Snoozed event should play sound when snooze expires",
+            shouldPlayAndVibrate
+        )
+    }
+    
+    @Test
+    fun `BUG - multiple events with DisplayedCollapsed all get skipped during reminder`() {
+        // This demonstrates the bug affects ALL collapsed events, not just recurring ones.
+        // It's just more noticeable with recurring events because they tend to stick around longer.
+        
+        val multipleCollapsedEvents = listOf(
+            createTestEvent(
+                eventId = 1,
+                isMuted = false,
+                displayStatus = EventDisplayStatus.DisplayedCollapsed
+            ),
+            createTestEvent(
+                eventId = 2,
+                isMuted = false,
+                displayStatus = EventDisplayStatus.DisplayedCollapsed
+            ),
+            createTestEvent(
+                eventId = 3,
+                isMuted = false,
+                displayStatus = EventDisplayStatus.DisplayedCollapsed
+            )
+        )
+        val hasAlarms = false
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = multipleCollapsedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
+        
+        // THIS TEST SHOULD FAIL - demonstrating the bug!
+        assertTrue(
+            "BUG: Reminder sound should play even when all events have DisplayedCollapsed status",
+            shouldPlayAndVibrate
+        )
+    }
+    
+    @Test
+    fun `BUG WORKAROUND - if ANY event is not DisplayedCollapsed, reminder sound plays`() {
+        // This shows that if even ONE event has a different displayStatus, sound will play.
+        // This explains why the bug might be intermittent - if you have a mix of events.
+        
+        val mixedStatusEvents = listOf(
+            createTestEvent(
+                eventId = 1,
+                isMuted = false,
+                displayStatus = EventDisplayStatus.DisplayedCollapsed  // Would be skipped
+            ),
+            createTestEvent(
+                eventId = 2,
+                isMuted = false,
+                displayStatus = EventDisplayStatus.Hidden  // This one triggers sound!
+            )
+        )
+        val hasAlarms = false
+        
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = mixedStatusEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            playReminderSound = true,
+            hasAlarms = hasAlarms
+        )
+        
+        // This should pass - the Hidden event saves the day
+        assertTrue(
+            "If any event is not DisplayedCollapsed, reminder sound should play",
+            shouldPlayAndVibrate
         )
     }
 

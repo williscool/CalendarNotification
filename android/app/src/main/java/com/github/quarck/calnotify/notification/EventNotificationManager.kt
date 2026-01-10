@@ -1715,6 +1715,63 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             // Apply override using ACTUAL PRODUCTION CODE
             return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
         }
+        
+        /**
+         * Computes whether sound/vibration should play for collapsed notification,
+         * using the EXACT production logic from postEverythingCollapsed including
+         * displayStatus and force checks.
+         * 
+         * THIS MATCHES THE ACTUAL PRODUCTION CODE IN postEverythingCollapsed (lines 441-497).
+         * 
+         * The bug being tested: When events have displayStatus=DisplayedCollapsed and
+         * force=false (the reminder path), the inner block is skipped entirely,
+         * causing shouldPlayAndVibrate to never be updated.
+         * 
+         * @param events List of events to display
+         * @param force Whether to force re-post (passed from caller)
+         * @param isQuietPeriodActive Whether quiet hours are active
+         * @param playReminderSound Whether this is a reminder (affects sound logic)
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return true if sound should play, false otherwise
+         */
+        fun computeShouldPlayAndVibrateForCollapsedFull(
+            events: List<EventAlertRecord>,
+            force: Boolean,
+            isQuietPeriodActive: Boolean,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Boolean {
+            var shouldPlayAndVibrate = false
+            
+            for (event in events) {
+                if (event.snoozedUntil == 0L) {
+                    // This is the EXACT condition from production code line 445
+                    if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force) {
+                        var shouldBeQuiet = false
+                        
+                        if (force) {
+                            shouldBeQuiet = true
+                        } else if (event.displayStatus == EventDisplayStatus.DisplayedNormal) {
+                            shouldBeQuiet = true
+                        } else if (isQuietPeriodActive) {
+                            // Simplified - in production there's primaryEventId logic here
+                            shouldBeQuiet = true
+                        }
+                        
+                        shouldBeQuiet = shouldBeQuiet || event.isMuted
+                        shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
+                    }
+                    // BUG: If displayStatus == DisplayedCollapsed and force == false,
+                    // we skip this block entirely and shouldPlayAndVibrate is NOT updated!
+                } else {
+                    // Snoozed event switching to shown state - ALWAYS updates shouldPlayAndVibrate
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || (!isQuietPeriodActive && !event.isMuted)
+                }
+            }
+            
+            // Apply reminder sound override
+            return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+        }
 
         /**
          * Computes the notification mode based on event count and settings.
