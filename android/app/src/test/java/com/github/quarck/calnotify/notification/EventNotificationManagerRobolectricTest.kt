@@ -1128,6 +1128,48 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
+    // === postedNotification tests ===
+    
+    @Test
+    fun `postedNotification - true for new events`() {
+        val newEvents = listOf(createTestEvent(displayStatus = EventDisplayStatus.Hidden))
+        val (_, postedNotification) = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = newEvents, force = false, isQuietPeriodActive = false,
+            playReminderSound = false, hasAlarms = false
+        )
+        assertTrue("New events should post", postedNotification)
+    }
+    
+    @Test
+    fun `postedNotification - true for snoozed events`() {
+        val snoozedEvents = listOf(createTestEvent(snoozedUntil = baseTime + 1000))
+        val (_, postedNotification) = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = snoozedEvents, force = false, isQuietPeriodActive = false,
+            playReminderSound = false, hasAlarms = false
+        )
+        assertTrue("Snoozed events should post", postedNotification)
+    }
+    
+    @Test
+    fun `postedNotification - true for reminder on collapsed`() {
+        val collapsedEvents = listOf(createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed))
+        val (_, postedNotification) = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = collapsedEvents, force = false, isQuietPeriodActive = false,
+            playReminderSound = true, hasAlarms = false
+        )
+        assertTrue("Reminder should post even for collapsed", postedNotification)
+    }
+    
+    @Test
+    fun `postedNotification - false for already-collapsed without reminder or force`() {
+        val collapsedEvents = listOf(createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed))
+        val (_, postedNotification) = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
+            events = collapsedEvents, force = false, isQuietPeriodActive = false,
+            playReminderSound = false, hasAlarms = false
+        )
+        assertFalse("Already-collapsed events without reminder/force should not post", postedNotification)
+    }
+
     // === Helper methods ===
 
     private fun createTestEvent(
