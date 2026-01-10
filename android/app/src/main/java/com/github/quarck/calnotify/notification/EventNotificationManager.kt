@@ -1869,9 +1869,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
          * @param isReminder Whether this is a reminder notification
          * @return true if notification should only alert once (suppress sound), false to allow sound
          */
-        fun computeShouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, @Suppress("UNUSED_PARAMETER") isReminder: Boolean): Boolean {
-            // BUG: This ignores isReminder, so reminders don't play sound!
-            return isForce || wasCollapsed
+        fun computeShouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, isReminder: Boolean): Boolean {
+            // FIX: Don't suppress alert for reminders - we want sound to play!
+            return (isForce || wasCollapsed) && !isReminder
         }
     }
 }
