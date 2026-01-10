@@ -4,7 +4,7 @@
 
 This document describes the notification system in Calendar Notifications Plus, including notification channels, posting modes, sound/vibration logic, and the muting system.
 
-## Notification Philosophy (Issue #162)
+## Notification Philosophy
 
 The app's core purpose is to turn calendar notifications into a "to-do list with reminders" that bugs you until things get done. The notification channel system reflects this philosophy:
 
