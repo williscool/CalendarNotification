@@ -1,6 +1,6 @@
 # RFC: NotificationContext Refactor
 
-## Status: Proposed
+## Status: Complete
 
 ## Problem
 
@@ -22,9 +22,14 @@ After constraint reduction (e.g., `allMuted` implies `hasAlarms=false`), there a
 2. **State computed multiple times** - `hasAlarms`, `allMuted` recalculated in different places
 3. **Testing covers scenarios, not invariants** - we test ~30 specific cases but don't prove properties
 
+Additionally, `EventNotificationManager` has significant code duplication:
+- 3× `hasAlarms` calculation (`events.any { it.isAlarm && !it.isTask && !it.isMuted }`)
+- 2× `allMuted` calculation (`events.all { it.isMuted }`)
+- 2× nearly identical `shouldBeQuiet` logic blocks (~30 lines each)
+
 ## Proposed Solution
 
-### Phase 1: NotificationContext Data Class
+### Phase 1: NotificationContext Data Class ✅ COMPLETE
 
 Create a single data class that:
 - Computes all derived properties once from events list
@@ -86,7 +91,7 @@ enum class ChannelCategory {
 }
 ```
 
-### Phase 2: Invariant Tests
+### Phase 2: Invariant Tests ✅ COMPLETE
 
 Instead of testing ~30 scenarios individually, test properties that must ALWAYS hold:
 
@@ -97,55 +102,140 @@ Instead of testing ~30 scenarios individually, test properties that must ALWAYS 
 | 3 | `hasAlarms` switches to alarm channel variant |
 | 4 | Impossible states (allMuted + hasAlarms) throw |
 | 5 | Factory `fromEvents()` always produces valid contexts |
+| 6 | `playReminderSound` forces `isReminder=true` |
+| 7 | Channel matches `NotificationChannels.getChannelId` behavior |
 
 This reduces test surface from ~30 cases to ~10 invariants that cover ALL valid states.
 
-### Phase 3: Wire Into Production (Future)
+### Phase 3: Production Cleanup ✅ COMPLETE
 
-Gradually migrate production code to use `NotificationContext`:
+#### Phase 3A: Add Static Helper Methods to NotificationContext
+
+Add reusable calculation methods that can be used standalone:
 
 ```kotlin
-// Before (scattered calculations)
-val hasAlarms = events.any { it.isAlarm && !it.isTask && !it.isMuted }
-val allEventsMuted = events.all { it.isMuted }
-val channelId = computeCollapsedChannelId(events, hasAlarms, playReminderSound, hasNewTriggeringEvent)
-
-// After (single context)
-val ctx = NotificationContext.fromEvents(events, mode, playReminderSound, isQuietPeriodActive)
-val channelId = ctx.collapsedChannel.toChannelId()
+companion object {
+    /** Computes whether any event has an unmuted, non-task alarm */
+    fun computeHasAlarms(events: List<EventAlertRecord>): Boolean =
+        events.any { it.isAlarm && !it.isTask && !it.isMuted }
+    
+    /** Computes whether all events are muted (empty list returns false) */
+    fun computeAllMuted(events: List<EventAlertRecord>): Boolean =
+        events.isNotEmpty() && events.all { it.isMuted }
+    
+    /** Computes whether any new triggering event exists */
+    fun computeHasNewTriggeringEvent(events: List<EventAlertRecord>): Boolean =
+        events.any {
+            it.displayStatus == EventDisplayStatus.Hidden &&
+            it.snoozedUntil == 0L &&
+            !it.isMuted
+        }
+}
 ```
 
-Existing helper functions remain working during migration.
+#### Phase 3B: Add shouldBeQuiet Helper to EventNotificationManager
+
+Extract the duplicated ~30-line blocks into a single helper:
+
+```kotlin
+/**
+ * Computes whether a single event should be quiet (no sound/vibration).
+ * Consolidates duplicated logic from postDisplayedEventNotifications 
+ * and computeShouldPlayAndVibrateForCollapsedFull.
+ */
+fun computeShouldBeQuietForEvent(
+    event: EventAlertRecord,
+    force: Boolean,
+    isAlreadyDisplayed: Boolean,
+    isQuietPeriodActive: Boolean,
+    isPrimaryEvent: Boolean,
+    quietHoursMutePrimary: Boolean
+): Boolean {
+    val baseQuiet = when {
+        force -> true
+        isAlreadyDisplayed -> true
+        isQuietPeriodActive && isPrimaryEvent -> quietHoursMutePrimary && !event.isAlarm
+        isQuietPeriodActive -> true
+        else -> false
+    }
+    return baseQuiet || event.isMuted
+}
+```
+
+#### Phase 3C: Replace Inline hasAlarms Calculations
+
+Replace 3 occurrences:
+- Line 239-240: `recentEvents.any { ... } || collapsedEvents.any { ... }`
+- Line 351: `activeEvents.any { ... }`
+
+With: `NotificationContext.computeHasAlarms(events)`
+
+#### Phase 3D: Replace Duplicated shouldBeQuiet Blocks
+
+Replace the duplicated logic in:
+- `postDisplayedEventNotifications` (lines 673-710)
+- `computeShouldPlayAndVibrateForCollapsedFull` (lines 1689-1721)
+
+With calls to the new `computeShouldBeQuietForEvent()` helper.
+
+#### Phase 3E: Add Tests for New Helpers
+
+Add invariant tests for:
+- `computeHasAlarms()` - muted alarms excluded, tasks excluded
+- `computeAllMuted()` - empty list handling
+- `computeShouldBeQuietForEvent()` - all quiet conditions
 
 ## Benefits
 
 | Aspect | Before | After |
 |--------|--------|-------|
 | Constraints | Implicit, scattered | Explicit in `init {}` |
-| Derived state | Computed multiple times | Computed once |
+| Derived state | Computed 3× in different places | Computed once via helper |
+| shouldBeQuiet | 2× ~30 line blocks | 1× ~10 line helper |
 | Testing | ~30 scenario tests | ~10 invariant tests |
 | Impossible states | Silently wrong | Throw immediately |
 | Documentation | Truth tables | Self-documenting `when` |
 
+**Estimated reduction:** ~60 lines of duplicated code
+
 ## Effort Estimate
 
-| Phase | Effort | Dependencies |
-|-------|--------|--------------|
-| Phase 1 | 1-2 hours | None |
-| Phase 2 | 2-3 hours | Phase 1 |
-| Phase 3 | 4-6 hours | Phase 1+2, can defer |
+| Phase | Effort | Status |
+|-------|--------|--------|
+| Phase 1 | 1-2 hours | ✅ Complete |
+| Phase 2 | 2-3 hours | ✅ Complete |
+| Phase 3A | 30 min | ✅ Complete |
+| Phase 3B | 30 min | ✅ Complete |
+| Phase 3C | 30 min | ✅ Complete |
+| Phase 3D | 1 hour | ✅ Complete |
+| Phase 3E | 30 min | ✅ Complete |
 
 ## Files Affected
 
-**New files:**
-- `android/app/src/main/java/com/github/quarck/calnotify/notification/NotificationContext.kt`
-- `android/app/src/test/java/com/github/quarck/calnotify/notification/NotificationContextInvariantTest.kt`
+**New files (Phase 1+2):**
+- `android/app/src/main/java/com/github/quarck/calnotify/notification/NotificationContext.kt` ✅
+- `android/app/src/test/java/com/github/quarck/calnotify/notification/NotificationContextInvariantTest.kt` ✅
 
-**Modified (Phase 3 only):**
+**Modified (Phase 3):**
+- `android/app/src/main/java/com/github/quarck/calnotify/notification/NotificationContext.kt`
 - `android/app/src/main/java/com/github/quarck/calnotify/notification/EventNotificationManager.kt`
+- `android/app/src/test/java/com/github/quarck/calnotify/notification/NotificationContextInvariantTest.kt`
 
 ## Decision
 
-- [ ] Approve Phase 1+2 (context class + invariant tests)
-- [ ] Approve Phase 3 (production wiring)
+- [x] Approve Phase 1+2 (context class + invariant tests)
+- [x] Approve Phase 3 (production cleanup)
 - [ ] Reject / Needs changes
+
+## Results
+
+**Lines changed:**
+- `NotificationContext.kt`: Added ~50 lines (static helpers + documentation)
+- `EventNotificationManager.kt`: Net reduction of ~40 lines (removed duplicate shouldBeQuiet blocks)
+- `NotificationContextInvariantTest.kt`: Added ~230 lines (comprehensive invariant tests)
+
+**Benefits achieved:**
+- Single source of truth for `hasAlarms`, `allMuted`, `hasNewTriggeringEvent` calculations
+- Consolidated `shouldBeQuiet` logic into one testable helper
+- 11 invariant tests covering all edge cases
+- Explicit constraints that throw on impossible states

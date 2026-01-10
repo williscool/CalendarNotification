@@ -236,8 +236,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             val (recentEvents, collapsedEvents) = arrangeEvents(db, currentTime, settings)
 
             // Only count unmuted, non-task alarms (muted alarms should stay silent)
-            val anyAlarms = recentEvents.any { it.isAlarm && !it.isTask && !it.isMuted } || 
-                           collapsedEvents.any { it.isAlarm && !it.isTask && !it.isMuted }
+            val anyAlarms = NotificationContext.computeHasAlarms(recentEvents + collapsedEvents)
 
             if (!recentEvents.isEmpty())
                 collapseDisplayedNotifications(
@@ -348,7 +347,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
     ) {
         val (recentEvents, collapsedEvents) = arrangeEvents(activeEvents, settings)
 
-        val anyAlarms = activeEvents.any { it.isAlarm && !it.isTask && !it.isMuted }
+        val anyAlarms = NotificationContext.computeHasAlarms(activeEvents)
 
         if (!recentEvents.isEmpty()) {
             // normal
@@ -664,50 +663,24 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 // - this is currently potentially displayed event but we are doing "force re-post" to
                 //   ensure all requests are displayed (like at boot or after app upgrade
 
-                var wasCollapsed = false
+                // For individual notifications, "already displayed" = DisplayedCollapsed (expanding)
+                val wasCollapsed = event.displayStatus == EventDisplayStatus.DisplayedCollapsed
 
                 if ((event.displayStatus != EventDisplayStatus.DisplayedNormal) || force) {
                     // currently not displayed or forced -- post notifications
                     DevLog.info(LOG_TAG, "Posting notification id ${event.notificationId}, eventId ${event.eventId}")
 
-                    var shouldBeQuiet = false
+                    val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
+                    val shouldBeQuiet = computeShouldBeQuietForEvent(
+                        event = event,
+                        force = force,
+                        isAlreadyDisplayed = wasCollapsed,
+                        isQuietPeriodActive = isQuietPeriodActive,
+                        isPrimaryEvent = isPrimaryEvent,
+                        quietHoursMutePrimary = settings.quietHoursMutePrimary
+                    )
 
-                    @Suppress("CascadeIf")
-                    if (force) {
-                        // If forced to re-post all notifications - we only have to actually display notifications
-                        // so not playing sound / vibration here
-                        DevLog.info(LOG_TAG, "event ${event.eventId}: 'forced' notification - staying quiet")
-                        shouldBeQuiet = true
-                    }
-                    else if (event.displayStatus == EventDisplayStatus.DisplayedCollapsed) {
-                        // This event was already visible as "collapsed", user just removed some other notification
-                        // and so we automatically expanding some of the requests, this one was lucky.
-                        // No sound / vibration should be played here
-                        DevLog.info(LOG_TAG, "event ${event.eventId}: notification was collapsed, not playing sound")
-                        shouldBeQuiet = true
-                        wasCollapsed = true
-
-                    }
-                    else if (isQuietPeriodActive) {
-                        // we are in a silent period, normally we should always be quiet, but there
-                        // are a few exclusions
-                        @Suppress("LiftReturnOrAssignment")
-                        if (primaryEventId != null && event.eventId == primaryEventId) {
-                            // this is primary event -- play based on use preference for muting
-                            // primary event reminders
-                            DevLog.info(LOG_TAG, "event ${event.eventId}: quiet period and this is primary notification - sound according to settings")
-                            shouldBeQuiet = settings.quietHoursMutePrimary && !event.isAlarm
-                        }
-                        else {
-                            // not a primary event -- always silent in silent period
-                            DevLog.info(LOG_TAG, "event ${event.eventId}: quiet period and this is NOT primary notification quiet")
-                            shouldBeQuiet = true
-                        }
-                    }
-
-                    DevLog.debug(LOG_TAG, "event ${event.eventId}: shouldBeQuiet = $shouldBeQuiet, isMuted=${event.isMuted}")
-
-                    shouldBeQuiet = shouldBeQuiet || event.isMuted
+                    DevLog.debug(LOG_TAG, "event ${event.eventId}: shouldBeQuiet = $shouldBeQuiet, isMuted=${event.isMuted}, wasCollapsed=$wasCollapsed")
 
                     // Issue #162: Determine if this is a reminder (already tracked) or new event
                     // New events (Hidden status) use calendar_events channel
@@ -1686,37 +1659,18 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         // currently not displayed or forced or reminder -- calculate sound
                         postedNotification = true
 
-                        var shouldBeQuiet = false
-
-                        @Suppress("CascadeIf")
-                        if (force) {
-                            // If forced to re-post all notifications - we only have to actually display notifications
-                            // so not playing sound / vibration here
-                            shouldBeQuiet = true
-
-                        }
-                        else if (event.displayStatus == EventDisplayStatus.DisplayedNormal) {
-
-                            shouldBeQuiet = true
-
-                        }
-                        else if (isQuietPeriodActive) {
-
-                            // we are in a silent period, normally we should always be quiet, but there
-                            // are a few exclusions
-                            @Suppress("LiftReturnOrAssignment")
-                            if (primaryEventId != null && event.eventId == primaryEventId) {
-                                // this is primary event -- play based on user preference for muting
-                                // primary event reminders
-                                shouldBeQuiet = quietHoursMutePrimary && !event.isAlarm
-                            }
-                            else {
-                                // not a primary event -- always silent in silent period
-                                shouldBeQuiet = true
-                            }
-                        }
-
-                        shouldBeQuiet = shouldBeQuiet || event.isMuted
+                        // For collapsed notifications, "already displayed" means DisplayedNormal
+                        val isAlreadyDisplayed = event.displayStatus == EventDisplayStatus.DisplayedNormal
+                        val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
+                        
+                        val shouldBeQuiet = computeShouldBeQuietForEvent(
+                            event = event,
+                            force = force,
+                            isAlreadyDisplayed = isAlreadyDisplayed,
+                            isQuietPeriodActive = isQuietPeriodActive,
+                            isPrimaryEvent = isPrimaryEvent,
+                            quietHoursMutePrimary = quietHoursMutePrimary
+                        )
 
                         shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
 
@@ -1876,6 +1830,44 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         fun computeShouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, isReminder: Boolean): Boolean {
             // FIX: Don't suppress alert for reminders - we want sound to play!
             return (isForce || wasCollapsed) && !isReminder
+        }
+
+        /**
+         * Computes whether a single event should be quiet (no sound/vibration).
+         * THIS IS ACTUAL PRODUCTION CODE - consolidates duplicated logic from
+         * postDisplayedEventNotifications and computeShouldPlayAndVibrateForCollapsedFull.
+         * 
+         * An event should be quiet when:
+         * 1. Force repost (e.g., boot, settings change) - just display, no sound
+         * 2. Already displayed - no re-alerting for already visible notifications
+         * 3. Quiet period active AND not primary event - silent during quiet hours
+         * 4. Quiet period active AND primary event - depends on quietHoursMutePrimary setting
+         * 5. Event is muted - always quiet regardless of above
+         * 
+         * @param event The event to check
+         * @param force Whether this is a forced repost
+         * @param isAlreadyDisplayed Whether the event is already showing (DisplayedNormal or DisplayedCollapsed)
+         * @param isQuietPeriodActive Whether quiet hours are active
+         * @param isPrimaryEvent Whether this is the primary/triggering event
+         * @param quietHoursMutePrimary User setting for muting primary during quiet hours
+         * @return true if the event should be quiet (no sound), false to play sound
+         */
+        fun computeShouldBeQuietForEvent(
+            event: EventAlertRecord,
+            force: Boolean,
+            isAlreadyDisplayed: Boolean,
+            isQuietPeriodActive: Boolean,
+            isPrimaryEvent: Boolean,
+            quietHoursMutePrimary: Boolean
+        ): Boolean {
+            val baseQuiet = when {
+                force -> true
+                isAlreadyDisplayed -> true
+                isQuietPeriodActive && isPrimaryEvent -> quietHoursMutePrimary && !event.isAlarm
+                isQuietPeriodActive -> true
+                else -> false
+            }
+            return baseQuiet || event.isMuted
         }
     }
 }

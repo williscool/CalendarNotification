@@ -382,6 +382,278 @@ class NotificationContextInvariantTest {
     }
 
     // =============================================================================
+    // Invariant 8: Static helper computeHasAlarms
+    // =============================================================================
+
+    @Test
+    fun `invariant 8 - computeHasAlarms excludes muted alarms`() {
+        val mutedAlarm = createTestEvent(eventId = 1, isMuted = true, isAlarm = true)
+        val unmutedAlarm = createTestEvent(eventId = 2, isMuted = false, isAlarm = true)
+        val normalEvent = createTestEvent(eventId = 3, isMuted = false, isAlarm = false)
+        
+        assertFalse(
+            "Muted alarm alone should not count",
+            NotificationContext.computeHasAlarms(listOf(mutedAlarm))
+        )
+        assertTrue(
+            "Unmuted alarm should count",
+            NotificationContext.computeHasAlarms(listOf(unmutedAlarm))
+        )
+        assertFalse(
+            "Normal event should not count as alarm",
+            NotificationContext.computeHasAlarms(listOf(normalEvent))
+        )
+        assertTrue(
+            "Mixed list with unmuted alarm should return true",
+            NotificationContext.computeHasAlarms(listOf(mutedAlarm, unmutedAlarm, normalEvent))
+        )
+    }
+
+    @Test
+    fun `invariant 8 - computeHasAlarms excludes task alarms`() {
+        // Create a task alarm (isAlarm=true, isTask=true)
+        val taskAlarm = createTestEventWithTask(eventId = 1, isAlarm = true, isTask = true)
+        
+        assertFalse(
+            "Task alarms should not count towards hasAlarms",
+            NotificationContext.computeHasAlarms(listOf(taskAlarm))
+        )
+    }
+
+    @Test
+    fun `invariant 8 - computeHasAlarms empty list returns false`() {
+        assertFalse(
+            "Empty list should return false",
+            NotificationContext.computeHasAlarms(emptyList())
+        )
+    }
+
+    // =============================================================================
+    // Invariant 9: Static helper computeAllMuted
+    // =============================================================================
+
+    @Test
+    fun `invariant 9 - computeAllMuted returns true only when all muted`() {
+        val muted1 = createTestEvent(eventId = 1, isMuted = true)
+        val muted2 = createTestEvent(eventId = 2, isMuted = true)
+        val unmuted = createTestEvent(eventId = 3, isMuted = false)
+        
+        assertTrue(
+            "All muted events should return true",
+            NotificationContext.computeAllMuted(listOf(muted1, muted2))
+        )
+        assertFalse(
+            "Mixed list should return false",
+            NotificationContext.computeAllMuted(listOf(muted1, unmuted))
+        )
+        assertFalse(
+            "Single unmuted should return false",
+            NotificationContext.computeAllMuted(listOf(unmuted))
+        )
+    }
+
+    @Test
+    fun `invariant 9 - computeAllMuted empty list returns false`() {
+        assertFalse(
+            "Empty list should return false (not 'all muted')",
+            NotificationContext.computeAllMuted(emptyList())
+        )
+    }
+
+    // =============================================================================
+    // Invariant 10: Static helper computeHasNewTriggeringEvent
+    // =============================================================================
+
+    @Test
+    fun `invariant 10 - computeHasNewTriggeringEvent requires Hidden + not snoozed + not muted`() {
+        // Valid triggering event: Hidden, snoozedUntil=0, not muted
+        val validTrigger = createTestEvent(
+            eventId = 1,
+            displayStatus = EventDisplayStatus.Hidden,
+            snoozedUntil = 0L,
+            isMuted = false
+        )
+        assertTrue(
+            "Hidden, not snoozed, not muted should trigger",
+            NotificationContext.computeHasNewTriggeringEvent(listOf(validTrigger))
+        )
+        
+        // Muted hidden event should NOT trigger
+        val mutedHidden = createTestEvent(
+            eventId = 2,
+            displayStatus = EventDisplayStatus.Hidden,
+            snoozedUntil = 0L,
+            isMuted = true
+        )
+        assertFalse(
+            "Muted hidden event should not trigger",
+            NotificationContext.computeHasNewTriggeringEvent(listOf(mutedHidden))
+        )
+        
+        // Snoozed hidden event should NOT trigger
+        val snoozedHidden = createTestEvent(
+            eventId = 3,
+            displayStatus = EventDisplayStatus.Hidden,
+            snoozedUntil = baseTime + 3600000L,
+            isMuted = false
+        )
+        assertFalse(
+            "Snoozed hidden event should not trigger",
+            NotificationContext.computeHasNewTriggeringEvent(listOf(snoozedHidden))
+        )
+        
+        // Already displayed event should NOT trigger
+        val displayed = createTestEvent(
+            eventId = 4,
+            displayStatus = EventDisplayStatus.DisplayedNormal,
+            snoozedUntil = 0L,
+            isMuted = false
+        )
+        assertFalse(
+            "Already displayed event should not trigger",
+            NotificationContext.computeHasNewTriggeringEvent(listOf(displayed))
+        )
+    }
+
+    // =============================================================================
+    // Invariant 11: computeShouldBeQuietForEvent
+    // =============================================================================
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent force always quiet`() {
+        val event = createTestEvent(isMuted = false)
+        
+        assertTrue(
+            "Force should always be quiet",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = event,
+                force = true,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = false,
+                isPrimaryEvent = false,
+                quietHoursMutePrimary = false
+            )
+        )
+    }
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent already displayed always quiet`() {
+        val event = createTestEvent(isMuted = false)
+        
+        assertTrue(
+            "Already displayed should be quiet",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = event,
+                force = false,
+                isAlreadyDisplayed = true,
+                isQuietPeriodActive = false,
+                isPrimaryEvent = false,
+                quietHoursMutePrimary = false
+            )
+        )
+    }
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent muted always quiet`() {
+        val mutedEvent = createTestEvent(isMuted = true)
+        
+        assertTrue(
+            "Muted event should always be quiet",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = mutedEvent,
+                force = false,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = false,
+                isPrimaryEvent = false,
+                quietHoursMutePrimary = false
+            )
+        )
+    }
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent quiet period non-primary always quiet`() {
+        val event = createTestEvent(isMuted = false)
+        
+        assertTrue(
+            "Quiet period + non-primary should be quiet",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = event,
+                force = false,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = true,
+                isPrimaryEvent = false,
+                quietHoursMutePrimary = false
+            )
+        )
+    }
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent quiet period primary respects setting`() {
+        val event = createTestEvent(isMuted = false)
+        
+        // Primary event with quietHoursMutePrimary=true should be quiet
+        assertTrue(
+            "Quiet period + primary + mute setting should be quiet",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = event,
+                force = false,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = true,
+                isPrimaryEvent = true,
+                quietHoursMutePrimary = true
+            )
+        )
+        
+        // Primary event with quietHoursMutePrimary=false should NOT be quiet
+        assertFalse(
+            "Quiet period + primary + no mute setting should play sound",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = event,
+                force = false,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = true,
+                isPrimaryEvent = true,
+                quietHoursMutePrimary = false
+            )
+        )
+    }
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent alarm overrides quiet period primary mute`() {
+        val alarmEvent = createTestEvent(isMuted = false, isAlarm = true)
+        
+        // Alarm should play even when quietHoursMutePrimary=true
+        assertFalse(
+            "Alarm should override quiet period primary mute",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = alarmEvent,
+                force = false,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = true,
+                isPrimaryEvent = true,
+                quietHoursMutePrimary = true
+            )
+        )
+    }
+
+    @Test
+    fun `invariant 11 - computeShouldBeQuietForEvent normal case plays sound`() {
+        val event = createTestEvent(isMuted = false)
+        
+        assertFalse(
+            "Normal event with no quiet conditions should play sound",
+            EventNotificationManager.computeShouldBeQuietForEvent(
+                event = event,
+                force = false,
+                isAlreadyDisplayed = false,
+                isQuietPeriodActive = false,
+                isPrimaryEvent = false,
+                quietHoursMutePrimary = false
+            )
+        )
+    }
+
+    // =============================================================================
     // Helper functions
     // =============================================================================
 
@@ -392,10 +664,22 @@ class NotificationContextInvariantTest {
         snoozedUntil: Long = 0L,
         displayStatus: EventDisplayStatus = EventDisplayStatus.Hidden
     ): EventAlertRecord {
-        // Build flags from isMuted and isAlarm
+        return createTestEventWithTask(eventId, isMuted, isAlarm, isTask = false, snoozedUntil, displayStatus)
+    }
+
+    private fun createTestEventWithTask(
+        eventId: Long = 1L,
+        isMuted: Boolean = false,
+        isAlarm: Boolean = false,
+        isTask: Boolean = false,
+        snoozedUntil: Long = 0L,
+        displayStatus: EventDisplayStatus = EventDisplayStatus.Hidden
+    ): EventAlertRecord {
+        // Build flags from isMuted, isAlarm, and isTask
         // IS_MUTED = 1L, IS_TASK = 2L, IS_ALARM = 4L (from EventAlertFlags)
         var flags = 0L
         if (isMuted) flags = flags or 1L  // IS_MUTED
+        if (isTask) flags = flags or 2L   // IS_TASK
         if (isAlarm) flags = flags or 4L  // IS_ALARM
 
         return EventAlertRecord(

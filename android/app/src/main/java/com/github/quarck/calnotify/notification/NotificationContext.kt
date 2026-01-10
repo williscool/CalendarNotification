@@ -112,11 +112,65 @@ data class NotificationContext(
         }
 
     companion object {
+        // =========================================================================
+        // Static helper methods - can be used standalone without creating a context
+        // =========================================================================
+
+        /**
+         * Computes whether any event has an unmuted, non-task alarm.
+         * 
+         * This is the canonical definition of "has alarms" for notification decisions:
+         * - Must be marked as alarm (`isAlarm`)
+         * - Must NOT be a task (`!isTask`) - tasks don't use alarm sounds
+         * - Must NOT be muted (`!isMuted`) - muted alarms are silent
+         * 
+         * @param events List of events to check
+         * @return true if any event qualifies as an active alarm
+         */
+        fun computeHasAlarms(events: List<EventAlertRecord>): Boolean =
+            events.any { it.isAlarm && !it.isTask && !it.isMuted }
+
+        /**
+         * Computes whether all events are muted.
+         * 
+         * Note: An empty list returns false (no events = not "all muted").
+         * 
+         * @param events List of events to check
+         * @return true if list is non-empty AND all events are muted
+         */
+        fun computeAllMuted(events: List<EventAlertRecord>): Boolean =
+            events.isNotEmpty() && events.all { it.isMuted }
+
+        /**
+         * Computes whether any new triggering event exists.
+         * 
+         * A "new triggering" event is one that:
+         * - Has never been shown (`displayStatus == Hidden`)
+         * - Is not returning from snooze (`snoozedUntil == 0`)
+         * - Is not muted (`!isMuted`)
+         * 
+         * This determines whether to use the "events" channel (new) vs "reminders" channel.
+         * 
+         * @param events List of events to check
+         * @return true if any event qualifies as a new triggering event
+         */
+        fun computeHasNewTriggeringEvent(events: List<EventAlertRecord>): Boolean =
+            events.any {
+                it.displayStatus == EventDisplayStatus.Hidden &&
+                it.snoozedUntil == 0L &&
+                !it.isMuted
+            }
+
+        // =========================================================================
+        // Factory method
+        // =========================================================================
+
         /**
          * Factory: builds a valid NotificationContext from an events list.
          * 
-         * This method computes all derived properties correctly, ensuring
-         * the resulting context satisfies all invariants.
+         * This method computes all derived properties correctly using the
+         * static helper methods, ensuring the resulting context satisfies
+         * all invariants.
          * 
          * @param events List of events to analyze
          * @param mode The notification display mode
@@ -132,13 +186,9 @@ data class NotificationContext(
         ): NotificationContext {
             return NotificationContext(
                 eventCount = events.size,
-                hasAlarms = events.any { it.isAlarm && !it.isTask && !it.isMuted },
-                allMuted = events.isNotEmpty() && events.all { it.isMuted },
-                hasNewTriggeringEvent = events.any {
-                    it.displayStatus == EventDisplayStatus.Hidden &&
-                    it.snoozedUntil == 0L &&
-                    !it.isMuted
-                },
+                hasAlarms = computeHasAlarms(events),
+                allMuted = computeAllMuted(events),
+                hasNewTriggeringEvent = computeHasNewTriggeringEvent(events),
                 mode = mode,
                 playReminderSound = playReminderSound,
                 isQuietPeriodActive = isQuietPeriodActive
