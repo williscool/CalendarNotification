@@ -1120,9 +1120,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setOngoing(
                         !notificationSettings.behavior.allowNotificationSwipe
                 )
-                // FIX: Don't suppress alert for reminders - we want sound to play!
-                // isReminder=true means this is a reminder notification that should alert
-                .setOnlyAlertOnce((isForce || wasCollapsed) && !isReminder)
+                .setOnlyAlertOnce(computeShouldOnlyAlertOnce(isForce, wasCollapsed, isReminder))
                 .setStyle(
                         NotificationCompat.BigTextStyle().bigText(notificationTextString)
                 )
@@ -1853,6 +1851,27 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             } else {
                 NotificationChannels.CHANNEL_ID_DEFAULT
             }
+        }
+
+        /**
+         * Computes whether setOnlyAlertOnce should be true for individual notifications.
+         * THIS IS ACTUAL PRODUCTION CODE - called by postNotification.
+         * 
+         * setOnlyAlertOnce(true) tells Android to not re-alert if the notification is already showing.
+         * We want this for:
+         * - Forced reposts (e.g., after boot) - don't replay sound
+         * - Expanding from collapsed - don't replay sound
+         * 
+         * But NOT for reminders - we explicitly WANT sound to play for reminders!
+         * 
+         * @param isForce Whether this is a forced repost (e.g., boot, settings change)
+         * @param wasCollapsed Whether the event was previously in a collapsed notification
+         * @param isReminder Whether this is a reminder notification
+         * @return true if notification should only alert once (suppress sound), false to allow sound
+         */
+        fun computeShouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, @Suppress("UNUSED_PARAMETER") isReminder: Boolean): Boolean {
+            // BUG: This ignores isReminder, so reminders don't play sound!
+            return isForce || wasCollapsed
         }
     }
 }

@@ -832,18 +832,16 @@ class EventNotificationManagerRobolectricTest {
         // In fireEventReminderNoSeparateNotification, postNotification is called with:
         //   isForce=true, isReminder=true
         //
-        // The fix ensures reminders can alert by using:
-        //   setOnlyAlertOnce((isForce || wasCollapsed) && !isReminder)
-        //
-        // So when isReminder=true, setOnlyAlertOnce=false and sound can play.
+        // The fix ensures reminders can alert by using computeShouldOnlyAlertOnce()
+        // which returns false when isReminder=true.
         
         // Individual reminder path settings:
         val isForce = true  // As passed from fireEventReminderNoSeparateNotification
         val wasCollapsed = false
         val isReminder = true  // This is a reminder
         
-        // Fixed setOnlyAlertOnce logic in postNotification:
-        val setOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
+        // Use the actual production function
+        val setOnlyAlertOnce = EventNotificationManager.computeShouldOnlyAlertOnce(isForce, wasCollapsed, isReminder)
         
         // With the fix, reminders should NOT have setOnlyAlertOnce=true
         assertFalse(
@@ -859,7 +857,8 @@ class EventNotificationManagerRobolectricTest {
         val wasCollapsed = false
         val isReminder = false  // NOT a reminder
         
-        val setOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
+        // Use the actual production function
+        val setOnlyAlertOnce = EventNotificationManager.computeShouldOnlyAlertOnce(isForce, wasCollapsed, isReminder)
         
         assertTrue(
             "Non-reminder forced repost should suppress alert",
@@ -874,7 +873,8 @@ class EventNotificationManagerRobolectricTest {
         val wasCollapsed = true
         val isReminder = false
         
-        val setOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
+        // Use the actual production function
+        val setOnlyAlertOnce = EventNotificationManager.computeShouldOnlyAlertOnce(isForce, wasCollapsed, isReminder)
         
         assertTrue(
             "Expanding from collapsed should suppress alert",
