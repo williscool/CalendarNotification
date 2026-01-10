@@ -442,7 +442,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         // Also determine if any notification was posted
         for (event in events) {
             if (event.snoozedUntil == 0L) {
-                if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force) {
+                // Note: playReminderSound added to fix bug where reminders didn't play sound
+                // for events with displayStatus == DisplayedCollapsed
+                if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force || playReminderSound) {
                     postedNotification = true
                 }
             } else {
@@ -1705,21 +1707,30 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             var shouldPlayAndVibrate = false
             
             for (event in events) {
+
                 if (event.snoozedUntil == 0L) {
-                    // This is the condition that causes the bug - when displayStatus == DisplayedCollapsed
-                    // and force == false (the reminder path), this block is skipped entirely!
-                    if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force) {
+
+                    // FIX: Added playReminderSound to condition so reminders can play sound
+                    // even when displayStatus == DisplayedCollapsed
+                    if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force || playReminderSound) {
+                        // currently not displayed or forced or reminder -- calculate sound
+
                         var shouldBeQuiet = false
-                        
+
                         @Suppress("CascadeIf")
                         if (force) {
                             // If forced to re-post all notifications - we only have to actually display notifications
                             // so not playing sound / vibration here
                             shouldBeQuiet = true
-                        } else if (event.displayStatus == EventDisplayStatus.DisplayedNormal) {
-                            // notification was displayed, not playing sound
+
+                        }
+                        else if (event.displayStatus == EventDisplayStatus.DisplayedNormal) {
+
                             shouldBeQuiet = true
-                        } else if (isQuietPeriodActive) {
+
+                        }
+                        else if (isQuietPeriodActive) {
+
                             // we are in a silent period, normally we should always be quiet, but there
                             // are a few exclusions
                             @Suppress("LiftReturnOrAssignment")
@@ -1727,24 +1738,27 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                                 // this is primary event -- play based on user preference for muting
                                 // primary event reminders
                                 shouldBeQuiet = quietHoursMutePrimary && !event.isAlarm
-                            } else {
+                            }
+                            else {
                                 // not a primary event -- always silent in silent period
                                 shouldBeQuiet = true
                             }
                         }
-                        
+
                         shouldBeQuiet = shouldBeQuiet || event.isMuted
+
                         shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
+
                     }
-                    // BUG: If displayStatus == DisplayedCollapsed and force == false,
-                    // we skip this block entirely and shouldPlayAndVibrate is NOT updated!
-                } else {
-                    // Snoozed event switching to shown state - ALWAYS updates shouldPlayAndVibrate
+                }
+                else {
+                    // This event is currently snoozed and switching to "Shown" state
+
                     shouldPlayAndVibrate = shouldPlayAndVibrate || (!isQuietPeriodActive && !event.isMuted)
                 }
             }
             
-            // Apply reminder sound override
+            // Apply reminder sound override using shared helper (testable)
             return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
         }
 

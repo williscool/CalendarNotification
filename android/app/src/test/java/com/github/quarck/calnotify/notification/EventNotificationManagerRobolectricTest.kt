@@ -873,24 +873,24 @@ class EventNotificationManagerRobolectricTest {
         )
     }
 
-    // === BUG DEMONSTRATION TESTS: Recurring event reminder sound not playing ===
-    // These tests demonstrate the bug where reminders don't play sound for collapsed events
-    // because the displayStatus check skips the sound update block.
+    // === FIXED BUG TESTS: Recurring event reminder sound not playing ===
+    // These tests verify the fix for a bug where reminders didn't play sound for collapsed events
+    // because the displayStatus check was skipping the sound update block.
+    // 
+    // FIX: Added playReminderSound to the condition:
+    //   if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force || playReminderSound)
     
     @Test
-    fun `BUG - reminder sound SHOULD play for collapsed event with DisplayedCollapsed status`() {
-        // This test demonstrates the bug where reminders don't work for recurring events.
+    fun `FIXED - reminder sound plays for collapsed event with DisplayedCollapsed status`() {
+        // This test verifies the fix for reminders not working on recurring events.
         // 
         // Scenario:
         // 1. Event fires and gets displayed collapsed → displayStatus = DisplayedCollapsed
-        // 2. Reminder alarm fires → calls postEverythingCollapsed with force=false
-        // 3. Production code checks: (displayStatus != DisplayedCollapsed) || force
-        // 4. Since displayStatus IS DisplayedCollapsed and force IS false → condition is FALSE
-        // 5. The inner block is SKIPPED entirely → shouldPlayAndVibrate is NOT updated
-        // 6. Sound doesn't play!
-        //
-        // Expected: Sound SHOULD play for reminders regardless of displayStatus
-        // Actual (BUG): Sound doesn't play because the block is skipped
+        // 2. Reminder alarm fires → calls postEverythingCollapsed with force=false, playReminderSound=true
+        // 3. Production code checks: (displayStatus != DisplayedCollapsed) || force || playReminderSound
+        // 4. Since playReminderSound IS true → condition is TRUE
+        // 5. The inner block runs → shouldPlayAndVibrate is updated correctly
+        // 6. Sound plays!
         
         val eventWithDisplayedCollapsedStatus = listOf(
             createTestEvent(
@@ -910,11 +910,9 @@ class EventNotificationManagerRobolectricTest {
             hasAlarms = hasAlarms
         )
         
-        // THIS TEST SHOULD FAIL - demonstrating the bug!
-        // Once we fix the bug, this test will pass.
+        // With the fix, reminder sound should play for collapsed events
         assertTrue(
-            "BUG: Reminder sound SHOULD play for collapsed events, but currently doesn't because " +
-            "the displayStatus==DisplayedCollapsed check causes the sound update block to be skipped",
+            "Reminder sound should play for collapsed events (fix: playReminderSound added to condition)",
             shouldPlayAndVibrate
         )
     }
@@ -980,9 +978,9 @@ class EventNotificationManagerRobolectricTest {
     }
     
     @Test
-    fun `BUG - multiple events with DisplayedCollapsed all get skipped during reminder`() {
-        // This demonstrates the bug affects ALL collapsed events, not just recurring ones.
-        // It's just more noticeable with recurring events because they tend to stick around longer.
+    fun `FIXED - multiple events with DisplayedCollapsed all play sound during reminder`() {
+        // This verifies the fix affects ALL collapsed events, not just recurring ones.
+        // The bug was more noticeable with recurring events because they tend to stick around longer.
         
         val multipleCollapsedEvents = listOf(
             createTestEvent(
@@ -1011,9 +1009,9 @@ class EventNotificationManagerRobolectricTest {
             hasAlarms = hasAlarms
         )
         
-        // THIS TEST SHOULD FAIL - demonstrating the bug!
+        // With the fix, reminder sound should play for all collapsed events
         assertTrue(
-            "BUG: Reminder sound should play even when all events have DisplayedCollapsed status",
+            "Reminder sound should play for all collapsed events (fix applied)",
             shouldPlayAndVibrate
         )
     }
