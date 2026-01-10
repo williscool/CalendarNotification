@@ -560,6 +560,38 @@ class TestActivity : Activity() {
         DevLog.info(LOG_TAG, "Posted notification - look for '(🔔 Xm)' based on reminder interval!")
     }
 
+    /**
+     * TEST REMINDER SOUND ON COLLAPSED EVENTS
+     * 
+     * This tests the bug fix where reminders on collapsed events wouldn't play sound.
+     * 
+     * Steps:
+     * 1. First click "TEST NEXT ALERT (COLLAPSED)" to create collapsed events
+     * 2. Then click THIS button to trigger a reminder
+     * 3. Sound SHOULD play (after the fix)
+     * 
+     * Before the fix, the displayStatus=DisplayedCollapsed check would skip the
+     * sound logic when force=false (the reminder path).
+     */
+    @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonTestReminderOnCollapsedClick(v: View) {
+        val LOG_TAG = "TestActivity"
+        
+        DevLog.info(LOG_TAG, "=== TESTING REMINDER SOUND ON COLLAPSED EVENTS ===")
+        
+        // Check if there are any active events
+        if (!ApplicationController.hasActiveEventsToRemind(this)) {
+            DevLog.warn(LOG_TAG, "No active events! First click 'TEST NEXT ALERT (COLLAPSED)' to create some")
+            return
+        }
+        
+        // Fire the reminder - this calls the same code path as ReminderAlarmBroadcastReceiver
+        DevLog.info(LOG_TAG, "Firing reminder (itIsAfterQuietHoursReminder=false, hasActiveAlarms=false)")
+        ApplicationController.fireEventReminder(this, itIsAfterQuietHoursReminder = false, hasActiveAlarms = false)
+        
+        DevLog.info(LOG_TAG, "Reminder fired! Sound should have played if the fix is working correctly.")
+    }
+
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonAddProvierEventClick(v: View) {
 

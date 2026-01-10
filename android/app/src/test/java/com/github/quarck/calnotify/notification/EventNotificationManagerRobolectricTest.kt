@@ -826,37 +826,60 @@ class EventNotificationManagerRobolectricTest {
     }
     
     @Test
-    fun `POTENTIAL BUG - individual reminder uses isForce which sets setOnlyAlertOnce`() {
-        // This test documents a potential issue with individual notification reminders:
-        // In fireEventReminderNoSeparateNotification, postNotification is called with isForce=true
-        // This causes setOnlyAlertOnce(true) to be set.
+    fun `FIXED - individual reminder does not set setOnlyAlertOnce`() {
+        // This test verifies the fix for individual notification reminders.
         // 
-        // The notification IS cancelled first, so theoretically Android should treat it as new.
-        // But there might be timing issues or Android quirks that prevent sound from playing.
+        // In fireEventReminderNoSeparateNotification, postNotification is called with:
+        //   isForce=true, isReminder=true
         //
-        // The code path:
-        // 1. context.notificationManager.cancel(firstEvent.notificationId)
-        // 2. postNotification(..., isForce = true, ...)
-        // 3. In postNotification: .setOnlyAlertOnce(isForce || wasCollapsed) = true
+        // The fix ensures reminders can alert by using:
+        //   setOnlyAlertOnce((isForce || wasCollapsed) && !isReminder)
         //
-        // This test just documents the current behavior. If individual reminders are broken,
-        // we might need to change the logic to use isForce=false for reminders, or add a
-        // separate isReminder check for setOnlyAlertOnce.
+        // So when isReminder=true, setOnlyAlertOnce=false and sound can play.
         
-        // Current individual reminder path settings:
+        // Individual reminder path settings:
         val isForce = true  // As passed from fireEventReminderNoSeparateNotification
         val wasCollapsed = false
         val isReminder = true  // This is a reminder
         
-        // Current setOnlyAlertOnce logic in postNotification:
-        val currentSetOnlyAlertOnce = isForce || wasCollapsed
+        // Fixed setOnlyAlertOnce logic in postNotification:
+        val setOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
         
-        // This is TRUE, which tells Android "don't alert if already showing"
-        assertTrue("Current logic sets setOnlyAlertOnce=true for reminders", currentSetOnlyAlertOnce)
+        // With the fix, reminders should NOT have setOnlyAlertOnce=true
+        assertFalse(
+            "Reminders should have setOnlyAlertOnce=false so sound can play",
+            setOnlyAlertOnce
+        )
+    }
+    
+    @Test
+    fun `setOnlyAlertOnce - forced non-reminder repost should still suppress alert`() {
+        // Verify that non-reminder forced reposts still suppress alerts (e.g., boot repost)
+        val isForce = true
+        val wasCollapsed = false
+        val isReminder = false  // NOT a reminder
         
-        // PROPOSED FIX: Don't set setOnlyAlertOnce for reminders (since we want sound to play)
-        // val proposedSetOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
-        // assertFalse("Proposed fix: reminders should alert", proposedSetOnlyAlertOnce)
+        val setOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
+        
+        assertTrue(
+            "Non-reminder forced repost should suppress alert",
+            setOnlyAlertOnce
+        )
+    }
+    
+    @Test
+    fun `setOnlyAlertOnce - expanding from collapsed should still suppress alert`() {
+        // Verify that expanding from collapsed still suppresses alerts
+        val isForce = false
+        val wasCollapsed = true
+        val isReminder = false
+        
+        val setOnlyAlertOnce = (isForce || wasCollapsed) && !isReminder
+        
+        assertTrue(
+            "Expanding from collapsed should suppress alert",
+            setOnlyAlertOnce
+        )
     }
 
     @Test

@@ -1120,7 +1120,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setOngoing(
                         !notificationSettings.behavior.allowNotificationSwipe
                 )
-                .setOnlyAlertOnce(isForce || wasCollapsed)
+                // FIX: Don't suppress alert for reminders - we want sound to play!
+                // isReminder=true means this is a reminder notification that should alert
+                .setOnlyAlertOnce((isForce || wasCollapsed) && !isReminder)
                 .setStyle(
                         NotificationCompat.BigTextStyle().bigText(notificationTextString)
                 )

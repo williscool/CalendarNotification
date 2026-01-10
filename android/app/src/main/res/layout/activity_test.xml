@@ -122,6 +122,15 @@ WARNING!\n\nNo usable hidden functionality can be found here\nThis Activity is p
             <Button
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="🔊 FIRE REMINDER ON COLLAPSED"
+                android:onClick="OnButtonTestReminderOnCollapsedClick"
+                android:visibility="visible"
+                android:padding="14dp"
+                />
+
+            <Button
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="POST DEMO EVENTS FOR PLAY STORE"
                 android:onClick="OnButtonStrEvClick"
                 android:visibility="visible"
