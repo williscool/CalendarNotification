@@ -184,6 +184,20 @@ data class NotificationContext(
         fun isReminderEvent(event: EventAlertRecord): Boolean =
             event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
 
+        /**
+         * Computes the channel ID for partial collapse notifications ("X more events").
+         * 
+         * This is for the passive summary notification when some events are shown
+         * individually and older ones are collapsed. Uses DEFAULT or SILENT only
+         * (no alarm/reminder variants since this is a passive summary).
+         * 
+         * @param events List of collapsed events
+         * @return SILENT channel if all muted, DEFAULT otherwise
+         */
+        fun partialCollapseChannelId(events: List<EventAlertRecord>): String =
+            if (computeAllMuted(events)) NotificationChannels.CHANNEL_ID_SILENT
+            else NotificationChannels.CHANNEL_ID_DEFAULT
+
         // =========================================================================
         // Factory method
         // =========================================================================

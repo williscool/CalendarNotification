@@ -783,4 +783,46 @@ class NotificationContextInvariantTest {
             hasNewTriggering
         )
     }
+
+    // =========================================================================
+    // Invariant 13: partialCollapseChannelId() helper
+    // =========================================================================
+
+    @Test
+    fun `invariant 13 - partialCollapseChannelId all muted returns SILENT`() {
+        val mutedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = true)
+        )
+        
+        assertEquals(
+            "All muted should return SILENT channel",
+            NotificationChannels.CHANNEL_ID_SILENT,
+            NotificationContext.partialCollapseChannelId(mutedEvents)
+        )
+    }
+
+    @Test
+    fun `invariant 13 - partialCollapseChannelId any unmuted returns DEFAULT`() {
+        val mixedEvents = listOf(
+            createTestEvent(eventId = 1, isMuted = true),
+            createTestEvent(eventId = 2, isMuted = false)
+        )
+        
+        assertEquals(
+            "Any unmuted should return DEFAULT channel",
+            NotificationChannels.CHANNEL_ID_DEFAULT,
+            NotificationContext.partialCollapseChannelId(mixedEvents)
+        )
+    }
+
+    @Test
+    fun `invariant 13 - partialCollapseChannelId empty list returns DEFAULT`() {
+        // Empty list = computeAllMuted returns false = DEFAULT channel
+        assertEquals(
+            "Empty list should return DEFAULT channel",
+            NotificationChannels.CHANNEL_ID_DEFAULT,
+            NotificationContext.partialCollapseChannelId(emptyList())
+        )
+    }
 }

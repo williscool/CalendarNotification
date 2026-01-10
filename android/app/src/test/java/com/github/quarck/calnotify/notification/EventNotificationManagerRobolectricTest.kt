@@ -383,7 +383,7 @@ class EventNotificationManagerRobolectricTest {
     }
 
     // === Partial collapse channel selection tests (postNumNotificationsCollapsed) ===
-    // Uses NotificationContext.computeAllMuted() for channel selection
+    // Uses NotificationContext.partialCollapseChannelId()
 
     @Test
     fun `partial collapse with all muted events uses silent channel`() {
@@ -394,9 +394,8 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 3, isMuted = true)
         )
         
-        // When - use computeAllMuted (same logic as production)
-        val allMuted = NotificationContext.computeAllMuted(mutedEvents)
-        val channelId = if (allMuted) NotificationChannels.CHANNEL_ID_SILENT else NotificationChannels.CHANNEL_ID_DEFAULT
+        // When - call production code
+        val channelId = NotificationContext.partialCollapseChannelId(mutedEvents)
         
         // Then - should use silent channel
         assertEquals(
@@ -415,9 +414,8 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 3, isMuted = true)
         )
         
-        // When - use computeAllMuted (same logic as production)
-        val allMuted = NotificationContext.computeAllMuted(mixedEvents)
-        val channelId = if (allMuted) NotificationChannels.CHANNEL_ID_SILENT else NotificationChannels.CHANNEL_ID_DEFAULT
+        // When - call production code
+        val channelId = NotificationContext.partialCollapseChannelId(mixedEvents)
         
         // Then - should use default channel (not silent)
         assertEquals(
@@ -435,9 +433,8 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = false)
         )
         
-        // When - use computeAllMuted (same logic as production)
-        val allMuted = NotificationContext.computeAllMuted(unmutedEvents)
-        val channelId = if (allMuted) NotificationChannels.CHANNEL_ID_SILENT else NotificationChannels.CHANNEL_ID_DEFAULT
+        // When - call production code
+        val channelId = NotificationContext.partialCollapseChannelId(unmutedEvents)
         
         // Then - should use default channel
         assertEquals(

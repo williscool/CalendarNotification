@@ -1453,11 +1453,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .toString()
 
         // Use silent channel if all collapsed events are muted
-        val channelId = if (NotificationContext.computeAllMuted(events)) {
-            NotificationChannels.CHANNEL_ID_SILENT
-        } else {
-            NotificationChannels.CHANNEL_ID_DEFAULT
-        }
+        val channelId = NotificationContext.partialCollapseChannelId(events)
 
         val builder =
                 NotificationCompat.Builder(context, channelId)
