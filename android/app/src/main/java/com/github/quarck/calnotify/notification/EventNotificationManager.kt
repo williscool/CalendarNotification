@@ -438,21 +438,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 displayStatus = EventDisplayStatus.DisplayedCollapsed
         )
 
-        // Calculate shouldPlayAndVibrate using extracted helper (testable)
-        // Also determine if any notification was posted
-        for (event in events) {
-            if (event.snoozedUntil == 0L) {
-                // Note: playReminderSound added to fix bug where reminders didn't play sound
-                // for events with displayStatus == DisplayedCollapsed
-                if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force || playReminderSound) {
-                    postedNotification = true
-                }
-            } else {
-                postedNotification = true
-            }
-        }
-        
-        shouldPlayAndVibrate = computeShouldPlayAndVibrateForCollapsedFull(
+        // Calculate shouldPlayAndVibrate AND postedNotification using extracted helper (testable)
+        val (soundResultShouldPlay, soundResultPosted) = computeShouldPlayAndVibrateForCollapsedFull(
             events = events,
             force = force,
             isQuietPeriodActive = isQuietPeriodActive,
@@ -461,6 +448,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             playReminderSound = playReminderSound,
             hasAlarms = hasAlarms
         )
+        shouldPlayAndVibrate = soundResultShouldPlay
+        postedNotification = soundResultPosted
 
         // now build actual notification and notify
         val intent = Intent(context, MainActivity::class.java)
@@ -1646,12 +1635,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         }
 
         /**
-         * Computes whether sound/vibration should play for collapsed notification.
-         * THIS IS THE ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
-         * 
-         * The bug being tested: When events have displayStatus=DisplayedCollapsed and
-         * force=false (the reminder path), the inner block is skipped entirely,
-         * causing shouldPlayAndVibrate to never be updated.
+         * Computes whether sound/vibration should play AND whether any notification was posted
+         * for collapsed notification. THIS IS THE ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
          * 
          * @param events List of events to display
          * @param force Whether to force re-post (passed from caller)
@@ -1660,7 +1645,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
          * @param quietHoursMutePrimary Settings flag for muting primary during quiet hours
          * @param playReminderSound Whether this is a reminder (affects sound logic)
          * @param hasAlarms Whether there are non-muted alarm events
-         * @return true if sound should play, false otherwise
+         * @return Pair of (shouldPlayAndVibrate, postedNotification)
          */
         fun computeShouldPlayAndVibrateForCollapsedFull(
             events: List<EventAlertRecord>,
@@ -1670,8 +1655,9 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             quietHoursMutePrimary: Boolean = false,
             playReminderSound: Boolean,
             hasAlarms: Boolean
-        ): Boolean {
+        ): Pair<Boolean, Boolean> {
             var shouldPlayAndVibrate = false
+            var postedNotification = false
             
             for (event in events) {
 
@@ -1681,6 +1667,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                     // even when displayStatus == DisplayedCollapsed
                     if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force || playReminderSound) {
                         // currently not displayed or forced or reminder -- calculate sound
+                        postedNotification = true
 
                         var shouldBeQuiet = false
 
@@ -1720,13 +1707,14 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 }
                 else {
                     // This event is currently snoozed and switching to "Shown" state
-
+                    postedNotification = true
                     shouldPlayAndVibrate = shouldPlayAndVibrate || (!isQuietPeriodActive && !event.isMuted)
                 }
             }
             
             // Apply reminder sound override using shared helper (testable)
-            return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+            val finalShouldPlay = applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+            return Pair(finalShouldPlay, postedNotification)
         }
 
         /**
