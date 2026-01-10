@@ -624,4 +624,14 @@
 
     <!-- Bluetooth Permission (Car Mode) -->
     <string name="bluetooth_permission_required">Bluetooth permission is required to configure Car Mode devices</string>
+
+    <!-- Calendar Sync Refresh -->
+    <string name="refresh_calendars">Refresh calendars</string>
+    <string name="calendar_sync_help">Troubleshoot missing calendars</string>
+    <string name="calendar_sync_help_title">Missing calendars?</string>
+    <string name="calendar_sync_help_message">If some calendars aren\'t showing:\n\n1. Pull down to refresh this list\n\n2. Check that calendar sync is enabled in Android Settings → Accounts → Google → Calendar\n\n3. Open the Google Calendar app and verify your calendars appear there\n\n4. If calendars still don\'t appear, try restarting your device</string>
+    <string name="open_sync_settings">Open Sync Settings</string>
+
+    <!-- Unhandled Calendar Event Count -->
+    <string name="calendar_name_with_event_count">%1$s (%2$d upcoming)</string>
 </resources>
