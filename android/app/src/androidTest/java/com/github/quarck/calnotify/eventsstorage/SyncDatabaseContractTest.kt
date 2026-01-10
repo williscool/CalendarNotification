@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 /**
  * Contract tests for sync database consistency.
  * 
- * These tests verify that the expo module (MyModule) and main app (EventsStorage)
+ * These tests verify that the expo module (MyModule) and main app (EventsStorageState)
  * agree on SharedPreferences keys and database names. This prevents the bug where
  * Room migration caused native code to write to "RoomEvents" while sync code
  * was hardcoded to read from "Events".
@@ -63,43 +63,43 @@ class SyncDatabaseContractTest {
     }
     
     /**
-     * CRITICAL: Verifies that MyModule and EventsStorage use the same SharedPreferences file name.
+     * CRITICAL: Verifies that MyModule and EventsStorageState use the same SharedPreferences file name.
      * If these don't match, the expo module won't read what the app writes.
      */
     @Test
     fun sharedPreferencesFileNameMatches() {
         assertEquals(
-            "MyModule and EventsStorage must use the same SharedPreferences file name",
-            EventsStorage.STORAGE_PREFS_NAME,
+            "MyModule and EventsStorageState must use the same SharedPreferences file name",
+            EventsStorageState.PREFS_NAME,
             MyModule.STORAGE_PREFS_NAME
         )
-        DevLog.info(LOG_TAG, "✅ Prefs file name matches: ${EventsStorage.STORAGE_PREFS_NAME}")
+        DevLog.info(LOG_TAG, "✅ Prefs file name matches: ${EventsStorageState.PREFS_NAME}")
     }
     
     /**
-     * CRITICAL: Verifies that MyModule and EventsStorage use the same key for database name.
+     * CRITICAL: Verifies that MyModule and EventsStorageState use the same key for database name.
      */
     @Test
     fun databaseNamePreferenceKeyMatches() {
         assertEquals(
-            "MyModule and EventsStorage must use the same key for active_db_name",
-            EventsStorage.PREF_ACTIVE_DB_NAME,
+            "MyModule and EventsStorageState must use the same key for active_db_name",
+            EventsStorageState.PREF_ACTIVE_DB_NAME,
             MyModule.PREF_ACTIVE_DB_NAME
         )
-        DevLog.info(LOG_TAG, "✅ DB name key matches: ${EventsStorage.PREF_ACTIVE_DB_NAME}")
+        DevLog.info(LOG_TAG, "✅ DB name key matches: ${EventsStorageState.PREF_ACTIVE_DB_NAME}")
     }
     
     /**
-     * CRITICAL: Verifies that MyModule and EventsStorage use the same key for is_using_room flag.
+     * CRITICAL: Verifies that MyModule and EventsStorageState use the same key for is_using_room flag.
      */
     @Test
     fun isUsingRoomPreferenceKeyMatches() {
         assertEquals(
-            "MyModule and EventsStorage must use the same key for is_using_room",
-            EventsStorage.PREF_IS_USING_ROOM,
+            "MyModule and EventsStorageState must use the same key for is_using_room",
+            EventsStorageState.PREF_IS_USING_ROOM,
             MyModule.PREF_IS_USING_ROOM
         )
-        DevLog.info(LOG_TAG, "✅ isUsingRoom key matches: ${EventsStorage.PREF_IS_USING_ROOM}")
+        DevLog.info(LOG_TAG, "✅ isUsingRoom key matches: ${EventsStorageState.PREF_IS_USING_ROOM}")
     }
     
     /**

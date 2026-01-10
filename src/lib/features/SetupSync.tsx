@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState, memo, useMemo } from 'react';
 import { Linking, ScrollView } from 'react-native';
-import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName } from '../../../modules/my-module';
+import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage } from '../../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -68,6 +68,7 @@ export const SetupSync = () => {
   
   // Get the active database name from native module (Room or Legacy)
   const eventsDbName = useMemo(() => getActiveEventsDbName(), []);
+  const isUsingRoom = useMemo(() => isUsingRoomStorage(), []);
   const regDb = useMemo(() => open({ name: eventsDbName }), [eventsDbName]);
   
   const providerDb = useContext(PowerSyncContext);
@@ -179,6 +180,9 @@ export const SetupSync = () => {
     >
       <Text className="text-xl text-center m-2.5" style={{ color: colors.text }} selectable>
         PowerSync Status: {dbStatus}
+      </Text>
+      <Text className="text-sm text-center m-1" style={{ color: colors.textMuted }}>
+        Events DB: {eventsDbName} ({isUsingRoom ? 'Room' : 'Legacy'})
       </Text>
       <PollingTimestamp color={colors.text} />
 
