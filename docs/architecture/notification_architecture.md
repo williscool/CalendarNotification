@@ -292,7 +292,8 @@ The following companion object functions in `EventNotificationManager` are extra
 | `applyReminderSoundOverride()` | `postEverythingCollapsed` | Determines if reminder should force sound |
 | `computeCollapsedChannelId()` | `postEverythingCollapsed` | Channel for fully collapsed notification |
 | `computePartialCollapseChannelId()` | `postNumNotificationsCollapsed` | Channel for "X more events" summary |
-| `computeShouldPlayAndVibrateForCollapsed()` | Tests | Simplified loop + override for testing |
+| `computeShouldPlayAndVibrateForCollapsedFull()` | `postEverythingCollapsed` | Full production logic for sound/vibration |
+| `computeShouldOnlyAlertOnce()` | `postNotification` | Whether to suppress re-alerting |
 
 ### Testing the Notification Logic
 

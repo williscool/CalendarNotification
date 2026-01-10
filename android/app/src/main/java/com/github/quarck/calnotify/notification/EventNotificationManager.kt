@@ -1647,39 +1647,6 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         /**
          * Computes whether sound/vibration should play for collapsed notification.
-         * Uses a simplified loop (only checks muted status) + applyReminderSoundOverride.
-         * 
-         * Note: The loop here is simplified compared to postEverythingCollapsed which also
-         * handles force, displayStatus, and isQuietPeriodActive. This function is used by
-         * tests to verify muted event behavior without needing full production dependencies.
-         * 
-         * @param events List of events to display
-         * @param playReminderSound Whether this is a reminder (affects sound logic)
-         * @param hasAlarms Whether there are non-muted alarm events
-         * @return true if sound should play, false otherwise
-         */
-        fun computeShouldPlayAndVibrateForCollapsed(
-            events: List<EventAlertRecord>,
-            playReminderSound: Boolean,
-            hasAlarms: Boolean
-        ): Boolean {
-            // Simplified loop logic - checks muted status (matches production for basic cases)
-            var shouldPlayAndVibrate = false
-            for (event in events) {
-                if (event.snoozedUntil == 0L) {
-                    val shouldBeQuiet = event.isMuted
-                    shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-                } else {
-                    shouldPlayAndVibrate = shouldPlayAndVibrate || !event.isMuted
-                }
-            }
-            
-            // Apply override using ACTUAL PRODUCTION CODE
-            return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
-        }
-        
-        /**
-         * Computes whether sound/vibration should play for collapsed notification.
          * THIS IS THE ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
          * 
          * The bug being tested: When events have displayStatus=DisplayedCollapsed and

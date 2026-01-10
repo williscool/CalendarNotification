@@ -418,14 +418,19 @@ class EventNotificationManagerRobolectricTest {
 
     @Test
     fun `first notification - all muted should not play sound`() {
+        // First notification: displayStatus = Hidden (not yet displayed)
         val mutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.Hidden),
+            createTestEvent(eventId = 2, isMuted = true, displayStatus = EventDisplayStatus.Hidden)
         )
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = mutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = false,
             hasAlarms = hasAlarms
         )
@@ -435,14 +440,19 @@ class EventNotificationManagerRobolectricTest {
 
     @Test
     fun `first notification - unmuted events should play sound`() {
+        // First notification: displayStatus = Hidden (not yet displayed)
         val unmutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = false),
-            createTestEvent(eventId = 2, isMuted = false)
+            createTestEvent(eventId = 1, isMuted = false, displayStatus = EventDisplayStatus.Hidden),
+            createTestEvent(eventId = 2, isMuted = false, displayStatus = EventDisplayStatus.Hidden)
         )
         val hasAlarms = unmutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = unmutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = false,
             hasAlarms = hasAlarms
         )
@@ -454,12 +464,16 @@ class EventNotificationManagerRobolectricTest {
     fun `first notification - hasAlarms does not force sound when not reminder`() {
         // Even with hasAlarms=true, if playReminderSound=false, it shouldn't override
         val mutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.Hidden),
+            createTestEvent(eventId = 2, isMuted = true, displayStatus = EventDisplayStatus.Hidden)
         )
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = mutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = false,
             hasAlarms = true  // Even with alarms, shouldn't override for non-reminder
         )
@@ -468,17 +482,23 @@ class EventNotificationManagerRobolectricTest {
     }
 
     // === Sound/vibrate logic tests - reminder (playReminderSound=true) ===
+    // Reminder scenario: events already displayed (displayStatus = DisplayedCollapsed)
 
     @Test
     fun `reminder - all muted should not play sound`() {
+        // Reminder: displayStatus = DisplayedCollapsed (already shown)
         val mutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed)
         )
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = mutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -488,14 +508,19 @@ class EventNotificationManagerRobolectricTest {
 
     @Test
     fun `reminder - unmuted events should play sound`() {
+        // Reminder: displayStatus = DisplayedCollapsed (already shown)
         val mixedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = false)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = false, displayStatus = EventDisplayStatus.DisplayedCollapsed)
         )
         val hasAlarms = mixedEvents.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = mixedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -505,14 +530,19 @@ class EventNotificationManagerRobolectricTest {
 
     @Test
     fun `reminder - unmuted alarm forces sound via hasAlarms`() {
+        // Reminder: displayStatus = DisplayedCollapsed (already shown)
         val eventsWithUnmutedAlarm = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = false, isAlarm = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = false, isAlarm = true, displayStatus = EventDisplayStatus.DisplayedCollapsed)
         )
         val hasAlarms = eventsWithUnmutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = eventsWithUnmutedAlarm,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -522,14 +552,19 @@ class EventNotificationManagerRobolectricTest {
 
     @Test
     fun `reminder - muted alarm does not force sound`() {
+        // Reminder: displayStatus = DisplayedCollapsed (already shown)
         val eventsWithMutedAlarm = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true, isAlarm = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = true, isAlarm = true, displayStatus = EventDisplayStatus.DisplayedCollapsed)
         )
         val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = eventsWithMutedAlarm,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -579,17 +614,21 @@ class EventNotificationManagerRobolectricTest {
         // then applyReminderSoundOverride won't force sound
         
         val allMutedEventsIncludingAlarm = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true, isAlarm = true)  // muted alarm
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = true, isAlarm = true, displayStatus = EventDisplayStatus.DisplayedCollapsed)  // muted alarm
         )
         
         // Correct hasAlarms calculation (muted alarm doesn't count)
         val hasAlarms = allMutedEventsIncludingAlarm.any { it.isAlarm && !it.isMuted }
         assertFalse("Muted alarm should not count", hasAlarms)
         
-        // Now test the full flow
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        // Now test the full flow (reminder scenario)
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = allMutedEventsIncludingAlarm,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms  // false because alarm is muted
         )
@@ -701,15 +740,19 @@ class EventNotificationManagerRobolectricTest {
         // Now only hasAlarms can override the muted status
         
         val allMutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true),
-            createTestEvent(eventId = 3, isMuted = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 3, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed)
         )
         val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
         
-        // When - call production code (which internally uses applyReminderSoundOverride)
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        // When - call production code (reminder scenario)
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = allMutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -737,14 +780,18 @@ class EventNotificationManagerRobolectricTest {
     fun `regression - non-reminder collapsed notification with all muted should not play sound`() {
         // Test the case where playReminderSound = false (regular notification update)
         val allMutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.Hidden),
+            createTestEvent(eventId = 2, isMuted = true, displayStatus = EventDisplayStatus.Hidden)
         )
         val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
         
         // When - call production code with playReminderSound = false
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = allMutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = false,
             hasAlarms = hasAlarms
         )
@@ -764,13 +811,17 @@ class EventNotificationManagerRobolectricTest {
         // When shouldPlayAndVibrate is false, setOnlyAlertOnce should be true
         
         val allMutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = true),
-            createTestEvent(eventId = 2, isMuted = true)
+            createTestEvent(eventId = 1, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed),
+            createTestEvent(eventId = 2, isMuted = true, displayStatus = EventDisplayStatus.DisplayedCollapsed)
         )
         val hasAlarms = allMutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = allMutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -790,13 +841,17 @@ class EventNotificationManagerRobolectricTest {
         // When shouldPlayAndVibrate is true, setOnlyAlertOnce should be false
         
         val unmutedEvents = listOf(
-            createTestEvent(eventId = 1, isMuted = false),
-            createTestEvent(eventId = 2, isMuted = false)
+            createTestEvent(eventId = 1, isMuted = false, displayStatus = EventDisplayStatus.Hidden),
+            createTestEvent(eventId = 2, isMuted = false, displayStatus = EventDisplayStatus.Hidden)
         )
         val hasAlarms = unmutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsed(
+        val shouldPlayAndVibrate = EventNotificationManager.computeShouldPlayAndVibrateForCollapsedFull(
             events = unmutedEvents,
+            force = false,
+            isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
