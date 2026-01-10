@@ -489,8 +489,16 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
+        // Compute if any NEW event is triggering this notification (Issue #162)
+        // A "new triggering" event is: never shown before (Hidden), not snoozed, and not muted
+        val hasNewTriggeringEvent = events.any { event ->
+            event.displayStatus == EventDisplayStatus.Hidden &&
+            event.snoozedUntil == 0L &&
+            !event.isMuted
+        }
+        
         // Use appropriate channel using shared helper (testable)
-        val channelId = computeCollapsedChannelId(events, hasAlarms, playReminderSound)
+        val channelId = computeCollapsedChannelId(events, hasAlarms, playReminderSound, hasNewTriggeringEvent)
         
         val builder =
                 NotificationCompat.Builder(context, channelId)
@@ -701,6 +709,11 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
                     shouldBeQuiet = shouldBeQuiet || event.isMuted
 
+                    // Issue #162: Determine if this is a reminder (already tracked) or new event
+                    // New events (Hidden status) use calendar_events channel
+                    // Already tracked events (was collapsed, etc.) use calendar_reminders channel
+                    val isReminder = computeIsReminderForEvent(event)
+
                     postNotification(
                             context,
                             formatter,
@@ -709,7 +722,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                             force,
                             wasCollapsed,
                             snoozePresets,
-                            isQuietPeriodActive)
+                            isQuietPeriodActive,
+                            isReminder = isReminder)
 
                     // Update db to indicate that this event is currently actively displayed
                     db.updateEvent(event, displayStatus = EventDisplayStatus.DisplayedNormal)
@@ -730,6 +744,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 // Update this time before posting notification as this is now used as a sort-key
                 event.lastStatusChangeTime = currentTime
 
+                // Issue #162: Snoozed events returning are always "reminders" (already tracked)
+                // They should use calendar_reminders channel, not calendar_events
                 postNotification(
                         context,
                         formatter,
@@ -738,7 +754,8 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         force,
                         false,
                         snoozePresets,
-                        isQuietPeriodActive)
+                        isQuietPeriodActive,
+                        isReminder = true)  // Always a reminder when returning from snooze
 
                 if (event.snoozedUntil + Consts.ALARM_THRESHOLD < currentTime) {
                     DevLog.warn(LOG_TAG, "Warning: snooze alarm is very late: expected at ${event.snoozedUntil}, " +
@@ -1767,20 +1784,52 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         }
 
         /**
+         * Determines if an event should be treated as a "reminder" for channel selection purposes.
+         * THIS IS ACTUAL PRODUCTION CODE - called by postEventNotifications.
+         * 
+         * Philosophy (Issue #162):
+         * - First notification from calendar → calendar_events channel
+         * - Every time after → calendar_reminders channel
+         * 
+         * An event is NEW (not a reminder) when:
+         * - displayStatus == Hidden (never been shown) AND
+         * - snoozedUntil == 0 (not returning from snooze)
+         * 
+         * An event is ALREADY TRACKED (is a reminder) when:
+         * - displayStatus != Hidden (was shown before - collapsed or normal), OR
+         * - snoozedUntil != 0 (returning from snooze)
+         * 
+         * @param event The event to check
+         * @return true if event should use reminders channel, false for events channel
+         */
+        fun computeIsReminderForEvent(event: EventAlertRecord): Boolean {
+            return event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
+        }
+
+        /**
          * Computes the notification channel ID for collapsed notifications (postEverythingCollapsed).
          * THIS IS ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
          * 
+         * Channel selection (Issue #162):
+         * - If periodic reminder (playReminderSound=true) → reminders channel
+         * - If any NEW event is triggering → events channel (new thing on your plate)
+         * - If only OLD events triggering → reminders channel (already on your plate)
+         * 
          * @param events List of events to display
          * @param hasAlarms Whether there are non-muted alarm events
-         * @param isReminder Whether this is a reminder notification
+         * @param playReminderSound Whether this is a periodic reminder notification
+         * @param hasNewTriggeringEvent Whether any new (never shown) events are triggering this notification
          * @return The appropriate channel ID
          */
         fun computeCollapsedChannelId(
             events: List<EventAlertRecord>,
             hasAlarms: Boolean,
-            isReminder: Boolean
+            playReminderSound: Boolean,
+            hasNewTriggeringEvent: Boolean
         ): String {
             val allEventsMuted = events.all { it.isMuted }
+            // Use reminders channel if: periodic reminder OR no new events triggering
+            val isReminder = playReminderSound || !hasNewTriggeringEvent
             return NotificationChannels.getChannelId(
                 isAlarm = hasAlarms,
                 isMuted = allEventsMuted,
