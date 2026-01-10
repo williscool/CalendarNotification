@@ -401,3 +401,21 @@ The feature is mostly UI plumbing + one system API call. Robolectric can catch l
 - The 2-second delay after requestSync is a heuristic; may need adjustment
 - SwipeRefreshLayout provides familiar UX pattern users expect
 - Help dialog provides fallback troubleshooting for edge cases
+
+### Why Thread.sleep() is Appropriate Here
+
+The `Thread.sleep(2000)` delay after `ContentResolver.requestSync()` is intentional and appropriate for this use case:
+
+1. **No completion callback**: `requestSync()` is fire-and-forget - Android provides no built-in callback when sync completes
+2. **SyncStatusObserver limitations**: While `ContentResolver.addStatusChangeListener()` exists, it only tells you sync state changed (started/stopped), not whether new data appeared. You'd still need to query calendars after notification.
+3. **ContentObserver overhead**: Registering a `ContentObserver` on `CalendarContract.Calendars.CONTENT_URI` would work but adds significant complexity for a simple refresh operation that happens rarely.
+4. **This runs on a background thread**: The `background { }` block means this doesn't block the UI thread - the user sees the refresh spinner while waiting.
+5. **User expectation**: A 2-second refresh feels natural for a "sync" operation. Instant return might feel like nothing happened.
+
+**Alternatives considered and rejected:**
+- `SyncStatusObserver` + polling: More complex, still no guarantee new data arrived
+- `ContentObserver`: Overkill for a manual refresh triggered rarely by users
+- No delay: Risk showing same stale data before sync completes
+- Longer delay: Unnecessary waiting most of the time
+
+The simple heuristic delay is the right tradeoff of simplicity vs. robustness for this feature.
