@@ -438,67 +438,18 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 displayStatus = EventDisplayStatus.DisplayedCollapsed
         )
 
-        for (event in events) {
-
-            if (event.snoozedUntil == 0L) {
-
-                if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force) {
-                    // currently not displayed or forced -- post notifications
-//                    DevLog.debug(LOG_TAG, "Posting notification id ${event.notificationId}, eventId ${event.eventId}")
-
-                    var shouldBeQuiet = false
-
-                    @Suppress("CascadeIf")
-                    if (force) {
-                        // If forced to re-post all notifications - we only have to actually display notifications
-                        // so not playing sound / vibration here
-                        //DevLog.debug(LOG_TAG, "event ${event.eventId}: 'forced' notification - staying quiet")
-                        shouldBeQuiet = true
-
-                    }
-                    else if (event.displayStatus == EventDisplayStatus.DisplayedNormal) {
-
-                        //DevLog.debug(LOG_TAG, "event ${event.eventId}: notification was displayed, not playing sound")
-                        shouldBeQuiet = true
-
-                    }
-                    else if (isQuietPeriodActive) {
-
-                        // we are in a silent period, normally we should always be quiet, but there
-                        // are a few exclusions
-                        @Suppress("LiftReturnOrAssignment")
-                        if (primaryEventId != null && event.eventId == primaryEventId) {
-                            // this is primary event -- play based on use preference for muting
-                            // primary event reminders
-                            //DevLog.debug(LOG_TAG, "event ${event.eventId}: quiet period and this is primary notification - sound according to settings")
-                            shouldBeQuiet = settings.quietHoursMutePrimary && !event.isAlarm
-                        }
-                        else {
-                            // not a primary event -- always silent in silent period
-                            //DevLog.debug(LOG_TAG, "event ${event.eventId}: quiet period and this is NOT primary notification quiet")
-                            shouldBeQuiet = true
-                        }
-                    }
-
-                    shouldBeQuiet = shouldBeQuiet || event.isMuted
-
-                    postedNotification = true
-                    shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-
-                }
-            }
-            else {
-                // This event is currently snoozed and switching to "Shown" state
-
-                //DevLog.debug(LOG_TAG, "Posting snoozed notification id ${event.notificationId}, eventId ${event.eventId}, isQuietPeriodActive=$isQuietPeriodActive")
-
-                postedNotification = true
-                shouldPlayAndVibrate = shouldPlayAndVibrate || (!isQuietPeriodActive && !event.isMuted)
-            }
-        }
-
-        // Apply reminder sound override using shared helper (testable)
-        shouldPlayAndVibrate = applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+        // Calculate shouldPlayAndVibrate AND postedNotification using extracted helper (testable)
+        val (soundResultShouldPlay, soundResultPosted) = computeShouldPlayAndVibrateForCollapsedFull(
+            events = events,
+            force = force,
+            isQuietPeriodActive = isQuietPeriodActive,
+            primaryEventId = primaryEventId,
+            quietHoursMutePrimary = settings.quietHoursMutePrimary,
+            playReminderSound = playReminderSound,
+            hasAlarms = hasAlarms
+        )
+        shouldPlayAndVibrate = soundResultShouldPlay
+        postedNotification = soundResultPosted
 
         // now build actual notification and notify
         val intent = Intent(context, MainActivity::class.java)
@@ -1158,7 +1109,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                 .setOngoing(
                         !notificationSettings.behavior.allowNotificationSwipe
                 )
-                .setOnlyAlertOnce(isForce || wasCollapsed)
+                .setOnlyAlertOnce(computeShouldOnlyAlertOnce(isForce, wasCollapsed, isReminder))
                 .setStyle(
                         NotificationCompat.BigTextStyle().bigText(notificationTextString)
                 )
@@ -1684,36 +1635,86 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         }
 
         /**
-         * Computes whether sound/vibration should play for collapsed notification.
-         * Uses a simplified loop (only checks muted status) + applyReminderSoundOverride.
-         * 
-         * Note: The loop here is simplified compared to postEverythingCollapsed which also
-         * handles force, displayStatus, and isQuietPeriodActive. This function is used by
-         * tests to verify muted event behavior without needing full production dependencies.
+         * Computes whether sound/vibration should play AND whether any notification was posted
+         * for collapsed notification. THIS IS THE ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
          * 
          * @param events List of events to display
+         * @param force Whether to force re-post (passed from caller)
+         * @param isQuietPeriodActive Whether quiet hours are active
+         * @param primaryEventId The primary event ID (for quiet hours exception)
+         * @param quietHoursMutePrimary Settings flag for muting primary during quiet hours
          * @param playReminderSound Whether this is a reminder (affects sound logic)
          * @param hasAlarms Whether there are non-muted alarm events
-         * @return true if sound should play, false otherwise
+         * @return Pair of (shouldPlayAndVibrate, postedNotification)
          */
-        fun computeShouldPlayAndVibrateForCollapsed(
+        fun computeShouldPlayAndVibrateForCollapsedFull(
             events: List<EventAlertRecord>,
+            force: Boolean,
+            isQuietPeriodActive: Boolean,
+            primaryEventId: Long? = null,
+            quietHoursMutePrimary: Boolean = false,
             playReminderSound: Boolean,
             hasAlarms: Boolean
-        ): Boolean {
-            // Simplified loop logic - checks muted status (matches production for basic cases)
+        ): Pair<Boolean, Boolean> {
             var shouldPlayAndVibrate = false
+            var postedNotification = false
+            
             for (event in events) {
+
                 if (event.snoozedUntil == 0L) {
-                    val shouldBeQuiet = event.isMuted
-                    shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
-                } else {
-                    shouldPlayAndVibrate = shouldPlayAndVibrate || !event.isMuted
+
+                    // FIX: Added playReminderSound to condition so reminders can play sound
+                    // even when displayStatus == DisplayedCollapsed
+                    if ((event.displayStatus != EventDisplayStatus.DisplayedCollapsed) || force || playReminderSound) {
+                        // currently not displayed or forced or reminder -- calculate sound
+                        postedNotification = true
+
+                        var shouldBeQuiet = false
+
+                        @Suppress("CascadeIf")
+                        if (force) {
+                            // If forced to re-post all notifications - we only have to actually display notifications
+                            // so not playing sound / vibration here
+                            shouldBeQuiet = true
+
+                        }
+                        else if (event.displayStatus == EventDisplayStatus.DisplayedNormal) {
+
+                            shouldBeQuiet = true
+
+                        }
+                        else if (isQuietPeriodActive) {
+
+                            // we are in a silent period, normally we should always be quiet, but there
+                            // are a few exclusions
+                            @Suppress("LiftReturnOrAssignment")
+                            if (primaryEventId != null && event.eventId == primaryEventId) {
+                                // this is primary event -- play based on user preference for muting
+                                // primary event reminders
+                                shouldBeQuiet = quietHoursMutePrimary && !event.isAlarm
+                            }
+                            else {
+                                // not a primary event -- always silent in silent period
+                                shouldBeQuiet = true
+                            }
+                        }
+
+                        shouldBeQuiet = shouldBeQuiet || event.isMuted
+
+                        shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
+
+                    }
+                }
+                else {
+                    // This event is currently snoozed and switching to "Shown" state
+                    postedNotification = true
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || (!isQuietPeriodActive && !event.isMuted)
                 }
             }
             
-            // Apply override using ACTUAL PRODUCTION CODE
-            return applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+            // Apply reminder sound override using shared helper (testable)
+            val finalShouldPlay = applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+            return Pair(finalShouldPlay, postedNotification)
         }
 
         /**
@@ -1805,6 +1806,27 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             } else {
                 NotificationChannels.CHANNEL_ID_DEFAULT
             }
+        }
+
+        /**
+         * Computes whether setOnlyAlertOnce should be true for individual notifications.
+         * THIS IS ACTUAL PRODUCTION CODE - called by postNotification.
+         * 
+         * setOnlyAlertOnce(true) tells Android to not re-alert if the notification is already showing.
+         * We want this for:
+         * - Forced reposts (e.g., after boot) - don't replay sound
+         * - Expanding from collapsed - don't replay sound
+         * 
+         * But NOT for reminders - we explicitly WANT sound to play for reminders!
+         * 
+         * @param isForce Whether this is a forced repost (e.g., boot, settings change)
+         * @param wasCollapsed Whether the event was previously in a collapsed notification
+         * @param isReminder Whether this is a reminder notification
+         * @return true if notification should only alert once (suppress sound), false to allow sound
+         */
+        fun computeShouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, isReminder: Boolean): Boolean {
+            // FIX: Don't suppress alert for reminders - we want sound to play!
+            return (isForce || wasCollapsed) && !isReminder
         }
     }
 }
