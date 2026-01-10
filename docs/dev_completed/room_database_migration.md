@@ -443,6 +443,42 @@ This is a good candidate for migration because:
 
 **See:** [Database Modernization Plan](database_modernization_plan.md) for the detailed implementation plan.
 
+## Lessons Learned (Jan 2025)
+
+### Cross-Module Database Access Issue
+
+After completing the Room migration, a critical integration bug was discovered: the React Native sync feature was hardcoded to read from `Events` (legacy) while native code was writing to `RoomEvents` (Room).
+
+**Root cause:** The copy-based migration strategy created a **new database file** (`RoomEvents`) to preserve fallback capability. This broke the hardcoded assumption in the RN layer.
+
+**Solution:** Added `EventsStorageState` (extends `PersistentStorageBase`) to communicate the active database between the main app and expo native module via SharedPreferences:
+
+```kotlin
+// EventsStorageState.kt - main app writes
+class EventsStorageState(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) {
+    var activeDbName by StringProperty(EventsDatabase.DATABASE_NAME, PREF_ACTIVE_DB_NAME)
+    var isUsingRoom by BooleanProperty(true, PREF_IS_USING_ROOM)
+}
+
+// MyModule.kt - expo module reads
+val prefs = context.getSharedPreferences(STORAGE_PREFS_NAME, Context.MODE_PRIVATE)
+val dbName = prefs.getString(PREF_ACTIVE_DB_NAME, ROOM_DATABASE_NAME)
+```
+
+**Key insight:** Expo native modules cannot import classes from the main app (separate Gradle modules). Use Android's SharedPreferences for cross-module communication.
+
+### Prevention Patterns
+
+1. **Contract tests:** When two components share a resource (database, file), add tests that verify they agree on the identifier. See `SyncDatabaseContractTest.kt`.
+
+2. **Shared constants via bridge:** Expose configuration from native to RN rather than duplicating string values.
+
+3. **Integration tests for cross-layer features:** Sync is inherently cross-layer (native writes, RN reads) - test the full path.
+
+4. **Follow existing patterns:** Use `PersistentStorageBase` for SharedPreferences storage instead of raw access for consistency and testability.
+
+**See:** [Sync Database Mismatch Fix](../dev_todo/sync_database_mismatch.md) for full details.
+
 ## References
 
 - [Room documentation](https://developer.android.com/training/data-storage/room)

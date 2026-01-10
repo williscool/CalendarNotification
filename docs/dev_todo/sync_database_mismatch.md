@@ -305,7 +305,7 @@ Users who upgraded with Room migration active have their events in `RoomEvents`.
 - [x] Phase 3: Add Android integration test (`SyncDatabaseContractTest.kt`)
 - [x] Phase 3: Add SharedPreferences contract test (`sharedPreferencesContractIsCorrect`)
 - [x] Phase 4: Add write/read roundtrip test (in `SyncDatabaseContractTest.kt`)
-- [ ] Update `room_database_migration.md` with lessons learned
+- [x] Update `room_database_migration.md` with lessons learned
 - [ ] Consider: Delete orphaned `Events` database after N versions
 
 ## Lessons Learned
