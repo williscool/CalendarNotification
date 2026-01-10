@@ -4,17 +4,40 @@
 
 This document describes the notification system in Calendar Notifications Plus, including notification channels, posting modes, sound/vibration logic, and the muting system.
 
+## Notification Philosophy (Issue #162)
+
+The app's core purpose is to turn calendar notifications into a "to-do list with reminders" that bugs you until things get done. The notification channel system reflects this philosophy:
+
+**First notification** (brand new from calendar) → `calendar_events` channel
+**Every time after** (snooze return, periodic reminder, expanding from collapsed) → `calendar_reminders` channel
+
+This allows users to distinguish by sound whether a notification is:
+- **New**: Something just appeared on your plate (calendar_events sound)
+- **Already tracked**: Something you've seen before that needs attention (calendar_reminders sound)
+
+### Determining New vs Already Tracked
+
+An event is **NEW** when:
+- `displayStatus == Hidden` (never been shown) AND
+- `snoozedUntil == 0` (not returning from snooze)
+
+An event is **ALREADY TRACKED** (use reminders channel) when:
+- `displayStatus != Hidden` (was shown before - collapsed or normal), OR
+- `snoozedUntil != 0` (returning from snooze)
+
+The helper function `computeIsReminderForEvent()` encapsulates this logic.
+
 ## Notification Channels
 
 Android 8+ (API 26) requires notification channels. The app defines 5 channels in `NotificationChannels.kt`:
 
 | Channel ID | Name | Importance | Sound/Vibrate | Purpose |
 |------------|------|------------|---------------|---------|
-| `calendar_events` | DEFAULT | HIGH | ✅ Yes | Regular calendar event notifications |
-| `calendar_alarm` | ALARM | HIGH | ✅ Yes | Alarm-tagged events (high priority) |
+| `calendar_events` | DEFAULT | HIGH | ✅ Yes | **First notification** - new events from calendar |
+| `calendar_alarm` | ALARM | HIGH | ✅ Yes | **First notification** - new alarm-tagged events |
 | `calendar_silent` | SILENT | LOW | ❌ No | Muted notifications |
-| `calendar_reminders` | REMINDERS | HIGH | ✅ Yes | Periodic reminder notifications |
-| `calendar_alarm_reminders` | ALARM_REMINDERS | HIGH | ✅ Yes | Alarm event reminders |
+| `calendar_reminders` | REMINDERS | HIGH | ✅ Yes | **Already tracked** - snooze returns, periodic reminders, expanding from collapsed |
+| `calendar_alarm_reminders` | ALARM_REMINDERS | HIGH | ✅ Yes | **Already tracked** - alarm event reminders |
 
 ### Channel Selection Logic
 
@@ -129,16 +152,19 @@ Each event gets its own notification. Used when:
 **Channel selection**: Uses `NotificationChannels.getChannelId()` per-event with:
 - `isAlarm = event.isAlarm || forceAlarmStream`
 - `isMuted = event.isMuted`
-- `isReminder` = whether this is a reminder re-post
+- `isReminder` = computed by `computeIsReminderForEvent()` (see [Notification Philosophy](#notification-philosophy-issue-162))
 
 | Scenario | `isReminder` | Channel |
 |----------|--------------|---------|
-| First notification | `false` | DEFAULT |
-| First notification (alarm) | `false` | ALARM |
-| First notification (muted) | `false` | SILENT |
-| Reminder re-alert | `true` | REMINDERS |
-| Reminder re-alert (alarm) | `true` | ALARM_REMINDERS |
-| Reminder re-alert (muted) | N/A | *Muted events filtered from reminders* |
+| New event (Hidden, not snoozed) | `false` | DEFAULT |
+| New alarm event | `false` | ALARM |
+| New event (muted) | `false` | SILENT |
+| Snoozed event returning | `true` | REMINDERS |
+| Snoozed alarm event returning | `true` | ALARM_REMINDERS |
+| Expanding from collapsed | `true` | REMINDERS |
+| Periodic reminder re-alert | `true` | REMINDERS |
+| Periodic reminder (alarm) | `true` | ALARM_REMINDERS |
+| Muted event | N/A | SILENT |
 
 ### 2. Everything Collapsed (`postEverythingCollapsed`)
 
@@ -149,16 +175,20 @@ All events collapsed into a single notification. Used when:
 **Channel selection**: Uses `computeCollapsedChannelId()`:
 - `hasAlarms` = any event has `isAlarm && !isTask && !isMuted`
 - `allEventsMuted` = all events have `isMuted = true`
-- `isReminder` = whether triggered by reminder alarm (`playReminderSound` parameter)
+- `hasNewTriggeringEvent` = any event has `displayStatus == Hidden && snoozedUntil == 0 && !isMuted`
+- `isReminder` = `playReminderSound || !hasNewTriggeringEvent`
 
-| Scenario | `playReminderSound` | Channel |
-|----------|---------------------|---------|
-| First collapse | `false` | DEFAULT |
-| First collapse (has unmuted alarm) | `false` | ALARM |
-| First collapse (all muted) | `false` | SILENT |
-| Reminder collapse | `true` | REMINDERS |
-| Reminder collapse (has unmuted alarm) | `true` | ALARM_REMINDERS |
-| Reminder collapse (all muted) | `true` | SILENT |
+The key insight: if a **NEW** event is triggering this collapsed notification, use the events channel. Otherwise, use the reminders channel.
+
+| Scenario | `hasNewTriggeringEvent` | `playReminderSound` | Channel |
+|----------|------------------------|---------------------|---------|
+| New event appears | `true` | `false` | DEFAULT |
+| New alarm event appears | `true` | `false` | ALARM |
+| Snoozed events returning (no new) | `false` | `false` | REMINDERS |
+| Snoozed alarm returning (no new) | `false` | `false` | ALARM_REMINDERS |
+| Periodic reminder | N/A | `true` | REMINDERS |
+| Periodic reminder (has alarm) | N/A | `true` | ALARM_REMINDERS |
+| All muted | N/A | N/A | SILENT |
 
 ### 3. Partial Collapse (`collapseDisplayedNotifications` + `postNumNotificationsCollapsed`)
 
@@ -350,38 +380,47 @@ fun `applyReminderSoundOverride - muted events stay silent when playReminderSoun
 
 ## Appendix: Complete Notification Scenario Matrix
 
-This table shows every notification scenario and the resulting channel/sound behavior.
+This table shows every notification scenario and the resulting channel/sound behavior. Updated for Issue #162 (new vs already-tracked channel selection).
 
-| Scenario | Event Count | `collapseEverything` | `maxNotifications` | Mode | `isReminder` / `playReminderSound` | Muted Status | `hasAlarms` | Channel | Sound? |
-|----------|-------------|---------------------|-------------------|------|-----------------------------------|--------------|-------------|---------|--------|
-| Few events, first alert | 3 | `false` | 4 | Individual | `false` | Unmuted | `false` | DEFAULT | ✅ |
-| Few events, first alert (alarm) | 3 | `false` | 4 | Individual | `false` | Unmuted | `true` | ALARM | ✅ |
-| Few events, first alert (muted) | 3 | `false` | 4 | Individual | `false` | Muted | - | SILENT | ❌ |
-| Few events, reminder | 3 | `false` | 4 | Individual | `true` | Unmuted | `false` | REMINDERS | ✅ |
-| Few events, reminder (alarm) | 3 | `false` | 4 | Individual | `true` | Unmuted | `true` | ALARM_REMINDERS | ✅ |
-| Few events, reminder (muted) | 3 | `false` | 4 | Individual | `true` | Muted | - | *Filtered* | ❌ |
-| | | | | | | | | | |
-| Overflow, individual events | 5 | `false` | 4 | Partial (individual) | `false` | Unmuted | `false` | DEFAULT | ✅ |
-| Overflow, individual (alarm) | 5 | `false` | 4 | Partial (individual) | `false` | Unmuted | `true` | ALARM | ✅ |
-| Overflow, individual (muted) | 5 | `false` | 4 | Partial (individual) | `false` | Muted | - | SILENT | ❌ |
-| Overflow, "X more" summary | 5 | `false` | 4 | Partial (summary) | N/A | All muted | - | SILENT | ❌ |
-| Overflow, "X more" summary | 5 | `false` | 4 | Partial (summary) | N/A | Any unmuted | - | DEFAULT | ❌* |
-| | | | | | | | | | |
-| Collapse all, first alert | 7 | `true` | 4 | All Collapsed | `false` | All muted | - | SILENT | ❌ |
-| Collapse all, first alert | 7 | `true` | 4 | All Collapsed | `false` | Any unmuted | `false` | DEFAULT | ✅ |
-| Collapse all, first alert | 7 | `true` | 4 | All Collapsed | `false` | Any unmuted | `true` | ALARM | ✅ |
-| Collapse all, reminder | 7 | `true` | 4 | All Collapsed | `true` | All muted | - | SILENT | ❌ |
-| Collapse all, reminder | 7 | `true` | 4 | All Collapsed | `true` | Any unmuted | `false` | REMINDERS | ✅ |
-| Collapse all, reminder | 7 | `true` | 4 | All Collapsed | `true` | Any unmuted | `true` | ALARM_REMINDERS | ✅ |
-| | | | | | | | | | |
-| Safety limit, first alert | 50+ | any | any | All Collapsed | `false` | Any unmuted | `false` | DEFAULT | ✅ |
-| Safety limit, reminder | 50+ | any | any | All Collapsed | `true` | Any unmuted | `false` | REMINDERS | ✅ |
+### Individual Notification Scenarios
+
+| Scenario | Event State | `isReminder` | `hasAlarms` | Channel | Sound? |
+|----------|-------------|--------------|-------------|---------|--------|
+| New event (Hidden, not snoozed) | New | `false` | `false` | DEFAULT | ✅ |
+| New alarm event | New | `false` | `true` | ALARM | ✅ |
+| New event (muted) | New | N/A | - | SILENT | ❌ |
+| Snoozed event returning | Already tracked | `true` | `false` | REMINDERS | ✅ |
+| Snoozed alarm returning | Already tracked | `true` | `true` | ALARM_REMINDERS | ✅ |
+| Expanding from collapsed | Already tracked | `true` | `false` | REMINDERS | ✅ |
+| Periodic reminder | Already tracked | `true` | `false` | REMINDERS | ✅ |
+| Periodic reminder (alarm) | Already tracked | `true` | `true` | ALARM_REMINDERS | ✅ |
+
+### Collapsed Notification Scenarios
+
+| Scenario | `hasNewTriggeringEvent` | `playReminderSound` | `hasAlarms` | Channel | Sound? |
+|----------|------------------------|---------------------|-------------|---------|--------|
+| New event(s) appearing | `true` | `false` | `false` | DEFAULT | ✅ |
+| New alarm event appearing | `true` | `false` | `true` | ALARM | ✅ |
+| Only snoozed returning | `false` | `false` | `false` | REMINDERS | ✅ |
+| Only snoozed alarm returning | `false` | `false` | `true` | ALARM_REMINDERS | ✅ |
+| Periodic reminder | N/A | `true` | `false` | REMINDERS | ✅ |
+| Periodic reminder (has alarm) | N/A | `true` | `true` | ALARM_REMINDERS | ✅ |
+| All events muted | N/A | N/A | - | SILENT | ❌ |
+
+### Partial Collapse Scenarios
+
+| Scenario | Individual Events | Summary ("X more") |
+|----------|-------------------|-------------------|
+| New events in individual slots | Use individual event logic (above) | DEFAULT (passive) |
+| Snoozed returning in individual slots | REMINDERS | DEFAULT (passive) |
+| All collapsed events muted | - | SILENT |
 
 ### Legend
 
 - `hasAlarms` = `events.any { it.isAlarm && !it.isTask && !it.isMuted }`
-- *Filtered* = Muted events excluded from reminder processing at line 302
-- ❌* = Partial summary uses `setOnlyAlertOnce(true)`, never re-alerts
+- `hasNewTriggeringEvent` = `events.any { it.displayStatus == Hidden && it.snoozedUntil == 0 && !it.isMuted }`
+- "New" = `displayStatus == Hidden && snoozedUntil == 0`
+- "Already tracked" = `displayStatus != Hidden || snoozedUntil != 0`
 - "Any unmuted" = at least one event has `isMuted = false`
 - "All muted" = all events have `isMuted = true`
 
@@ -392,18 +431,19 @@ The notification system has significant combinatorial complexity:
 **Input variables:**
 - `collapseEverything`: 2 states (true/false)
 - Event count bucket: 3 states (≤ max, > max but < 50, ≥ 50)
-- `isReminder` / `playReminderSound`: 2 states
+- `hasNewTriggeringEvent`: 2 states (new events vs only already-tracked)
+- `playReminderSound`: 2 states (periodic reminder vs not)
 - Muted aggregate: 2 states (all muted, any unmuted)
 - `hasAlarms`: 2 states
 
-**Theoretical combinations:** 2 × 3 × 2 × 2 × 2 = **48 states**
+**Theoretical combinations:** 2 × 3 × 2 × 2 × 2 × 2 = **96 states**
 
 **After constraint reduction:**
-- If `allMuted = true`, then `hasAlarms = false` (muted alarms don't count)
+- If `allMuted = true`, then `hasAlarms = false` and `hasNewTriggeringEvent = false`
 - Some mode × reminder combinations are invalid
-- Muted events filtered from reminder processing
+- Muted events don't count as "triggering"
 
-**Actual unique scenarios:** ~18-20 valid states (as shown in table above)
+**Actual unique scenarios:** ~25-30 valid states (as shown in tables above)
 
-This complexity is why the 2025 bug fix was needed—the interaction between `playReminderSound`, `isQuietPeriodActive`, and muted status wasn't obvious from reading any single code path.
+This complexity is why thorough testing is essential—the interaction between `hasNewTriggeringEvent`, `playReminderSound`, `isQuietPeriodActive`, and muted status requires careful consideration.
 
