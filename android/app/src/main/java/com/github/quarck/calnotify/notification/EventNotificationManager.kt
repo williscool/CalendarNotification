@@ -488,16 +488,13 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         }
                         .toString()
 
-        // Compute if any NEW event is triggering this notification (Issue #162)
-        // A "new triggering" event is: never shown before (Hidden), not snoozed, and not muted
-        val hasNewTriggeringEvent = events.any { event ->
-            event.displayStatus == EventDisplayStatus.Hidden &&
-            event.snoozedUntil == 0L &&
-            !event.isMuted
-        }
-        
-        // Use appropriate channel using shared helper (testable)
-        val channelId = computeCollapsedChannelId(events, hasAlarms, playReminderSound, hasNewTriggeringEvent)
+        // Use NotificationContext for channel selection (Issue #162)
+        val ctx = NotificationContext.fromEvents(
+            events = events,
+            mode = NotificationMode.ALL_COLLAPSED,
+            playReminderSound = playReminderSound
+        )
+        val channelId = ctx.collapsedChannel.toChannelId()
         
         val builder =
                 NotificationCompat.Builder(context, channelId)
@@ -685,7 +682,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                     // Issue #162: Determine if this is a reminder (already tracked) or new event
                     // New events (Hidden status) use calendar_events channel
                     // Already tracked events (was collapsed, etc.) use calendar_reminders channel
-                    val isReminder = computeIsReminderForEvent(event)
+                    val isReminder = NotificationContext.isReminderEvent(event)
 
                     postNotification(
                             context,
@@ -1456,7 +1453,11 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .toString()
 
         // Use silent channel if all collapsed events are muted
-        val channelId = computePartialCollapseChannelId(events)
+        val channelId = if (NotificationContext.computeAllMuted(events)) {
+            NotificationChannels.CHANNEL_ID_SILENT
+        } else {
+            NotificationChannels.CHANNEL_ID_DEFAULT
+        }
 
         val builder =
                 NotificationCompat.Builder(context, channelId)
@@ -1734,80 +1735,6 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             return when {
                 collapsedCount == 0 -> NotificationMode.INDIVIDUAL
                 else -> NotificationMode.PARTIAL_COLLAPSE
-            }
-        }
-
-        /**
-         * Determines if an event should be treated as a "reminder" for channel selection purposes.
-         * THIS IS ACTUAL PRODUCTION CODE - called by postEventNotifications.
-         * 
-         * Philosophy (Issue #162):
-         * - First notification from calendar → calendar_events channel
-         * - Every time after → calendar_reminders channel
-         * 
-         * An event is NEW (not a reminder) when:
-         * - displayStatus == Hidden (never been shown) AND
-         * - snoozedUntil == 0 (not returning from snooze)
-         * 
-         * An event is ALREADY TRACKED (is a reminder) when:
-         * - displayStatus != Hidden (was shown before - collapsed or normal), OR
-         * - snoozedUntil != 0 (returning from snooze)
-         * 
-         * @param event The event to check
-         * @return true if event should use reminders channel, false for events channel
-         */
-        fun computeIsReminderForEvent(event: EventAlertRecord): Boolean {
-            return event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
-        }
-
-        /**
-         * Computes the notification channel ID for collapsed notifications (postEverythingCollapsed).
-         * THIS IS ACTUAL PRODUCTION CODE - called by postEverythingCollapsed.
-         * 
-         * Channel selection (Issue #162):
-         * - If periodic reminder (playReminderSound=true) → reminders channel
-         * - If any NEW event is triggering → events channel (new thing on your plate)
-         * - If only OLD events triggering → reminders channel (already on your plate)
-         * 
-         * @param events List of events to display
-         * @param hasAlarms Whether there are non-muted alarm events
-         * @param playReminderSound Whether this is a periodic reminder notification
-         * @param hasNewTriggeringEvent Whether any new (never shown) events are triggering this notification
-         * @return The appropriate channel ID
-         */
-        fun computeCollapsedChannelId(
-            events: List<EventAlertRecord>,
-            hasAlarms: Boolean,
-            playReminderSound: Boolean,
-            hasNewTriggeringEvent: Boolean
-        ): String {
-            val allEventsMuted = events.all { it.isMuted }
-            // Use reminders channel if: periodic reminder OR no new events triggering
-            val isReminder = playReminderSound || !hasNewTriggeringEvent
-            return NotificationChannels.getChannelId(
-                isAlarm = hasAlarms,
-                isMuted = allEventsMuted,
-                isReminder = isReminder
-            )
-        }
-
-        /**
-         * Computes the notification channel ID for partial collapse notifications (postNumNotificationsCollapsed).
-         * THIS IS ACTUAL PRODUCTION CODE - called by postNumNotificationsCollapsed.
-         * 
-         * This is for the "X more events" summary notification when some events are shown
-         * individually and older ones are collapsed. Uses DEFAULT or SILENT channel only
-         * (no alarm/reminder variants since this is a passive summary).
-         * 
-         * @param events List of collapsed events
-         * @return SILENT if all events are muted, DEFAULT otherwise
-         */
-        fun computePartialCollapseChannelId(events: List<EventAlertRecord>): String {
-            val allEventsMuted = events.all { it.isMuted }
-            return if (allEventsMuted) {
-                NotificationChannels.CHANNEL_ID_SILENT
-            } else {
-                NotificationChannels.CHANNEL_ID_DEFAULT
             }
         }
 

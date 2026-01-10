@@ -161,6 +161,29 @@ data class NotificationContext(
                 !it.isMuted
             }
 
+        /**
+         * Determines if a single event should be treated as a "reminder" for channel selection.
+         * 
+         * Philosophy (Issue #162):
+         * - First notification from calendar → calendar_events channel
+         * - Every time after → calendar_reminders channel
+         * 
+         * An event is NEW (not a reminder) when:
+         * - displayStatus == Hidden (never been shown) AND
+         * - snoozedUntil == 0 (not returning from snooze)
+         * 
+         * An event is ALREADY TRACKED (is a reminder) when:
+         * - displayStatus != Hidden (was shown before - collapsed or normal), OR
+         * - snoozedUntil != 0 (returning from snooze)
+         * 
+         * Note: This is the single-event version. For aggregates, use [computeHasNewTriggeringEvent].
+         * 
+         * @param event The event to check
+         * @return true if event should use reminders channel, false for events channel
+         */
+        fun isReminderEvent(event: EventAlertRecord): Boolean =
+            event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
+
         // =========================================================================
         // Factory method
         // =========================================================================

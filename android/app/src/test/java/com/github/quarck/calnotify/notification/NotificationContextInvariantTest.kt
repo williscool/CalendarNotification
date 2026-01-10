@@ -707,4 +707,80 @@ class NotificationContextInvariantTest {
             flags = flags
         )
     }
+
+    // =========================================================================
+    // Invariant 12: isReminderEvent() helper
+    // =========================================================================
+
+    @Test
+    fun `invariant 12 - new event (Hidden, not snoozed) is NOT a reminder`() {
+        val newEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.Hidden,
+            snoozedUntil = 0L
+        )
+        
+        assertFalse(
+            "New event (Hidden, snoozedUntil=0) should NOT be a reminder",
+            NotificationContext.isReminderEvent(newEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 12 - snoozed event (Hidden, snoozedUntil non-zero) IS a reminder`() {
+        val snoozedEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.Hidden,
+            snoozedUntil = baseTime + 60000L  // Was snoozed
+        )
+        
+        assertTrue(
+            "Snoozed event returning should be a reminder",
+            NotificationContext.isReminderEvent(snoozedEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 12 - collapsed event (DisplayedCollapsed) IS a reminder`() {
+        val collapsedEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.DisplayedCollapsed,
+            snoozedUntil = 0L
+        )
+        
+        assertTrue(
+            "Event expanding from collapsed should be a reminder",
+            NotificationContext.isReminderEvent(collapsedEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 12 - normal event (DisplayedNormal) IS a reminder`() {
+        val normalEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.DisplayedNormal,
+            snoozedUntil = 0L
+        )
+        
+        assertTrue(
+            "Previously displayed normal event should be a reminder",
+            NotificationContext.isReminderEvent(normalEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 12 - isReminderEvent is inverse of hasNewTriggeringEvent logic for unmuted`() {
+        // For an unmuted event, isReminderEvent should be the opposite of what 
+        // hasNewTriggeringEvent would return for a single-event list
+        val newEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.Hidden,
+            snoozedUntil = 0L,
+            isMuted = false
+        )
+        
+        val isReminder = NotificationContext.isReminderEvent(newEvent)
+        val hasNewTriggering = NotificationContext.computeHasNewTriggeringEvent(listOf(newEvent))
+        
+        assertEquals(
+            "For unmuted event, isReminderEvent should be inverse of hasNewTriggeringEvent",
+            !isReminder,
+            hasNewTriggering
+        )
+    }
 }

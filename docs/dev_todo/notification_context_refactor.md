@@ -185,6 +185,61 @@ Add invariant tests for:
 - `computeAllMuted()` - empty list handling
 - `computeShouldBeQuietForEvent()` - all quiet conditions
 
+### Phase 4: Further Consolidation ✅ COMPLETE
+
+Additional cleanup to fully leverage NotificationContext and eliminate remaining duplication.
+
+#### Phase 4A: Move `computeIsReminderForEvent` to NotificationContext
+
+The single-event reminder check duplicates logic already in NotificationContext:
+
+```kotlin
+// Current (EventNotificationManager)
+fun computeIsReminderForEvent(event: EventAlertRecord): Boolean =
+    event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
+
+// Move to NotificationContext as:
+fun isReminderEvent(event: EventAlertRecord): Boolean =
+    event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
+```
+
+#### Phase 4B: Delete `computeCollapsedChannelId`
+
+This function duplicates what `NotificationContext.collapsedChannel` already computes:
+
+```kotlin
+// Current - DELETE THIS
+fun computeCollapsedChannelId(events, hasAlarms, playReminderSound, hasNewTriggeringEvent): String {
+    val allEventsMuted = events.all { it.isMuted }  // recomputed!
+    val isReminder = playReminderSound || !hasNewTriggeringEvent
+    return NotificationChannels.getChannelId(...)
+}
+
+// Replace usage with:
+NotificationContext.fromEvents(events, mode, playReminderSound).collapsedChannel.toChannelId()
+```
+
+#### Phase 4C: Delete `computePartialCollapseChannelId`
+
+Simple logic that can use existing helper:
+
+```kotlin
+// Current - DELETE THIS
+fun computePartialCollapseChannelId(events: List<EventAlertRecord>): String {
+    val allEventsMuted = events.all { it.isMuted }
+    return if (allEventsMuted) CHANNEL_ID_SILENT else CHANNEL_ID_DEFAULT
+}
+
+// Replace with inline:
+if (NotificationContext.computeAllMuted(events)) CHANNEL_ID_SILENT else CHANNEL_ID_DEFAULT
+```
+
+#### Phase 4D: Update Tests
+
+- Remove tests for deleted helpers
+- Add tests for `isReminderEvent`
+- Update any tests that called the deleted helpers
+
 ## Benefits
 
 | Aspect | Before | After |
@@ -192,11 +247,12 @@ Add invariant tests for:
 | Constraints | Implicit, scattered | Explicit in `init {}` |
 | Derived state | Computed 3× in different places | Computed once via helper |
 | shouldBeQuiet | 2× ~30 line blocks | 1× ~10 line helper |
+| Channel helpers | 3 separate functions | 1 unified context |
 | Testing | ~30 scenario tests | ~10 invariant tests |
 | Impossible states | Silently wrong | Throw immediately |
 | Documentation | Truth tables | Self-documenting `when` |
 
-**Estimated reduction:** ~60 lines of duplicated code
+**Estimated reduction:** ~80 lines of duplicated code (Phase 3 + 4)
 
 ## Effort Estimate
 
@@ -209,6 +265,10 @@ Add invariant tests for:
 | Phase 3C | 30 min | ✅ Complete |
 | Phase 3D | 1 hour | ✅ Complete |
 | Phase 3E | 30 min | ✅ Complete |
+| Phase 4A | 15 min | ✅ Complete |
+| Phase 4B | 15 min | ✅ Complete |
+| Phase 4C | 15 min | ✅ Complete |
+| Phase 4D | 30 min | ✅ Complete |
 
 ## Files Affected
 
@@ -229,13 +289,20 @@ Add invariant tests for:
 
 ## Results
 
-**Lines changed:**
+**Lines changed (Phase 3):**
 - `NotificationContext.kt`: Added ~50 lines (static helpers + documentation)
 - `EventNotificationManager.kt`: Net reduction of ~40 lines (removed duplicate shouldBeQuiet blocks)
 - `NotificationContextInvariantTest.kt`: Added ~230 lines (comprehensive invariant tests)
 
+**Lines changed (Phase 4):**
+- `NotificationContext.kt`: Added `isReminderEvent()` helper (~20 lines)
+- `EventNotificationManager.kt`: Removed `computeIsReminderForEvent`, `computeCollapsedChannelId`, `computePartialCollapseChannelId` (~60 lines)
+- Production code now uses `NotificationContext.fromEvents().collapsedChannel.toChannelId()`
+
 **Benefits achieved:**
-- Single source of truth for `hasAlarms`, `allMuted`, `hasNewTriggeringEvent` calculations
+- Single source of truth for `hasAlarms`, `allMuted`, `hasNewTriggeringEvent`, `isReminderEvent` calculations
 - Consolidated `shouldBeQuiet` logic into one testable helper
-- 11 invariant tests covering all edge cases
+- Channel selection unified in `NotificationContext.collapsedChannel`
+- Removed 3 redundant helper functions from EventNotificationManager
+- 11+ invariant tests covering all edge cases
 - Explicit constraints that throw on impossible states

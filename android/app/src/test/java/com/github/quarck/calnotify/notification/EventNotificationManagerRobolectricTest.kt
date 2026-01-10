@@ -59,6 +59,28 @@ class EventNotificationManagerRobolectricTest {
         NotificationChannels.createChannels(context)
     }
 
+    // Helper to compute collapsed channel ID using NotificationContext
+    // This replaces the deleted computeCollapsedChannelId
+    private fun computeCollapsedChannelId(
+        events: List<EventAlertRecord>,
+        hasAlarms: Boolean,
+        playReminderSound: Boolean,
+        hasNewTriggeringEvent: Boolean
+    ): String {
+        // Build a context that matches the expected state
+        // Note: hasAlarms and hasNewTriggeringEvent are passed in to match old test structure
+        // In production, these would be computed from events, but tests pass explicit values
+        val ctx = NotificationContext(
+            eventCount = events.size,
+            hasAlarms = hasAlarms,
+            allMuted = events.isNotEmpty() && events.all { it.isMuted },
+            hasNewTriggeringEvent = hasNewTriggeringEvent,
+            mode = EventNotificationManager.NotificationMode.ALL_COLLAPSED,
+            playReminderSound = playReminderSound
+        )
+        return ctx.collapsedChannel.toChannelId()
+    }
+
     // === Mode selection tests (computeNotificationMode) ===
 
     @Test
@@ -208,7 +230,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = mutedEvents,
             hasAlarms = hasAlarms,
             playReminderSound = false,
@@ -230,7 +252,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = unmutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = unmutedEvents,
             hasAlarms = hasAlarms,
             playReminderSound = false,
@@ -252,7 +274,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = eventsWithAlarm.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = eventsWithAlarm,
             hasAlarms = hasAlarms,
             playReminderSound = false,
@@ -277,7 +299,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = mutedEvents.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = mutedEvents,
             hasAlarms = hasAlarms,
             playReminderSound = true,  // Periodic reminder
@@ -300,7 +322,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = mixedEvents.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = mixedEvents,
             hasAlarms = hasAlarms,
             playReminderSound = true,  // Periodic reminder
@@ -323,7 +345,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = eventsWithAlarm.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = eventsWithAlarm,
             hasAlarms = hasAlarms,
             playReminderSound = true,  // Periodic reminder
@@ -346,7 +368,7 @@ class EventNotificationManagerRobolectricTest {
         )
         val hasAlarms = eventsWithMutedAlarm.any { it.isAlarm && !it.isMuted }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = eventsWithMutedAlarm,
             hasAlarms = hasAlarms,
             playReminderSound = true,  // Periodic reminder
@@ -361,6 +383,7 @@ class EventNotificationManagerRobolectricTest {
     }
 
     // === Partial collapse channel selection tests (postNumNotificationsCollapsed) ===
+    // Uses NotificationContext.computeAllMuted() for channel selection
 
     @Test
     fun `partial collapse with all muted events uses silent channel`() {
@@ -371,8 +394,9 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 3, isMuted = true)
         )
         
-        // When - call production code
-        val channelId = EventNotificationManager.computePartialCollapseChannelId(mutedEvents)
+        // When - use computeAllMuted (same logic as production)
+        val allMuted = NotificationContext.computeAllMuted(mutedEvents)
+        val channelId = if (allMuted) NotificationChannels.CHANNEL_ID_SILENT else NotificationChannels.CHANNEL_ID_DEFAULT
         
         // Then - should use silent channel
         assertEquals(
@@ -391,8 +415,9 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 3, isMuted = true)
         )
         
-        // When - call production code
-        val channelId = EventNotificationManager.computePartialCollapseChannelId(mixedEvents)
+        // When - use computeAllMuted (same logic as production)
+        val allMuted = NotificationContext.computeAllMuted(mixedEvents)
+        val channelId = if (allMuted) NotificationChannels.CHANNEL_ID_SILENT else NotificationChannels.CHANNEL_ID_DEFAULT
         
         // Then - should use default channel (not silent)
         assertEquals(
@@ -410,8 +435,9 @@ class EventNotificationManagerRobolectricTest {
             createTestEvent(eventId = 2, isMuted = false)
         )
         
-        // When - call production code
-        val channelId = EventNotificationManager.computePartialCollapseChannelId(unmutedEvents)
+        // When - use computeAllMuted (same logic as production)
+        val allMuted = NotificationContext.computeAllMuted(unmutedEvents)
+        val channelId = if (allMuted) NotificationChannels.CHANNEL_ID_SILENT else NotificationChannels.CHANNEL_ID_DEFAULT
         
         // Then - should use default channel
         assertEquals(
@@ -771,7 +797,7 @@ class EventNotificationManagerRobolectricTest {
         )
         
         // Also verify the channel is correct
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = allMutedEvents,
             hasAlarms = hasAlarms,
             playReminderSound = true,
@@ -1193,7 +1219,7 @@ class EventNotificationManagerRobolectricTest {
         )
         
         // isReminder should be false for new events
-        val isReminder = EventNotificationManager.computeIsReminderForEvent(newEvent)
+        val isReminder = NotificationContext.isReminderEvent(newEvent)
         
         assertFalse(
             "New event (Hidden, snoozedUntil=0) should NOT be marked as reminder",
@@ -1209,7 +1235,7 @@ class EventNotificationManagerRobolectricTest {
             snoozedUntil = baseTime + 1000  // Was snoozed
         )
         
-        val isReminder = EventNotificationManager.computeIsReminderForEvent(snoozedEvent)
+        val isReminder = NotificationContext.isReminderEvent(snoozedEvent)
         
         assertTrue(
             "Snoozed event returning should be marked as reminder",
@@ -1225,7 +1251,7 @@ class EventNotificationManagerRobolectricTest {
             snoozedUntil = 0L
         )
         
-        val isReminder = EventNotificationManager.computeIsReminderForEvent(collapsedEvent)
+        val isReminder = NotificationContext.isReminderEvent(collapsedEvent)
         
         assertTrue(
             "Event expanding from collapsed should be marked as reminder",
@@ -1241,7 +1267,7 @@ class EventNotificationManagerRobolectricTest {
             snoozedUntil = 0L
         )
         
-        val isReminder = EventNotificationManager.computeIsReminderForEvent(normalEvent)
+        val isReminder = NotificationContext.isReminderEvent(normalEvent)
         
         assertTrue(
             "Previously displayed event should be marked as reminder",
@@ -1264,7 +1290,7 @@ class EventNotificationManagerRobolectricTest {
             it.displayStatus == EventDisplayStatus.Hidden && it.snoozedUntil == 0L && !it.isMuted 
         }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = events,
             hasAlarms = hasAlarms,
             playReminderSound = playReminderSound,
@@ -1291,7 +1317,7 @@ class EventNotificationManagerRobolectricTest {
             it.displayStatus == EventDisplayStatus.Hidden && it.snoozedUntil == 0L && !it.isMuted 
         }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = events,
             hasAlarms = hasAlarms,
             playReminderSound = playReminderSound,
@@ -1316,7 +1342,7 @@ class EventNotificationManagerRobolectricTest {
         val playReminderSound = true  // Periodic reminder
         val hasNewTriggeringEvent = false  // No new events
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = events,
             hasAlarms = hasAlarms,
             playReminderSound = playReminderSound,
@@ -1340,7 +1366,7 @@ class EventNotificationManagerRobolectricTest {
         val playReminderSound = false
         val hasNewTriggeringEvent = true
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = events,
             hasAlarms = hasAlarms,
             playReminderSound = playReminderSound,
@@ -1364,7 +1390,7 @@ class EventNotificationManagerRobolectricTest {
         val playReminderSound = false
         val hasNewTriggeringEvent = false  // It's snoozed, not new
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = events,
             hasAlarms = hasAlarms,
             playReminderSound = playReminderSound,
@@ -1391,7 +1417,7 @@ class EventNotificationManagerRobolectricTest {
             it.displayStatus == EventDisplayStatus.Hidden && it.snoozedUntil == 0L && !it.isMuted 
         }
         
-        val channelId = EventNotificationManager.computeCollapsedChannelId(
+        val channelId = computeCollapsedChannelId(
             events = events,
             hasAlarms = hasAlarms,
             playReminderSound = playReminderSound,
