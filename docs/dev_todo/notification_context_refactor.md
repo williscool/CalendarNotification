@@ -240,6 +240,81 @@ if (NotificationContext.computeAllMuted(events)) CHANNEL_ID_SILENT else CHANNEL_
 - Add tests for `isReminderEvent`
 - Update any tests that called the deleted helpers
 
+### Phase 5: Deep Consolidation ✅ COMPLETE
+
+Move ALL pure notification computation logic into NotificationContext, making it the single source of truth for "what should a notification look/sound like".
+
+**Philosophy:** EventNotificationManager handles orchestration (when to post, DB updates, logging). NotificationContext handles computation (channels, sound decisions, alert flags).
+
+#### Phase 5A: Move `computeShouldBeQuietForEvent` to NotificationContext
+
+```kotlin
+// Move from EventNotificationManager.Companion to NotificationContext.Companion
+fun shouldBeQuietForEvent(
+    event: EventAlertRecord,
+    force: Boolean,
+    isAlreadyDisplayed: Boolean,
+    isQuietPeriodActive: Boolean,
+    isPrimaryEvent: Boolean,
+    quietHoursMutePrimary: Boolean
+): Boolean
+```
+
+#### Phase 5B: Move `computeShouldOnlyAlertOnce` to NotificationContext
+
+```kotlin
+// Move from EventNotificationManager.Companion to NotificationContext.Companion
+fun shouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, isReminder: Boolean): Boolean
+```
+
+#### Phase 5C: Move `applyReminderSoundOverride` to NotificationContext
+
+```kotlin
+// Move from EventNotificationManager.Companion to NotificationContext.Companion
+fun applyReminderSoundOverride(
+    currentShouldPlayAndVibrate: Boolean,
+    playReminderSound: Boolean,
+    hasAlarms: Boolean
+): Boolean
+```
+
+#### Phase 5D: Add `individualChannelId()` to NotificationContext
+
+Extract channel selection logic from `postNotification`:
+
+```kotlin
+fun individualChannelId(
+    event: EventAlertRecord,
+    isReminder: Boolean,
+    forceAlarmStream: Boolean = false
+): String = NotificationChannels.getChannelId(
+    isAlarm = event.isAlarm || forceAlarmStream,
+    isMuted = event.isMuted,
+    isReminder = isReminder
+)
+```
+
+#### Phase 5E: Move `computeShouldPlayAndVibrateForCollapsedFull` to NotificationContext
+
+Rename to `computeShouldPlayAndVibrate`:
+
+```kotlin
+fun computeShouldPlayAndVibrate(
+    events: List<EventAlertRecord>,
+    force: Boolean,
+    isQuietPeriodActive: Boolean,
+    primaryEventId: Long?,
+    quietHoursMutePrimary: Boolean,
+    playReminderSound: Boolean,
+    hasAlarms: Boolean
+): Pair<Boolean, Boolean>
+```
+
+#### Phase 5F: Update all call sites and tests
+
+- Update EventNotificationManager to call `NotificationContext.*` instead of `companion object` methods
+- Update tests to use new locations
+
 ## Benefits
 
 | Aspect | Before | After |
@@ -248,11 +323,12 @@ if (NotificationContext.computeAllMuted(events)) CHANNEL_ID_SILENT else CHANNEL_
 | Derived state | Computed 3× in different places | Computed once via helper |
 | shouldBeQuiet | 2× ~30 line blocks | 1× ~10 line helper |
 | Channel helpers | 3 separate functions | 1 unified context |
-| Testing | ~30 scenario tests | ~10 invariant tests |
+| Sound/vibrate logic | In EventNotificationManager | In NotificationContext |
+| Testing | ~30 scenario tests | ~20 invariant tests |
 | Impossible states | Silently wrong | Throw immediately |
 | Documentation | Truth tables | Self-documenting `when` |
 
-**Estimated reduction:** ~80 lines of duplicated code (Phase 3 + 4)
+**Estimated reduction:** ~120 lines moved from EventNotificationManager to NotificationContext
 
 ## Effort Estimate
 
@@ -269,6 +345,12 @@ if (NotificationContext.computeAllMuted(events)) CHANNEL_ID_SILENT else CHANNEL_
 | Phase 4B | 15 min | ✅ Complete |
 | Phase 4C | 15 min | ✅ Complete |
 | Phase 4D | 30 min | ✅ Complete |
+| Phase 5A | 15 min | ✅ Complete |
+| Phase 5B | 10 min | ✅ Complete |
+| Phase 5C | 10 min | ✅ Complete |
+| Phase 5D | 15 min | ✅ Complete |
+| Phase 5E | 20 min | ✅ Complete |
+| Phase 5F | 30 min | ✅ Complete |
 
 ## Files Affected
 
@@ -299,10 +381,17 @@ if (NotificationContext.computeAllMuted(events)) CHANNEL_ID_SILENT else CHANNEL_
 - `EventNotificationManager.kt`: Removed `computeIsReminderForEvent`, `computeCollapsedChannelId`, `computePartialCollapseChannelId` (~60 lines)
 - Production code now uses `NotificationContext.fromEvents().collapsedChannel.toChannelId()`
 
+**Lines changed (Phase 5):**
+- `NotificationContext.kt`: Added ~130 lines (all sound/vibration helpers)
+- `EventNotificationManager.kt`: Removed ~150 lines (moved helpers to NotificationContext)
+- Tests updated to use `NotificationContext.*` instead of `EventNotificationManager.*`
+
 **Benefits achieved:**
-- Single source of truth for `hasAlarms`, `allMuted`, `hasNewTriggeringEvent`, `isReminderEvent` calculations
-- Consolidated `shouldBeQuiet` logic into one testable helper
-- Channel selection unified in `NotificationContext.collapsedChannel`
-- Removed 3 redundant helper functions from EventNotificationManager
-- 11+ invariant tests covering all edge cases
+- Single source of truth for ALL notification decisions in `NotificationContext`
+- `EventNotificationManager` now focuses purely on orchestration (when to post, DB, logging)
+- All computation is testable in isolation via `NotificationContextInvariantTest`
+- Channel selection unified: `collapsedChannel`, `partialCollapseChannelId`, `individualChannelId`
+- Sound/vibration logic unified: `shouldBeQuietForEvent`, `shouldOnlyAlertOnce`, `computeShouldPlayAndVibrate`
+- Removed 6+ redundant helper functions from EventNotificationManager
+- 20+ invariant tests covering all edge cases
 - Explicit constraints that throw on impossible states

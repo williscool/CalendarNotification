@@ -525,7 +525,7 @@ class NotificationContextInvariantTest {
         
         assertTrue(
             "Force should always be quiet",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = event,
                 force = true,
                 isAlreadyDisplayed = false,
@@ -542,7 +542,7 @@ class NotificationContextInvariantTest {
         
         assertTrue(
             "Already displayed should be quiet",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = event,
                 force = false,
                 isAlreadyDisplayed = true,
@@ -559,7 +559,7 @@ class NotificationContextInvariantTest {
         
         assertTrue(
             "Muted event should always be quiet",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = mutedEvent,
                 force = false,
                 isAlreadyDisplayed = false,
@@ -576,7 +576,7 @@ class NotificationContextInvariantTest {
         
         assertTrue(
             "Quiet period + non-primary should be quiet",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = event,
                 force = false,
                 isAlreadyDisplayed = false,
@@ -594,7 +594,7 @@ class NotificationContextInvariantTest {
         // Primary event with quietHoursMutePrimary=true should be quiet
         assertTrue(
             "Quiet period + primary + mute setting should be quiet",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = event,
                 force = false,
                 isAlreadyDisplayed = false,
@@ -607,7 +607,7 @@ class NotificationContextInvariantTest {
         // Primary event with quietHoursMutePrimary=false should NOT be quiet
         assertFalse(
             "Quiet period + primary + no mute setting should play sound",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = event,
                 force = false,
                 isAlreadyDisplayed = false,
@@ -625,7 +625,7 @@ class NotificationContextInvariantTest {
         // Alarm should play even when quietHoursMutePrimary=true
         assertFalse(
             "Alarm should override quiet period primary mute",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = alarmEvent,
                 force = false,
                 isAlreadyDisplayed = false,
@@ -642,7 +642,7 @@ class NotificationContextInvariantTest {
         
         assertFalse(
             "Normal event with no quiet conditions should play sound",
-            EventNotificationManager.computeShouldBeQuietForEvent(
+            NotificationContext.shouldBeQuietForEvent(
                 event = event,
                 force = false,
                 isAlreadyDisplayed = false,

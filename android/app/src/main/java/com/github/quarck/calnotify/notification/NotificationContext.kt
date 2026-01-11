@@ -198,6 +198,165 @@ data class NotificationContext(
             if (computeAllMuted(events)) NotificationChannels.CHANNEL_ID_SILENT
             else NotificationChannels.CHANNEL_ID_DEFAULT
 
+        /**
+         * Computes the channel ID for individual event notifications.
+         * 
+         * @param event The event to get channel for
+         * @param isReminder Whether this is a reminder (already tracked event)
+         * @param forceAlarmStream Whether to force alarm stream (e.g., for alarm events)
+         * @return The appropriate channel ID
+         */
+        fun individualChannelId(
+            event: EventAlertRecord,
+            isReminder: Boolean,
+            forceAlarmStream: Boolean = false
+        ): String = NotificationChannels.getChannelId(
+            isAlarm = event.isAlarm || forceAlarmStream,
+            isMuted = event.isMuted,
+            isReminder = isReminder
+        )
+
+        // =========================================================================
+        // Sound/vibration decision helpers
+        // =========================================================================
+
+        /**
+         * Computes whether a single event should be quiet (no sound/vibration).
+         * 
+         * An event should be quiet when:
+         * 1. Force repost (e.g., boot, settings change) - just display, no sound
+         * 2. Already displayed - no re-alerting for already visible notifications
+         * 3. Quiet period active AND not primary event - silent during quiet hours
+         * 4. Quiet period active AND primary event - depends on quietHoursMutePrimary setting
+         * 5. Event is muted - always quiet regardless of above
+         * 
+         * @param event The event to check
+         * @param force Whether this is a forced repost
+         * @param isAlreadyDisplayed Whether the event is already showing
+         * @param isQuietPeriodActive Whether quiet hours are active
+         * @param isPrimaryEvent Whether this is the primary/triggering event
+         * @param quietHoursMutePrimary User setting for muting primary during quiet hours
+         * @return true if the event should be quiet (no sound), false to play sound
+         */
+        fun shouldBeQuietForEvent(
+            event: EventAlertRecord,
+            force: Boolean,
+            isAlreadyDisplayed: Boolean,
+            isQuietPeriodActive: Boolean,
+            isPrimaryEvent: Boolean,
+            quietHoursMutePrimary: Boolean
+        ): Boolean {
+            val baseQuiet = when {
+                force -> true
+                isAlreadyDisplayed -> true
+                isQuietPeriodActive && isPrimaryEvent -> quietHoursMutePrimary && !event.isAlarm
+                isQuietPeriodActive -> true
+                else -> false
+            }
+            return baseQuiet || event.isMuted
+        }
+
+        /**
+         * Computes whether setOnlyAlertOnce should be true for individual notifications.
+         * 
+         * setOnlyAlertOnce(true) tells Android to not re-alert if the notification is already showing.
+         * We want this for:
+         * - Forced reposts (e.g., after boot) - don't replay sound
+         * - Expanding from collapsed - don't replay sound
+         * 
+         * But NOT for reminders - we explicitly WANT sound to play for reminders!
+         * 
+         * @param isForce Whether this is a forced repost (e.g., boot, settings change)
+         * @param wasCollapsed Whether the event was previously in a collapsed notification
+         * @param isReminder Whether this is a reminder notification
+         * @return true if notification should only alert once (suppress sound), false to allow sound
+         */
+        fun shouldOnlyAlertOnce(isForce: Boolean, wasCollapsed: Boolean, isReminder: Boolean): Boolean =
+            (isForce || wasCollapsed) && !isReminder
+
+        /**
+         * Applies the reminder sound override logic.
+         * 
+         * When this is a reminder notification, alarms can override the muted status
+         * to ensure alarm sounds still play during periodic reminders.
+         * 
+         * @param currentShouldPlayAndVibrate The value computed by the event loop
+         * @param playReminderSound Whether this is a reminder notification
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return Final shouldPlayAndVibrate value
+         */
+        fun applyReminderSoundOverride(
+            currentShouldPlayAndVibrate: Boolean,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Boolean = if (playReminderSound) {
+            currentShouldPlayAndVibrate || hasAlarms
+        } else {
+            currentShouldPlayAndVibrate
+        }
+
+        /**
+         * Computes whether sound/vibration should play AND whether any notification was posted
+         * for collapsed notifications.
+         * 
+         * This iterates over all events and determines:
+         * 1. Whether any notification would be "posted" (status change)
+         * 2. Whether sound should play based on event states
+         * 
+         * @param events List of events to display
+         * @param force Whether to force re-post
+         * @param isQuietPeriodActive Whether quiet hours are active
+         * @param primaryEventId The primary event ID (for quiet hours exception)
+         * @param quietHoursMutePrimary Settings flag for muting primary during quiet hours
+         * @param playReminderSound Whether this is a reminder (affects sound logic)
+         * @param hasAlarms Whether there are non-muted alarm events
+         * @return Pair of (shouldPlayAndVibrate, postedNotification)
+         */
+        fun computeShouldPlayAndVibrate(
+            events: List<EventAlertRecord>,
+            force: Boolean,
+            isQuietPeriodActive: Boolean,
+            primaryEventId: Long?,
+            quietHoursMutePrimary: Boolean,
+            playReminderSound: Boolean,
+            hasAlarms: Boolean
+        ): Pair<Boolean, Boolean> {
+            var shouldPlayAndVibrate = false
+            var postedNotification = false
+
+            for (event in events) {
+                if (event.snoozedUntil == 0L) {
+                    // For collapsed: process if not already collapsed, or forced, or reminder
+                    if (event.displayStatus != EventDisplayStatus.DisplayedCollapsed || force || playReminderSound) {
+                        postedNotification = true
+
+                        // For collapsed notifications, "already displayed" means DisplayedNormal
+                        val isAlreadyDisplayed = event.displayStatus == EventDisplayStatus.DisplayedNormal
+                        val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
+
+                        val shouldBeQuiet = shouldBeQuietForEvent(
+                            event = event,
+                            force = force,
+                            isAlreadyDisplayed = isAlreadyDisplayed,
+                            isQuietPeriodActive = isQuietPeriodActive,
+                            isPrimaryEvent = isPrimaryEvent,
+                            quietHoursMutePrimary = quietHoursMutePrimary
+                        )
+
+                        shouldPlayAndVibrate = shouldPlayAndVibrate || !shouldBeQuiet
+                    }
+                } else {
+                    // Snoozed event returning
+                    postedNotification = true
+                    shouldPlayAndVibrate = shouldPlayAndVibrate || (!isQuietPeriodActive && !event.isMuted)
+                }
+            }
+
+            // Apply reminder sound override
+            val finalShouldPlay = applyReminderSoundOverride(shouldPlayAndVibrate, playReminderSound, hasAlarms)
+            return Pair(finalShouldPlay, postedNotification)
+        }
+
         // =========================================================================
         // Factory method
         // =========================================================================
