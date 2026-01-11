@@ -603,12 +603,14 @@ private fun showUpcomingEventActionDialog(event: EventAlertRecord) {
         .setItems(arrayOf(
             getString(R.string.pre_snooze),
             getString(R.string.pre_mute),
+            getString(R.string.pre_dismiss),
             getString(R.string.view_in_calendar)
         )) { _, which ->
             when (which) {
                 0 -> showPreSnoozeTimePicker(event)
                 1 -> handlePreMute(event)
-                2 -> openEventInCalendar(event)
+                2 -> handlePreDismiss(event)
+                3 -> openEventInCalendar(event)
             }
         }
         .show()
@@ -714,7 +716,79 @@ class PreMutedEventsManager(context: Context) {
 }
 ```
 
-#### 6.5 Update ApplicationController.registerNewEvent
+#### 6.5 Implement Pre-Dismiss Logic
+
+Pre-dismiss skips the event entirely—it goes straight to the Dismissed storage:
+
+```kotlin
+fun handlePreDismiss(event: EventAlertRecord) {
+    background {
+        // 1. Mark as handled in MonitorStorage (so it won't fire)
+        MonitorStorage(this).use { storage ->
+            storage.updateAlert(MonitorEventAlertEntry(
+                eventId = event.eventId,
+                isAllDay = event.isAllDay,
+                alertTime = event.alertTime,
+                instanceStartTime = event.instanceStartTime,
+                instanceEndTime = event.instanceEndTime,
+                alertCreatedByUs = false,
+                wasHandled = true
+            ))
+        }
+        
+        // 2. Add directly to DismissedEventsStorage
+        DismissedEventsStorage(this).classCustomUse { db ->
+            db.addEvent(
+                EventDismissType.ManuallyDismissedFromActivity,
+                event
+            )
+        }
+        
+        // 3. Dismiss native calendar alert if any
+        CalendarProvider.dismissNativeEventAlert(this, event.eventId)
+        
+        // 4. Refresh UI
+        runOnUiThread {
+            showUpcomingEvents() // Refresh to remove the dismissed event
+            Snackbar.make(
+                coordinatorLayout, 
+                R.string.event_dismissed, 
+                Snackbar.LENGTH_LONG
+            ).setAction(R.string.undo) {
+                undoPreDismiss(event)
+            }.show()
+        }
+    }
+}
+
+fun undoPreDismiss(event: EventAlertRecord) {
+    background {
+        // 1. Remove from DismissedEventsStorage
+        DismissedEventsStorage(this).classCustomUse { db ->
+            db.deleteEvent(event.eventId, event.instanceStartTime)
+        }
+        
+        // 2. Unmark as handled in MonitorStorage
+        MonitorStorage(this).use { storage ->
+            storage.updateAlert(MonitorEventAlertEntry(
+                eventId = event.eventId,
+                isAllDay = event.isAllDay,
+                alertTime = event.alertTime,
+                instanceStartTime = event.instanceStartTime,
+                instanceEndTime = event.instanceEndTime,
+                alertCreatedByUs = false,
+                wasHandled = false  // Back to unhandled
+            ))
+        }
+        
+        runOnUiThread {
+            showUpcomingEvents() // Event reappears
+        }
+    }
+}
+```
+
+#### 6.6 Update ApplicationController.registerNewEvent
 
 When an event fires, check if it was pre-muted:
 
@@ -775,9 +849,11 @@ if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
 <string name="all_calendars">All Calendars</string>
 <string name="pre_snooze">Snooze until…</string>
 <string name="pre_mute">Mute when it fires</string>
+<string name="pre_dismiss">Dismiss</string>
 <string name="view_in_calendar">View in Calendar</string>
 <string name="event_snoozed">Event snoozed</string>
 <string name="event_will_be_muted">Event will be muted when it fires</string>
+<string name="event_dismissed">Event dismissed</string>
 
 <string-array name="upcoming_events_mode_entries">
     <item>Until morning cutoff</item>
@@ -837,6 +913,7 @@ if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
 | `android/app/src/test/java/com/github/quarck/calnotify/upcoming/PreMutedEventsManagerRobolectricTest.kt` | Unit tests for pre-mute manager |
 | `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreSnoozeIntegrationTest.kt` | Integration tests for pre-snooze |
 | `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreMuteIntegrationTest.kt` | Integration tests for pre-mute |
+| `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreDismissIntegrationTest.kt` | Integration tests for pre-dismiss |
 
 ### Modified Files
 
@@ -1119,6 +1196,44 @@ class PreMuteIntegrationTest {
 }
 ```
 
+#### `PreDismissIntegrationTest.kt`
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class PreDismissIntegrationTest {
+    
+    @Test
+    fun `pre-dismissed event goes to DismissedEventsStorage`() {
+        // Given: Upcoming event
+        // When: handlePreDismiss(event)
+        // Then: Event exists in DismissedEventsStorage
+    }
+    
+    @Test
+    fun `pre-dismissed event marked as handled in MonitorStorage`() {
+        // Given: Upcoming event in MonitorStorage
+        // When: handlePreDismiss(event)
+        // Then: MonitorStorage entry has wasHandled = true
+    }
+    
+    @Test
+    fun `pre-dismissed event does not fire notification`() {
+        // Given: Event was pre-dismissed
+        // When: Alert time passes
+        // Then: No notification posted (wasHandled = true skips it)
+    }
+    
+    @Test
+    fun `undo pre-dismiss restores event to upcoming`() {
+        // Given: Event was pre-dismissed
+        // When: undoPreDismiss(event)
+        // Then: Event removed from DismissedEventsStorage
+        // And: MonitorStorage entry has wasHandled = false
+        // And: Event reappears in Upcoming tab
+    }
+}
+```
+
 #### UI Integration Tests (AndroidTest)
 
 Only for complex UI flows that can't be tested in Robolectric:
@@ -1160,7 +1275,8 @@ src/test/java/.../ui/
 src/androidTest/java/.../upcoming/
 ├── UpcomingEventsProviderIntegrationTest.kt
 ├── PreSnoozeIntegrationTest.kt
-└── PreMuteIntegrationTest.kt
+├── PreMuteIntegrationTest.kt
+└── PreDismissIntegrationTest.kt
 
 src/androidTest/java/.../ui/
 └── MainActivityUITest.kt
@@ -1194,6 +1310,18 @@ src/androidTest/java/.../ui/
 - Long-press for quick actions
 
 ## Notes
+
+### Design Principle: Parity Between Active and Upcoming
+
+**Any action available on active events should also work on upcoming events:**
+- ✅ Snooze → Pre-snooze
+- ✅ Mute → Pre-mute  
+- ✅ Dismiss → Pre-dismiss
+- ✅ View in Calendar → View in Calendar
+
+This keeps the UX consistent and predictable.
+
+### Technical Notes
 
 - The `MonitorStorage.getAlertsForAlertRange()` method already exists and is tested
 - `CalendarProvider.getEvent()` may return null if the calendar event was deleted—handle gracefully
