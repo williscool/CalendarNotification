@@ -24,7 +24,7 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 
 **Inspiration:** GitHub Android app (filter pills) + Twitter/X (icon-only bottom nav, collapsing UI on scroll)
 
-### Bottom Navigation (Icon-Only)
+### Bottom Navigation (Icon-Only, Collapses on Scroll)
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -34,9 +34,10 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 ```
 
 - **Icon-only** - no text labels (icons are self-explanatory)
-- **Always visible** - fixed at bottom
+- **Collapses on scroll** - hides when scrolling down, reappears on scroll up (like top bar)
 - **Material BottomNavigationView** - standard Android component
 - Settings could alternatively stay in overflow menu (TBD)
+- Use `HideBottomViewOnScrollBehavior` or custom `CoordinatorLayout.Behavior`
 
 ### Top Filter Bar (Collapses on Scroll)
 
@@ -161,24 +162,26 @@ Add Material BottomNavigationView to MainActivity as foundation for tabbed views
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Main content area -->
+    <!-- Main content area - no bottom margin, RecyclerView handles scroll behavior -->
     <FrameLayout
         android:id="@+id/content_frame"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginBottom="56dp" />
+        android:layout_height="match_parent" />
 
-    <!-- Bottom Navigation -->
+    <!-- Bottom Navigation - collapses on scroll -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:layout_gravity="bottom"
         app:labelVisibilityMode="unlabeled"
+        app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
         app:menu="@menu/bottom_nav_menu" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 ```
+
+**Key:** `app:layout_behavior="...HideBottomViewOnScrollBehavior"` makes the bottom nav hide/show on scroll automatically when the RecyclerView scrolls.
 
 #### 0.2 Create `bottom_nav_menu.xml`
 
@@ -571,27 +574,44 @@ holder.snoozedUntilText?.apply {
 // Allow tap to open pre-snooze dialog
 ```
 
-### Phase 6: Pre-Snooze Action
+### Phase 6: Pre-Actions (Snooze, Mute, Dismiss)
+
+Users should be able to act on upcoming events before they fire—basically anything you can do with active events:
+- **Pre-snooze**: Snooze to a later time (event moves to Active as snoozed)
+- **Pre-mute**: Mute the notification when it fires (event fires silently)
+- **Pre-dismiss**: Skip the event entirely (goes straight to Dismissed/Bin)
 
 #### 6.1 Handle Upcoming Event Tap
 
-When user taps an upcoming event, show snooze dialog:
+When user taps an upcoming event, show action dialog with options:
 
 ```kotlin
 override fun onItemClick(v: View, position: Int, eventId: Long) {
     if (isUpcomingView) {
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null) {
-            showPreSnoozeDialog(event)
+            showUpcomingEventActionDialog(event)
         }
     } else {
         // Existing click handling
     }
 }
 
-private fun showPreSnoozeDialog(event: EventAlertRecord) {
-    // Show snooze time picker
-    // On selection: call handleUpcomingEventSnooze()
+private fun showUpcomingEventActionDialog(event: EventAlertRecord) {
+    AlertDialog.Builder(this)
+        .setTitle(event.title)
+        .setItems(arrayOf(
+            getString(R.string.pre_snooze),
+            getString(R.string.pre_mute),
+            getString(R.string.view_in_calendar)
+        )) { _, which ->
+            when (which) {
+                0 -> showPreSnoozeTimePicker(event)
+                1 -> handlePreMute(event)
+                2 -> openEventInCalendar(event)
+            }
+        }
+        .show()
 }
 ```
 
@@ -628,6 +648,82 @@ fun handleUpcomingEventSnooze(event: EventAlertRecord, snoozeUntil: Long) {
             Snackbar.make(coordinatorLayout, R.string.event_snoozed, Snackbar.LENGTH_SHORT).show()
         }
     }
+}
+```
+
+#### 6.3 Implement Pre-Mute Logic
+
+Pre-mute marks the event so when it fires, it won't make sound/vibration:
+
+```kotlin
+fun handlePreMute(event: EventAlertRecord) {
+    background {
+        // 1. Add to EventsStorage with isMuted flag set
+        // The event stays in MonitorStorage (wasHandled = false) so it fires normally
+        // But when it fires, the mute flag is already set
+        val mutedEvent = event.copy(flags = event.flags.setFlag(EventAlertFlags.IS_MUTED, true))
+        
+        // Store the pre-mute in a lightweight way
+        // Option A: Add to EventsStorage early with a "pending" state
+        // Option B: Store muted event IDs in SharedPreferences
+        // Option C: Add a "preMuted" field to MonitorStorage
+        
+        PreMutedEventsManager(this).addPreMutedEvent(
+            eventId = event.eventId,
+            instanceStartTime = event.instanceStartTime
+        )
+        
+        runOnUiThread {
+            showUpcomingEvents() // Refresh to show mute indicator
+            Snackbar.make(coordinatorLayout, R.string.event_will_be_muted, Snackbar.LENGTH_SHORT).show()
+        }
+    }
+}
+```
+
+#### 6.4 Create PreMutedEventsManager
+
+Simple storage for tracking which upcoming events should be muted when they fire:
+
+```kotlin
+/**
+ * Tracks events that user has pre-muted before they fire.
+ * When an event fires, ApplicationController checks this to set the mute flag.
+ */
+class PreMutedEventsManager(context: Context) {
+    private val prefs = context.getSharedPreferences("pre_muted_events", Context.MODE_PRIVATE)
+    
+    fun addPreMutedEvent(eventId: Long, instanceStartTime: Long) {
+        val key = "${eventId}_${instanceStartTime}"
+        prefs.edit().putBoolean(key, true).apply()
+    }
+    
+    fun isPreMuted(eventId: Long, instanceStartTime: Long): Boolean {
+        val key = "${eventId}_${instanceStartTime}"
+        return prefs.getBoolean(key, false)
+    }
+    
+    fun removePreMutedEvent(eventId: Long, instanceStartTime: Long) {
+        val key = "${eventId}_${instanceStartTime}"
+        prefs.edit().remove(key).apply()
+    }
+    
+    fun clearOldEntries(currentTime: Long) {
+        // Periodically clean up old entries
+    }
+}
+```
+
+#### 6.5 Update ApplicationController.registerNewEvent
+
+When an event fires, check if it was pre-muted:
+
+```kotlin
+// In registerNewEvent or similar
+val preMutedManager = PreMutedEventsManager(context)
+if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
+    event.isMuted = true
+    preMutedManager.removePreMutedEvent(event.eventId, event.instanceStartTime)
 }
 ```
 
@@ -677,6 +773,11 @@ fun handleUpcomingEventSnooze(event: EventAlertRecord, snoozeUntil: Long) {
 <string name="nav_settings">Settings</string>
 <string name="select_calendars">Select Calendars</string>
 <string name="all_calendars">All Calendars</string>
+<string name="pre_snooze">Snooze until…</string>
+<string name="pre_mute">Mute when it fires</string>
+<string name="view_in_calendar">View in Calendar</string>
+<string name="event_snoozed">Event snoozed</string>
+<string name="event_will_be_muted">Event will be muted when it fires</string>
 
 <string-array name="upcoming_events_mode_entries">
     <item>Until morning cutoff</item>
@@ -730,8 +831,12 @@ fun handleUpcomingEventSnooze(event: EventAlertRecord, snoozeUntil: Long) {
 | `android/app/src/main/java/com/github/quarck/calnotify/ui/CalendarFilterBottomSheet.kt` | Calendar multi-select bottom sheet |
 | `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookahead.kt` | Lookahead cutoff calculation |
 | `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProvider.kt` | Fetch and enrich upcoming events |
-| `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookaheadTest.kt` | Unit tests for lookahead logic |
-| `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProviderTest.kt` | Integration tests for provider |
+| `android/app/src/main/java/com/github/quarck/calnotify/upcoming/PreMutedEventsManager.kt` | Track pre-muted events |
+| `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookaheadRobolectricTest.kt` | Unit tests for lookahead logic |
+| `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProviderRobolectricTest.kt` | Unit tests for provider (mocked deps) |
+| `android/app/src/test/java/com/github/quarck/calnotify/upcoming/PreMutedEventsManagerRobolectricTest.kt` | Unit tests for pre-mute manager |
+| `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreSnoozeIntegrationTest.kt` | Integration tests for pre-snooze |
+| `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreMuteIntegrationTest.kt` | Integration tests for pre-mute |
 
 ### Modified Files
 
@@ -753,162 +858,312 @@ fun handleUpcomingEventSnooze(event: EventAlertRecord, snoozeUntil: Long) {
 
 ## Testing Plan
 
-### Unit Tests (Robolectric)
+### Testing Philosophy
 
-#### `UpcomingEventsLookaheadTest.kt`
+**Prefer Robolectric over Instrumentation tests:**
+- Robolectric tests run on JVM (fast, no emulator needed)
+- Use instrumentation tests only for things that can't be tested in Robolectric:
+  - Real Android system interactions (notifications, alarms)
+  - Real Calendar Provider queries
+  - Complex UI interactions that Robolectric can't simulate
+
+### Unit Tests (Robolectric) - `src/test/`
+
+#### `UpcomingEventsLookaheadRobolectricTest.kt`
 
 ```kotlin
-@Test
-fun `cutoff mode - before cutoff hour returns today`() {
-    // Given: 8:00 AM, cutoff = 10
-    // When: getCutoffTime()
-    // Then: Returns today 10:00 AM
-}
+@RunWith(RobolectricTestRunner::class)
+class UpcomingEventsLookaheadRobolectricTest {
+    
+    @Test
+    fun `cutoff mode - before cutoff hour returns today`() {
+        // Given: 8:00 AM, cutoff = 10
+        // When: getCutoffTime()
+        // Then: Returns today 10:00 AM
+    }
 
-@Test
-fun `cutoff mode - after cutoff hour returns tomorrow`() {
-    // Given: 11:00 AM, cutoff = 10
-    // When: getCutoffTime()
-    // Then: Returns tomorrow 10:00 AM
-}
+    @Test
+    fun `cutoff mode - after cutoff hour returns tomorrow`() {
+        // Given: 11:00 AM, cutoff = 10
+        // When: getCutoffTime()
+        // Then: Returns tomorrow 10:00 AM
+    }
 
-@Test
-fun `cutoff mode - just before midnight returns next day`() {
-    // Given: 11:59 PM, cutoff = 10
-    // When: getCutoffTime()
-    // Then: Returns tomorrow 10:00 AM
-}
+    @Test
+    fun `cutoff mode - just before midnight returns next day`() {
+        // Given: 11:59 PM, cutoff = 10
+        // When: getCutoffTime()
+        // Then: Returns tomorrow 10:00 AM
+    }
 
-@Test
-fun `cutoff mode - just after midnight returns same day`() {
-    // Given: 12:01 AM, cutoff = 10
-    // When: getCutoffTime()
-    // Then: Returns today 10:00 AM
-}
+    @Test
+    fun `cutoff mode - just after midnight returns same day`() {
+        // Given: 12:01 AM, cutoff = 10
+        // When: getCutoffTime()
+        // Then: Returns today 10:00 AM
+    }
 
-@Test
-fun `fixed mode - returns now plus configured hours`() {
-    // Given: mode = "fixed", hours = 8
-    // When: getCutoffTime()
-    // Then: Returns now + 8 hours
+    @Test
+    fun `fixed mode - returns now plus configured hours`() {
+        // Given: mode = "fixed", hours = 8
+        // When: getCutoffTime()
+        // Then: Returns now + 8 hours
+    }
 }
 ```
 
-### Integration Tests (AndroidTest)
+#### `UpcomingEventsProviderRobolectricTest.kt`
 
-#### `UpcomingEventsProviderTest.kt`
+Use mocked MonitorStorage and CalendarProvider:
 
 ```kotlin
-@Test
-fun `returns events within lookahead window`() {
-    // Given: Events at +1h, +5h, +12h, cutoff = +8h
-    // When: getUpcomingEvents(cutoff)
-    // Then: Returns events at +1h, +5h only
-}
+@RunWith(RobolectricTestRunner::class)
+class UpcomingEventsProviderRobolectricTest {
 
-@Test
-fun `excludes already handled events`() {
-    // Given: Event in MonitorStorage with wasHandled = true
-    // When: getUpcomingEvents(cutoff)
-    // Then: Event not returned
-}
+    private lateinit var mockMonitorStorage: MockMonitorStorage
+    private lateinit var mockCalendarProvider: CalendarProviderInterface
+    private lateinit var testClock: TestClock
+    
+    @Test
+    fun `returns events within lookahead window`() {
+        // Given: Events at +1h, +5h, +12h, cutoff = +8h
+        // When: getUpcomingEvents(cutoff)
+        // Then: Returns events at +1h, +5h only
+    }
 
-@Test
-fun `enriches with full event details`() {
-    // Given: Event in MonitorStorage
-    // When: getUpcomingEvents(cutoff)
-    // Then: Returned EventAlertRecord has title, description, color, location
-}
+    @Test
+    fun `excludes already handled events`() {
+        // Given: Event in MonitorStorage with wasHandled = true
+        // When: getUpcomingEvents(cutoff)
+        // Then: Event not returned
+    }
 
-@Test
-fun `returns empty list when no upcoming events`() {
-    // Given: No events in lookahead window
-    // When: getUpcomingEvents(cutoff)
-    // Then: Returns empty list
-}
+    @Test
+    fun `enriches with full event details`() {
+        // Given: Event in MonitorStorage, CalendarProvider returns EventRecord
+        // When: getUpcomingEvents(cutoff)
+        // Then: Returned EventAlertRecord has title, description, color, location
+    }
 
-@Test
-fun `filters by calendar when filter set`() {
-    // Given: Events from calendar A and B, filter = {A}
-    // When: getUpcomingEvents(cutoff, filter)
-    // Then: Only returns events from calendar A
+    @Test
+    fun `returns empty list when no upcoming events`() {
+        // Given: No events in lookahead window
+        // When: getUpcomingEvents(cutoff)
+        // Then: Returns empty list
+    }
+
+    @Test
+    fun `filters by calendar when filter set`() {
+        // Given: Events from calendar A and B, filter = {A}
+        // When: getUpcomingEvents(cutoff, filter)
+        // Then: Only returns events from calendar A
+    }
+    
+    @Test
+    fun `handles CalendarProvider returning null gracefully`() {
+        // Given: Event in MonitorStorage, but CalendarProvider.getEvent returns null
+        // When: getUpcomingEvents(cutoff)
+        // Then: That event is skipped, no crash
+    }
 }
 ```
 
-### UI Tests
-
-#### Bottom Navigation Tests
+#### `PreMutedEventsManagerRobolectricTest.kt`
 
 ```kotlin
-@Test
-fun `bottom nav shows all four items`() {
-    // Given: MainActivity launched
-    // Then: Bottom nav shows Active, Upcoming, Dismissed, Settings icons
-}
+@RunWith(RobolectricTestRunner::class)
+class PreMutedEventsManagerRobolectricTest {
 
-@Test
-fun `tapping Upcoming tab switches view`() {
-    // Given: On Active tab
-    // When: Tap Upcoming icon
-    // Then: View switches to upcoming events
-}
-
-@Test
-fun `tapping Dismissed tab shows bin content`() {
-    // Given: Dismissed events exist
-    // When: Tap Dismissed icon
-    // Then: Shows dismissed events list
+    @Test
+    fun `addPreMutedEvent stores event`() {
+        // Given: Empty manager
+        // When: addPreMutedEvent(eventId=1, instanceStart=1000)
+        // Then: isPreMuted returns true
+    }
+    
+    @Test
+    fun `isPreMuted returns false for unknown event`() {
+        // Given: Empty manager
+        // When: isPreMuted(eventId=1, instanceStart=1000)
+        // Then: Returns false
+    }
+    
+    @Test
+    fun `removePreMutedEvent clears entry`() {
+        // Given: Pre-muted event exists
+        // When: removePreMutedEvent(eventId, instanceStart)
+        // Then: isPreMuted returns false
+    }
+    
+    @Test
+    fun `different instances of same event tracked separately`() {
+        // Given: Event 1 instance A is pre-muted
+        // When: Check event 1 instance B
+        // Then: Instance B is not pre-muted
+    }
 }
 ```
 
-#### Filter Chip Tests
+#### `CalendarFilterRobolectricTest.kt`
 
 ```kotlin
-@Test
-fun `calendar filter chip opens bottom sheet`() {
-    // Given: MainActivity with filter chips visible
-    // When: Tap Calendar chip
-    // Then: Bottom sheet opens with calendar list
-}
+@RunWith(RobolectricTestRunner::class)
+class CalendarFilterRobolectricTest {
 
-@Test
-fun `selecting calendars filters event list`() {
-    // Given: Events from multiple calendars
-    // When: Select only one calendar in filter
-    // Then: Only events from that calendar shown
-}
-
-@Test
-fun `filter chips collapse on scroll down`() {
-    // Given: Filter chips visible
-    // When: Scroll event list down
-    // Then: Filter chips animate out of view
-}
-
-@Test
-fun `filter chips reappear on scroll up`() {
-    // Given: Filter chips collapsed
-    // When: Scroll event list up
-    // Then: Filter chips animate back into view
+    @Test
+    fun `empty filter means all calendars visible`() {
+        // Given: selectedCalendarIds is empty
+        // When: isCalendarVisible(anyCalendarId)
+        // Then: Returns true
+    }
+    
+    @Test
+    fun `filter includes only selected calendars`() {
+        // Given: selectedCalendarIds = {1, 2}
+        // When: isCalendarVisible(1), isCalendarVisible(3)
+        // Then: Returns true for 1, false for 3
+    }
+    
+    @Test
+    fun `filter persists across settings reload`() {
+        // Given: Set selectedCalendarIds = {1, 2}
+        // When: Create new Settings instance
+        // Then: selectedCalendarIds still equals {1, 2}
+    }
 }
 ```
 
-#### Pre-Snooze Tests
+#### UI Logic Tests (Robolectric)
 
 ```kotlin
-@Test
-fun `tapping upcoming event shows snooze dialog`() {
-    // Given: On Upcoming tab with event
-    // When: Tap event
-    // Then: Snooze time picker dialog appears
+@RunWith(RobolectricTestRunner::class)
+class MainActivityNavigationRobolectricTest {
+    
+    @Test
+    fun `bottom nav initial state is Active tab`() {
+        // Given: MainActivity launched
+        // Then: Active tab is selected
+    }
+    
+    @Test
+    fun `switching tabs updates currentView state`() {
+        // Given: On Active tab
+        // When: Select Upcoming tab programmatically
+        // Then: currentView == VIEW_UPCOMING
+    }
 }
+```
 
-@Test
-fun `pre-snoozed event moves to Active as snoozed`() {
-    // Given: Upcoming event
-    // When: Pre-snooze to +2 hours
-    // Then: Event disappears from Upcoming, appears in Active as snoozed
+### Instrumentation Tests (AndroidTest) - `src/androidTest/`
+
+Only for things that require real Android APIs:
+
+#### `UpcomingEventsProviderIntegrationTest.kt`
+
+Test with real Calendar Provider (requires test calendar setup):
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class UpcomingEventsProviderIntegrationTest {
+    
+    @Test
+    fun `enriches from real Calendar Provider`() {
+        // Given: Real event created in test calendar
+        // When: getUpcomingEvents with real CalendarProvider
+        // Then: Returns enriched EventAlertRecord with real data
+    }
 }
+```
+
+#### `PreSnoozeIntegrationTest.kt`
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class PreSnoozeIntegrationTest {
+    
+    @Test
+    fun `pre-snoozed event appears in EventsStorage`() {
+        // Given: Upcoming event
+        // When: handleUpcomingEventSnooze(event, snoozeTime)
+        // Then: Event exists in real EventsStorage with snoozedUntil set
+    }
+    
+    @Test
+    fun `pre-snoozed event marked as handled in MonitorStorage`() {
+        // Given: Upcoming event in MonitorStorage
+        // When: handleUpcomingEventSnooze(event, snoozeTime)
+        // Then: MonitorStorage entry has wasHandled = true
+    }
+}
+```
+
+#### `PreMuteIntegrationTest.kt`
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class PreMuteIntegrationTest {
+    
+    @Test
+    fun `pre-muted event fires with mute flag set`() {
+        // Given: Upcoming event is pre-muted
+        // When: Event fires via registerNewEvent
+        // Then: EventAlertRecord.isMuted == true
+    }
+    
+    @Test
+    fun `pre-mute entry cleaned up after event fires`() {
+        // Given: Pre-muted event
+        // When: Event fires
+        // Then: PreMutedEventsManager no longer has entry
+    }
+}
+```
+
+#### UI Integration Tests (AndroidTest)
+
+Only for complex UI flows that can't be tested in Robolectric:
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class MainActivityUITest {
+    
+    @Test
+    fun `filter chips and bottom nav collapse on scroll`() {
+        // Requires real CoordinatorLayout behavior
+        // Given: Filter chips and bottom nav visible
+        // When: Scroll RecyclerView down significantly
+        // Then: Both collapse out of view
+    }
+    
+    @Test
+    fun `calendar filter bottom sheet shows real calendars`() {
+        // Requires real Calendar Provider
+        // Given: User has multiple calendars
+        // When: Tap Calendar filter chip
+        // Then: Bottom sheet lists actual calendar names with colors
+    }
+}
+```
+
+### Test File Organization
+
+```
+src/test/java/.../upcoming/
+├── UpcomingEventsLookaheadRobolectricTest.kt
+├── UpcomingEventsProviderRobolectricTest.kt
+├── PreMutedEventsManagerRobolectricTest.kt
+└── CalendarFilterRobolectricTest.kt
+
+src/test/java/.../ui/
+└── MainActivityNavigationRobolectricTest.kt
+
+src/androidTest/java/.../upcoming/
+├── UpcomingEventsProviderIntegrationTest.kt
+├── PreSnoozeIntegrationTest.kt
+└── PreMuteIntegrationTest.kt
+
+src/androidTest/java/.../ui/
+└── MainActivityUITest.kt
 ```
 
 ## Future Enhancements
@@ -946,7 +1201,10 @@ fun `pre-snoozed event moves to Active as snoozed`() {
 - The enrichment step adds ~1-2ms per event; for 10 events this is negligible
 - BottomNavigationView supports up to 5 items; we're using 4 (Active, Upcoming, Dismissed, Settings)
 - `labelVisibilityMode="unlabeled"` hides text labels for icon-only nav
-- CoordinatorLayout + AppBarLayout provides built-in scroll-to-collapse behavior
+- CoordinatorLayout + AppBarLayout provides built-in scroll-to-collapse behavior for top bar
+- For bottom nav collapse: use `app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"` on BottomNavigationView
+- Pre-mute uses lightweight SharedPreferences storage (not a Room table) since entries are short-lived
+- Prefer Robolectric tests for all logic; use instrumentation only for real Calendar Provider or complex UI interactions
 
 ## Implementation Order Recommendation
 
