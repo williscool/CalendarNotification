@@ -397,22 +397,33 @@ val filteredEvents = events.filter { event ->
 // In companion object - Keys
 private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
 private const val UPCOMING_EVENTS_CUTOFF_HOUR_KEY = "upcoming_events_cutoff_hour"
+private const val UPCOMING_EVENTS_CUTOFF_MINUTE_KEY = "upcoming_events_cutoff_minute"
 private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
 private const val SELECTED_CALENDAR_IDS_KEY = "selected_calendar_ids"
 
 // Defaults
 internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR = 10
+internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_MINUTE = 0
 internal const val DEFAULT_UPCOMING_EVENTS_FIXED_HOURS = 8
+
+// Valid range for cutoff time: 6:00 AM to 12:00 PM
+internal const val MIN_CUTOFF_HOUR = 6
+internal const val MAX_CUTOFF_HOUR = 12
 
 /** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
 var upcomingEventsMode: String
     get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
     set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
 
-/** Hour of day for morning cutoff (0-12, default 10) */
+/** Hour of day for morning cutoff (6-12, default 10) */
 var upcomingEventsCutoffHour: Int
     get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
-    set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value)
+    set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
+
+/** Minute for morning cutoff (0-59, default 0) */
+var upcomingEventsCutoffMinute: Int
+    get() = getInt(UPCOMING_EVENTS_CUTOFF_MINUTE_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_MINUTE)
+    set(value) = setInt(UPCOMING_EVENTS_CUTOFF_MINUTE_KEY, value.coerceIn(0, 59))
 
 /** Fixed hours lookahead (default 8) */
 var upcomingEventsFixedHours: Int
@@ -446,17 +457,21 @@ class UpcomingEventsLookahead(
     
     private fun calculateMorningCutoff(now: Long): Long {
         val cutoffHour = settings.upcomingEventsCutoffHour
+        val cutoffMinute = settings.upcomingEventsCutoffMinute
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
         val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+        val currentMinute = calendar.get(Calendar.MINUTE)
         
-        // Set to cutoff hour, 0 minutes
+        // Set to cutoff time
         calendar.set(Calendar.HOUR_OF_DAY, cutoffHour)
-        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.MINUTE, cutoffMinute)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
         
-        // If we're past the cutoff hour, move to tomorrow
-        if (currentHour >= cutoffHour) {
+        // If we're past the cutoff time, move to tomorrow
+        val isPastCutoff = (currentHour > cutoffHour) || 
+                           (currentHour == cutoffHour && currentMinute >= cutoffMinute)
+        if (isPastCutoff) {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
         
@@ -815,12 +830,11 @@ if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
         android:entryValues="@array/upcoming_events_mode_values"
         android:defaultValue="cutoff" />
     
-    <ListPreference
-        android:key="upcoming_events_cutoff_hour"
-        android:title="@string/upcoming_events_cutoff_hour"
-        android:entries="@array/upcoming_events_cutoff_entries"
-        android:entryValues="@array/upcoming_events_cutoff_values"
-        android:defaultValue="10" />
+    <!-- Custom preference that opens a time picker dialog -->
+    <Preference
+        android:key="upcoming_events_cutoff_time"
+        android:title="@string/upcoming_events_cutoff_time"
+        android:summary="@string/upcoming_events_cutoff_time_summary" />
     
     <ListPreference
         android:key="upcoming_events_fixed_hours"
@@ -832,12 +846,77 @@ if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
 </PreferenceCategory>
 ```
 
+#### 7.2 Time Picker Preference Handler
+
+```kotlin
+// In preferences fragment
+findPreference<Preference>("upcoming_events_cutoff_time")?.apply {
+    // Update summary to show current value
+    updateCutoffTimeSummary(this)
+    
+    setOnPreferenceClickListener {
+        showCutoffTimePicker()
+        true
+    }
+}
+
+private fun showCutoffTimePicker() {
+    val currentHour = settings.upcomingEventsCutoffHour
+    val currentMinute = settings.upcomingEventsCutoffMinute
+    
+    // Use MaterialTimePicker for modern look
+    val picker = MaterialTimePicker.Builder()
+        .setTimeFormat(TimeFormat.CLOCK_12H)
+        .setHour(currentHour)
+        .setMinute(currentMinute)
+        .setTitleText(R.string.select_cutoff_time)
+        .build()
+    
+    picker.addOnPositiveButtonClickListener {
+        val selectedHour = picker.hour
+        val selectedMinute = picker.minute
+        
+        // Validate: must be between 6:00 AM and 12:00 PM
+        if (selectedHour < 6 || selectedHour > 12 || (selectedHour == 12 && selectedMinute > 0)) {
+            Toast.makeText(
+                requireContext(),
+                R.string.cutoff_time_invalid,
+                Toast.LENGTH_SHORT
+            ).show()
+            return@addOnPositiveButtonClickListener
+        }
+        
+        settings.upcomingEventsCutoffHour = selectedHour
+        settings.upcomingEventsCutoffMinute = selectedMinute
+        updateCutoffTimeSummary(findPreference("upcoming_events_cutoff_time"))
+    }
+    
+    picker.show(childFragmentManager, "cutoff_time_picker")
+}
+
+private fun updateCutoffTimeSummary(pref: Preference?) {
+    val hour = settings.upcomingEventsCutoffHour
+    val minute = settings.upcomingEventsCutoffMinute
+    val time = String.format(
+        "%d:%02d %s",
+        if (hour > 12) hour - 12 else if (hour == 0) 12 else hour,
+        minute,
+        if (hour >= 12) "PM" else "AM"
+    )
+    pref?.summary = getString(R.string.upcoming_events_cutoff_time_summary_format, time)
+}
+```
+
 #### 7.2 Add String Resources
 
 ```xml
 <string name="upcoming_events_category">Upcoming Events</string>
 <string name="upcoming_events_mode">Lookahead mode</string>
-<string name="upcoming_events_cutoff_hour">Morning cutoff</string>
+<string name="upcoming_events_cutoff_time">Morning cutoff time</string>
+<string name="upcoming_events_cutoff_time_summary">Show events until this time the next morning</string>
+<string name="upcoming_events_cutoff_time_summary_format">Show events until %s the next morning</string>
+<string name="select_cutoff_time">Select cutoff time</string>
+<string name="cutoff_time_invalid">Cutoff time must be between 6:00 AM and 12:00 PM</string>
 <string name="upcoming_events_fixed_hours">Hours ahead</string>
 <string name="upcoming">Upcoming</string>
 <string name="alert_at">Alert at %s</string>
@@ -864,24 +943,7 @@ if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
     <item>fixed</item>
 </string-array>
 
-<string-array name="upcoming_events_cutoff_entries">
-    <item>6:00 AM</item>
-    <item>7:00 AM</item>
-    <item>8:00 AM</item>
-    <item>9:00 AM</item>
-    <item>10:00 AM</item>
-    <item>11:00 AM</item>
-    <item>12:00 PM</item>
-</string-array>
-<string-array name="upcoming_events_cutoff_values">
-    <item>6</item>
-    <item>7</item>
-    <item>8</item>
-    <item>9</item>
-    <item>10</item>
-    <item>11</item>
-    <item>12</item>
-</string-array>
+<!-- Cutoff time uses MaterialTimePicker dialog, constrained to 6:00 AM - 12:00 PM -->
 
 <string-array name="upcoming_events_fixed_hours_entries">
     <item>4 hours</item>
