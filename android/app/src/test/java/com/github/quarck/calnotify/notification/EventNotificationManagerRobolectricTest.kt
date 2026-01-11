@@ -1010,6 +1010,8 @@ class EventNotificationManagerRobolectricTest {
             events = eventWithDisplayedCollapsedStatus,
             force = false,  // Reminder path uses force=false
             isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -1040,6 +1042,8 @@ class EventNotificationManagerRobolectricTest {
             events = newEvent,
             force = false,
             isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = false,
             hasAlarms = hasAlarms
         )
@@ -1070,6 +1074,8 @@ class EventNotificationManagerRobolectricTest {
             events = snoozedEvent,
             force = false,
             isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = false,
             hasAlarms = hasAlarms
         )
@@ -1109,6 +1115,8 @@ class EventNotificationManagerRobolectricTest {
             events = multipleCollapsedEvents,
             force = false,
             isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -1143,6 +1151,8 @@ class EventNotificationManagerRobolectricTest {
             events = mixedStatusEvents,
             force = false,
             isQuietPeriodActive = false,
+            primaryEventId = null,
+            quietHoursMutePrimary = false,
             playReminderSound = true,
             hasAlarms = hasAlarms
         )
@@ -1161,6 +1171,7 @@ class EventNotificationManagerRobolectricTest {
         val newEvents = listOf(createTestEvent(displayStatus = EventDisplayStatus.Hidden))
         val (_, postedNotification) = NotificationContext.computeShouldPlayAndVibrate(
             events = newEvents, force = false, isQuietPeriodActive = false,
+            primaryEventId = null, quietHoursMutePrimary = false,
             playReminderSound = false, hasAlarms = false
         )
         assertTrue("New events should post", postedNotification)
@@ -1171,6 +1182,7 @@ class EventNotificationManagerRobolectricTest {
         val snoozedEvents = listOf(createTestEvent(snoozedUntil = baseTime + 1000))
         val (_, postedNotification) = NotificationContext.computeShouldPlayAndVibrate(
             events = snoozedEvents, force = false, isQuietPeriodActive = false,
+            primaryEventId = null, quietHoursMutePrimary = false,
             playReminderSound = false, hasAlarms = false
         )
         assertTrue("Snoozed events should post", postedNotification)
@@ -1181,6 +1193,7 @@ class EventNotificationManagerRobolectricTest {
         val collapsedEvents = listOf(createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed))
         val (_, postedNotification) = NotificationContext.computeShouldPlayAndVibrate(
             events = collapsedEvents, force = false, isQuietPeriodActive = false,
+            primaryEventId = null, quietHoursMutePrimary = false,
             playReminderSound = true, hasAlarms = false
         )
         assertTrue("Reminder should post even for collapsed", postedNotification)
@@ -1191,6 +1204,7 @@ class EventNotificationManagerRobolectricTest {
         val collapsedEvents = listOf(createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed))
         val (_, postedNotification) = NotificationContext.computeShouldPlayAndVibrate(
             events = collapsedEvents, force = false, isQuietPeriodActive = false,
+            primaryEventId = null, quietHoursMutePrimary = false,
             playReminderSound = false, hasAlarms = false
         )
         assertFalse("Already-collapsed events without reminder/force should not post", postedNotification)
