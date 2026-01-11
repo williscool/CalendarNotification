@@ -650,98 +650,75 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         var currentTime = clock.currentTimeMillis()
 
         for (event in events) {
-
             currentTime++ // so last change times are not all the same
 
-            if (event.snoozedUntil == 0L) {
-                // snooze zero could mean
-                // - this is a new event -- we have to display it, it would have displayStatus == hidden
-                // - this is an old event returning from "collapsed" state
-                // - this is currently potentially displayed event but we are doing "force re-post" to
-                //   ensure all requests are displayed (like at boot or after app upgrade
-
-                // For individual notifications, "already displayed" = DisplayedCollapsed (expanding)
-                val wasCollapsed = event.displayStatus == EventDisplayStatus.DisplayedCollapsed
-
-                if ((event.displayStatus != EventDisplayStatus.DisplayedNormal) || force) {
-                    // currently not displayed or forced -- post notifications
-                    DevLog.info(LOG_TAG, "Posting notification id ${event.notificationId}, eventId ${event.eventId}")
-
-                    val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
-                    val shouldBeQuiet = NotificationContext.shouldBeQuietForEvent(
-                        event = event,
-                        force = force,
-                        isAlreadyDisplayed = wasCollapsed,
-                        isQuietPeriodActive = isQuietPeriodActive,
-                        isPrimaryEvent = isPrimaryEvent,
-                        quietHoursMutePrimary = settings.quietHoursMutePrimary
-                    )
-
-                    DevLog.debug(LOG_TAG, "event ${event.eventId}: shouldBeQuiet = $shouldBeQuiet, isMuted=${event.isMuted}, wasCollapsed=$wasCollapsed")
-
-                    // Issue #162: Determine if this is a reminder (already tracked) or new event
-                    // New events (Hidden status) use calendar_events channel
-                    // Already tracked events (was collapsed, etc.) use calendar_reminders channel
-                    val isReminder = NotificationContext.isReminderEvent(event)
-
-                    postNotification(
-                            context,
-                            formatter,
-                            event,
-                            if (shouldBeQuiet) notificationsSettingsQuiet else notificationsSettings,
-                            force,
-                            wasCollapsed,
-                            snoozePresets,
-                            isQuietPeriodActive,
-                            isReminder = isReminder)
-
-                    // Update db to indicate that this event is currently actively displayed
-                    db.updateEvent(event, displayStatus = EventDisplayStatus.DisplayedNormal)
-
-                    postedNotification = true
-                    playedAnySound = playedAnySound || !shouldBeQuiet
-
-                }
-                else {
-                    DevLog.info(LOG_TAG, "Not re-posting notification id ${event.notificationId}, eventId ${event.eventId} - already on the screen")
-                }
+            // Check if we should post this notification
+            if (!NotificationContext.shouldPostIndividualNotification(event, force)) {
+                DevLog.info(LOG_TAG, "Not re-posting notification id ${event.notificationId}, eventId ${event.eventId} - already on the screen")
+                continue
             }
-            else {
-                // This event is currently snoozed and switching to "Shown" state
 
-                DevLog.info(LOG_TAG, "Posting snoozed notification id ${event.notificationId}, eventId ${event.eventId}, isQuietPeriodActive=$isQuietPeriodActive")
+            // Determine event state
+            val isReturningFromSnooze = NotificationContext.isReturningFromSnooze(event)
+            val wasCollapsed = NotificationContext.wasCollapsed(event)
+            val isReminder = NotificationContext.isReminderEvent(event)
+            val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
 
-                // Update this time before posting notification as this is now used as a sort-key
+            // Compute whether notification should be quiet
+            // For snooze returns: force doesn't apply, not "already displayed", not primary
+            val shouldBeQuiet = NotificationContext.shouldBeQuietForEvent(
+                event = event,
+                force = force && !isReturningFromSnooze,
+                isAlreadyDisplayed = wasCollapsed && !isReturningFromSnooze,
+                isQuietPeriodActive = isQuietPeriodActive,
+                isPrimaryEvent = isPrimaryEvent && !isReturningFromSnooze,
+                quietHoursMutePrimary = settings.quietHoursMutePrimary
+            )
+
+            // Update lastStatusChangeTime for snooze returns (used as sort key)
+            if (isReturningFromSnooze) {
                 event.lastStatusChangeTime = currentTime
+            }
 
-                // Issue #162: Snoozed events returning are always "reminders" (already tracked)
-                // They should use calendar_reminders channel, not calendar_events
-                postNotification(
-                        context,
-                        formatter,
-                        event,
-                        if (isQuietPeriodActive || event.isMuted) notificationsSettingsQuiet else notificationsSettings,
-                        force,
-                        false,
-                        snoozePresets,
-                        isQuietPeriodActive,
-                        isReminder = true)  // Always a reminder when returning from snooze
+            // Log
+            if (isReturningFromSnooze) {
+                DevLog.info(LOG_TAG, "Posting snoozed notification id ${event.notificationId}, eventId ${event.eventId}, isQuietPeriodActive=$isQuietPeriodActive")
+            } else {
+                DevLog.info(LOG_TAG, "Posting notification id ${event.notificationId}, eventId ${event.eventId}")
+                DevLog.debug(LOG_TAG, "event ${event.eventId}: shouldBeQuiet = $shouldBeQuiet, isMuted=${event.isMuted}, wasCollapsed=$wasCollapsed")
+            }
 
+            // Post notification
+            postNotification(
+                context,
+                formatter,
+                event,
+                if (shouldBeQuiet) notificationsSettingsQuiet else notificationsSettings,
+                force && !isReturningFromSnooze,
+                wasCollapsed && !isReturningFromSnooze,
+                snoozePresets,
+                isQuietPeriodActive,
+                isReminder = isReminder
+            )
+
+            // Update database
+            if (isReturningFromSnooze) {
+                // Check for late snooze alarm
                 if (event.snoozedUntil + Consts.ALARM_THRESHOLD < currentTime) {
                     DevLog.warn(LOG_TAG, "Warning: snooze alarm is very late: expected at ${event.snoozedUntil}, " +
                             "received at $currentTime, late by ${currentTime - event.snoozedUntil} us")
                 }
-                // Update Db to indicate that event is currently displayed and no longer snoozed
-                // Since it is displayed now -- it is no longer snoozed, set snoozedUntil to zero
-                // also update 'lastVisible' time since event just re-appeared
+                // Clear snooze and mark as displayed
                 db.updateEvent(event,
-                        snoozedUntil = 0,
-                        displayStatus = EventDisplayStatus.DisplayedNormal,
-                        lastStatusChangeTime = currentTime)
-
-                postedNotification = true
-                playedAnySound = playedAnySound || !isQuietPeriodActive
+                    snoozedUntil = 0,
+                    displayStatus = EventDisplayStatus.DisplayedNormal,
+                    lastStatusChangeTime = currentTime)
+            } else {
+                db.updateEvent(event, displayStatus = EventDisplayStatus.DisplayedNormal)
             }
+
+            postedNotification = true
+            playedAnySound = playedAnySound || !shouldBeQuiet
         }
 
         val reminderState = ReminderState(context)

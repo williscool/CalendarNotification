@@ -184,6 +184,43 @@ data class NotificationContext(
         fun isReminderEvent(event: EventAlertRecord): Boolean =
             event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
 
+        // =========================================================================
+        // Individual notification decision helpers
+        // =========================================================================
+
+        /**
+         * Whether an event is returning from snooze.
+         * When true, the event's snooze timer has fired and it should be re-displayed.
+         */
+        fun isReturningFromSnooze(event: EventAlertRecord): Boolean =
+            event.snoozedUntil != 0L
+
+        /**
+         * Whether an event was previously shown in collapsed form.
+         * Used to determine "already displayed" status for individual notification sound decisions.
+         */
+        fun wasCollapsed(event: EventAlertRecord): Boolean =
+            event.displayStatus == EventDisplayStatus.DisplayedCollapsed
+
+        /**
+         * Determines whether an individual notification should be posted for this event.
+         * 
+         * An individual notification should be posted when:
+         * - Event is returning from snooze (always post)
+         * - Event is not currently displayed normally (Hidden or DisplayedCollapsed)
+         * - Force flag is set (e.g., boot, settings change)
+         * 
+         * @param event The event to check
+         * @param force Whether to force posting regardless of current display status
+         * @return true if notification should be posted
+         */
+        fun shouldPostIndividualNotification(event: EventAlertRecord, force: Boolean): Boolean = when {
+            isReturningFromSnooze(event) -> true
+            event.displayStatus != EventDisplayStatus.DisplayedNormal -> true
+            force -> true
+            else -> false
+        }
+
         /**
          * Computes the channel ID for partial collapse notifications ("X more events").
          * 

@@ -825,4 +825,144 @@ class NotificationContextInvariantTest {
             NotificationContext.partialCollapseChannelId(emptyList())
         )
     }
+
+    // =========================================================================
+    // Invariant 14: isReturningFromSnooze() helper
+    // =========================================================================
+
+    @Test
+    fun `invariant 14 - isReturningFromSnooze returns true when snoozedUntil non-zero`() {
+        val snoozedEvent = createTestEvent(snoozedUntil = baseTime + 60000L)
+        assertTrue(
+            "Event with non-zero snoozedUntil should be returning from snooze",
+            NotificationContext.isReturningFromSnooze(snoozedEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 14 - isReturningFromSnooze returns false when snoozedUntil is zero`() {
+        val normalEvent = createTestEvent(snoozedUntil = 0L)
+        assertFalse(
+            "Event with zero snoozedUntil should not be returning from snooze",
+            NotificationContext.isReturningFromSnooze(normalEvent)
+        )
+    }
+
+    // =========================================================================
+    // Invariant 15: wasCollapsed() helper
+    // =========================================================================
+
+    @Test
+    fun `invariant 15 - wasCollapsed returns true for DisplayedCollapsed`() {
+        val collapsedEvent = createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed)
+        assertTrue(
+            "DisplayedCollapsed event should return wasCollapsed=true",
+            NotificationContext.wasCollapsed(collapsedEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 15 - wasCollapsed returns false for Hidden`() {
+        val hiddenEvent = createTestEvent(displayStatus = EventDisplayStatus.Hidden)
+        assertFalse(
+            "Hidden event should return wasCollapsed=false",
+            NotificationContext.wasCollapsed(hiddenEvent)
+        )
+    }
+
+    @Test
+    fun `invariant 15 - wasCollapsed returns false for DisplayedNormal`() {
+        val normalEvent = createTestEvent(displayStatus = EventDisplayStatus.DisplayedNormal)
+        assertFalse(
+            "DisplayedNormal event should return wasCollapsed=false",
+            NotificationContext.wasCollapsed(normalEvent)
+        )
+    }
+
+    // =========================================================================
+    // Invariant 16: shouldPostIndividualNotification() helper
+    // =========================================================================
+
+    @Test
+    fun `invariant 16 - shouldPost returns true for returning snooze regardless of force`() {
+        val snoozedEvent = createTestEvent(
+            snoozedUntil = baseTime + 60000L,
+            displayStatus = EventDisplayStatus.DisplayedNormal  // Even if already displayed
+        )
+        assertTrue(
+            "Snooze return should always post (force=false)",
+            NotificationContext.shouldPostIndividualNotification(snoozedEvent, force = false)
+        )
+        assertTrue(
+            "Snooze return should always post (force=true)",
+            NotificationContext.shouldPostIndividualNotification(snoozedEvent, force = true)
+        )
+    }
+
+    @Test
+    fun `invariant 16 - shouldPost returns true for Hidden status`() {
+        val hiddenEvent = createTestEvent(displayStatus = EventDisplayStatus.Hidden)
+        assertTrue(
+            "Hidden event should be posted",
+            NotificationContext.shouldPostIndividualNotification(hiddenEvent, force = false)
+        )
+    }
+
+    @Test
+    fun `invariant 16 - shouldPost returns true for DisplayedCollapsed`() {
+        val collapsedEvent = createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed)
+        assertTrue(
+            "Collapsed event expanding should be posted",
+            NotificationContext.shouldPostIndividualNotification(collapsedEvent, force = false)
+        )
+    }
+
+    @Test
+    fun `invariant 16 - shouldPost returns false for DisplayedNormal without force`() {
+        val normalEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.DisplayedNormal,
+            snoozedUntil = 0L
+        )
+        assertFalse(
+            "Already displayed normal event should NOT be posted without force",
+            NotificationContext.shouldPostIndividualNotification(normalEvent, force = false)
+        )
+    }
+
+    @Test
+    fun `invariant 16 - shouldPost returns true for DisplayedNormal with force`() {
+        val normalEvent = createTestEvent(
+            displayStatus = EventDisplayStatus.DisplayedNormal,
+            snoozedUntil = 0L
+        )
+        assertTrue(
+            "Already displayed normal event SHOULD be posted with force",
+            NotificationContext.shouldPostIndividualNotification(normalEvent, force = true)
+        )
+    }
+
+    @Test
+    fun `invariant 16 - shouldPost consistent with isReminderEvent for non-snooze`() {
+        // For non-snooze events: shouldPost=true implies (Hidden or Collapsed)
+        // isReminderEvent = !Hidden || snoozedUntil!=0 = Collapsed or Normal or snoozed
+        // So for non-snooze, non-forced:
+        // - Hidden: shouldPost=true, isReminder=false
+        // - Collapsed: shouldPost=true, isReminder=true
+        // - Normal: shouldPost=false
+        
+        val hiddenEvent = createTestEvent(displayStatus = EventDisplayStatus.Hidden, snoozedUntil = 0L)
+        val collapsedEvent = createTestEvent(displayStatus = EventDisplayStatus.DisplayedCollapsed, snoozedUntil = 0L)
+        val normalEvent = createTestEvent(displayStatus = EventDisplayStatus.DisplayedNormal, snoozedUntil = 0L)
+        
+        // Hidden: new event
+        assertTrue(NotificationContext.shouldPostIndividualNotification(hiddenEvent, false))
+        assertFalse(NotificationContext.isReminderEvent(hiddenEvent))
+        
+        // Collapsed: expanding reminder
+        assertTrue(NotificationContext.shouldPostIndividualNotification(collapsedEvent, false))
+        assertTrue(NotificationContext.isReminderEvent(collapsedEvent))
+        
+        // Normal: skip
+        assertFalse(NotificationContext.shouldPostIndividualNotification(normalEvent, false))
+    }
 }

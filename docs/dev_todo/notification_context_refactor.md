@@ -315,6 +315,54 @@ fun computeShouldPlayAndVibrate(
 - Update EventNotificationManager to call `NotificationContext.*` instead of `companion object` methods
 - Update tests to use new locations
 
+### Phase 6: Simplify Individual Notification Loop ✅ COMPLETE
+
+Final cleanup of `postDisplayedEventNotifications` to eliminate nested if/else.
+
+#### Phase 6A: Add State Predicates to NotificationContext
+
+```kotlin
+fun isReturningFromSnooze(event: EventAlertRecord): Boolean =
+    event.snoozedUntil != 0L
+
+fun wasCollapsed(event: EventAlertRecord): Boolean =
+    event.displayStatus == EventDisplayStatus.DisplayedCollapsed
+
+fun shouldPostIndividualNotification(event: EventAlertRecord, force: Boolean): Boolean = when {
+    isReturningFromSnooze(event) -> true
+    event.displayStatus != EventDisplayStatus.DisplayedNormal -> true
+    force -> true
+    else -> false
+}
+```
+
+#### Phase 6B: Flatten the Loop Structure
+
+Replace nested `if (snoozedUntil == 0) { if (displayStatus != Normal) { ... } else { ... } } else { ... }`
+with flat early-continue structure:
+
+```kotlin
+for (event in events) {
+    if (!NotificationContext.shouldPostIndividualNotification(event, force)) {
+        continue
+    }
+    
+    val isReturningFromSnooze = NotificationContext.isReturningFromSnooze(event)
+    val wasCollapsed = NotificationContext.wasCollapsed(event)
+    val isReminder = NotificationContext.isReminderEvent(event)
+    
+    // Unified shouldBeQuiet calculation
+    // Unified postNotification call
+    // Unified DB update
+}
+```
+
+#### Phase 6C: Add Invariant Tests
+
+- `isReturningFromSnooze` tests
+- `wasCollapsed` tests  
+- `shouldPostIndividualNotification` tests with all status combinations
+
 ## Benefits
 
 | Aspect | Before | After |
@@ -351,6 +399,9 @@ fun computeShouldPlayAndVibrate(
 | Phase 5D | 15 min | ✅ Complete |
 | Phase 5E | 20 min | ✅ Complete |
 | Phase 5F | 30 min | ✅ Complete |
+| Phase 6A | 15 min | ✅ Complete |
+| Phase 6B | 20 min | ✅ Complete |
+| Phase 6C | 15 min | ✅ Complete |
 
 ## Files Affected
 
@@ -386,12 +437,19 @@ fun computeShouldPlayAndVibrate(
 - `EventNotificationManager.kt`: Removed ~150 lines (moved helpers to NotificationContext)
 - Tests updated to use `NotificationContext.*` instead of `EventNotificationManager.*`
 
+**Lines changed (Phase 6):**
+- `NotificationContext.kt`: Added ~35 lines (state predicates)
+- `EventNotificationManager.kt`: Reduced ~25 lines (flattened loop structure)
+- `NotificationContextInvariantTest.kt`: Added ~100 lines (12 new tests)
+
 **Benefits achieved:**
 - Single source of truth for ALL notification decisions in `NotificationContext`
 - `EventNotificationManager` now focuses purely on orchestration (when to post, DB, logging)
 - All computation is testable in isolation via `NotificationContextInvariantTest`
 - Channel selection unified: `collapsedChannel`, `partialCollapseChannelId`, `individualChannelId`
 - Sound/vibration logic unified: `shouldBeQuietForEvent`, `shouldOnlyAlertOnce`, `computeShouldPlayAndVibrate`
-- Removed 6+ redundant helper functions from EventNotificationManager
-- 20+ invariant tests covering all edge cases
+- Event state predicates: `isReturningFromSnooze`, `wasCollapsed`, `shouldPostIndividualNotification`
+- Flat loop structure in `postDisplayedEventNotifications` - easier to follow
+- Removed nested if/else in favor of early-continue pattern
+- 30+ invariant tests covering all edge cases
 - Explicit constraints that throw on impossible states
