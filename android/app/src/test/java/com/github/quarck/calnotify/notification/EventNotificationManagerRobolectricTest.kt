@@ -59,26 +59,21 @@ class EventNotificationManagerRobolectricTest {
         NotificationChannels.createChannels(context)
     }
 
-    // Helper to compute collapsed channel ID using NotificationContext
-    // This replaces the deleted computeCollapsedChannelId
+    // Helper to compute collapsed channel ID using production code path
     private fun computeCollapsedChannelId(
         events: List<EventAlertRecord>,
-        hasAlarms: Boolean,
+        @Suppress("UNUSED_PARAMETER") hasAlarms: Boolean,  // Computed from events now
         playReminderSound: Boolean,
-        hasNewTriggeringEvent: Boolean
+        @Suppress("UNUSED_PARAMETER") hasNewTriggeringEvent: Boolean  // Computed from events now
     ): String {
-        // Build a context that matches the expected state
-        // Note: hasAlarms and hasNewTriggeringEvent are passed in to match old test structure
-        // In production, these would be computed from events, but tests pass explicit values
-        val ctx = NotificationContext(
-            eventCount = events.size,
-            hasAlarms = hasAlarms,
-            allMuted = events.isNotEmpty() && events.all { it.isMuted },
-            hasNewTriggeringEvent = hasNewTriggeringEvent,
+        // Use the actual production factory method - it computes hasAlarms, allMuted, 
+        // hasNewTriggeringEvent from the events list, ensuring tests stay in sync
+        val notifCtx = NotificationContext.fromEvents(
+            events = events,
             mode = EventNotificationManager.NotificationMode.ALL_COLLAPSED,
             playReminderSound = playReminderSound
         )
-        return ctx.collapsedChannel.toChannelId()
+        return notifCtx.collapsedChannel.toChannelId()
     }
 
     // === Mode selection tests (computeNotificationMode) ===

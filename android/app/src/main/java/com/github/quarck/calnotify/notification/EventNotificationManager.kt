@@ -489,12 +489,12 @@ open class EventNotificationManager : EventNotificationManagerInterface {
                         .toString()
 
         // Use NotificationContext for channel selection (Issue #162)
-        val ctx = NotificationContext.fromEvents(
+        val notifCtx = NotificationContext.fromEvents(
             events = events,
             mode = NotificationMode.ALL_COLLAPSED,
             playReminderSound = playReminderSound
         )
-        val channelId = ctx.collapsedChannel.toChannelId()
+        val channelId = notifCtx.collapsedChannel.toChannelId()
         
         val builder =
                 NotificationCompat.Builder(context, channelId)
