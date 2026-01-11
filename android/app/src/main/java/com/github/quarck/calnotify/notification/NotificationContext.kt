@@ -187,10 +187,22 @@ data class NotificationContext(
         // =========================================================================
         // Individual notification decision helpers
         // =========================================================================
+        
+        // When snoozedUntil == 0 (not returning from snooze), there are three cases:
+        // 1. New event: displayStatus == Hidden - must display it
+        // 2. Expanding from collapsed: displayStatus == DisplayedCollapsed - re-display individually
+        // 3. Force re-post: displayStatus == DisplayedNormal but force=true (e.g., boot, settings change)
+        //
+        // When snoozedUntil != 0, the snooze timer has fired and we always re-display.
 
         /**
          * Whether an event is returning from snooze.
          * When true, the event's snooze timer has fired and it should be re-displayed.
+         * 
+         * Note: When this returns false (snoozedUntil == 0), the event falls into one of:
+         * - New event (displayStatus == Hidden)
+         * - Expanding from collapsed (displayStatus == DisplayedCollapsed)
+         * - Force re-post (displayStatus == DisplayedNormal but force flag set)
          */
         fun isReturningFromSnooze(event: EventAlertRecord): Boolean =
             event.snoozedUntil != 0L
@@ -203,11 +215,19 @@ data class NotificationContext(
             event.displayStatus == EventDisplayStatus.DisplayedCollapsed
 
         /**
+         * Whether an event is the primary/triggering event for quiet hours exception.
+         * During quiet hours, the primary event may be allowed to make sound based on settings.
+         */
+        fun isPrimaryEvent(event: EventAlertRecord, primaryEventId: Long?): Boolean =
+            primaryEventId != null && event.eventId == primaryEventId
+
+        /**
          * Determines whether an individual notification should be posted for this event.
          * 
          * An individual notification should be posted when:
-         * - Event is returning from snooze (always post)
-         * - Event is not currently displayed normally (Hidden or DisplayedCollapsed)
+         * - Event is returning from snooze (always post - snooze timer fired)
+         * - Event is new (displayStatus == Hidden)
+         * - Event is expanding from collapsed (displayStatus == DisplayedCollapsed)
          * - Force flag is set (e.g., boot, settings change)
          * 
          * @param event The event to check
@@ -369,14 +389,14 @@ data class NotificationContext(
 
                         // For collapsed notifications, "already displayed" means DisplayedNormal
                         val isAlreadyDisplayed = event.displayStatus == EventDisplayStatus.DisplayedNormal
-                        val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
+                        val isPrimary = isPrimaryEvent(event, primaryEventId)
 
                         val shouldBeQuiet = shouldBeQuietForEvent(
                             event = event,
                             force = force,
                             isAlreadyDisplayed = isAlreadyDisplayed,
                             isQuietPeriodActive = isQuietPeriodActive,
-                            isPrimaryEvent = isPrimaryEvent,
+                            isPrimaryEvent = isPrimary,
                             quietHoursMutePrimary = quietHoursMutePrimary
                         )
 

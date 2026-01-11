@@ -662,7 +662,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
             val isReturningFromSnooze = NotificationContext.isReturningFromSnooze(event)
             val wasCollapsed = NotificationContext.wasCollapsed(event)
             val isReminder = NotificationContext.isReminderEvent(event)
-            val isPrimaryEvent = primaryEventId != null && event.eventId == primaryEventId
+            val isPrimaryEvent = NotificationContext.isPrimaryEvent(event, primaryEventId)
 
             // Compute whether notification should be quiet
             // For snooze returns: force doesn't apply, not "already displayed", not primary

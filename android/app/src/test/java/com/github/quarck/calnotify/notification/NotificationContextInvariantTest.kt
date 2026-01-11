@@ -965,4 +965,35 @@ class NotificationContextInvariantTest {
         // Normal: skip
         assertFalse(NotificationContext.shouldPostIndividualNotification(normalEvent, false))
     }
+
+    // =========================================================================
+    // Invariant 17: isPrimaryEvent() helper
+    // =========================================================================
+
+    @Test
+    fun `invariant 17 - isPrimaryEvent returns true when eventId matches primaryEventId`() {
+        val event = createTestEvent(eventId = 42L)
+        assertTrue(
+            "Event should be primary when its eventId matches primaryEventId",
+            NotificationContext.isPrimaryEvent(event, primaryEventId = 42L)
+        )
+    }
+
+    @Test
+    fun `invariant 17 - isPrimaryEvent returns false when eventId differs from primaryEventId`() {
+        val event = createTestEvent(eventId = 42L)
+        assertFalse(
+            "Event should NOT be primary when its eventId differs from primaryEventId",
+            NotificationContext.isPrimaryEvent(event, primaryEventId = 99L)
+        )
+    }
+
+    @Test
+    fun `invariant 17 - isPrimaryEvent returns false when primaryEventId is null`() {
+        val event = createTestEvent(eventId = 42L)
+        assertFalse(
+            "Event should NOT be primary when primaryEventId is null",
+            NotificationContext.isPrimaryEvent(event, primaryEventId = null)
+        )
+    }
 }
