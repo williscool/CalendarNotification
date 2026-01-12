@@ -61,6 +61,8 @@ viewModelScope.launch {
 
 ### 2. Hilt Dependency Injection (Replace Manual Providers)
 
+> **Note:** The current manual DI patterns are documented in [Dependency Injection Patterns](../testing/dependency_injection_patterns.md). They work well for this codebase's needs.
+
 **Current:**
 ```kotlin
 // Manual DI in ApplicationController

@@ -22,6 +22,7 @@
 
 ## Testing Infrastructure
 
+- [Dependency Injection Patterns](testing/dependency_injection_patterns.md) - Manual DI for testability ⭐ *Key Reference*
 - [Test Development Chronology](testing/test_development_chronology.md) - History and reading order
 - [Test Fixture Refactoring](testing/test_fixture_refactoring.md) - Modular test infrastructure
 - [Test Reporting](testing/TEST_REPORTING.md) - CI test reporting with JaCoCo
