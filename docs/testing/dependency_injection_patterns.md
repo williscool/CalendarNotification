@@ -163,6 +163,7 @@ fun testSomething() {
 ### When to Use Pattern B
 
 - ✅ **Activities** - can't easily pass parameters to lifecycle methods
+- ✅ **Fragments** - lifecycle methods like `onViewCreated()` have fixed signatures
 - ✅ **BroadcastReceivers** - `onReceive()` signature is fixed by Android
 - ✅ **Services** - similar lifecycle constraints
 - ✅ When same dependency is used in many methods of a class
@@ -192,6 +193,7 @@ fun testSomething() {
 | **Thread/parallel safe** | ✅ Yes | ❌ No |
 | **Cleanup required** | ✅ None | ❌ Must reset providers |
 | **Works with Activities** | ❌ Awkward | ✅ Yes |
+| **Works with Fragments** | ❌ Awkward | ✅ Yes |
 | **Works with BroadcastReceivers** | ❌ No | ✅ Yes |
 | **Scales with many deps** | ❌ Gets verbose | ✅ Better |
 
@@ -223,7 +225,7 @@ Need to make legacy code testable?
 │  │
 │  ├─ YES → Use Pattern A (Optional Parameter)
 │  │
-│  └─ NO (Activity lifecycle, BroadcastReceiver, etc.)
+│  └─ NO (Activity/Fragment lifecycle, BroadcastReceiver, etc.)
 │     │
 │     └─ Use Pattern B (Companion Provider)
 │        └─ Remember to add resetProviders() and call in @After!
