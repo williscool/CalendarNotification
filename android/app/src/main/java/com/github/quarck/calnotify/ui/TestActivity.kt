@@ -41,7 +41,9 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventReminderRecord
 import com.github.quarck.calnotify.calendar.EventStatus
+import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.findOrThrow
@@ -230,6 +232,69 @@ class TestActivity : Activity() {
         ApplicationController.registerNewEvent(this, event)
         ApplicationController.postEventNotifications(this, listOf(event))
         ApplicationController.afterCalendarEventFired(this)
+    }
+
+    /**
+     * Add upcoming events to MonitorStorage for testing the Upcoming tab.
+     * Creates several events with alert times in the future (within lookahead window).
+     */
+    @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonAddUpcomingEventsClick(v: View) {
+        val LOG_TAG = "TestActivity"
+        
+        val currentTime = clock.currentTimeMillis()
+        val entries = mutableListOf<MonitorEventAlertEntry>()
+        
+        // Create upcoming events with alerts in the future
+        // These will appear in the Upcoming tab
+        val upcomingConfigs = listOf(
+            // eventId, alertInMinutes, durationMinutes, isAllDay
+            Triple(currentTime + 1, 30, 60),      // Alert in 30 min
+            Triple(currentTime + 2, 60, 30),      // Alert in 1 hour
+            Triple(currentTime + 3, 120, 45),     // Alert in 2 hours  
+            Triple(currentTime + 4, 180, 60),     // Alert in 3 hours
+            Triple(currentTime + 5, 240, 90),     // Alert in 4 hours
+            Triple(currentTime + 6, 360, 60),     // Alert in 6 hours
+        )
+        
+        for ((eventId, alertInMinutes, durationMinutes) in upcomingConfigs) {
+            val alertTime = currentTime + alertInMinutes * 60 * 1000L
+            val instanceStart = alertTime + 15 * 60 * 1000L  // Event starts 15min after alert
+            val instanceEnd = instanceStart + durationMinutes * 60 * 1000L
+            
+            val entry = MonitorEventAlertEntry(
+                eventId = eventId,
+                isAllDay = false,
+                alertTime = alertTime,
+                instanceStartTime = instanceStart,
+                instanceEndTime = instanceEnd,
+                alertCreatedByUs = false,
+                wasHandled = false,
+                flags = 0
+            )
+            entries.add(entry)
+        }
+        
+        // Add an all-day event too
+        val tomorrowMidnight = ((currentTime / Consts.DAY_IN_MILLISECONDS) + 1) * Consts.DAY_IN_MILLISECONDS
+        entries.add(MonitorEventAlertEntry(
+            eventId = currentTime + 100,
+            isAllDay = true,
+            alertTime = currentTime + 300 * 60 * 1000L,  // Alert in 5 hours
+            instanceStartTime = tomorrowMidnight,
+            instanceEndTime = tomorrowMidnight + Consts.DAY_IN_MILLISECONDS,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        ))
+        
+        // Add to MonitorStorage
+        MonitorStorage(this).use { storage ->
+            storage.addAlerts(entries)
+            DevLog.info(LOG_TAG, "Added ${entries.size} upcoming events to MonitorStorage")
+        }
+        
+        DevLog.info(LOG_TAG, "✅ Upcoming events added! Check the Upcoming tab.")
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
