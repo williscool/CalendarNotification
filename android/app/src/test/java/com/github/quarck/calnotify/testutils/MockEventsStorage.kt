@@ -180,6 +180,12 @@ class MockEventsStorage : EventsStorageInterface {
     override val events: List<EventAlertRecord>
         get() = eventsMap.values.toList()
     
+    override val eventsForDisplay: List<EventAlertRecord>
+        get() = eventsMap.values.sortedWith(
+            compareBy<EventAlertRecord> { it.snoozedUntil }
+                .thenByDescending { it.lastStatusChangeTime }
+        )
+    
     /**
      * Clears all events - useful for test cleanup
      */

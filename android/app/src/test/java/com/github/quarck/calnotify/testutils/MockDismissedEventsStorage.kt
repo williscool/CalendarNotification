@@ -68,6 +68,9 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     override val events: List<DismissedEventAlertRecord>
         get() = eventsMap.values.toList()
     
+    override val eventsForDisplay: List<DismissedEventAlertRecord>
+        get() = eventsMap.values.sortedByDescending { it.dismissTime }
+    
     /**
      * Clears all events - useful for test cleanup
      */

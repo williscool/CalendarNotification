@@ -16,6 +16,10 @@ class MockMonitorStorage : MonitorStorageInterface {
     // In-memory storage for alerts
     private val alertsMap = mutableMapOf<AlertKey, MonitorEventAlertEntry>()
     
+    override fun close() {
+        // No-op for in-memory storage
+    }
+    
     data class AlertKey(val eventId: Long, val alertTime: Long, val instanceStart: Long)
     
     override fun addAlert(entry: MonitorEventAlertEntry) {

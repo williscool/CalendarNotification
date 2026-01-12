@@ -20,8 +20,9 @@
 package com.github.quarck.calnotify.monitorstorage
 
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
+import java.io.Closeable
 
-interface MonitorStorageInterface {
+interface MonitorStorageInterface : Closeable {
 
     fun addAlert(entry: MonitorEventAlertEntry)
     fun addAlerts(entries: Collection<MonitorEventAlertEntry>)

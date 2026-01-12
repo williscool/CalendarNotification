@@ -313,6 +313,8 @@ dependencies {
     testImplementation 'androidx.test:core-ktx:1.5.0'
     testImplementation 'androidx.test.ext:junit:1.1.5'
     testImplementation 'androidx.test.ext:junit-ktx:1.1.5'
+    // Fragment testing for Robolectric
+    testImplementation "androidx.fragment:fragment-testing:$androidx_lib_version"
 
   // Test dependencies - use same versions as main app to avoid conflicts
     androidTestImplementation "androidx.core:core:$android_core_version"
