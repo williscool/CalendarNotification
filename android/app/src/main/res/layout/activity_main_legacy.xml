@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Main activity layout with Navigation Component.
-    Uses NavHostFragment for fragment-based navigation and BottomNavigationView for tabs.
-    The bottom nav hides on scroll via HideBottomViewOnScrollBehavior.
+    Legacy activity_main layout - preserved for users who haven't opted into new navigation UI.
+    This is the original layout before Navigation Component was added.
 -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -11,11 +10,11 @@
     android:id="@+id/main_activity_coordinator"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:padding="0dp"
     android:fitsSystemWindows="true"
     tools:context=".ui.MainActivity">
 
     <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:theme="@style/AppTheme.AppBarOverlay">
@@ -25,44 +24,28 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
-            app:layout_scrollFlags="scroll|enterAlways"
             app:popupTheme="@style/AppTheme.PopupOverlay"
             app:titleTextAppearance="@style/ToolbarTitle"
             android:elevation="@dimen/toolbar_elevation"
-            tools:targetApi="m" />
+            tools:targetApi="m"
+            />
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/nav_host_fragment"
-        android:name="androidx.navigation.fragment.NavHostFragment"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        app:defaultNavHost="true"
-        app:navGraph="@navigation/nav_graph" />
+    <include layout="@layout/content_main"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:src="@drawable/ic_add_white_24dp"
         android:id="@+id/action_btn_add_event"
+        app:fabSize="normal"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
+        android:layout_gravity="bottom|right|end"
         android:layout_margin="16dp"
-        android:layout_marginBottom="72dp"
-        android:src="@drawable/ic_add_white_24dp"
+        android:visibility="visible"
         android:elevation="@dimen/toolbar_elevation"
         app:backgroundTint="@color/fab_background"
-        app:fabSize="normal"
-        tools:targetApi="m" />
-
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottom_navigation"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="?attr/colorSurface"
-        app:labelVisibilityMode="unlabeled"
-        app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
-        app:menu="@menu/bottom_nav_menu" />
+        tools:targetApi="m"
+        />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

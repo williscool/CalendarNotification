@@ -72,6 +72,10 @@ import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import androidx.navigation.NavController
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.setupWithNavController
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -83,8 +87,13 @@ class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
 
 class MainActivity : AppCompatActivity(), EventListCallback {
 
-
     private val settings: Settings by lazy { Settings(this) }
+    
+    /** True when using new navigation UI with fragments, false for legacy monolithic layout */
+    private var useNewNavigationUI = false
+    
+    /** Navigation controller for new UI (null in legacy mode) */
+    private var navController: NavController? = null
 
     private lateinit var staggeredLayoutManager: StaggeredGridLayoutManager
     private lateinit var recyclerView: RecyclerView
@@ -128,9 +137,56 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         ApplicationController.onMainActivityCreate(this);
 
+        // Check feature flag for new navigation UI
+        useNewNavigationUI = settings.useNewNavigationUI
+        
+        if (useNewNavigationUI) {
+            setupNewNavigationUI()
+        } else {
+            setupLegacyUI()
+        }
+
+        // Search back press is handled by searchMenuItem's OnActionExpandListener
+    }
+    
+    /**
+     * Set up the new navigation UI with bottom tabs and fragments.
+     * Active/Upcoming/Dismissed events are shown in separate fragments.
+     */
+    private fun setupNewNavigationUI() {
         setContentView(R.layout.activity_main)
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
-        //supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayShowHomeEnabled(true)
+        
+        // Set up navigation
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        navController = navHostFragment.navController
+        
+        val bottomNav = find<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNav?.setupWithNavController(navController!!)
+        
+        // FAB for adding events
+        floatingAddEvent = findOrThrow<FloatingActionButton>(R.id.action_btn_add_event)
+        floatingAddEvent.setOnClickListener {
+            startActivity(
+                Intent(this, EditEventActivity::class.java)
+                    .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        }
+        
+        shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
+        shouldRemindForEventsWithNoReminders = settings.shouldRemindForEventsWithNoReminders
+        calendarRescanEnabled = settings.enableCalendarRescan
+    }
+    
+    /**
+     * Set up the legacy monolithic UI (original behavior).
+     * All events are shown in a single list in MainActivity.
+     */
+    private fun setupLegacyUI() {
+        setContentView(R.layout.activity_main_legacy)
+        setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayShowHomeEnabled(true)
 
         shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
@@ -144,8 +200,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         shouldRemindForEventsWithNoReminders = settings.shouldRemindForEventsWithNoReminders
 
-        adapter =
-                EventListAdapter(this, this)
+        adapter = EventListAdapter(this, this)
 
         staggeredLayoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView = findOrThrow<RecyclerView>(R.id.list_events)
@@ -164,16 +219,12 @@ class MainActivity : AppCompatActivity(), EventListCallback {
 
         floatingAddEvent = findOrThrow<FloatingActionButton>(R.id.action_btn_add_event)
 
-        //floatingAddEvent.visibility = if (settings.enableAddEvent) View.VISIBLE else View.GONE
-
         floatingAddEvent.setOnClickListener {
             startActivity(
                     Intent(this, EditEventActivity::class.java)
                             .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
         }
-
-        // Search back press is handled by searchMenuItem's OnActionExpandListener
     }
 
     public override fun onStart() {
@@ -214,7 +265,10 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             }
         }
 
-        reloadData()
+        // Legacy UI: reload data directly; New UI: fragments handle their own data
+        if (!useNewNavigationUI) {
+            reloadData()
+        }
 
         refreshReminderLastFired()
 
@@ -229,7 +283,8 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             shouldForceRepost = false
         }
 
-        if (undoManager.canUndo) {
+        // Legacy UI: show undo snackbar; New UI: fragments handle their own undo
+        if (!useNewNavigationUI && undoManager.canUndo) {
             val coordinatorLayout = findOrThrow<CoordinatorLayout>(R.id.main_activity_coordinator)
 
             Snackbar.make(coordinatorLayout, resources.getString(R.string.event_dismissed), Snackbar.LENGTH_LONG)
@@ -426,6 +481,23 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
 
+        // In new navigation mode, hide legacy-specific menu items
+        if (useNewNavigationUI) {
+            // Dismissed events is now a tab, not a menu item
+            menu.findItem(R.id.action_dismissed_events)?.isVisible = false
+            // Search, snooze all, mute all, dismiss all are handled by fragments
+            menu.findItem(R.id.action_search)?.isVisible = false
+            menu.findItem(R.id.action_snooze_all)?.isVisible = false
+            menu.findItem(R.id.action_mute_all)?.isVisible = false
+            menu.findItem(R.id.action_dismiss_all)?.isVisible = false
+            menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
+            
+            // DEV_PAGE_ENABLED is set via local.properties (gitignored, can't leak to releases)
+            menu.findItem(R.id.action_test_page)?.isVisible = BuildConfig.DEV_PAGE_ENABLED || settings.devModeEnabled
+            return true
+        }
+        
+        // Legacy mode: full menu setup
         searchMenuItem = menu.findItem(R.id.action_search)
 
         searchMenuItem?.isVisible = true
@@ -753,6 +825,9 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     }
 
     fun onDataUpdated(causedByUser: Boolean) {
+        // In new navigation mode, fragments handle their own data updates
+        if (useNewNavigationUI) return
+        
         if (causedByUser)
             reloadData()
         else

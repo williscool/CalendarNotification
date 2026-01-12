@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Bottom navigation menu for the main activity.
+    Icon-only tabs for Active, Upcoming, and Dismissed events.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/activeEventsFragment"
+        android:icon="@drawable/ic_nav_active"
+        android:title="@string/nav_active" />
+
+    <item
+        android:id="@+id/upcomingEventsFragment"
+        android:icon="@drawable/ic_nav_upcoming"
+        android:title="@string/nav_upcoming" />
+
+    <item
+        android:id="@+id/dismissedEventsFragment"
+        android:icon="@drawable/ic_nav_dismissed"
+        android:title="@string/nav_dismissed" />
+
+</menu>

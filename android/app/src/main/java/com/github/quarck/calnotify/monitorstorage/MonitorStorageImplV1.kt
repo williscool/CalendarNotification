@@ -442,8 +442,8 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
         values.put(KEY_WE_CREATED_ALERT, if (entry.alertCreatedByUs) 1 else 0)
         values.put(KEY_WAS_HANDLED, if (entry.wasHandled) 1 else 0)
 
-        // Fill reserved keys with some placeholders
-        values.put(KEY_RESERVED_INT1, 0L)
+        // Flags column stores preMuted and future flags
+        values.put(KEY_RESERVED_INT1, entry.flags)
         values.put(KEY_RESERVED_INT2, 0L)
 
         return values;
@@ -458,7 +458,8 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
                 instanceEndTime = cursor.getLong(PROJECTION_KEY_INSTANCE_END),
                 isAllDay = cursor.getInt(PROJECTION_KEY_ALL_DAY) != 0,
                 alertCreatedByUs = cursor.getInt(PROJECTION_KEY_WE_CREATED_ALERT) != 0,
-                wasHandled = cursor.getInt(PROJECTION_KEY_WAS_HANDLED) != 0
+                wasHandled = cursor.getInt(PROJECTION_KEY_WAS_HANDLED) != 0,
+                flags = cursor.getLong(PROJECTION_KEY_FLAGS)
         )
     }
 
@@ -493,7 +494,8 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
                 KEY_INSTANCE_END,
                 KEY_ALL_DAY,
                 KEY_WE_CREATED_ALERT,
-                KEY_WAS_HANDLED
+                KEY_WAS_HANDLED,
+                KEY_RESERVED_INT1  // Flags column (preMuted, etc.)
         )
 
         const val PROJECTION_KEY_CALENDAR_ID = 0;
@@ -504,6 +506,7 @@ class MonitorStorageImplV1(val context: Context) : MonitorStorageImplInterface {
         const val PROJECTION_KEY_ALL_DAY = 5;
         const val PROJECTION_KEY_WE_CREATED_ALERT = 6;
         const val PROJECTION_KEY_WAS_HANDLED = 7;
+        const val PROJECTION_KEY_FLAGS = 8;  // Maps to KEY_RESERVED_INT1
     }
 
 }

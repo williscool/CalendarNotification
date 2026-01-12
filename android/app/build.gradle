@@ -274,6 +274,10 @@ dependencies {
     // AndroidX Preference (for modern settings UI with DayNight support)
     implementation "androidx.preference:preference-ktx:1.2.1"
     
+    // Navigation Component (for tabbed UI with fragments)
+    implementation "androidx.navigation:navigation-fragment-ktx:2.7.7"
+    implementation "androidx.navigation:navigation-ui-ktx:2.7.7"
+    
     // React Native
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"

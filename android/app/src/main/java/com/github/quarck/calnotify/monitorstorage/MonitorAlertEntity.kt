@@ -53,7 +53,7 @@ data class MonitorAlertEntity(
     @ColumnInfo(name = COL_ALL_DAY) val isAllDay: Int? = 0,
     @ColumnInfo(name = COL_ALERT_CREATED_BY_US) val alertCreatedByUs: Int? = 0,
     @ColumnInfo(name = COL_WAS_HANDLED) val wasHandled: Int? = 0,
-    @ColumnInfo(name = COL_RESERVED_INT1) val reservedInt1: Long? = 0,
+    @ColumnInfo(name = COL_RESERVED_INT1) val flags: Long? = 0,  // Renamed: stores preMuted and future flags
     @ColumnInfo(name = COL_RESERVED_INT2) val reservedInt2: Long? = 0
 ) {
     /** Convert to domain model (handles potential nulls) */
@@ -64,7 +64,8 @@ data class MonitorAlertEntity(
         instanceEndTime = instanceEndTime ?: 0,
         isAllDay = (isAllDay ?: 0) != 0,
         alertCreatedByUs = (alertCreatedByUs ?: 0) != 0,
-        wasHandled = (wasHandled ?: 0) != 0
+        wasHandled = (wasHandled ?: 0) != 0,
+        flags = flags ?: 0
     )
 
     companion object {
@@ -92,7 +93,8 @@ data class MonitorAlertEntity(
             instanceEndTime = entry.instanceEndTime,
             isAllDay = if (entry.isAllDay) 1 else 0,
             alertCreatedByUs = if (entry.alertCreatedByUs) 1 else 0,
-            wasHandled = if (entry.wasHandled) 1 else 0
+            wasHandled = if (entry.wasHandled) 1 else 0,
+            flags = entry.flags
         )
     }
 }

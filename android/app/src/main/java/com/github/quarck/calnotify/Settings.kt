@@ -443,6 +443,30 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     val snoozeHideEventDescription: Boolean
         get() = getBoolean(SNOOZE_HIDE_EVENT_DESC_KEY, false)
 
+    // ===== Upcoming Events / Navigation Settings =====
+    
+    /** Whether to use new navigation UI with bottom tabs (default: false for safety) */
+    var useNewNavigationUI: Boolean
+        get() = getBoolean(USE_NEW_NAVIGATION_UI_KEY, false)
+        set(value) = setBoolean(USE_NEW_NAVIGATION_UI_KEY, value)
+    
+    /** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
+    var upcomingEventsMode: String
+        get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
+        set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
+    
+    /** Hour of day for morning cutoff (6-12, default 10). Bounded to prevent date rollover. */
+    var upcomingEventsCutoffHour: Int
+        get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
+            .coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR)
+        set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
+    
+    /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
+    var upcomingEventsFixedHours: Int
+        get() = getInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
+            .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)
+        set(value) = setInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS))
+
     /** Number of days to keep dismissed events in the bin. 0 means forever. */
     val keepHistoryDays: Int
         get() = getString(KEEP_HISTORY_DAYS_KEY, DEFAULT_KEEP_HISTORY_DAYS.toString()).toIntOrNull() 
@@ -533,6 +557,12 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
 
         private const val CLOSE_ACTION_AFTER_SNOOZE_FROM_MAIN = "close_action_after_snooze_from_main"
         private const val THEME_MODE_KEY = "theme_mode"
+        
+        // Upcoming events / navigation settings
+        private const val USE_NEW_NAVIGATION_UI_KEY = "use_new_navigation_ui"
+        private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
+        private const val UPCOMING_EVENTS_CUTOFF_HOUR_KEY = "upcoming_events_cutoff_hour"
+        private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
 
         // Default values
         /** Default theme mode: follow system (-1 = MODE_NIGHT_FOLLOW_SYSTEM) */
@@ -543,6 +573,14 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val DEFAULT_MAX_REMINDERS = "0"
         /** Default days to keep dismissed events history */
         internal const val DEFAULT_KEEP_HISTORY_DAYS = 14
+        
+        // Upcoming events defaults and bounds
+        internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR = 10
+        internal const val DEFAULT_UPCOMING_EVENTS_FIXED_HOURS = 8
+        internal const val MIN_CUTOFF_HOUR = 6
+        internal const val MAX_CUTOFF_HOUR = 12
+        internal const val MIN_FIXED_HOURS = 1
+        internal const val MAX_FIXED_HOURS = 48
     }
 }
 
