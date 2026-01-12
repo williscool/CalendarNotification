@@ -255,14 +255,16 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     }
 
     override fun onItemRemoved(event: EventAlertRecord) {
+        val ctx = context ?: return
         DevLog.info(LOG_TAG, "onItemRemoved: Removing event id ${event.eventId}")
-        ApplicationController.dismissEvent(requireContext(), EventDismissType.ManuallyDismissedFromActivity, event)
+        ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
         updateEmptyState()
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
+        val ctx = context ?: return
         DevLog.info(LOG_TAG, "onItemRestored, eventId=${event.eventId}")
-        ApplicationController.restoreEvent(requireContext(), event)
+        ApplicationController.restoreEvent(ctx, event)
         updateEmptyState()
     }
 

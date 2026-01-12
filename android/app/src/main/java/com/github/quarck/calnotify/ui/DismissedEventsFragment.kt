@@ -130,13 +130,15 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
     // DismissedEventListCallback implementation
     
     override fun onItemClick(v: View, position: Int, entry: DismissedEventAlertRecord) {
-        val popup = PopupMenu(requireContext(), v)
+        val ctx = context ?: return
+        val popup = PopupMenu(ctx, v)
         popup.menuInflater.inflate(R.menu.dismissed_events, popup.menu)
         
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_restore -> {
-                    ApplicationController.restoreEvent(requireContext(), entry.event)
+                    // Use captured ctx - fragment may detach while popup is showing
+                    ApplicationController.restoreEvent(ctx, entry.event)
                     adapter.removeEntry(entry)
                     updateEmptyState()
                     true
@@ -149,7 +151,8 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
     }
 
     override fun onItemRemoved(entry: DismissedEventAlertRecord) {
-        DismissedEventsStorage(requireContext()).classCustomUse { db ->
+        val ctx = context ?: return
+        DismissedEventsStorage(ctx).classCustomUse { db ->
             db.deleteEvent(entry)
         }
         updateEmptyState()
