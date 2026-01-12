@@ -236,32 +236,64 @@ class TestActivity : Activity() {
 
     /**
      * Add upcoming events to MonitorStorage for testing the Upcoming tab.
-     * Creates several events with alert times in the future (within lookahead window).
+     * Creates real calendar events first, then adds alerts for them.
      */
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonAddUpcomingEventsClick(v: View) {
         val LOG_TAG = "TestActivity"
         
+        val calendars = CalendarProvider.getCalendars(this)
+        val calendar = calendars.firstOrNull()
+        
+        if (calendar == null) {
+            DevLog.error(LOG_TAG, "No calendars available - cannot create upcoming events")
+            return
+        }
+        
         val currentTime = clock.currentTimeMillis()
         val entries = mutableListOf<MonitorEventAlertEntry>()
         
         // Create upcoming events with alerts in the future
-        // These will appear in the Upcoming tab
+        // Config: title, alertInMinutes, durationMinutes, color
         val upcomingConfigs = listOf(
-            // eventId, alertInMinutes, durationMinutes, isAllDay
-            Triple(currentTime + 1, 30, 60),      // Alert in 30 min
-            Triple(currentTime + 2, 60, 30),      // Alert in 1 hour
-            Triple(currentTime + 3, 120, 45),     // Alert in 2 hours  
-            Triple(currentTime + 4, 180, 60),     // Alert in 3 hours
-            Triple(currentTime + 5, 240, 90),     // Alert in 4 hours
-            Triple(currentTime + 6, 360, 60),     // Alert in 6 hours
+            arrayOf("Upcoming Meeting", 30, 60, 0xff4285f4.toInt()),     // Alert in 30 min
+            arrayOf("Call with Client", 60, 30, 0xffea4335.toInt()),    // Alert in 1 hour
+            arrayOf("Code Review", 120, 45, 0xff34a853.toInt()),        // Alert in 2 hours  
+            arrayOf("Team Standup", 180, 60, 0xfffbbc04.toInt()),       // Alert in 3 hours
+            arrayOf("Lunch Break", 240, 90, 0xffff6d01.toInt()),        // Alert in 4 hours
+            arrayOf("Project Planning", 360, 60, 0xff46bdc6.toInt()),   // Alert in 6 hours
         )
         
-        for ((eventId, alertInMinutes, durationMinutes) in upcomingConfigs) {
+        for (config in upcomingConfigs) {
+            val title = config[0] as String
+            val alertInMinutes = config[1] as Int
+            val durationMinutes = config[2] as Int
+            val color = config[3] as Int
+            
             val alertTime = currentTime + alertInMinutes * 60 * 1000L
             val instanceStart = alertTime + 15 * 60 * 1000L  // Event starts 15min after alert
             val instanceEnd = instanceStart + durationMinutes * 60 * 1000L
             
+            // Create real calendar event
+            val details = CalendarEventDetails(
+                title = title,
+                desc = "Test upcoming event",
+                location = "",
+                timezone = java.util.TimeZone.getDefault().id,
+                startTime = instanceStart,
+                endTime = instanceEnd,
+                isAllDay = false,
+                reminders = listOf(EventReminderRecord.minutes(15)),
+                color = color
+            )
+            
+            val eventId = CalendarProvider.createEvent(this, calendar.calendarId, calendar.owner, details)
+            if (eventId == -1L) {
+                DevLog.error(LOG_TAG, "Failed to create calendar event: $title")
+                continue
+            }
+            
+            // Add alert to MonitorStorage
             val entry = MonitorEventAlertEntry(
                 eventId = eventId,
                 isAllDay = false,
@@ -273,28 +305,18 @@ class TestActivity : Activity() {
                 flags = 0
             )
             entries.add(entry)
+            DevLog.info(LOG_TAG, "Created event $eventId: $title (alert in ${alertInMinutes}m)")
         }
-        
-        // Add an all-day event too
-        val tomorrowMidnight = ((currentTime / Consts.DAY_IN_MILLISECONDS) + 1) * Consts.DAY_IN_MILLISECONDS
-        entries.add(MonitorEventAlertEntry(
-            eventId = currentTime + 100,
-            isAllDay = true,
-            alertTime = currentTime + 300 * 60 * 1000L,  // Alert in 5 hours
-            instanceStartTime = tomorrowMidnight,
-            instanceEndTime = tomorrowMidnight + Consts.DAY_IN_MILLISECONDS,
-            alertCreatedByUs = false,
-            wasHandled = false,
-            flags = 0
-        ))
         
         // Add to MonitorStorage
-        MonitorStorage(this).use { storage ->
-            storage.addAlerts(entries)
-            DevLog.info(LOG_TAG, "Added ${entries.size} upcoming events to MonitorStorage")
+        if (entries.isNotEmpty()) {
+            MonitorStorage(this).use { storage ->
+                storage.addAlerts(entries)
+                DevLog.info(LOG_TAG, "Added ${entries.size} upcoming events to MonitorStorage")
+            }
         }
         
-        DevLog.info(LOG_TAG, "✅ Upcoming events added! Check the Upcoming tab.")
+        DevLog.info(LOG_TAG, "✅ Created ${entries.size} upcoming events! Check the Upcoming tab.")
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
