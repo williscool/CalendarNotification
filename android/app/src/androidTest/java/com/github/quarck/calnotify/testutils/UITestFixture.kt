@@ -14,6 +14,7 @@ import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -714,7 +715,10 @@ class UITestFixture {
      */
     fun launchActiveEventsFragment(): FragmentScenario<ActiveEventsFragment> {
         DevLog.info(LOG_TAG, "Launching ActiveEventsFragment")
-        return FragmentScenario.launchInContainer(ActiveEventsFragment::class.java)
+        return FragmentScenario.launchInContainer(
+            ActiveEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**
@@ -722,7 +726,10 @@ class UITestFixture {
      */
     fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
         DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
-        return FragmentScenario.launchInContainer(DismissedEventsFragment::class.java)
+        return FragmentScenario.launchInContainer(
+            DismissedEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**
@@ -730,7 +737,10 @@ class UITestFixture {
      */
     fun launchUpcomingEventsFragment(): FragmentScenario<UpcomingEventsFragment> {
         DevLog.info(LOG_TAG, "Launching UpcomingEventsFragment")
-        return FragmentScenario.launchInContainer(UpcomingEventsFragment::class.java)
+        return FragmentScenario.launchInContainer(
+            UpcomingEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**
