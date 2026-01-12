@@ -36,6 +36,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.calendar.CalendarIntents
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
@@ -149,17 +150,11 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
     override fun onItemClick(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemClick, pos=$position, eventId=$eventId")
         
+        val ctx = context ?: return
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null) {
-            // Open event in view mode (no snooze for now - that's Milestone 2)
-            startActivity(
-                Intent(requireContext(), ViewEventActivity::class.java)
-                    .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
-                    .putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
-                    .putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
-                    .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                    .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            )
+            // Open event directly in calendar app (upcoming events aren't in EventsStorage)
+            CalendarIntents.viewCalendarEvent(ctx, event)
         }
     }
 
