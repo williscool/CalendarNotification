@@ -23,8 +23,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
 import android.os.Bundle
+import androidx.core.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -95,11 +95,12 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
         
         // Register for data update broadcasts
         val ctx = context ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST), Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
-        }
+        ContextCompat.registerReceiver(
+            ctx,
+            dataUpdatedReceiver,
+            IntentFilter(Consts.DATA_UPDATED_BROADCAST),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         
         loadEvents()
     }
