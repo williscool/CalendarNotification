@@ -19,7 +19,11 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -56,6 +60,12 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
+    
+    private val dataUpdatedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            loadEvents()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -88,21 +98,36 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
 
     override fun onResume() {
         super.onResume()
+        
+        // Register for data update broadcasts
+        val ctx = context ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
+        }
+        
         loadEvents()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        context?.unregisterReceiver(dataUpdatedReceiver)
     }
 
     private fun loadEvents() {
         val ctx = context ?: return
         background {
-            val provider = UpcomingEventsProvider(
-                context = ctx,
-                settings = settings,
-                clock = clock,
-                monitorStorage = MonitorStorage(ctx),
-                calendarProvider = CalendarProvider
-            )
-            
-            val events = provider.getUpcomingEvents().toTypedArray()
+            val events = MonitorStorage(ctx).use { storage ->
+                val provider = UpcomingEventsProvider(
+                    context = ctx,
+                    settings = settings,
+                    clock = clock,
+                    monitorStorage = storage,
+                    calendarProvider = CalendarProvider
+                )
+                provider.getUpcomingEvents().toTypedArray()
+            }
             
             activity?.runOnUiThread {
                 adapter.setEventsToDisplay(events)

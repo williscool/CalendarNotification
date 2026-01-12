@@ -19,7 +19,11 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -58,6 +62,12 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
     private var newUIBanner: LinearLayout? = null
+    
+    private val dataUpdatedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            loadEvents()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -126,7 +136,21 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
 
     override fun onResume() {
         super.onResume()
+        
+        // Register for data update broadcasts
+        val ctx = context ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
+        }
+        
         loadEvents()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        context?.unregisterReceiver(dataUpdatedReceiver)
     }
 
     private fun loadEvents() {
@@ -183,14 +207,16 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     override fun onItemDismiss(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
         
+        val ctx = context ?: return
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null) {
             DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
-            ApplicationController.dismissEvent(requireContext(), EventDismissType.ManuallyDismissedFromActivity, event)
+            ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
             
+            // Capture context before creating Runnable to avoid crash if fragment detaches
             UndoManager.addUndoState(
                 UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(requireContext(), event) }
+                    undo = Runnable { ApplicationController.restoreEvent(ctx, event) }
                 )
             )
             

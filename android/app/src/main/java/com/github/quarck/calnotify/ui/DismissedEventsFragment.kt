@@ -19,6 +19,11 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -29,6 +34,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
@@ -50,6 +56,12 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: DismissedEventListAdapter
+    
+    private val dataUpdatedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            loadEvents()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -80,7 +92,21 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
 
     override fun onResume() {
         super.onResume()
+        
+        // Register for data update broadcasts
+        val ctx = context ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            ctx.registerReceiver(dataUpdatedReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
+        }
+        
         loadEvents()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        context?.unregisterReceiver(dataUpdatedReceiver)
     }
 
     private fun loadEvents() {
