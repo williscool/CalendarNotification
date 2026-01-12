@@ -42,7 +42,6 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustom
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
-import com.github.quarck.calnotify.prefs.SettingsActivityX
 import com.github.quarck.calnotify.utils.background
 import com.google.android.material.snackbar.Snackbar
 

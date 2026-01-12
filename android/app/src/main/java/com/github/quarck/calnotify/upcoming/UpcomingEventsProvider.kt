@@ -86,7 +86,7 @@ class UpcomingEventsProvider(
             calendarId = eventRecord.calendarId,
             eventId = alert.eventId,
             isAllDay = alert.isAllDay,
-            isRepeating = eventRecord.rRule?.isNotEmpty() == true,
+            isRepeating = eventRecord.repeatingRule.isNotEmpty(),
             alertTime = alert.alertTime,
             notificationId = 0, // Not used for upcoming
             title = eventRecord.title,
