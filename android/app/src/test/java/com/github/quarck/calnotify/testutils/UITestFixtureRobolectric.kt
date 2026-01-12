@@ -11,10 +11,12 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.CalendarRecord
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.app.CalendarReloadManager
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
@@ -28,6 +30,7 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import io.mockk.answers
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -108,6 +111,27 @@ class UITestFixtureRobolectric {
           isSynced = true
         )
         every { CalendarProvider.getNextEventReminderTime(any(), any()) } returns 0L
+        
+        // Mock CalendarProvider.getEvent for UpcomingEventsProvider enrichment
+        every { CalendarProvider.getEvent(any(), any()) } answers {
+            val eventId = arg<Long>(1)
+            val now = System.currentTimeMillis()
+            EventRecord(
+                calendarId = 1L,
+                eventId = eventId,
+                details = CalendarEventDetails(
+                    title = "Test Event $eventId",
+                    desc = "Description for event $eventId",
+                    location = "Test Location",
+                    timezone = "UTC",
+                    startTime = now + Consts.HOUR_IN_MILLISECONDS,
+                    endTime = now + 2 * Consts.HOUR_IN_MILLISECONDS,
+                    isAllDay = false,
+                    reminders = listOf(),
+                    color = 0xFF6200EE.toInt()
+                )
+            )
+        }
         
         // Mock CalendarReloadManager to prevent reloading from real calendar
         mockkObject(CalendarReloadManager)
