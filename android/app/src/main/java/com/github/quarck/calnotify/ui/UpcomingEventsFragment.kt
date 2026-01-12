@@ -54,7 +54,7 @@ import com.github.quarck.calnotify.utils.background
  */
 class UpcomingEventsFragment : Fragment(), EventListCallback {
 
-    private val settings: Settings by lazy { Settings(requireContext()) }
+    private lateinit var settings: Settings
     private val clock = CNPlusSystemClock()
     
     private lateinit var recyclerView: RecyclerView
@@ -78,6 +78,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        // Initialize settings synchronously while fragment is attached
+        settings = Settings(requireContext())
         
         recyclerView = view.findViewById(R.id.recycler_view)
         refreshLayout = view.findViewById(R.id.refresh_layout)

@@ -36,7 +36,6 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
-import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
@@ -49,8 +48,6 @@ import com.github.quarck.calnotify.utils.background
  * Migrated from DismissedEventsActivity.
  */
 class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
-
-    private val settings: Settings by lazy { Settings(requireContext()) }
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout

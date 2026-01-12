@@ -55,7 +55,7 @@ import com.google.android.material.snackbar.Snackbar
  */
 class ActiveEventsFragment : Fragment(), EventListCallback {
 
-    private val settings: Settings by lazy { Settings(requireContext()) }
+    private lateinit var settings: Settings
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
@@ -79,6 +79,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        // Initialize settings synchronously while fragment is attached
+        settings = Settings(requireContext())
         
         recyclerView = view.findViewById(R.id.recycler_view)
         refreshLayout = view.findViewById(R.id.refresh_layout)
