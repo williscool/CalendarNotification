@@ -462,15 +462,17 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     
     /** Hour of day for morning cutoff (6-12, default 10). Bounded to prevent date rollover. */
     var upcomingEventsCutoffHour: Int
-        get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
+        get() = (getString(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR.toString())
+            .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
             .coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR)
-        set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
+        set(value) = setString(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR).toString())
     
     /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
     var upcomingEventsFixedHours: Int
-        get() = getInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
+        get() = (getString(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS.toString())
+            .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
             .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)
-        set(value) = setInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS))
+        set(value) = setString(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS).toString())
 
     /** Number of days to keep dismissed events in the bin. 0 means forever. */
     val keepHistoryDays: Int

@@ -46,13 +46,13 @@
         android:id="@+id/action_btn_add_event"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:layout_marginBottom="72dp"
         android:src="@drawable/ic_add_white_24dp"
         android:elevation="@dimen/toolbar_elevation"
         app:backgroundTint="@color/fab_background"
         app:fabSize="normal"
+        app:layout_anchor="@id/bottom_navigation"
+        app:layout_anchorGravity="top|end"
         tools:targetApi="m" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -60,7 +60,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="?attr/colorSurface"
+        android:background="?android:attr/colorBackground"
         app:labelVisibilityMode="unlabeled"
         app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
         app:menu="@menu/bottom_nav_menu" />

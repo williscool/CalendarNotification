@@ -17,7 +17,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="?attr/colorPrimaryVariant"
+        android:background="?attr/colorPrimary"
         android:padding="12dp"
         android:gravity="center_vertical"
         android:visibility="gone"
@@ -29,7 +29,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/new_ui_banner_text"
-            android:textColor="?android:attr/textColorPrimaryInverse"
+            android:textColor="@android:color/white"
             android:textSize="14sp" />
 
         <ImageButton
@@ -39,7 +39,7 @@
             android:src="@drawable/ic_clear_white_24dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/dismiss"
-            android:tint="?android:attr/textColorPrimaryInverse" />
+            app:tint="@android:color/white" />
 
     </LinearLayout>
 
