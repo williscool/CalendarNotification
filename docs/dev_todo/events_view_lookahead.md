@@ -639,6 +639,10 @@ internal const val DEFAULT_UPCOMING_EVENTS_FIXED_HOURS = 8
 internal const val MIN_CUTOFF_HOUR = 6
 internal const val MAX_CUTOFF_HOUR = 12
 
+// Valid range for fixed hours: 1-48 (enforced by ListPreference options, but validate anyway)
+internal const val MIN_FIXED_HOURS = 1
+internal const val MAX_FIXED_HOURS = 48
+
 /** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
 var upcomingEventsMode: String
     get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
@@ -649,10 +653,11 @@ var upcomingEventsCutoffHour: Int
     get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
     set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
 
-/** Fixed hours lookahead (default 8) */
+/** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
 var upcomingEventsFixedHours: Int
     get() = getInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
-    set(value) = setInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, value)
+        .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)  // Also validate on read for corrupted prefs
+    set(value) = setInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS))
 ```
 
 #### 4.2 Create `UpcomingEventsLookahead.kt`
@@ -762,7 +767,8 @@ class UpcomingEventsProvider(
             origin = EventOrigin.ProviderManual,
             timeFirstSeen = 0L,
             eventStatus = eventRecord.eventStatus,
-            attendanceStatus = eventRecord.attendanceStatus
+            attendanceStatus = eventRecord.attendanceStatus,
+            flags = if (alert.preMuted) EventAlertFlags.IS_MUTED else 0L  // Propagate pre-mute status
         )
     }
 }
@@ -857,17 +863,12 @@ private fun showUpcomingEventActionDialog(event: EventAlertRecord) {
 ```kotlin
 fun handleUpcomingEventSnooze(event: EventAlertRecord, snoozeUntil: Long) {
     background {
-        // 1. Mark as handled in MonitorStorage
+        // 1. Mark as handled in MonitorStorage (preserve existing flags like preMuted)
         MonitorStorage(this).use { storage ->
-            storage.updateAlert(MonitorEventAlertEntry(
-                eventId = event.eventId,
-                isAllDay = event.isAllDay,
-                alertTime = event.alertTime,
-                instanceStartTime = event.instanceStartTime,
-                instanceEndTime = event.instanceEndTime,
-                alertCreatedByUs = false,
-                wasHandled = true
-            ))
+            val existingAlert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (existingAlert != null) {
+                storage.updateAlert(existingAlert.copy(wasHandled = true))
+            }
         }
         
         // 2. Add to EventsStorage as snoozed
@@ -994,17 +995,12 @@ Pre-dismiss skips the event entirely—it goes straight to the Dismissed storage
 ```kotlin
 fun handlePreDismiss(event: EventAlertRecord) {
     background {
-        // 1. Mark as handled in MonitorStorage (so it won't fire)
+        // 1. Mark as handled in MonitorStorage (preserve existing flags like preMuted)
         MonitorStorage(this).use { storage ->
-            storage.updateAlert(MonitorEventAlertEntry(
-                eventId = event.eventId,
-                isAllDay = event.isAllDay,
-                alertTime = event.alertTime,
-                instanceStartTime = event.instanceStartTime,
-                instanceEndTime = event.instanceEndTime,
-                alertCreatedByUs = false,
-                wasHandled = true
-            ))
+            val existingAlert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (existingAlert != null) {
+                storage.updateAlert(existingAlert.copy(wasHandled = true))
+            }
         }
         
         // 2. Add directly to DismissedEventsStorage
@@ -1039,17 +1035,12 @@ fun undoPreDismiss(event: EventAlertRecord) {
             db.deleteEvent(event.eventId, event.instanceStartTime)
         }
         
-        // 2. Unmark as handled in MonitorStorage
+        // 2. Unmark as handled in MonitorStorage (preserve existing flags like preMuted)
         MonitorStorage(this).use { storage ->
-            storage.updateAlert(MonitorEventAlertEntry(
-                eventId = event.eventId,
-                isAllDay = event.isAllDay,
-                alertTime = event.alertTime,
-                instanceStartTime = event.instanceStartTime,
-                instanceEndTime = event.instanceEndTime,
-                alertCreatedByUs = false,
-                wasHandled = false  // Back to unhandled
-            ))
+            val existingAlert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (existingAlert != null) {
+                storage.updateAlert(existingAlert.copy(wasHandled = false))
+            }
         }
         
         runOnUiThread {
@@ -1293,10 +1284,12 @@ fun loadEvents() {
             requireActivity().runOnUiThread {
                 adapter.setEventsToDisplay(events, eventDisplayMode)
                 updateEmptyViewVisibility()
+                refreshLayout.isRefreshing = false
             }
         } catch (e: SQLException) {
             DevLog.error(LOG_TAG, "Database error loading events: ${e.message}")
             requireActivity().runOnUiThread {
+                refreshLayout.isRefreshing = false  // Always stop the spinner
                 showErrorState(getString(R.string.error_loading_events))
             }
         }
