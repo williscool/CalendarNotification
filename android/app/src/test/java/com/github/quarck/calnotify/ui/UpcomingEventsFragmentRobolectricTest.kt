@@ -36,7 +36,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * Robolectric UI tests for UpcomingEventsFragment.
+ * Robolectric UI tests for UpcomingEventsFragment
  * 
  * Tests the upcoming events list display (read-only in Milestone 1).
  * Pre-actions (snooze, mute, dismiss) will be tested in Milestone 2.

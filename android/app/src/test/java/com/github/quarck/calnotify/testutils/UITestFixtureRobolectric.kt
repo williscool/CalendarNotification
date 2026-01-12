@@ -30,7 +30,6 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
-import io.mockk.answers
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
