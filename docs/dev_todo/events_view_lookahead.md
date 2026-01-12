@@ -29,7 +29,7 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 | Legacy UI support | **Feature flag toggle** | `Settings.useNewNavigationUI` allows rollback |
 | Pre-muted storage | **`preMuted` via reserved column (`i1`)** | No migration needed, atomic updates, survives restarts |
 | Data source for upcoming | **MonitorStorage + CalendarProvider enrichment** | Reuse existing data, no duplication |
-| Enrichment strategy | **Lazy loading with placeholders** | Fast initial render, progressive enhancement |
+| Enrichment strategy | **Sync first, lazy if needed** | Simple initially; add placeholders/batching only if performance requires |
 | Testing approach | **Robolectric primary, instrumentation for Calendar Provider** | Fast tests, real API tests where needed |
 
 ## UI Vision
@@ -181,6 +181,11 @@ else:
 ### Phase 0: Navigation Infrastructure + Legacy UI Toggle
 
 Add Navigation Component with BottomNavigationView and a feature flag to toggle between new and legacy UI.
+
+**Implementation substeps** (each independently verifiable):
+- **0a:** Add Navigation dependencies + create `activity_main_legacy.xml` (backup current layout) + feature flag skeleton
+- **0b:** Create `NavHostFragment` setup + empty placeholder Fragments that just display text
+- **0c:** Wire up `BottomNavigationView` with `NavController`
 
 #### 0.1 Add Navigation Dependencies
 
@@ -623,16 +628,14 @@ val filteredEvents = events.filter { event ->
 // In companion object - Keys
 private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
 private const val UPCOMING_EVENTS_CUTOFF_HOUR_KEY = "upcoming_events_cutoff_hour"
-private const val UPCOMING_EVENTS_CUTOFF_MINUTE_KEY = "upcoming_events_cutoff_minute"
 private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
 private const val SELECTED_CALENDAR_IDS_KEY = "selected_calendar_ids"
 
 // Defaults
 internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR = 10
-internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_MINUTE = 0
 internal const val DEFAULT_UPCOMING_EVENTS_FIXED_HOURS = 8
 
-// Valid range for cutoff time: 6:00 AM to 12:00 PM
+// Valid range for cutoff hour: 6 AM to 12 PM (enforced by ListPreference options)
 internal const val MIN_CUTOFF_HOUR = 6
 internal const val MAX_CUTOFF_HOUR = 12
 
@@ -641,15 +644,10 @@ var upcomingEventsMode: String
     get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
     set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
 
-/** Hour of day for morning cutoff (6-12, default 10) */
+/** Hour of day for morning cutoff (6-12, default 10). Uses ListPreference so only valid values possible. */
 var upcomingEventsCutoffHour: Int
     get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
     set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
-
-/** Minute for morning cutoff (0-59, default 0) */
-var upcomingEventsCutoffMinute: Int
-    get() = getInt(UPCOMING_EVENTS_CUTOFF_MINUTE_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_MINUTE)
-    set(value) = setInt(UPCOMING_EVENTS_CUTOFF_MINUTE_KEY, value.coerceIn(0, 59))
 
 /** Fixed hours lookahead (default 8) */
 var upcomingEventsFixedHours: Int
@@ -683,21 +681,17 @@ class UpcomingEventsLookahead(
     
     private fun calculateMorningCutoff(now: Long): Long {
         val cutoffHour = settings.upcomingEventsCutoffHour
-        val cutoffMinute = settings.upcomingEventsCutoffMinute
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
         val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = calendar.get(Calendar.MINUTE)
         
-        // Set to cutoff time
+        // Set to cutoff time (on the hour)
         calendar.set(Calendar.HOUR_OF_DAY, cutoffHour)
-        calendar.set(Calendar.MINUTE, cutoffMinute)
+        calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
         
-        // If we're past the cutoff time, move to tomorrow
-        val isPastCutoff = (currentHour > cutoffHour) || 
-                           (currentHour == cutoffHour && currentMinute >= cutoffMinute)
-        if (isPastCutoff) {
+        // If we're past the cutoff hour, move to tomorrow
+        if (currentHour >= cutoffHour) {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
         
@@ -1097,11 +1091,14 @@ MonitorStorage(context).use { storage ->
         android:entryValues="@array/upcoming_events_mode_values"
         android:defaultValue="cutoff" />
     
-    <!-- Custom preference that opens a time picker dialog -->
-    <Preference
-        android:key="upcoming_events_cutoff_time"
+    <!-- Cutoff hour as dropdown - only valid options (6 AM - 12 PM) -->
+    <ListPreference
+        android:key="upcoming_events_cutoff_hour"
         android:title="@string/upcoming_events_cutoff_time"
-        android:summary="@string/upcoming_events_cutoff_time_summary" />
+        android:summary="%s"
+        android:entries="@array/upcoming_events_cutoff_entries"
+        android:entryValues="@array/upcoming_events_cutoff_values"
+        android:defaultValue="10" />
     
     <ListPreference
         android:key="upcoming_events_fixed_hours"
@@ -1113,77 +1110,12 @@ MonitorStorage(context).use { storage ->
 </PreferenceCategory>
 ```
 
-#### 7.2 Time Picker Preference Handler
-
-```kotlin
-// In preferences fragment
-findPreference<Preference>("upcoming_events_cutoff_time")?.apply {
-    // Update summary to show current value
-    updateCutoffTimeSummary(this)
-    
-    setOnPreferenceClickListener {
-        showCutoffTimePicker()
-        true
-    }
-}
-
-private fun showCutoffTimePicker() {
-    val currentHour = settings.upcomingEventsCutoffHour
-    val currentMinute = settings.upcomingEventsCutoffMinute
-    
-    // Use MaterialTimePicker for modern look
-    val picker = MaterialTimePicker.Builder()
-        .setTimeFormat(TimeFormat.CLOCK_12H)
-        .setHour(currentHour)
-        .setMinute(currentMinute)
-        .setTitleText(R.string.select_cutoff_time)
-        .build()
-    
-    picker.addOnPositiveButtonClickListener {
-        val selectedHour = picker.hour
-        val selectedMinute = picker.minute
-        
-        // Validate: must be between 6:00 AM and 12:00 PM
-        if (selectedHour < 6 || selectedHour > 12 || (selectedHour == 12 && selectedMinute > 0)) {
-            Toast.makeText(
-                requireContext(),
-                R.string.cutoff_time_invalid,
-                Toast.LENGTH_SHORT
-            ).show()
-            return@addOnPositiveButtonClickListener
-        }
-        
-        settings.upcomingEventsCutoffHour = selectedHour
-        settings.upcomingEventsCutoffMinute = selectedMinute
-        updateCutoffTimeSummary(findPreference("upcoming_events_cutoff_time"))
-    }
-    
-    picker.show(childFragmentManager, "cutoff_time_picker")
-}
-
-private fun updateCutoffTimeSummary(pref: Preference?) {
-    val hour = settings.upcomingEventsCutoffHour
-    val minute = settings.upcomingEventsCutoffMinute
-    val time = String.format(
-        "%d:%02d %s",
-        if (hour > 12) hour - 12 else if (hour == 0) 12 else hour,
-        minute,
-        if (hour >= 12) "PM" else "AM"
-    )
-    pref?.summary = getString(R.string.upcoming_events_cutoff_time_summary_format, time)
-}
-```
-
 #### 7.2 Add String Resources
 
 ```xml
 <string name="upcoming_events_category">Upcoming Events</string>
 <string name="upcoming_events_mode">Lookahead mode</string>
 <string name="upcoming_events_cutoff_time">Morning cutoff time</string>
-<string name="upcoming_events_cutoff_time_summary">Show events until this time the next morning</string>
-<string name="upcoming_events_cutoff_time_summary_format">Show events until %s the next morning</string>
-<string name="select_cutoff_time">Select cutoff time</string>
-<string name="cutoff_time_invalid">Cutoff time must be between 6:00 AM and 12:00 PM</string>
 <string name="upcoming_events_fixed_hours">Hours ahead</string>
 <string name="upcoming">Upcoming</string>
 <string name="alert_at">Alert at %s</string>
@@ -1217,7 +1149,24 @@ private fun updateCutoffTimeSummary(pref: Preference?) {
     <item>fixed</item>
 </string-array>
 
-<!-- Cutoff time uses MaterialTimePicker dialog, constrained to 6:00 AM - 12:00 PM -->
+<string-array name="upcoming_events_cutoff_entries">
+    <item>6:00 AM</item>
+    <item>7:00 AM</item>
+    <item>8:00 AM</item>
+    <item>9:00 AM</item>
+    <item>10:00 AM</item>
+    <item>11:00 AM</item>
+    <item>12:00 PM</item>
+</string-array>
+<string-array name="upcoming_events_cutoff_values">
+    <item>6</item>
+    <item>7</item>
+    <item>8</item>
+    <item>9</item>
+    <item>10</item>
+    <item>11</item>
+    <item>12</item>
+</string-array>
 
 <string-array name="upcoming_events_fixed_hours_entries">
     <item>4 hours</item>
@@ -1356,6 +1305,8 @@ fun loadEvents() {
 ```
 
 ## Lazy Enrichment Pattern
+
+> **Note:** Start with synchronous enrichment (simpler). Only implement this lazy loading pattern if performance testing shows it's needed. The code below is provided for reference if/when optimization becomes necessary.
 
 For better perceived performance, show event cards immediately with placeholders, then enrich asynchronously.
 
@@ -1943,13 +1894,27 @@ src/androidTest/java/.../ui/
 
 This keeps the UX consistent and predictable.
 
+### Behavior Clarifications
+
+**Pre-action event states:**
+- **Pre-dismissed:** Event moves to Dismissed tab immediately; does not appear in Upcoming
+- **Pre-muted:** Event remains in Upcoming tab with mute icon (same style as muted Active events)
+- **Pre-snoozed:** Event moves to Active tab as snoozed; does not appear in Upcoming
+
+**Repeating events:**
+- Pre-dismiss only affects the specific instance, not future recurrences
+- Each instance is tracked independently in MonitorStorage
+
+**Settings changes:**
+- Changing lookahead window (mode, cutoff hour, or fixed hours) triggers immediate refresh of Upcoming tab
+
 ### Technical Notes
 
 **Data Layer:**
 - The `MonitorStorage.getAlertsForAlertRange()` method already exists and is tested
 - `CalendarProvider.getEvent()` may return null if the calendar event was deleted—handle gracefully
 - Pre-muted state stored in `MonitorEventAlertEntry.preMuted` column (not SharedPreferences) for reliability
-- Lazy enrichment: show placeholder cards immediately, enrich in background batches
+- Start with synchronous enrichment; lazy enrichment (placeholder cards + background batches) only if needed for performance
 
 **Navigation Component:**
 - Menu item IDs in `bottom_nav_menu.xml` must match Fragment IDs in `nav_graph.xml`
@@ -1978,14 +1943,17 @@ This keeps the UX consistent and predictable.
 
 Given the scope, consider this order for incremental delivery:
 
-1. **Phase 0** - Navigation infrastructure + legacy UI toggle (biggest change, enables everything else)
-2. **Phase 1** - Event list fragments (Active, Dismissed - proves pattern works)
-3. **Phase 4** - Upcoming data provider (can test independently)
-4. **Phase 5** - Upcoming tab (wires it together)
-5. **Phase 2** - Collapsing filter bar (polish)
-6. **Phase 3** - Calendar multi-select (polish)
-7. **Phase 6** - Pre-actions (snooze, mute, dismiss - feature complete)
-8. **Phase 7** - Settings UI (configuration)
+1. **Phase 0a** - Add Navigation dependencies + `activity_main_legacy.xml` + feature flag skeleton
+2. **Phase 0b** - Create `NavHostFragment` setup + empty placeholder Fragments
+3. **Phase 0c** - Wire up `BottomNavigationView` with `NavController`
+4. **Phase 1** - Move existing list logic to `ActiveEventsFragment` + create `DismissedEventsFragment`
+5. **Phase 4** - `UpcomingEventsProvider` + `UpcomingEventsLookahead` (data layer, testable independently)
+6. **Phase 5** - `UpcomingEventsFragment` (wire data to UI)
+7. **Phase 6.1** - Pre-snooze (simplest pre-action, proves pattern)
+8. **Phase 6.2-6.3** - Pre-dismiss + Pre-mute
+9. **Phase 7** - Settings UI for lookahead
+10. **Phase 2** - Collapsing filter bar (polish)
+11. **Phase 3** - Calendar multi-select (polish)
 
 **Test-Driven Approach:**
 - Write tests for each phase before/during implementation
