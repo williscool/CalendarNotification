@@ -20,6 +20,18 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 - Ability to pre-snooze upcoming events
 - Configurable lookahead window
 
+## Key Decisions Summary
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Navigation pattern | **Navigation Component + Fragments** | Modern Android pattern, built-in back stack, type-safe args, testable |
+| Bottom nav items | **3 items** (Active, Upcoming, Dismissed) | Settings in overflow menu; cleaner UI |
+| Legacy UI support | **Feature flag toggle** | `Settings.useNewNavigationUI` allows rollback |
+| Pre-muted storage | **`preMuted` column in MonitorStorage** | Atomic updates, no cleanup needed, survives restarts |
+| Data source for upcoming | **MonitorStorage + CalendarProvider enrichment** | Reuse existing data, no duplication |
+| Enrichment strategy | **Lazy loading with placeholders** | Fast initial render, progressive enhancement |
+| Testing approach | **Robolectric primary, instrumentation for Calendar Provider** | Fast tests, real API tests where needed |
+
 ## UI Vision
 
 **Inspiration:** GitHub Android app (filter pills) + Twitter/X (icon-only bottom nav, collapsing UI on scroll)
@@ -28,16 +40,24 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 
 ```
 ┌─────────────────────────────────────────────────┐
-│     🔔          ⏰          🗑️          ⚙️      │
-│   Active     Upcoming    Dismissed   Settings   │
+│       🔔            ⏰            🗑️            │
+│     Active       Upcoming      Dismissed        │
 └─────────────────────────────────────────────────┘
 ```
 
+- **3 items only** - Active, Upcoming, Dismissed (Settings stays in overflow menu ⋮)
 - **Icon-only** - no text labels (icons are self-explanatory)
 - **Collapses on scroll** - hides when scrolling down, reappears on scroll up (like top bar)
 - **Material BottomNavigationView** - standard Android component
-- Settings could alternatively stay in overflow menu (TBD)
 - Use `HideBottomViewOnScrollBehavior` or custom `CoordinatorLayout.Behavior`
+
+### Legacy UI Toggle
+
+A settings preference allows users to switch between the new tabbed UI and the legacy single-list view:
+- **Default:** New UI (bottom nav with tabs)
+- **Legacy mode:** Original single RecyclerView, DismissedEventsActivity as separate screen
+- Stored in `Settings.useNewNavigationUI` (boolean, default `true`)
+- Allows smooth rollout and escape hatch if issues arise
 
 ### Top Filter Bar (Collapses on Scroll)
 
@@ -139,40 +159,104 @@ else:
 
 **Alternative mode:** Fixed hours (e.g., 8 hours from now) for users who prefer simpler behavior.
 
-### UI Approach: Bottom Navigation + Tabs
+### UI Approach: Single-Activity with Navigation Component
 
-**Chosen approach:** Full navigation redesign with:
-1. Bottom nav for primary views (Active, Upcoming, Dismissed)
-2. Collapsing filter bar with calendar multi-select
-3. Each "tab" is essentially a Fragment or view within MainActivity
+**Chosen approach:** Modern Android navigation pattern with:
+1. **Single-Activity Architecture** - MainActivity hosts all content via Fragments
+2. **Navigation Component** - Centralized navigation graph (`nav_graph.xml`) manages all transitions
+3. **BottomNavigationView + NavController** - `NavigationUI.setupWithNavController()` for seamless tab switching
+4. **3-item bottom nav** - Active, Upcoming, Dismissed (Settings in overflow menu)
+5. **Collapsing filter bar** with calendar multi-select via CoordinatorLayout + AppBarLayout
+6. **Legacy UI toggle** - Feature flag to revert to old UI if needed
+
+**Why Navigation Component over ViewSwitcher:**
+- Standard modern Android pattern (recommended by Google)
+- Built-in back stack management
+- Type-safe argument passing with Safe Args
+- Better lifecycle handling
+- Easier to test with `TestNavHostController`
 
 ## Implementation Plan
 
-### Phase 0: Bottom Navigation Infrastructure
+### Phase 0: Navigation Infrastructure + Legacy UI Toggle
 
-Add Material BottomNavigationView to MainActivity as foundation for tabbed views.
+Add Navigation Component with BottomNavigationView and a feature flag to toggle between new and legacy UI.
 
-#### 0.1 Update `activity_main.xml`
+#### 0.1 Add Navigation Dependencies
+
+```kotlin
+// In build.gradle (app)
+dependencies {
+    implementation "androidx.navigation:navigation-fragment-ktx:2.7.7"
+    implementation "androidx.navigation:navigation-ui-ktx:2.7.7"
+}
+```
+
+#### 0.2 Add Legacy UI Toggle to `Settings.kt`
+
+```kotlin
+// In companion object - Keys
+private const val USE_NEW_NAVIGATION_UI_KEY = "use_new_navigation_ui"
+
+/** Feature flag: Use new tabbed navigation UI (true) or legacy single-list (false) */
+var useNewNavigationUI: Boolean
+    get() = getBoolean(USE_NEW_NAVIGATION_UI_KEY, true)
+    set(value) = setBoolean(USE_NEW_NAVIGATION_UI_KEY, value)
+```
+
+#### 0.3 Create Navigation Graph `res/navigation/nav_graph.xml`
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/activeEventsFragment">
+
+    <fragment
+        android:id="@+id/activeEventsFragment"
+        android:name="com.github.quarck.calnotify.ui.ActiveEventsFragment"
+        android:label="@string/nav_active" />
+
+    <fragment
+        android:id="@+id/upcomingEventsFragment"
+        android:name="com.github.quarck.calnotify.ui.UpcomingEventsFragment"
+        android:label="@string/nav_upcoming" />
+
+    <fragment
+        android:id="@+id/dismissedEventsFragment"
+        android:name="com.github.quarck.calnotify.ui.DismissedEventsFragment"
+        android:label="@string/nav_dismissed" />
+
+</navigation>
+```
+
+#### 0.4 Update `activity_main.xml`
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/coordinator_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Main content area - no bottom margin, RecyclerView handles scroll behavior -->
-    <FrameLayout
-        android:id="@+id/content_frame"
+    <!-- NavHostFragment - hosts all tab content -->
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/nav_host_fragment"
+        android:name="androidx.navigation.fragment.NavHostFragment"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        app:defaultNavHost="true"
+        app:navGraph="@navigation/nav_graph"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-    <!-- Bottom Navigation - collapses on scroll -->
+    <!-- Bottom Navigation - 3 items, collapses on scroll -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         app:labelVisibilityMode="unlabeled"
         app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
@@ -181,84 +265,226 @@ Add Material BottomNavigationView to MainActivity as foundation for tabbed views
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 ```
 
-**Key:** `app:layout_behavior="...HideBottomViewOnScrollBehavior"` makes the bottom nav hide/show on scroll automatically when the RecyclerView scrolls.
+**Key points:**
+- `NavHostFragment` replaces FrameLayout - Navigation Component manages Fragment transactions
+- `app:layout_behavior="...HideBottomViewOnScrollBehavior"` auto-hides bottom nav on scroll
 
-#### 0.2 Create `bottom_nav_menu.xml`
+#### 0.5 Create `bottom_nav_menu.xml`
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 3 items only - Settings stays in overflow menu -->
     <item
-        android:id="@+id/nav_active"
+        android:id="@+id/activeEventsFragment"
         android:icon="@drawable/ic_notifications_24dp"
         android:title="@string/nav_active" />
     <item
-        android:id="@+id/nav_upcoming"
+        android:id="@+id/upcomingEventsFragment"
         android:icon="@drawable/ic_schedule_24dp"
         android:title="@string/nav_upcoming" />
     <item
-        android:id="@+id/nav_dismissed"
+        android:id="@+id/dismissedEventsFragment"
         android:icon="@drawable/ic_delete_24dp"
         android:title="@string/nav_dismissed" />
-    <item
-        android:id="@+id/nav_settings"
-        android:icon="@drawable/ic_settings_24dp"
-        android:title="@string/nav_settings" />
 </menu>
 ```
 
-#### 0.3 Update MainActivity Navigation
+**Note:** Menu item IDs must match Fragment IDs in nav_graph.xml for `setupWithNavController()` to work.
+
+#### 0.6 Update MainActivity Navigation Setup
 
 ```kotlin
-private fun setupBottomNavigation() {
-    val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
-    bottomNav.setOnItemSelectedListener { item ->
-        when (item.itemId) {
-            R.id.nav_active -> showActiveEvents()
-            R.id.nav_upcoming -> showUpcomingEvents()
-            R.id.nav_dismissed -> showDismissedEvents()
-            R.id.nav_settings -> openSettings()
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var navController: NavController
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        if (!settings.useNewNavigationUI) {
+            // Legacy mode: use old layout and behavior
+            setContentView(R.layout.activity_main_legacy)
+            setupLegacyUI()
+            return
         }
-        true
+        
+        setContentView(R.layout.activity_main)
+        setupNavigation()
+    }
+    
+    private fun setupNavigation() {
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        navController = navHostFragment.navController
+        
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        
+        // Wire up bottom nav with NavController - handles all tab switching
+        NavigationUI.setupWithNavController(bottomNav, navController)
+    }
+    
+    // Settings accessed via overflow menu (toolbar)
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 }
 ```
 
-### Phase 1: Integrate Dismissed Events Tab
+### Phase 1: Create Event List Fragments
 
-Move `DismissedEventsActivity` content into MainActivity as a tab.
+Extract existing MainActivity list logic into reusable Fragments.
 
-#### 1.1 Create Fragment or ViewSwitcher Pattern
+#### 1.1 Create Base EventListFragment
 
-Option A: **Fragments** - More standard Android pattern
-Option B: **ViewSwitcher/ViewFlipper** - Simpler, keeps existing code structure
-
-Recommend starting with ViewSwitcher for minimal disruption:
+Shared logic for Active, Upcoming, and Dismissed fragments:
 
 ```kotlin
-private lateinit var viewSwitcher: ViewSwitcher
-private var currentView: Int = VIEW_ACTIVE
-
-companion object {
-    const val VIEW_ACTIVE = 0
-    const val VIEW_UPCOMING = 1
-    const val VIEW_DISMISSED = 2
+/**
+ * Base fragment for displaying event lists with swipe-to-dismiss and pull-to-refresh.
+ * Subclasses implement loadEvents() to provide data.
+ */
+abstract class EventListFragment : Fragment(), EventListCallback {
+    
+    protected lateinit var recyclerView: RecyclerView
+    protected lateinit var adapter: EventListAdapter
+    protected lateinit var refreshLayout: SwipeRefreshLayout
+    protected lateinit var emptyView: View
+    
+    protected val settings: Settings by lazy { Settings(requireContext()) }
+    
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        return inflater.inflate(R.layout.fragment_event_list, container, false)
+    }
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupRecyclerView(view)
+        setupSwipeRefresh(view)
+        loadEvents()
+    }
+    
+    /** Subclasses implement to load their specific event data */
+    abstract fun loadEvents()
+    
+    /** Subclasses implement to define event display mode */
+    abstract val eventDisplayMode: EventDisplayMode
+    
+    protected fun updateEmptyViewVisibility() {
+        emptyView.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+    }
 }
 
-private fun showDismissedEvents() {
-    if (currentView != VIEW_DISMISSED) {
-        currentView = VIEW_DISMISSED
-        reloadDismissedData()
-        // Switch to dismissed RecyclerView
+enum class EventDisplayMode { ACTIVE, UPCOMING, DISMISSED }
+```
+
+#### 1.2 Create ActiveEventsFragment
+
+```kotlin
+class ActiveEventsFragment : EventListFragment() {
+    
+    override val eventDisplayMode = EventDisplayMode.ACTIVE
+    
+    override fun loadEvents() {
+        background {
+            val events = EventsStorage(requireContext()).use { it.events }
+                .filter { settings.isCalendarVisible(it.calendarId) }
+                .toTypedArray()
+            
+            requireActivity().runOnUiThread {
+                adapter.setEventsToDisplay(events, eventDisplayMode)
+                updateEmptyViewVisibility()
+                refreshLayout.isRefreshing = false
+            }
+        }
     }
 }
 ```
 
-#### 1.2 Share RecyclerView/Adapter Pattern
+#### 1.3 Create DismissedEventsFragment
 
-Both Active and Dismissed use similar card layouts. Consider:
-- Shared base adapter
-- Or: Single adapter with view type differentiation
+```kotlin
+class DismissedEventsFragment : EventListFragment() {
+    
+    override val eventDisplayMode = EventDisplayMode.DISMISSED
+    
+    override fun loadEvents() {
+        background {
+            val events = DismissedEventsStorage(requireContext()).use { it.events }
+                .filter { settings.isCalendarVisible(it.calendarId) }
+                .toTypedArray()
+            
+            requireActivity().runOnUiThread {
+                adapter.setEventsToDisplay(events, eventDisplayMode)
+                updateEmptyViewVisibility()
+                refreshLayout.isRefreshing = false
+            }
+        }
+    }
+}
+```
+
+#### 1.4 Create `fragment_event_list.xml`
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/refresh_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="72dp" />
+
+        <!-- Empty state -->
+        <include
+            android:id="@+id/empty_view"
+            layout="@layout/empty_state"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+```
+
+#### 1.5 Update EventListAdapter for Display Modes
+
+```kotlin
+class EventListAdapter(...) {
+    
+    private var displayMode: EventDisplayMode = EventDisplayMode.ACTIVE
+    
+    fun setEventsToDisplay(events: Array<EventAlertRecord>, mode: EventDisplayMode) {
+        this.displayMode = mode
+        // ... existing logic
+    }
+    
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val event = events[position]
+        
+        when (displayMode) {
+            EventDisplayMode.ACTIVE -> bindActiveEvent(holder, event)
+            EventDisplayMode.UPCOMING -> bindUpcomingEvent(holder, event)
+            EventDisplayMode.DISMISSED -> bindDismissedEvent(holder, event)
+        }
+    }
+}
+```
 
 ### Phase 2: Collapsing Filter Bar
 
@@ -670,66 +896,85 @@ fun handleUpcomingEventSnooze(event: EventAlertRecord, snoozeUntil: Long) {
 
 #### 6.3 Implement Pre-Mute Logic
 
-Pre-mute marks the event so when it fires, it won't make sound/vibration:
+Pre-mute marks the event so when it fires, it won't make sound/vibration. The `preMuted` flag is stored directly in `MonitorEventAlertEntry` for reliability.
 
 ```kotlin
 fun handlePreMute(event: EventAlertRecord) {
     background {
-        // 1. Add to EventsStorage with isMuted flag set
-        // The event stays in MonitorStorage (wasHandled = false) so it fires normally
-        // But when it fires, the mute flag is already set
-        val mutedEvent = event.copy(flags = event.flags.setFlag(EventAlertFlags.IS_MUTED, true))
+        // Set preMuted flag in MonitorStorage
+        // The event stays unhandled so it fires normally, but with mute flag
+        MonitorStorage(requireContext()).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(preMuted = true))
+            }
+        }
         
-        // Store the pre-mute in a lightweight way
-        // Option A: Add to EventsStorage early with a "pending" state
-        // Option B: Store muted event IDs in SharedPreferences
-        // Option C: Add a "preMuted" field to MonitorStorage
+        requireActivity().runOnUiThread {
+            loadEvents() // Refresh to show mute indicator
+            Snackbar.make(
+                requireView(), 
+                R.string.event_will_be_muted, 
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+    }
+}
+
+fun handleUnPreMute(event: EventAlertRecord) {
+    background {
+        MonitorStorage(requireContext()).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(preMuted = false))
+            }
+        }
         
-        PreMutedEventsManager(this).addPreMutedEvent(
-            eventId = event.eventId,
-            instanceStartTime = event.instanceStartTime
-        )
-        
-        runOnUiThread {
-            showUpcomingEvents() // Refresh to show mute indicator
-            Snackbar.make(coordinatorLayout, R.string.event_will_be_muted, Snackbar.LENGTH_SHORT).show()
+        requireActivity().runOnUiThread {
+            loadEvents()
+            Snackbar.make(requireView(), R.string.event_unmuted, Snackbar.LENGTH_SHORT).show()
         }
     }
 }
 ```
 
-#### 6.4 Create PreMutedEventsManager
+#### 6.4 Add `preMuted` Column to MonitorEventAlertEntry
 
-Simple storage for tracking which upcoming events should be muted when they fire:
+Update the data class and database schema:
 
 ```kotlin
-/**
- * Tracks events that user has pre-muted before they fire.
- * When an event fires, ApplicationController checks this to set the mute flag.
- */
-class PreMutedEventsManager(context: Context) {
-    private val prefs = context.getSharedPreferences("pre_muted_events", Context.MODE_PRIVATE)
-    
-    fun addPreMutedEvent(eventId: Long, instanceStartTime: Long) {
-        val key = "${eventId}_${instanceStartTime}"
-        prefs.edit().putBoolean(key, true).apply()
-    }
-    
-    fun isPreMuted(eventId: Long, instanceStartTime: Long): Boolean {
-        val key = "${eventId}_${instanceStartTime}"
-        return prefs.getBoolean(key, false)
-    }
-    
-    fun removePreMutedEvent(eventId: Long, instanceStartTime: Long) {
-        val key = "${eventId}_${instanceStartTime}"
-        prefs.edit().remove(key).apply()
-    }
-    
-    fun clearOldEntries(currentTime: Long) {
-        // Periodically clean up old entries
-    }
-}
+// In MonitorEventAlertEntry.kt
+data class MonitorEventAlertEntry(
+    val eventId: Long,
+    val isAllDay: Boolean,
+    val alertTime: Long,
+    val instanceStartTime: Long,
+    val instanceEndTime: Long,
+    val alertCreatedByUs: Boolean = false,
+    val wasHandled: Boolean = false,
+    val preMuted: Boolean = false  // NEW: user pre-muted before alert fired
+)
+
+// Room entity (if using Room)
+@Entity(tableName = "monitor_alerts", primaryKeys = ["eventId", "alertTime", "instanceStartTime"])
+data class MonitorAlertEntity(
+    val eventId: Long,
+    val isAllDay: Boolean,
+    val alertTime: Long,
+    val instanceStartTime: Long,
+    val instanceEndTime: Long,
+    val alertCreatedByUs: Boolean = false,
+    val wasHandled: Boolean = false,
+    val preMuted: Boolean = false  // NEW column
+)
 ```
+
+**Why database over SharedPreferences:**
+- Atomic updates with the alert record
+- No cleanup needed (deleted with alert)
+- Survives app restarts reliably
+- Can query for all pre-muted alerts easily
+- Consistent with existing MonitorStorage patterns
 
 #### 6.5 Implement Pre-Dismiss Logic
 
@@ -805,16 +1050,21 @@ fun undoPreDismiss(event: EventAlertRecord) {
 
 #### 6.6 Update ApplicationController.registerNewEvent
 
-When an event fires, check if it was pre-muted:
+When an event fires, check if it was pre-muted in MonitorStorage:
 
 ```kotlin
-// In registerNewEvent or similar
-val preMutedManager = PreMutedEventsManager(context)
-if (preMutedManager.isPreMuted(event.eventId, event.instanceStartTime)) {
-    event.isMuted = true
-    preMutedManager.removePreMutedEvent(event.eventId, event.instanceStartTime)
+// In registerNewEvent or handleAlerts
+MonitorStorage(context).use { storage ->
+    val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+    if (alert?.preMuted == true) {
+        event.isMuted = true
+        // Clear the preMuted flag now that it's been applied
+        storage.updateAlert(alert.copy(preMuted = false, wasHandled = true))
+    }
 }
 ```
+
+**Note:** The `preMuted` flag is automatically cleaned up when the alert is marked as handled or when the alert entry is deleted during normal MonitorStorage cleanup.
 
 ### Phase 7: Settings UI for Lookahead
 
@@ -932,7 +1182,14 @@ private fun updateCutoffTimeSummary(pref: Preference?) {
 <string name="view_in_calendar">View in Calendar</string>
 <string name="event_snoozed">Event snoozed</string>
 <string name="event_will_be_muted">Event will be muted when it fires</string>
+<string name="event_unmuted">Event will no longer be muted</string>
 <string name="event_dismissed">Event dismissed</string>
+<string name="empty_active">No active notifications</string>
+<string name="empty_upcoming">No upcoming events in the next %s</string>
+<string name="empty_dismissed">No dismissed events</string>
+<string name="error_loading_events">Error loading events</string>
+<string name="use_new_navigation_ui">Use new navigation</string>
+<string name="use_new_navigation_ui_summary">Tabbed interface with bottom navigation</string>
 
 <string-array name="upcoming_events_mode_entries">
     <item>Until morning cutoff</item>
@@ -959,20 +1216,249 @@ private fun updateCutoffTimeSummary(pref: Preference?) {
 </string-array>
 ```
 
+## Edge Cases & Error Handling
+
+### Empty States
+
+Each tab should show a helpful empty state when there's no data:
+
+| Tab | Empty State Message | Icon |
+|-----|---------------------|------|
+| Active | "No active notifications" | 🔔 (grayed) |
+| Upcoming | "No upcoming events in the next X hours" | ⏰ (grayed) |
+| Dismissed | "No dismissed events" | 🗑️ (grayed) |
+
+```kotlin
+// In EventListFragment
+protected fun updateEmptyViewVisibility() {
+    val isEmpty = adapter.itemCount == 0
+    recyclerView.visibility = if (isEmpty) View.GONE else View.VISIBLE
+    emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+    
+    // Update empty message based on display mode
+    emptyView.findViewById<TextView>(R.id.empty_message)?.text = when (eventDisplayMode) {
+        EventDisplayMode.ACTIVE -> getString(R.string.empty_active)
+        EventDisplayMode.UPCOMING -> getString(R.string.empty_upcoming, getUpcomingWindowDescription())
+        EventDisplayMode.DISMISSED -> getString(R.string.empty_dismissed)
+    }
+}
+```
+
+### Refresh Triggers
+
+The event list should refresh automatically when:
+
+1. **Data changes** - BroadcastReceiver for `Consts.DATA_UPDATED_BROADCAST`
+2. **Tab switch** - `onResume()` in each Fragment
+3. **Pull-to-refresh** - SwipeRefreshLayout
+4. **Calendar sync** - After MonitorStorage rescan
+
+```kotlin
+// In EventListFragment
+private val dataUpdateReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        loadEvents()
+    }
+}
+
+override fun onResume() {
+    super.onResume()
+    LocalBroadcastManager.getInstance(requireContext())
+        .registerReceiver(dataUpdateReceiver, IntentFilter(Consts.DATA_UPDATED_BROADCAST))
+    loadEvents() // Refresh on tab switch
+}
+
+override fun onPause() {
+    super.onPause()
+    LocalBroadcastManager.getInstance(requireContext())
+        .unregisterReceiver(dataUpdateReceiver)
+}
+```
+
+### Migration Path (Legacy UI → New UI)
+
+1. **Default behavior:** New UI is default (`useNewNavigationUI = true`)
+2. **Toggle in Settings:** "Use new navigation" switch under Appearance
+3. **Graceful fallback:** If new UI crashes, catch in `onCreate` and fall back to legacy
+4. **DismissedEventsActivity retained:** Keep it functional during transition for deep links
+
+```kotlin
+// In MainActivity.onCreate()
+try {
+    if (settings.useNewNavigationUI) {
+        setContentView(R.layout.activity_main)
+        setupNavigation()
+    } else {
+        setContentView(R.layout.activity_main_legacy)
+        setupLegacyUI()
+    }
+} catch (e: Exception) {
+    DevLog.error(LOG_TAG, "New UI failed, falling back to legacy: ${e.message}")
+    settings.useNewNavigationUI = false
+    setContentView(R.layout.activity_main_legacy)
+    setupLegacyUI()
+}
+```
+
+### Error Handling
+
+#### CalendarProvider.getEvent() Returns Null
+
+Event was deleted from calendar after being scanned:
+
+```kotlin
+private fun enrichAlert(alert: MonitorEventAlertEntry): EventAlertRecord? {
+    val eventRecord = calendarProvider.getEvent(context, alert.eventId)
+    if (eventRecord == null) {
+        DevLog.debug(LOG_TAG, "Event ${alert.eventId} no longer exists in calendar, skipping")
+        return null
+    }
+    // ... enrichment logic
+}
+```
+
+#### Database Errors
+
+```kotlin
+fun loadEvents() {
+    background {
+        try {
+            val events = fetchEvents()
+            requireActivity().runOnUiThread {
+                adapter.setEventsToDisplay(events, eventDisplayMode)
+                updateEmptyViewVisibility()
+            }
+        } catch (e: SQLException) {
+            DevLog.error(LOG_TAG, "Database error loading events: ${e.message}")
+            requireActivity().runOnUiThread {
+                showErrorState(getString(R.string.error_loading_events))
+            }
+        }
+    }
+}
+```
+
+## Lazy Enrichment Pattern
+
+For better perceived performance, show event cards immediately with placeholders, then enrich asynchronously.
+
+### Implementation
+
+```kotlin
+class UpcomingEventsFragment : EventListFragment() {
+    
+    override fun loadEvents() {
+        background {
+            val now = clock.currentTimeMillis()
+            val lookahead = UpcomingEventsLookahead(settings, clock)
+            
+            // Step 1: Get alerts quickly (no CalendarProvider calls)
+            val alerts = MonitorStorage(requireContext()).use { storage ->
+                storage.getAlertsForAlertRange(now, lookahead.getCutoffTime())
+                    .filter { !it.wasHandled }
+                    .sortedBy { it.alertTime }
+            }
+            
+            // Step 2: Show placeholder cards immediately
+            val placeholders = alerts.map { alert ->
+                EventAlertRecord.placeholder(
+                    eventId = alert.eventId,
+                    alertTime = alert.alertTime,
+                    instanceStartTime = alert.instanceStartTime,
+                    instanceEndTime = alert.instanceEndTime,
+                    isAllDay = alert.isAllDay,
+                    preMuted = alert.preMuted
+                )
+            }.toTypedArray()
+            
+            requireActivity().runOnUiThread {
+                adapter.setEventsToDisplay(placeholders, eventDisplayMode)
+                updateEmptyViewVisibility()
+            }
+            
+            // Step 3: Enrich in batches, update UI progressively
+            alerts.chunked(5).forEach { batch ->
+                val enriched = batch.mapNotNull { alert ->
+                    enrichAlert(alert)
+                }
+                
+                requireActivity().runOnUiThread {
+                    adapter.updateEvents(enriched)
+                }
+            }
+        }
+    }
+}
+```
+
+### Placeholder Card Display
+
+```kotlin
+// In EventListAdapter
+override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+    val event = events[position]
+    
+    if (event.isPlaceholder) {
+        // Show skeleton UI
+        holder.titleView.text = "Loading..."
+        holder.titleView.setBackgroundResource(R.drawable.skeleton_shimmer)
+        holder.timeView.text = formatTime(event.alertTime) // We have this from MonitorStorage
+        holder.locationView.visibility = View.GONE
+    } else {
+        // Normal display
+        holder.titleView.text = event.title
+        holder.titleView.background = null
+        // ... rest of binding
+    }
+}
+```
+
+### EventAlertRecord Placeholder Factory
+
+```kotlin
+// In EventAlertRecord companion object
+companion object {
+    fun placeholder(
+        eventId: Long,
+        alertTime: Long,
+        instanceStartTime: Long,
+        instanceEndTime: Long,
+        isAllDay: Boolean,
+        preMuted: Boolean = false
+    ) = EventAlertRecord(
+        calendarId = 0,
+        eventId = eventId,
+        isAllDay = isAllDay,
+        alertTime = alertTime,
+        instanceStartTime = instanceStartTime,
+        instanceEndTime = instanceEndTime,
+        title = "",  // Empty = placeholder
+        isPlaceholder = true,
+        // ... other fields with defaults
+    )
+}
+```
+
 ## Files to Modify/Create
 
 ### New Files
 
 | File | Purpose |
 |------|---------|
-| `android/app/src/main/res/menu/bottom_nav_menu.xml` | Bottom navigation menu items |
+| `android/app/src/main/res/navigation/nav_graph.xml` | Navigation Component graph defining all destinations |
+| `android/app/src/main/res/menu/bottom_nav_menu.xml` | Bottom navigation menu items (3 items) |
+| `android/app/src/main/res/layout/fragment_event_list.xml` | Shared layout for event list fragments |
+| `android/app/src/main/res/layout/activity_main_legacy.xml` | Copy of old layout for legacy mode |
+| `android/app/src/main/java/com/github/quarck/calnotify/ui/EventListFragment.kt` | Base fragment for event lists |
+| `android/app/src/main/java/com/github/quarck/calnotify/ui/ActiveEventsFragment.kt` | Active events tab |
+| `android/app/src/main/java/com/github/quarck/calnotify/ui/UpcomingEventsFragment.kt` | Upcoming events tab |
+| `android/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventsFragment.kt` | Dismissed events tab |
 | `android/app/src/main/java/com/github/quarck/calnotify/ui/CalendarFilterBottomSheet.kt` | Calendar multi-select bottom sheet |
 | `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookahead.kt` | Lookahead cutoff calculation |
 | `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProvider.kt` | Fetch and enrich upcoming events |
-| `android/app/src/main/java/com/github/quarck/calnotify/upcoming/PreMutedEventsManager.kt` | Track pre-muted events |
 | `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookaheadRobolectricTest.kt` | Unit tests for lookahead logic |
 | `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProviderRobolectricTest.kt` | Unit tests for provider (mocked deps) |
-| `android/app/src/test/java/com/github/quarck/calnotify/upcoming/PreMutedEventsManagerRobolectricTest.kt` | Unit tests for pre-mute manager |
+| `android/app/src/test/java/com/github/quarck/calnotify/ui/EventListFragmentRobolectricTest.kt` | Unit tests for fragment logic |
 | `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreSnoozeIntegrationTest.kt` | Integration tests for pre-snooze |
 | `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreMuteIntegrationTest.kt` | Integration tests for pre-mute |
 | `android/app/src/androidTest/java/com/github/quarck/calnotify/upcoming/PreDismissIntegrationTest.kt` | Integration tests for pre-dismiss |
@@ -981,12 +1467,17 @@ private fun updateCutoffTimeSummary(pref: Preference?) {
 
 | File | Changes |
 |------|---------|
-| `activity_main.xml` | Add BottomNavigationView, AppBarLayout with collapsing filter chips |
-| `MainActivity.kt` | Add bottom nav handling, view switching, filter chip setup, calendar filter |
-| `Settings.kt` | Add lookahead settings + calendar filter selection |
-| `EventListAdapter.kt` | Handle upcoming events display mode |
-| `strings.xml` | Add new string resources for nav, filters, upcoming |
-| Preferences XML | Add lookahead settings UI |
+| `build.gradle` (app) | Add Navigation Component dependencies |
+| `activity_main.xml` | Replace FrameLayout with NavHostFragment, add BottomNavigationView |
+| `MainActivity.kt` | Setup NavController, legacy UI toggle, move list logic to fragments |
+| `Settings.kt` | Add `useNewNavigationUI`, lookahead settings, calendar filter selection |
+| `MonitorEventAlertEntry.kt` | Add `preMuted` boolean field |
+| `MonitorStorage*.kt` | Handle `preMuted` column in DB operations |
+| `EventListAdapter.kt` | Handle display modes (active/upcoming/dismissed), placeholder support |
+| `EventAlertRecord.kt` | Add `isPlaceholder` field, placeholder factory method |
+| `ApplicationController.kt` | Check `preMuted` flag when event fires |
+| `strings.xml` | Add new string resources for nav, filters, upcoming, empty states |
+| Preferences XML | Add lookahead settings UI, legacy UI toggle |
 
 ### Files to Eventually Deprecate
 
@@ -1107,38 +1598,38 @@ class UpcomingEventsProviderRobolectricTest {
 }
 ```
 
-#### `PreMutedEventsManagerRobolectricTest.kt`
+#### `MonitorStoragePreMutedRobolectricTest.kt`
 
 ```kotlin
 @RunWith(RobolectricTestRunner::class)
-class PreMutedEventsManagerRobolectricTest {
+class MonitorStoragePreMutedRobolectricTest {
 
     @Test
-    fun `addPreMutedEvent stores event`() {
-        // Given: Empty manager
-        // When: addPreMutedEvent(eventId=1, instanceStart=1000)
-        // Then: isPreMuted returns true
+    fun `updateAlert with preMuted true persists flag`() {
+        // Given: Alert in storage with preMuted = false
+        // When: updateAlert(alert.copy(preMuted = true))
+        // Then: getAlert returns alert with preMuted = true
     }
     
     @Test
-    fun `isPreMuted returns false for unknown event`() {
-        // Given: Empty manager
-        // When: isPreMuted(eventId=1, instanceStart=1000)
-        // Then: Returns false
+    fun `new alerts default to preMuted false`() {
+        // Given: New MonitorEventAlertEntry without preMuted specified
+        // When: addAlert(entry)
+        // Then: getAlert returns entry with preMuted = false
     }
     
     @Test
-    fun `removePreMutedEvent clears entry`() {
-        // Given: Pre-muted event exists
-        // When: removePreMutedEvent(eventId, instanceStart)
-        // Then: isPreMuted returns false
+    fun `preMuted flag survives storage round-trip`() {
+        // Given: Alert with preMuted = true
+        // When: Close and reopen storage
+        // Then: getAlert returns entry with preMuted = true
     }
     
     @Test
-    fun `different instances of same event tracked separately`() {
-        // Given: Event 1 instance A is pre-muted
-        // When: Check event 1 instance B
-        // Then: Instance B is not pre-muted
+    fun `different instances of same event have independent preMuted flags`() {
+        // Given: Event 1 instance A with preMuted = true
+        // And: Event 1 instance B with preMuted = false
+        // Then: Each instance retains its own flag
     }
 }
 ```
@@ -1178,17 +1669,58 @@ class CalendarFilterRobolectricTest {
 @RunWith(RobolectricTestRunner::class)
 class MainActivityNavigationRobolectricTest {
     
-    @Test
-    fun `bottom nav initial state is Active tab`() {
-        // Given: MainActivity launched
-        // Then: Active tab is selected
+    private lateinit var navController: TestNavHostController
+    
+    @Before
+    fun setup() {
+        navController = TestNavHostController(ApplicationProvider.getApplicationContext())
+        navController.setGraph(R.navigation.nav_graph)
     }
     
     @Test
-    fun `switching tabs updates currentView state`() {
+    fun `bottom nav initial state is Active tab`() {
+        // Given: MainActivity launched with new UI
+        // Then: navController.currentDestination.id == R.id.activeEventsFragment
+    }
+    
+    @Test
+    fun `switching tabs navigates to correct fragment`() {
         // Given: On Active tab
-        // When: Select Upcoming tab programmatically
-        // Then: currentView == VIEW_UPCOMING
+        // When: Navigate to Upcoming
+        navController.navigate(R.id.upcomingEventsFragment)
+        // Then: navController.currentDestination.id == R.id.upcomingEventsFragment
+    }
+    
+    @Test
+    fun `legacy UI toggle uses legacy layout`() {
+        // Given: settings.useNewNavigationUI = false
+        // When: MainActivity launches
+        // Then: contentView is activity_main_legacy
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+class EventListFragmentRobolectricTest {
+    
+    @Test
+    fun `empty state shown when no events`() {
+        // Given: ActiveEventsFragment with empty EventsStorage
+        // When: loadEvents() completes
+        // Then: empty_view is VISIBLE, recycler_view is GONE
+    }
+    
+    @Test
+    fun `refresh triggers loadEvents`() {
+        // Given: ActiveEventsFragment displayed
+        // When: SwipeRefreshLayout triggers refresh
+        // Then: loadEvents() is called
+    }
+    
+    @Test
+    fun `data update broadcast triggers refresh`() {
+        // Given: ActiveEventsFragment in resumed state
+        // When: DATA_UPDATED_BROADCAST received
+        // Then: loadEvents() is called
     }
 }
 ```
@@ -1244,16 +1776,24 @@ class PreMuteIntegrationTest {
     
     @Test
     fun `pre-muted event fires with mute flag set`() {
-        // Given: Upcoming event is pre-muted
+        // Given: Alert in MonitorStorage with preMuted = true
         // When: Event fires via registerNewEvent
         // Then: EventAlertRecord.isMuted == true
     }
     
     @Test
-    fun `pre-mute entry cleaned up after event fires`() {
-        // Given: Pre-muted event
-        // When: Event fires
-        // Then: PreMutedEventsManager no longer has entry
+    fun `preMuted flag cleared after event fires`() {
+        // Given: Alert with preMuted = true
+        // When: Event fires and is processed
+        // Then: MonitorStorage alert has preMuted = false (or is deleted)
+    }
+    
+    @Test
+    fun `un-pre-mute clears flag before event fires`() {
+        // Given: Alert with preMuted = true
+        // When: User un-pre-mutes via handleUnPreMute
+        // Then: MonitorStorage alert has preMuted = false
+        // And: Event fires without mute
     }
 }
 ```
@@ -1328,11 +1868,14 @@ class MainActivityUITest {
 src/test/java/.../upcoming/
 ├── UpcomingEventsLookaheadRobolectricTest.kt
 ├── UpcomingEventsProviderRobolectricTest.kt
-├── PreMutedEventsManagerRobolectricTest.kt
 └── CalendarFilterRobolectricTest.kt
 
+src/test/java/.../monitorstorage/
+└── MonitorStoragePreMutedRobolectricTest.kt
+
 src/test/java/.../ui/
-└── MainActivityNavigationRobolectricTest.kt
+├── MainActivityNavigationRobolectricTest.kt
+└── EventListFragmentRobolectricTest.kt
 
 src/androidTest/java/.../upcoming/
 ├── UpcomingEventsProviderIntegrationTest.kt
@@ -1385,29 +1928,52 @@ This keeps the UX consistent and predictable.
 
 ### Technical Notes
 
+**Data Layer:**
 - The `MonitorStorage.getAlertsForAlertRange()` method already exists and is tested
 - `CalendarProvider.getEvent()` may return null if the calendar event was deleted—handle gracefully
-- Consider caching enriched events to avoid repeated CalendarProvider queries on scroll
-- The enrichment step adds ~1-2ms per event; for 10 events this is negligible
-- BottomNavigationView supports up to 5 items; we're using 4 (Active, Upcoming, Dismissed, Settings)
+- Pre-muted state stored in `MonitorEventAlertEntry.preMuted` column (not SharedPreferences) for reliability
+- Lazy enrichment: show placeholder cards immediately, enrich in background batches
+
+**Navigation Component:**
+- Menu item IDs in `bottom_nav_menu.xml` must match Fragment IDs in `nav_graph.xml`
+- Use `NavigationUI.setupWithNavController()` for automatic tab switching
+- Each Fragment should register for `DATA_UPDATED_BROADCAST` to refresh on data changes
+- `TestNavHostController` available for testing navigation logic
+
+**UI Patterns:**
+- BottomNavigationView supports up to 5 items; we're using 3 (Active, Upcoming, Dismissed)
+- Settings accessed via overflow menu (⋮) in toolbar, not bottom nav
 - `labelVisibilityMode="unlabeled"` hides text labels for icon-only nav
 - CoordinatorLayout + AppBarLayout provides built-in scroll-to-collapse behavior for top bar
-- For bottom nav collapse: use `app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"` on BottomNavigationView
-- Pre-mute uses lightweight SharedPreferences storage (not a Room table) since entries are short-lived
-- Prefer Robolectric tests for all logic; use instrumentation only for real Calendar Provider or complex UI interactions
+- For bottom nav collapse: use `app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"`
+
+**Legacy UI Support:**
+- `Settings.useNewNavigationUI` feature flag controls which UI loads
+- Both `activity_main.xml` (new) and `activity_main_legacy.xml` (old) layouts maintained
+- Graceful fallback if new UI crashes on startup
+
+**Testing:**
+- Prefer Robolectric tests for all logic; use instrumentation only for real Calendar Provider
+- Use `TestNavHostController` for navigation tests in Robolectric
+- Fragment lifecycle can be tested with `FragmentScenario`
 
 ## Implementation Order Recommendation
 
 Given the scope, consider this order for incremental delivery:
 
-1. **Phase 0** - Bottom nav infrastructure (biggest change, enables everything else)
-2. **Phase 1** - Dismissed tab (proves the pattern works, reuses existing code)
+1. **Phase 0** - Navigation infrastructure + legacy UI toggle (biggest change, enables everything else)
+2. **Phase 1** - Event list fragments (Active, Dismissed - proves pattern works)
 3. **Phase 4** - Upcoming data provider (can test independently)
 4. **Phase 5** - Upcoming tab (wires it together)
 5. **Phase 2** - Collapsing filter bar (polish)
 6. **Phase 3** - Calendar multi-select (polish)
-7. **Phase 6** - Pre-snooze (feature complete)
+7. **Phase 6** - Pre-actions (snooze, mute, dismiss - feature complete)
 8. **Phase 7** - Settings UI (configuration)
+
+**Test-Driven Approach:**
+- Write tests for each phase before/during implementation
+- Don't merge until tests pass and manual testing confirms functionality
+- Legacy UI toggle provides safety net during development
 
 Each phase is independently testable and deliverable.
 
