@@ -1934,19 +1934,44 @@ This keeps the UX consistent and predictable.
 
 ## Implementation Order Recommendation
 
-Given the scope, consider this order for incremental delivery:
+Given the scope, we split into two major milestones to validate architecture before adding complex interactions:
+
+### Milestone 1: Read-Only Upcoming Events (End-to-End Validation)
+
+Build the navigation infrastructure and data flow without pre-actions:
 
 1. **Phase 0a** - Add Navigation dependencies + `activity_main_legacy.xml` + feature flag skeleton
 2. **Phase 0b** - Create `NavHostFragment` setup + empty placeholder Fragments
 3. **Phase 0c** - Wire up `BottomNavigationView` with `NavController`
 4. **Phase 1** - Move existing list logic to `ActiveEventsFragment` + create `DismissedEventsFragment`
 5. **Phase 4** - `UpcomingEventsProvider` + `UpcomingEventsLookahead` (data layer, testable independently)
-6. **Phase 5** - `UpcomingEventsFragment` (wire data to UI)
-7. **Phase 6.1** - Pre-snooze (simplest pre-action, proves pattern)
-8. **Phase 6.2-6.3** - Pre-dismiss + Pre-mute
-9. **Phase 7** - Settings UI for lookahead
-10. **Phase 2** - Collapsing filter bar (polish)
-11. **Phase 3** - Calendar multi-select (polish)
+6. **Phase 5** - `UpcomingEventsFragment` (wire data to UI, read-only display)
+7. **Phase 7** - Settings UI for lookahead (so users can configure the window)
+
+**Milestone 1 delivers:**
+- Navigation Component wired up and testable
+- Active/Dismissed events working in new fragment architecture
+- Upcoming events displayed read-only (can see what's coming but not act on it yet)
+- Configurable lookahead window (cutoff vs fixed hours)
+
+**Checkpoint:** Validate architecture works before proceeding. Fix any issues.
+
+### Milestone 2: Pre-Actions (Interactions)
+
+Add ability to act on upcoming events:
+
+8. **Phase 6.1** - Pre-snooze (simplest pre-action, proves pattern)
+9. **Phase 6.2** - Pre-dismiss + undo
+10. **Phase 6.3** - Pre-mute
+
+**Milestone 2 delivers:**
+- Full parity: anything you can do with active events works with upcoming events
+- Storage mutations, undo functionality, cross-storage coordination
+
+### Milestone 3: Polish
+
+11. **Phase 2** - Collapsing filter bar
+12. **Phase 3** - Calendar multi-select
 
 **Test-Driven Approach:**
 - Write tests for each phase before/during implementation
