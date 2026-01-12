@@ -54,7 +54,8 @@ interface EventListCallback {
 
 class EventListAdapter(
         val context: Context,
-        val callback: EventListCallback)
+        val callback: EventListCallback,
+        val swipeEnabled: Boolean = true)
 
     : RecyclerView.Adapter<EventListAdapter.ViewHolder>() {
 
@@ -226,7 +227,7 @@ class EventListAdapter(
 
                     override fun isLongPressDragEnabled() = false
 
-                    override fun isItemViewSwipeEnabled() = true
+                    override fun isItemViewSwipeEnabled() = swipeEnabled
 
                     /* From documentation:
                      * Defines the minimum velocity which will be considered as a swipe action by the user.

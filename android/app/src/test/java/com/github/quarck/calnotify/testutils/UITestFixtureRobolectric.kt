@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.CalendarRecord
@@ -54,6 +55,9 @@ class UITestFixtureRobolectric {
         
         // Grant calendar permissions for Robolectric
         grantCalendarPermissions()
+        
+        // Use legacy UI for MainActivity tests (new navigation UI is fragment-based)
+        Settings(context).useNewNavigationUI = false
         
         // Clear any existing data
         eventsStorage.clear()

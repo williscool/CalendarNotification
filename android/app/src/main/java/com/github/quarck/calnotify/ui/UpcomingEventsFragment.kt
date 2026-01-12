@@ -85,9 +85,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
         
         emptyView.text = getString(R.string.empty_upcoming)
         
-        // Use EventListAdapter in read-only mode for now
-        // Pre-actions will be added in Milestone 2
-        adapter = EventListAdapter(requireContext(), this)
+        // Use EventListAdapter in read-only mode - disable swipe for Milestone 1
+        // Pre-actions (snooze, dismiss, mute) will be added in Milestone 2
+        adapter = EventListAdapter(requireContext(), this, swipeEnabled = false)
         recyclerView.layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView.adapter = adapter
         adapter.recyclerView = recyclerView
