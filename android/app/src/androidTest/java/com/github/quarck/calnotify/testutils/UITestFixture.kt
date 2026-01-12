@@ -22,13 +22,16 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustom
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
+import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import androidx.test.espresso.Espresso.pressBackUnconditionally
@@ -497,6 +500,13 @@ class UITestFixture {
             }
         }
         
+        // Also clear MonitorStorage for upcoming events
+        MonitorStorage(context).use { storage ->
+            storage.alerts.forEach { alert ->
+                storage.deleteAlert(alert)
+            }
+        }
+        
         seededEvents.clear()
         DevLog.info(LOG_TAG, "Cleared all events")
     }
@@ -713,6 +723,78 @@ class UITestFixture {
     fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
         DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
         return FragmentScenario.launchInContainer(DismissedEventsFragment::class.java)
+    }
+    
+    /**
+     * Launches UpcomingEventsFragment in a test container.
+     */
+    fun launchUpcomingEventsFragment(): FragmentScenario<UpcomingEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching UpcomingEventsFragment")
+        return FragmentScenario.launchInContainer(UpcomingEventsFragment::class.java)
+    }
+    
+    /**
+     * Creates an upcoming event by adding an alert to MonitorStorage.
+     * The alert will be in the future and unhandled, so it shows in UpcomingEventsFragment.
+     */
+    fun createUpcomingEvent(
+        title: String = "Upcoming Event",
+        alertTimeOffsetMinutes: Int = 30,
+        startTimeOffsetMinutes: Int = 60,
+        durationMinutes: Int = 60,
+        isAllDay: Boolean = false
+    ): MonitorEventAlertEntry {
+        val currentTime = System.currentTimeMillis()
+        val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val eventId = eventIdCounter++
+        
+        val alert = MonitorEventAlertEntry(
+            eventId = eventId,
+            isAllDay = isAllDay,
+            alertTime = alertTime,
+            instanceStartTime = instanceStart,
+            instanceEndTime = instanceEnd,
+            alertCreatedByUs = false,
+            wasHandled = false
+        )
+        
+        MonitorStorage(context).use { storage ->
+            storage.addAlert(alert)
+        }
+        
+        DevLog.info(LOG_TAG, "Created upcoming event: eventId=$eventId, title=$title, alertTime=$alertTime")
+        return alert
+    }
+    
+    /**
+     * Seeds multiple upcoming events.
+     */
+    fun seedUpcomingEvents(count: Int, titlePrefix: String = "Upcoming"): List<MonitorEventAlertEntry> {
+        val alerts = mutableListOf<MonitorEventAlertEntry>()
+        for (i in 1..count) {
+            val alert = createUpcomingEvent(
+                title = "$titlePrefix $i",
+                alertTimeOffsetMinutes = i * 30,
+                startTimeOffsetMinutes = i * 60
+            )
+            alerts.add(alert)
+        }
+        DevLog.info(LOG_TAG, "Seeded $count upcoming events")
+        return alerts
+    }
+    
+    /**
+     * Clears all upcoming events from MonitorStorage.
+     */
+    fun clearUpcomingEvents() {
+        MonitorStorage(context).use { storage ->
+            storage.alerts.forEach { alert ->
+                storage.deleteAlert(alert)
+            }
+        }
+        DevLog.info(LOG_TAG, "Cleared all upcoming events")
     }
     
     companion object {
