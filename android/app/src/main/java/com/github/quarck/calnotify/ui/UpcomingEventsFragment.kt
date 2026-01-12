@@ -41,6 +41,7 @@ import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.upcoming.UpcomingEventsProvider
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
@@ -123,7 +124,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
     private fun loadEvents() {
         val ctx = context ?: return
         background {
-            val events = MonitorStorage(ctx).use { storage ->
+            val events = getMonitorStorage(ctx).use { storage ->
                 val provider = UpcomingEventsProvider(
                     context = ctx,
                     settings = settings,
@@ -185,5 +186,17 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
 
     companion object {
         private const val LOG_TAG = "UpcomingEventsFragment"
+        
+        /** Provider for MonitorStorage - enables DI for testing */
+        var monitorStorageProvider: ((Context) -> MonitorStorageInterface)? = null
+        
+        /** Gets MonitorStorage - uses provider if set, otherwise creates real instance */
+        fun getMonitorStorage(ctx: Context): MonitorStorageInterface =
+            monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
+        
+        /** Reset providers - call in @After to prevent test pollution */
+        fun resetProviders() {
+            monitorStorageProvider = null
+        }
     }
 }

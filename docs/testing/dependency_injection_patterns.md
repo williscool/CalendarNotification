@@ -206,6 +206,7 @@ fun testSomething() {
 - `ApplicationController.registerNewEvent()`
 - `ApplicationController.restoreEvent()`
 - `ApplicationController.safeDismissEventsFromRescheduleConfirmations()`
+- `UpcomingEventsProvider` - constructor injection for `monitorStorage`, `calendarProvider`, `clock`, `settings`
 
 ### Pattern B (Companion Provider)
 - `MainActivity` - `eventsStorageProvider`, `dismissedEventsStorageProvider`
@@ -213,6 +214,9 @@ fun testSomething() {
 - `DismissedEventsActivity` - `dismissedEventsStorageProvider`
 - `AlarmScheduler` - `eventsStorageProvider`, `reminderStateProvider`
 - `ReminderAlarmBroadcastReceiver` - multiple providers (clock, settings, storage, etc.)
+- `ActiveEventsFragment` - `eventsStorageProvider`
+- `UpcomingEventsFragment` - `monitorStorageProvider`
+- `DismissedEventsFragment` - `dismissedEventsStorageProvider`
 
 ---
 

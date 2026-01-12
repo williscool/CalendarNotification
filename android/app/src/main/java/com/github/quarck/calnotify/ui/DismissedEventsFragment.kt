@@ -40,6 +40,7 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.background
 
@@ -110,7 +111,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
     private fun loadEvents() {
         val ctx = context ?: return
         background {
-            val events = DismissedEventsStorage(ctx).classCustomUse { db ->
+            val events = getDismissedEventsStorage(ctx).classCustomUse { db ->
                 // Room sorts in query, but legacy storage doesn't - sort in memory as fallback
                 db.events.sortedByDescending { it.dismissTime }.toTypedArray()
             }
@@ -152,7 +153,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
 
     override fun onItemRemoved(entry: DismissedEventAlertRecord) {
         val ctx = context ?: return
-        DismissedEventsStorage(ctx).classCustomUse { db ->
+        getDismissedEventsStorage(ctx).classCustomUse { db ->
             db.deleteEvent(entry)
         }
         updateEmptyState()
@@ -160,5 +161,17 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
 
     companion object {
         private const val LOG_TAG = "DismissedEventsFragment"
+        
+        /** Provider for DismissedEventsStorage - enables DI for testing */
+        var dismissedEventsStorageProvider: ((Context) -> DismissedEventsStorageInterface)? = null
+        
+        /** Gets DismissedEventsStorage - uses provider if set, otherwise creates real instance */
+        fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface =
+            dismissedEventsStorageProvider?.invoke(ctx) ?: DismissedEventsStorage(ctx)
+        
+        /** Reset providers - call in @After to prevent test pollution */
+        fun resetProviders() {
+            dismissedEventsStorageProvider = null
+        }
     }
 }

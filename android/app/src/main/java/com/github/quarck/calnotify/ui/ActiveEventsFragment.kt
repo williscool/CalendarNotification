@@ -45,6 +45,7 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.background
 import com.google.android.material.snackbar.Snackbar
@@ -160,7 +161,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     private fun loadEvents() {
         val ctx = context ?: return
         background {
-            val events = EventsStorage(ctx).classCustomUse { db ->
+            val events = getEventsStorage(ctx).classCustomUse { db ->
                 db.events.sortedWith(
                     Comparator<EventAlertRecord> { lhs, rhs ->
                         if (lhs.snoozedUntil < rhs.snoozedUntil)
@@ -274,5 +275,17 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"
+        
+        /** Provider for EventsStorage - enables DI for testing */
+        var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
+        
+        /** Gets EventsStorage - uses provider if set, otherwise creates real instance */
+        fun getEventsStorage(ctx: Context): EventsStorageInterface =
+            eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
+        
+        /** Reset providers - call in @After to prevent test pollution */
+        fun resetProviders() {
+            eventsStorageProvider = null
+        }
     }
 }
