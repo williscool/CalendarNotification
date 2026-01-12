@@ -8,6 +8,7 @@ import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarProvider
@@ -123,7 +124,9 @@ class UITestFixtureRobolectric {
         val shadowApp = shadowOf(app)
         shadowApp.grantPermissions(
             android.Manifest.permission.READ_CALENDAR,
-            android.Manifest.permission.WRITE_CALENDAR
+            android.Manifest.permission.WRITE_CALENDAR,
+            // Required for ContextCompat.registerReceiver with RECEIVER_NOT_EXPORTED
+            "com.github.quarck.calnotify.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         )
     }
     
@@ -408,7 +411,10 @@ class UITestFixtureRobolectric {
      */
     fun launchActiveEventsFragment(): FragmentScenario<ActiveEventsFragment> {
         DevLog.info(LOG_TAG, "Launching ActiveEventsFragment")
-        return FragmentScenario.launchInContainer(ActiveEventsFragment::class.java)
+        return FragmentScenario.launchInContainer(
+            ActiveEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**
@@ -416,7 +422,10 @@ class UITestFixtureRobolectric {
      */
     fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
         DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
-        return FragmentScenario.launchInContainer(DismissedEventsFragment::class.java)
+        return FragmentScenario.launchInContainer(
+            DismissedEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**
@@ -424,7 +433,10 @@ class UITestFixtureRobolectric {
      */
     fun launchUpcomingEventsFragment(): FragmentScenario<UpcomingEventsFragment> {
         DevLog.info(LOG_TAG, "Launching UpcomingEventsFragment")
-        return FragmentScenario.launchInContainer(UpcomingEventsFragment::class.java)
+        return FragmentScenario.launchInContainer(
+            UpcomingEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**
