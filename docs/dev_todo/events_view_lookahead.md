@@ -402,7 +402,8 @@ class ActiveEventsFragment : EventListFragment() {
                 .filter { settings.isCalendarVisible(it.calendarId) }
                 .toTypedArray()
             
-            requireActivity().runOnUiThread {
+            // Use activity? to avoid crash if fragment detached during background work
+            activity?.runOnUiThread {
                 adapter.setEventsToDisplay(events, eventDisplayMode)
                 updateEmptyViewVisibility()
                 refreshLayout.isRefreshing = false
@@ -425,7 +426,8 @@ class DismissedEventsFragment : EventListFragment() {
                 .filter { settings.isCalendarVisible(it.calendarId) }
                 .toTypedArray()
             
-            requireActivity().runOnUiThread {
+            // Use activity? to avoid crash if fragment detached during background work
+            activity?.runOnUiThread {
                 adapter.setEventsToDisplay(events, eventDisplayMode)
                 updateEmptyViewVisibility()
                 refreshLayout.isRefreshing = false
@@ -648,9 +650,10 @@ var upcomingEventsMode: String
     get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
     set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
 
-/** Hour of day for morning cutoff (6-12, default 10). Uses ListPreference so only valid values possible. */
+/** Hour of day for morning cutoff (6-12, default 10). Bounded to prevent date rollover from corrupted prefs. */
 var upcomingEventsCutoffHour: Int
     get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
+        .coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR)  // Also validate on read for corrupted prefs
     set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
 
 /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
@@ -895,39 +898,49 @@ Pre-mute marks the event so when it fires, it won't make sound/vibration. The `p
 
 ```kotlin
 fun handlePreMute(event: EventAlertRecord) {
+    val ctx = context ?: return
     background {
         // Set preMuted flag in MonitorStorage
         // The event stays unhandled so it fires normally, but with mute flag
-        MonitorStorage(requireContext()).use { storage ->
+        var success = false
+        MonitorStorage(ctx).use { storage ->
             val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
             if (alert != null) {
                 storage.updateAlert(alert.withPreMuted(true))
+                success = true
             }
         }
         
-        requireActivity().runOnUiThread {
-            loadEvents() // Refresh to show mute indicator
-            Snackbar.make(
-                requireView(), 
-                R.string.event_will_be_muted, 
-                Snackbar.LENGTH_SHORT
-            ).show()
+        activity?.runOnUiThread {
+            if (success) {
+                loadEvents() // Refresh to show mute indicator
+                view?.let { v ->
+                    Snackbar.make(v, R.string.event_will_be_muted, Snackbar.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 }
 
 fun handleUnPreMute(event: EventAlertRecord) {
+    val ctx = context ?: return
     background {
-        MonitorStorage(requireContext()).use { storage ->
+        var success = false
+        MonitorStorage(ctx).use { storage ->
             val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
             if (alert != null) {
                 storage.updateAlert(alert.withPreMuted(false))
+                success = true
             }
         }
         
-        requireActivity().runOnUiThread {
-            loadEvents()
-            Snackbar.make(requireView(), R.string.event_unmuted, Snackbar.LENGTH_SHORT).show()
+        activity?.runOnUiThread {
+            if (success) {
+                loadEvents()
+                view?.let { v ->
+                    Snackbar.make(v, R.string.event_unmuted, Snackbar.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 }
@@ -1281,14 +1294,14 @@ fun loadEvents() {
     background {
         try {
             val events = fetchEvents()
-            requireActivity().runOnUiThread {
+            activity?.runOnUiThread {
                 adapter.setEventsToDisplay(events, eventDisplayMode)
                 updateEmptyViewVisibility()
                 refreshLayout.isRefreshing = false
             }
         } catch (e: SQLException) {
             DevLog.error(LOG_TAG, "Database error loading events: ${e.message}")
-            requireActivity().runOnUiThread {
+            activity?.runOnUiThread {
                 refreshLayout.isRefreshing = false  // Always stop the spinner
                 showErrorState(getString(R.string.error_loading_events))
             }
@@ -1309,12 +1322,13 @@ For better perceived performance, show event cards immediately with placeholders
 class UpcomingEventsFragment : EventListFragment() {
     
     override fun loadEvents() {
+        val ctx = context ?: return
         background {
             val now = clock.currentTimeMillis()
             val lookahead = UpcomingEventsLookahead(settings, clock)
             
             // Step 1: Get alerts quickly (no CalendarProvider calls)
-            val alerts = MonitorStorage(requireContext()).use { storage ->
+            val alerts = MonitorStorage(ctx).use { storage ->
                 storage.getAlertsForAlertRange(now, lookahead.getCutoffTime())
                     .filter { !it.wasHandled }
                     .sortedBy { it.alertTime }
@@ -1332,7 +1346,7 @@ class UpcomingEventsFragment : EventListFragment() {
                 )
             }.toTypedArray()
             
-            requireActivity().runOnUiThread {
+            activity?.runOnUiThread {
                 adapter.setEventsToDisplay(placeholders, eventDisplayMode)
                 updateEmptyViewVisibility()
             }
@@ -1343,7 +1357,7 @@ class UpcomingEventsFragment : EventListFragment() {
                     enrichAlert(alert)
                 }
                 
-                requireActivity().runOnUiThread {
+                activity?.runOnUiThread {
                     adapter.updateEvents(enriched)
                 }
             }
