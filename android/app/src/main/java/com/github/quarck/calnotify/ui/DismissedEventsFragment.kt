@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -26,10 +27,15 @@ import android.content.IntentFilter
 import android.os.Bundle
 import androidx.core.content.ContextCompat
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.view.MenuProvider
+import androidx.lifecycle.Lifecycle
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
@@ -86,6 +92,49 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
         refreshLayout.setOnRefreshListener {
             loadEvents()
         }
+        
+        // Add menu with "Remove All" option
+        setupMenu()
+    }
+    
+    private fun setupMenu() {
+        requireActivity().addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.dismissed_main, menu)
+            }
+            
+            override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                return when (menuItem.itemId) {
+                    R.id.action_remove_all -> {
+                        showRemoveAllConfirmation()
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
+    }
+    
+    private fun showRemoveAllConfirmation() {
+        val ctx = context ?: return
+        AlertDialog.Builder(ctx)
+            .setMessage(getString(R.string.remove_all_confirmation))
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                removeAllDismissedEvents()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+    
+    private fun removeAllDismissedEvents() {
+        val ctx = context ?: return
+        getDismissedEventsStorage(ctx).classCustomUse { db ->
+            db.clearHistory()
+        }
+        adapter.removeAll()
+        updateEmptyState()
     }
 
     override fun onResume() {

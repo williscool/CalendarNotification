@@ -3,6 +3,8 @@ package com.github.quarck.calnotify.testutils
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Bundle
+import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
@@ -16,7 +18,9 @@ import com.github.quarck.calnotify.app.CalendarReloadManager
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
+import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
+import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
@@ -72,6 +76,10 @@ class UITestFixtureRobolectric {
         MainActivity.eventsStorageProvider = { eventsStorage }
         DismissedEventsActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
         ViewEventActivityNoRecents.eventsStorageProvider = { eventsStorage }
+        
+        // Inject mock storage into fragments
+        ActiveEventsFragment.eventsStorageProvider = { eventsStorage }
+        DismissedEventsFragment.dismissedEventsStorageProvider = { dismissedEventsStorage }
         
         // Mock PermissionsManager to return true for calendar permissions
         mockkObject(PermissionsManager)
@@ -130,6 +138,10 @@ class UITestFixtureRobolectric {
         MainActivity.eventsStorageProvider = null
         DismissedEventsActivity.dismissedEventsStorageProvider = null
         ViewEventActivityNoRecents.eventsStorageProvider = null
+        
+        // Reset fragment providers
+        ActiveEventsFragment.resetProviders()
+        DismissedEventsFragment.resetProviders()
         
         unmockkAll()
     }
@@ -329,6 +341,22 @@ class UITestFixtureRobolectric {
     fun launchSnoozeAllActivityWithIntent(intent: Intent): ActivityScenario<SnoozeAllActivity> {
         DevLog.info(LOG_TAG, "Launching SnoozeAllActivity with intent")
         return ActivityScenario.launch(intent)
+    }
+    
+    /**
+     * Launches ActiveEventsFragment in a test container.
+     */
+    fun launchActiveEventsFragment(): FragmentScenario<ActiveEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching ActiveEventsFragment")
+        return FragmentScenario.launchInContainer(ActiveEventsFragment::class.java)
+    }
+    
+    /**
+     * Launches DismissedEventsFragment in a test container.
+     */
+    fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
+        return FragmentScenario.launchInContainer(DismissedEventsFragment::class.java)
     }
     
     /**

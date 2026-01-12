@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
@@ -22,7 +23,9 @@ import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
+import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
@@ -694,6 +697,22 @@ class UITestFixture {
     fun mockApplicationController() {
         DevLog.info(LOG_TAG, "Mocking ApplicationController")
         mockkObject(ApplicationController)
+    }
+    
+    /**
+     * Launches ActiveEventsFragment in a test container.
+     */
+    fun launchActiveEventsFragment(): FragmentScenario<ActiveEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching ActiveEventsFragment")
+        return FragmentScenario.launchInContainer(ActiveEventsFragment::class.java)
+    }
+    
+    /**
+     * Launches DismissedEventsFragment in a test container.
+     */
+    fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
+        return FragmentScenario.launchInContainer(DismissedEventsFragment::class.java)
     }
     
     companion object {

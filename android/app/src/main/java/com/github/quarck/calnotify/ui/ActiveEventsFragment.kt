@@ -42,6 +42,7 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.app.UndoManager
 import com.github.quarck.calnotify.app.UndoState
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.calendar.isSpecial
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -183,7 +184,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
         DevLog.info(LOG_TAG, "onItemClick, pos=$position, eventId=$eventId")
         
         val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
+        if (event != null && !event.isSpecial) {
             startActivity(
                 Intent(requireContext(), ViewEventActivity::class.java)
                     .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
