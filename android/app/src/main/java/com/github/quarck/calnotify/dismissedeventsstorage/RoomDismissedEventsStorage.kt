@@ -72,6 +72,11 @@ class RoomDismissedEventsStorage(
     override val events: List<DismissedEventAlertRecord>
         get() = dao.getAll().map { it.toRecord() }
 
+    override val eventsForDisplay: List<DismissedEventAlertRecord>
+        get() = dao.getAll()
+            .map { it.toRecord() }
+            .sortedByDescending { it.dismissTime }
+
     override fun close() {
         // Room handles connection management via singleton pattern
         // Individual close is not needed - database will be closed when app terminates

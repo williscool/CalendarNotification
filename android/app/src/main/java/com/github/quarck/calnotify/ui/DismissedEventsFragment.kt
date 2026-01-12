@@ -112,8 +112,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
         val ctx = context ?: return
         background {
             val events = getDismissedEventsStorage(ctx).classCustomUse { db ->
-                // Room sorts in query, but legacy storage doesn't - sort in memory as fallback
-                db.events.sortedByDescending { it.dismissTime }.toTypedArray()
+                db.eventsForDisplay.toTypedArray()
             }
             
             activity?.runOnUiThread {

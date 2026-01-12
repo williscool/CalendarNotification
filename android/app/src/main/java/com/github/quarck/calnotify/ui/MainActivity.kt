@@ -673,29 +673,8 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             cleanupOrphanedEvents(this)
 
             val events =
-                    getEventsStorage(this).classCustomUse {
-
-                        db ->
-
-                        db.events.sortedWith(
-                                Comparator<EventAlertRecord> {
-                                    lhs, rhs ->
-
-                                    if (lhs.snoozedUntil < rhs.snoozedUntil)
-                                        return@Comparator -1;
-                                    else if (lhs.snoozedUntil > rhs.snoozedUntil)
-                                        return@Comparator 1;
-
-                                    if (lhs.lastStatusChangeTime > rhs.lastStatusChangeTime)
-                                        return@Comparator -1;
-                                    else if (lhs.lastStatusChangeTime < rhs.lastStatusChangeTime)
-                                        return@Comparator 1;
-
-                                    return@Comparator 0;
-
-                                }).toTypedArray()
-
-
+                    getEventsStorage(this).classCustomUse { db ->
+                        db.eventsForDisplay.toTypedArray()
                     }
 
             val quietPeriodUntil = QuietHoursManager(this).getSilentUntil(settings)

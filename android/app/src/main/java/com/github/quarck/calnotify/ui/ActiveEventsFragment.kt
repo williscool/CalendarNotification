@@ -162,21 +162,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
         val ctx = context ?: return
         background {
             val events = getEventsStorage(ctx).classCustomUse { db ->
-                db.events.sortedWith(
-                    Comparator<EventAlertRecord> { lhs, rhs ->
-                        if (lhs.snoozedUntil < rhs.snoozedUntil)
-                            return@Comparator -1
-                        else if (lhs.snoozedUntil > rhs.snoozedUntil)
-                            return@Comparator 1
-
-                        if (lhs.lastStatusChangeTime > rhs.lastStatusChangeTime)
-                            return@Comparator -1
-                        else if (lhs.lastStatusChangeTime < rhs.lastStatusChangeTime)
-                            return@Comparator 1
-
-                        return@Comparator 0
-                    }
-                ).toTypedArray()
+                db.eventsForDisplay.toTypedArray()
             }
             
             activity?.runOnUiThread {
