@@ -27,7 +27,7 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 | Navigation pattern | **Navigation Component + Fragments** | Modern Android pattern, built-in back stack, type-safe args, testable |
 | Bottom nav items | **3 items** (Active, Upcoming, Dismissed) | Settings in overflow menu; cleaner UI |
 | Legacy UI support | **Feature flag toggle** | `Settings.useNewNavigationUI` allows rollback |
-| Pre-muted storage | **`preMuted` column in MonitorStorage** | Atomic updates, no cleanup needed, survives restarts |
+| Pre-muted storage | **`preMuted` via reserved column (`i1`)** | No migration needed, atomic updates, survives restarts |
 | Data source for upcoming | **MonitorStorage + CalendarProvider enrichment** | Reuse existing data, no duplication |
 | Enrichment strategy | **Lazy loading with placeholders** | Fast initial render, progressive enhancement |
 | Testing approach | **Robolectric primary, instrumentation for Calendar Provider** | Fast tests, real API tests where needed |
@@ -906,7 +906,7 @@ fun handlePreMute(event: EventAlertRecord) {
         MonitorStorage(requireContext()).use { storage ->
             val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
             if (alert != null) {
-                storage.updateAlert(alert.copy(preMuted = true))
+                storage.updateAlert(alert.withPreMuted(true))
             }
         }
         
@@ -926,7 +926,7 @@ fun handleUnPreMute(event: EventAlertRecord) {
         MonitorStorage(requireContext()).use { storage ->
             val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
             if (alert != null) {
-                storage.updateAlert(alert.copy(preMuted = false))
+                storage.updateAlert(alert.withPreMuted(false))
             }
         }
         
@@ -938,12 +938,14 @@ fun handleUnPreMute(event: EventAlertRecord) {
 }
 ```
 
-#### 6.4 Add `preMuted` Column to MonitorEventAlertEntry
+#### 6.4 Add `preMuted` to MonitorEventAlertEntry (Using Reserved Column)
 
-Update the data class and database schema:
+**No migration needed!** MonitorStorage already has reserved columns (`reservedInt1`/`i1`) for exactly this purpose - same pattern as EventsStorage's `flags` field.
+
+Update the data class to use the reserved column as a flags field:
 
 ```kotlin
-// In MonitorEventAlertEntry.kt
+// In MonitorEventAlertEntry.kt - add flags field and preMuted accessor
 data class MonitorEventAlertEntry(
     val eventId: Long,
     val isAllDay: Boolean,
@@ -952,22 +954,37 @@ data class MonitorEventAlertEntry(
     val instanceEndTime: Long,
     val alertCreatedByUs: Boolean = false,
     val wasHandled: Boolean = false,
-    val preMuted: Boolean = false  // NEW: user pre-muted before alert fired
+    val flags: Long = 0  // Uses existing reservedInt1/i1 column
+) {
+    val preMuted: Boolean
+        get() = (flags and PRE_MUTED_FLAG) != 0L
+    
+    fun withPreMuted(value: Boolean): MonitorEventAlertEntry =
+        copy(flags = if (value) flags or PRE_MUTED_FLAG else flags and PRE_MUTED_FLAG.inv())
+    
+    companion object {
+        const val PRE_MUTED_FLAG = 1L
+    }
+}
+
+// In MonitorAlertEntity.kt - rename reservedInt1 to flags
+@ColumnInfo(name = COL_RESERVED_INT1) val flags: Long? = 0,  // was reservedInt1
+
+fun toAlertEntry() = MonitorEventAlertEntry(
+    // ... other fields ...
+    flags = flags ?: 0
 )
 
-// Room entity (if using Room)
-@Entity(tableName = "monitor_alerts", primaryKeys = ["eventId", "alertTime", "instanceStartTime"])
-data class MonitorAlertEntity(
-    val eventId: Long,
-    val isAllDay: Boolean,
-    val alertTime: Long,
-    val instanceStartTime: Long,
-    val instanceEndTime: Long,
-    val alertCreatedByUs: Boolean = false,
-    val wasHandled: Boolean = false,
-    val preMuted: Boolean = false  // NEW column
+fun fromAlertEntry(entry: MonitorEventAlertEntry) = MonitorAlertEntity(
+    // ... other fields ...
+    flags = entry.flags
 )
 ```
+
+**Why no migration:**
+- Column `i1` (reservedInt1) already exists in the database schema
+- Existing rows have `0` or `null` → `preMuted = false` ✅
+- We're just giving the column semantic meaning in code
 
 **Why database over SharedPreferences:**
 - Atomic updates with the alert record
@@ -1059,7 +1076,7 @@ MonitorStorage(context).use { storage ->
     if (alert?.preMuted == true) {
         event.isMuted = true
         // Clear the preMuted flag now that it's been applied
-        storage.updateAlert(alert.copy(preMuted = false, wasHandled = true))
+        storage.updateAlert(alert.withPreMuted(false).copy(wasHandled = true))
     }
 }
 ```
@@ -1471,8 +1488,8 @@ companion object {
 | `activity_main.xml` | Replace FrameLayout with NavHostFragment, add BottomNavigationView |
 | `MainActivity.kt` | Setup NavController, legacy UI toggle, move list logic to fragments |
 | `Settings.kt` | Add `useNewNavigationUI`, lookahead settings, calendar filter selection |
-| `MonitorEventAlertEntry.kt` | Add `preMuted` boolean field |
-| `MonitorStorage*.kt` | Handle `preMuted` column in DB operations |
+| `MonitorEventAlertEntry.kt` | Add `flags` field with `preMuted` accessor (uses existing `i1` column) |
+| `MonitorAlertEntity.kt` | Rename `reservedInt1` to `flags`, update toAlertEntry/fromAlertEntry |
 | `EventListAdapter.kt` | Handle display modes (active/upcoming/dismissed), placeholder support |
 | `EventAlertRecord.kt` | Add `isPlaceholder` field, placeholder factory method |
 | `ApplicationController.kt` | Check `preMuted` flag when event fires |
