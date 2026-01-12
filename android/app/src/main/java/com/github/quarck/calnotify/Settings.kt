@@ -445,10 +445,15 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
 
     // ===== Upcoming Events / Navigation Settings =====
     
-    /** Whether to use new navigation UI with bottom tabs (default: false for safety) */
+    /** Whether to use new navigation UI with bottom tabs (default: true) */
     var useNewNavigationUI: Boolean
-        get() = getBoolean(USE_NEW_NAVIGATION_UI_KEY, false)
+        get() = getBoolean(USE_NEW_NAVIGATION_UI_KEY, true)
         set(value) = setBoolean(USE_NEW_NAVIGATION_UI_KEY, value)
+    
+    /** Whether the "new UI" info banner has been dismissed */
+    var newUIBannerDismissed: Boolean
+        get() = getBoolean(NEW_UI_BANNER_DISMISSED_KEY, false)
+        set(value) = setBoolean(NEW_UI_BANNER_DISMISSED_KEY, value)
     
     /** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
     var upcomingEventsMode: String
@@ -560,6 +565,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         
         // Upcoming events / navigation settings
         private const val USE_NEW_NAVIGATION_UI_KEY = "use_new_navigation_ui"
+        private const val NEW_UI_BANNER_DISMISSED_KEY = "new_ui_banner_dismissed"
         private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
         private const val UPCOMING_EVENTS_CUTOFF_HOUR_KEY = "upcoming_events_cutoff_hour"
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"

@@ -24,6 +24,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
@@ -40,6 +42,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustom
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.prefs.SettingsActivityX
 import com.github.quarck.calnotify.utils.background
 import com.google.android.material.snackbar.Snackbar
 
@@ -55,6 +58,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
+    private var newUIBanner: LinearLayout? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -81,6 +85,44 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
         refreshLayout.setOnRefreshListener {
             loadEvents()
         }
+        
+        // Setup new UI banner
+        setupNewUIBanner(view)
+    }
+    
+    private fun setupNewUIBanner(view: View) {
+        newUIBanner = view.findViewById(R.id.new_ui_banner)
+        val bannerText = view.findViewById<TextView>(R.id.new_ui_banner_text)
+        val dismissButton = view.findViewById<ImageButton>(R.id.new_ui_banner_dismiss)
+        
+        // Show banner if not dismissed yet
+        if (!settings.newUIBannerDismissed) {
+            newUIBanner?.visibility = View.VISIBLE
+        }
+        
+        // Clicking the text opens settings
+        bannerText?.setOnClickListener {
+            openMiscSettings()
+            dismissBanner()
+        }
+        
+        // Dismiss button just hides the banner
+        dismissButton?.setOnClickListener {
+            dismissBanner()
+        }
+    }
+    
+    private fun dismissBanner() {
+        settings.newUIBannerDismissed = true
+        newUIBanner?.visibility = View.GONE
+    }
+    
+    private fun openMiscSettings() {
+        startActivity(
+            Intent(requireContext(), SettingsActivityX::class.java)
+                .putExtra("pref_fragment", "misc")
+                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        )
     }
 
     override fun onResume() {

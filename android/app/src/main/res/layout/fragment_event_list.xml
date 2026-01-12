@@ -3,38 +3,78 @@
     Shared layout for event list fragments (Active, Upcoming, Dismissed).
     Contains a SwipeRefreshLayout with a RecyclerView and an empty state view.
 -->
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/refresh_layout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
-    <FrameLayout
+    <!-- New UI info banner (dismissible) -->
+    <LinearLayout
+        android:id="@+id/new_ui_banner"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recycler_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingBottom="72dp"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            tools:listitem="@layout/event_card_compact" />
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="?attr/colorPrimaryVariant"
+        android:padding="12dp"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        tools:visibility="visible">
 
         <TextView
-            android:id="@+id/empty_view"
-            android:layout_width="wrap_content"
+            android:id="@+id/new_ui_banner_text"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="@string/empty_active"
-            android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-            android:textColor="?android:attr/textColorSecondary"
-            android:visibility="gone"
-            tools:visibility="visible" />
+            android:layout_weight="1"
+            android:text="@string/new_ui_banner_text"
+            android:textColor="?android:attr/textColorPrimaryInverse"
+            android:textSize="14sp" />
 
-    </FrameLayout>
+        <ImageButton
+            android:id="@+id/new_ui_banner_dismiss"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_clear_white_24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/dismiss"
+            android:tint="?android:attr/textColorPrimaryInverse" />
 
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </LinearLayout>
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/refresh_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="72dp"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                tools:listitem="@layout/event_card_compact" />
+
+            <TextView
+                android:id="@+id/empty_view"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/empty_active"
+                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                android:textColor="?android:attr/textColorSecondary"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+        </FrameLayout>
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+</LinearLayout>

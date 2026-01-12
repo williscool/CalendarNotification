@@ -696,6 +696,9 @@
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
 
+    <!-- New UI banner -->
+    <string name="new_ui_banner_text">Not a fan of the new look? <u>Switch back to classic view</u></string>
+
     <!-- Upcoming events settings -->
     <string name="upcoming_events_category">Upcoming Events</string>
     <string name="upcoming_events_mode_title">Lookahead Mode</string>
