@@ -187,4 +187,36 @@ class DismissedEventsFragmentRobolectricTest {
         
         scenario.close()
     }
+    
+    // === Search Filtering Tests ===
+    
+    @Test
+    fun dismissedEventsFragment_search_filters_by_title() {
+        fixture.createDismissedEvent(title = "Team Meeting")
+        fixture.createDismissedEvent(title = "Doctor Visit")
+        fixture.createDismissedEvent(title = "Meeting Notes")
+        
+        val scenario = fixture.launchDismissedEventsFragment()
+        shadowOf(Looper.getMainLooper()).idle()
+        Thread.sleep(100)
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            
+            // Initially 3 events
+            assertEquals(3, recyclerView.adapter?.itemCount)
+            
+            // Filter by "meeting" - should show 2
+            (fragment as SearchableFragment).setSearchQuery("meeting")
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, recyclerView.adapter?.itemCount)
+            
+            // Clear filter - back to 3
+            fragment.setSearchQuery(null)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(3, recyclerView.adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
 }
