@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.testutils
 
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.fragment.app.testing.FragmentScenario
@@ -33,6 +34,7 @@ import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 
 /**
@@ -473,6 +475,22 @@ class UITestFixtureRobolectric {
     fun mockApplicationController() {
         DevLog.info(LOG_TAG, "Mocking ApplicationController")
         mockkObject(ApplicationController)
+    }
+    
+    /**
+     * Waits for all async tasks to complete.
+     * 
+     * This replaces Thread.sleep() calls by properly flushing Robolectric's
+     * background and foreground schedulers. Use this after launching fragments
+     * that load data asynchronously via background { }.
+     */
+    fun waitForAsyncTasks() {
+        // Run all pending background tasks (AsyncTask.doInBackground)
+        Robolectric.flushBackgroundThreadScheduler()
+        // Run all pending foreground/UI tasks (AsyncTask.onPostExecute, runOnUiThread)
+        Robolectric.flushForegroundThreadScheduler()
+        // Process any remaining main looper messages
+        shadowOf(Looper.getMainLooper()).idle()
     }
     
     companion object {

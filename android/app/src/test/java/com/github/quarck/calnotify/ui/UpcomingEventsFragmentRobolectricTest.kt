@@ -19,7 +19,6 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.os.Looper
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -32,7 +31,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -78,8 +76,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val emptyView = fragment.requireView().findViewById<View>(R.id.empty_view)
@@ -97,8 +94,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val emptyView = fragment.requireView().findViewById<View>(R.id.empty_view)
@@ -131,8 +127,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -152,8 +147,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -187,8 +181,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val emptyView = fragment.requireView().findViewById<TextView>(R.id.empty_view)
@@ -208,8 +201,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -230,8 +222,7 @@ class UpcomingEventsFragmentRobolectricTest {
         val scenario = fixture.launchUpcomingEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
