@@ -209,6 +209,12 @@ class LegacyEventsStorage(val context: Context)
     override val events: List<EventAlertRecord>
         get() = synchronized(LegacyEventsStorage::class.java) { readableDatabase.customUse { impl.getEventsImpl(it) } }
 
+    override val eventsForDisplay: List<EventAlertRecord>
+        get() = synchronized(LegacyEventsStorage::class.java) { 
+            readableDatabase.customUse { impl.getEventsImpl(it) }
+                .sortedWith(DISPLAY_COMPARATOR) 
+        }
+
     override fun close() {
         super.close();
     }
@@ -224,6 +230,17 @@ class LegacyEventsStorage(val context: Context)
         private const val DATABASE_CURRENT_VERSION = DATABASE_VERSION_V9
 
         private const val DATABASE_NAME = "Events"
+        
+        /** Sort order for display: snoozedUntil asc, then lastStatusChangeTime desc */
+        private val DISPLAY_COMPARATOR = Comparator<EventAlertRecord> { lhs, rhs ->
+            when {
+                lhs.snoozedUntil < rhs.snoozedUntil -> -1
+                lhs.snoozedUntil > rhs.snoozedUntil -> 1
+                lhs.lastStatusChangeTime > rhs.lastStatusChangeTime -> -1
+                lhs.lastStatusChangeTime < rhs.lastStatusChangeTime -> 1
+                else -> 0
+            }
+        }
     }
 }
 

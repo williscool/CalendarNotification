@@ -82,4 +82,7 @@ interface EventsStorageInterface {
     fun deleteAllEvents(): Boolean
 
     val events: List<EventAlertRecord> get
+    
+    /** Events sorted for UI display: snoozedUntil ascending, then lastStatusChangeTime descending */
+    val eventsForDisplay: List<EventAlertRecord> get
 }

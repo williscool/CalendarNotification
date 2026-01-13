@@ -206,7 +206,7 @@ From the documentation and commit history, these principles emerged:
 
 2. **No Constructor Mocking**: MockK's `mockkConstructor` and `mockkStatic` almost always fail in Android instrumentation tests. Use dependency injection patterns instead.
 
-3. **Optional Parameter Injection**: For legacy code, add optional dependency parameters to methods for testability while preserving production behavior.
+3. **Manual Dependency Injection**: See [Dependency Injection Patterns](dependency_injection_patterns.md) for the full guide. TL;DR: default to optional parameters, fall back to companion object providers for Activities/BroadcastReceivers.
 
 4. **Time Control**: Use `CNPlusTestClock` for deterministic time-based testing.
 

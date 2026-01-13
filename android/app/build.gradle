@@ -274,6 +274,10 @@ dependencies {
     // AndroidX Preference (for modern settings UI with DayNight support)
     implementation "androidx.preference:preference-ktx:1.2.1"
     
+    // Navigation Component (for tabbed UI with fragments)
+    implementation "androidx.navigation:navigation-fragment-ktx:2.7.7"
+    implementation "androidx.navigation:navigation-ui-ktx:2.7.7"
+    
     // React Native
     implementation "com.facebook.react:react-android"
     implementation "com.facebook.react:hermes-android"
@@ -309,6 +313,8 @@ dependencies {
     testImplementation 'androidx.test:core-ktx:1.5.0'
     testImplementation 'androidx.test.ext:junit:1.1.5'
     testImplementation 'androidx.test.ext:junit-ktx:1.1.5'
+    // Fragment testing for Robolectric (must be debugImplementation so EmptyFragmentActivity is available)
+    debugImplementation "androidx.fragment:fragment-testing:$androidx_lib_version"
 
   // Test dependencies - use same versions as main app to avoid conflicts
     androidTestImplementation "androidx.core:core:$android_core_version"

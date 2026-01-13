@@ -600,6 +600,57 @@
         <item>0</item>
     </string-array>
 
+    <!-- Upcoming Events Settings -->
+    <string-array name="upcoming_events_mode_entries">
+        <item>@string/upcoming_events_mode_cutoff</item>
+        <item>@string/upcoming_events_mode_fixed</item>
+    </string-array>
+
+    <string-array name="upcoming_events_mode_values">
+        <item>cutoff</item>
+        <item>fixed</item>
+    </string-array>
+
+    <string-array name="upcoming_events_cutoff_hour_entries">
+        <item>6 AM</item>
+        <item>7 AM</item>
+        <item>8 AM</item>
+        <item>9 AM</item>
+        <item>10 AM</item>
+        <item>11 AM</item>
+        <item>12 PM</item>
+    </string-array>
+
+    <string-array name="upcoming_events_cutoff_hour_values">
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
+        <item>11</item>
+        <item>12</item>
+    </string-array>
+
+    <string-array name="upcoming_events_fixed_hours_entries">
+        <item>1 hour</item>
+        <item>2 hours</item>
+        <item>4 hours</item>
+        <item>8 hours</item>
+        <item>12 hours</item>
+        <item>24 hours</item>
+        <item>48 hours</item>
+    </string-array>
+
+    <string-array name="upcoming_events_fixed_hours_values">
+        <item>1</item>
+        <item>2</item>
+        <item>4</item>
+        <item>8</item>
+        <item>12</item>
+        <item>24</item>
+        <item>48</item>
+    </string-array>
+
     <!-- Settings Backup -->
     <string name="backup_category">Backup &amp; Restore</string>
     <string name="export_settings">Export settings</string>
@@ -634,4 +685,32 @@
 
     <!-- Unhandled Calendar Event Count -->
     <string name="calendar_name_with_event_count">%1$s (%2$d upcoming)</string>
+
+    <!-- Navigation tabs -->
+    <string name="nav_active">Active</string>
+    <string name="nav_upcoming">Upcoming</string>
+    <string name="nav_dismissed">Dismissed</string>
+    
+    <!-- Toolbar titles for new navigation UI -->
+    <string name="title_active">Calendar Notifications - Active</string>
+    <string name="title_upcoming">Upcoming Events</string>
+    <string name="title_dismissed">Dismissed Events</string>
+
+    <!-- Empty states -->
+    <string name="empty_active">No active notifications</string>
+    <string name="empty_upcoming">No upcoming events</string>
+    <string name="empty_dismissed">No dismissed events</string>
+
+    <!-- New UI banner -->
+    <string name="new_ui_banner_text">Not a fan of the new look? <u>Switch back to classic view</u></string>
+
+    <!-- Upcoming events settings -->
+    <string name="upcoming_events_category">Upcoming Events</string>
+    <string name="upcoming_events_mode_title">Lookahead Mode</string>
+    <string name="upcoming_events_mode_cutoff">Next morning cutoff</string>
+    <string name="upcoming_events_mode_fixed">Fixed hours</string>
+    <string name="upcoming_events_cutoff_hour_title">Morning Cutoff Time</string>
+    <string name="upcoming_events_fixed_hours_title">Hours to Look Ahead</string>
+    <string name="use_new_navigation_ui_title">New Navigation UI</string>
+    <string name="use_new_navigation_ui_summary">Use bottom tabs for Active, Upcoming, and Dismissed events (requires restart)</string>
 </resources>

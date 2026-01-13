@@ -32,19 +32,38 @@ data class MonitorEventAlertEntry(
         val instanceStartTime: Long,
         val instanceEndTime: Long,
         var alertCreatedByUs: Boolean,
-        var wasHandled: Boolean // we should keep event alerts for a little bit longer to avoid double
+        var wasHandled: Boolean, // we should keep event alerts for a little bit longer to avoid double
         // alerting when reacting to different notification sources
         // (e.g. calendar provider vs our internal manual handler)
+        val flags: Long = 0  // Stores preMuted and future flags, maps to DB column i1
 ) {
     val key: MonitorEventAlertEntryKey
         get() = MonitorEventAlertEntryKey(eventId, alertTime, instanceStartTime)
 
-    fun detailsChanged(other: MonitorEventAlertEntry): Boolean {
+    /** True if this event should be muted when its notification fires */
+    val preMuted: Boolean
+        get() = (flags and PRE_MUTED_FLAG) != 0L
 
+    /** Create a copy with preMuted flag set or cleared */
+    fun withPreMuted(value: Boolean): MonitorEventAlertEntry {
+        val newFlags = if (value) {
+            flags or PRE_MUTED_FLAG
+        } else {
+            flags and PRE_MUTED_FLAG.inv()
+        }
+        return copy(flags = newFlags)
+    }
+
+    fun detailsChanged(other: MonitorEventAlertEntry): Boolean {
         return (eventId != other.eventId) ||
                 (isAllDay != other.isAllDay) ||
                 (alertTime != other.alertTime) ||
                 (instanceStartTime != other.instanceStartTime) ||
                 (instanceEndTime != other.instanceEndTime)
+    }
+
+    companion object {
+        /** Flag indicating the event should be muted when it fires */
+        const val PRE_MUTED_FLAG = 1L
     }
 }

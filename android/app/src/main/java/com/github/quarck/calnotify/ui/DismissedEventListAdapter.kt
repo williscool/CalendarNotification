@@ -118,7 +118,12 @@ class DismissedEventListAdapter(
         }
     }
 
-    private var entries = arrayOf<DismissedEventAlertRecord>();
+    private var allEntries = arrayOf<DismissedEventAlertRecord>()
+    private var entries = arrayOf<DismissedEventAlertRecord>()
+    private var currentSearchString: String? = null
+    
+    val searchString: String?
+        get() = currentSearchString
 
     private var _recyclerView: RecyclerView? = null
     var recyclerView: RecyclerView?
@@ -286,11 +291,33 @@ class DismissedEventListAdapter(
     }
 
     override fun getItemCount(): Int = entries.size
+    
+    fun getAllItemCount(): Int = allEntries.size
 
-    fun setEventsToDisplay(newEntries: Array<DismissedEventAlertRecord>)
+    fun setSearchText(query: String?) {
+        currentSearchString = query
+        setEventsToDisplay()
+    }
+
+    fun setEventsToDisplay(newEntries: Array<DismissedEventAlertRecord>? = null)
             = synchronized(this) {
-        entries = newEntries;
-        notifyDataSetChanged();
+        if (newEntries != null) {
+            allEntries = newEntries
+            entries = newEntries
+        }
+        
+        if (!currentSearchString.isNullOrEmpty()) {
+            entries = allEntries.filter { entry ->
+                currentSearchString?.let { query ->
+                    entry.event.title.lowercase().contains(query.lowercase()) ||
+                    entry.event.desc.lowercase().contains(query.lowercase())
+                } == true
+            }.toTypedArray()
+        } else {
+            entries = allEntries
+        }
+        
+        notifyDataSetChanged()
     }
 
     fun getEntryAtPosition(position: Int, expectedEventId: Long): DismissedEventAlertRecord?

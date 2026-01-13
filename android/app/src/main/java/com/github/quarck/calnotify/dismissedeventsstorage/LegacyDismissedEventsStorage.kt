@@ -117,6 +117,12 @@ class LegacyDismissedEventsStorage(
     override val events: List<DismissedEventAlertRecord>
         get() = synchronized(LegacyDismissedEventsStorage::class.java) { readableDatabase.customUse { impl.getEventsImpl(it) } }
 
+    override val eventsForDisplay: List<DismissedEventAlertRecord>
+        get() = synchronized(LegacyDismissedEventsStorage::class.java) { 
+            readableDatabase.customUse { impl.getEventsImpl(it) }
+                .sortedByDescending { it.dismissTime }
+        }
+
     override fun purgeOld(currentTime: Long, maxLiveTime: Long)
             = events.filter { (currentTime - it.dismissTime) > maxLiveTime }.forEach { deleteEvent(it) }
 

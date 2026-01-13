@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.platform.app.InstrumentationRegistry
@@ -13,19 +14,27 @@ import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
+import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
+import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
+import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import androidx.test.espresso.Espresso.pressBackUnconditionally
@@ -95,6 +104,14 @@ class UITestFixture {
         if (suppressBatteryDialog) {
             suppressBatteryOptimizationDialog()
         }
+        
+        // Use legacy UI for MainActivity tests (new navigation UI uses fragments with different IDs)
+        Settings(context).useNewNavigationUI = false
+        
+        // Configure upcoming events lookahead to use fixed mode with 24 hours
+        // This ensures seeded events are always within range regardless of test run time
+        Settings(context).upcomingEventsMode = "fixed"
+        Settings(context).upcomingEventsFixedHours = 24
         
         // Grant runtime permissions programmatically if requested
         // This speeds up tests by avoiding permission dialogs
@@ -353,6 +370,11 @@ class UITestFixture {
             DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
         }
         
+        // Reset fragment providers to prevent test pollution
+        UpcomingEventsFragment.resetProviders()
+        ActiveEventsFragment.resetProviders()
+        DismissedEventsFragment.resetProviders()
+        
         // Clear IdlingResources to ensure clean state for next test
         clearIdlingResources()
         
@@ -491,6 +513,13 @@ class UITestFixture {
         DismissedEventsStorage(context).classCustomUse { db ->
             db.events.forEach { entry ->
                 db.deleteEvent(entry)
+            }
+        }
+        
+        // Also clear MonitorStorage for upcoming events
+        MonitorStorage(context).use { storage ->
+            storage.alerts.forEach { alert ->
+                storage.deleteAlert(alert)
             }
         }
         
@@ -694,6 +723,176 @@ class UITestFixture {
     fun mockApplicationController() {
         DevLog.info(LOG_TAG, "Mocking ApplicationController")
         mockkObject(ApplicationController)
+    }
+    
+    /**
+     * Launches ActiveEventsFragment in a test container.
+     */
+    fun launchActiveEventsFragment(): FragmentScenario<ActiveEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching ActiveEventsFragment")
+        return FragmentScenario.launchInContainer(
+            ActiveEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
+    }
+    
+    /**
+     * Launches DismissedEventsFragment in a test container.
+     */
+    fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
+        return FragmentScenario.launchInContainer(
+            DismissedEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
+    }
+    
+    /**
+     * Launches UpcomingEventsFragment in a test container.
+     * Sets up a mock CalendarProvider that returns EventRecords for any eventId.
+     */
+    fun launchUpcomingEventsFragment(): FragmentScenario<UpcomingEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching UpcomingEventsFragment")
+        
+        // Set up mock CalendarProvider that returns EventRecords for any eventId
+        UpcomingEventsFragment.calendarProviderProvider = { mockCalendarProvider }
+        
+        return FragmentScenario.launchInContainer(
+            UpcomingEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
+    }
+    
+    /**
+     * Mock CalendarProvider that returns an EventRecord for any eventId.
+     * Used for testing UpcomingEventsFragment without real calendar data.
+     */
+    private val mockCalendarProvider = object : CalendarProviderInterface {
+        override val clock = com.github.quarck.calnotify.utils.CNPlusSystemClock()
+        
+        override fun getCalendars(context: Context) = listOf<com.github.quarck.calnotify.calendar.CalendarRecord>()
+        override fun getHandledCalendarsIds(context: Context, settings: Settings) = setOf<Long>()
+        override fun getCalendarById(context: Context, calendarId: Long) = null
+        override fun createCalendarNotFoundCal(context: Context) = com.github.quarck.calnotify.calendar.CalendarRecord(
+            calendarId = -1L,
+            owner = "",
+            displayName = "Calendar Not Found",
+            name = "not_found",
+            accountName = "",
+            accountType = "",
+            color = 0,
+            isVisible = false,
+            isPrimary = false,
+            isReadOnly = true,
+            isSynced = false,
+            timeZone = "UTC"
+        )
+        override fun findNextAlarmTime(cr: android.content.ContentResolver, millis: Long): Long? = null
+        override fun getAlertByTime(context: Context, alertTime: Long, skipDismissed: Boolean, skipExpiredEvents: Boolean) = listOf<com.github.quarck.calnotify.calendar.EventAlertRecord>()
+        override fun getAlertByEventIdAndTime(context: Context, eventId: Long, alertTime: Long) = null
+        override fun getEventReminders(context: Context, eventId: Long) = listOf<com.github.quarck.calnotify.calendar.EventReminderRecord>()
+        override fun getEvent(context: Context, eventId: Long): EventRecord? {
+            // Return a mock EventRecord for any eventId
+            val now = System.currentTimeMillis()
+            val details = com.github.quarck.calnotify.calendar.CalendarEventDetails(
+                title = "Mock Event $eventId",
+                desc = "",
+                location = "",
+                timezone = "UTC",
+                startTime = now + Consts.HOUR_IN_MILLISECONDS,
+                endTime = now + 2 * Consts.HOUR_IN_MILLISECONDS,
+                isAllDay = false,
+                reminders = listOf(),
+                color = 0xFF6200EE.toInt()
+            )
+            return EventRecord(
+                calendarId = 1L,
+                eventId = eventId,
+                details = details,
+                eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
+                attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None
+            )
+        }
+        override fun getEventIsDirty(context: Context, eventId: Long) = false
+        override fun getEventAlertsForEvent(context: Context, event: EventRecord) = listOf<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>()
+        override fun getEventAlertsForInstancesInRange(context: Context, instanceFrom: Long, instanceTo: Long) = listOf<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>()
+        override fun isRepeatingEvent(context: Context, eventId: Long) = false
+        override fun getNextEventReminderTime(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord) = 0L
+        override fun getNextEventReminderTime(context: Context, eventId: Long, instanceStartTime: Long) = 0L
+        override fun dismissNativeEventAlert(context: Context, eventId: Long) { }
+        override fun cloneAndMoveEvent(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord, addTime: Long) = -1L
+        override fun moveEvent(context: Context, eventId: Long, newStartTime: Long, newEndTime: Long) = false
+        override fun createEvent(context: Context, calendarId: Long, calendarOwnerAccount: String, details: com.github.quarck.calnotify.calendar.CalendarEventDetails) = -1L
+        override fun updateEvent(context: Context, eventId: Long, calendarId: Long, oldDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails, newDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails) = false
+        override fun updateEvent(context: Context, event: EventRecord, newDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails) = false
+        override fun deleteEvent(context: Context, eventId: Long) = false
+        override fun getCalendarBackupInfo(context: Context, calendarId: Long) = null
+        override fun findMatchingCalendarId(context: Context, backupInfo: com.github.quarck.calnotify.calendar.CalendarBackupInfo) = -1L
+        override fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int) = mapOf<Long, Int>()
+    }
+    
+    /**
+     * Creates an upcoming event by adding an alert to MonitorStorage.
+     * The alert will be in the future and unhandled, so it shows in UpcomingEventsFragment.
+     */
+    fun createUpcomingEvent(
+        title: String = "Upcoming Event",
+        alertTimeOffsetMinutes: Int = 30,
+        startTimeOffsetMinutes: Int = 60,
+        durationMinutes: Int = 60,
+        isAllDay: Boolean = false
+    ): MonitorEventAlertEntry {
+        val currentTime = System.currentTimeMillis()
+        val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val eventId = eventIdCounter++
+        
+        val alert = MonitorEventAlertEntry(
+            eventId = eventId,
+            isAllDay = isAllDay,
+            alertTime = alertTime,
+            instanceStartTime = instanceStart,
+            instanceEndTime = instanceEnd,
+            alertCreatedByUs = false,
+            wasHandled = false
+        )
+        
+        MonitorStorage(context).use { storage ->
+            storage.addAlert(alert)
+        }
+        
+        DevLog.info(LOG_TAG, "Created upcoming event: eventId=$eventId, title=$title, alertTime=$alertTime")
+        return alert
+    }
+    
+    /**
+     * Seeds multiple upcoming events.
+     */
+    fun seedUpcomingEvents(count: Int, titlePrefix: String = "Upcoming"): List<MonitorEventAlertEntry> {
+        val alerts = mutableListOf<MonitorEventAlertEntry>()
+        for (i in 1..count) {
+            val alert = createUpcomingEvent(
+                title = "$titlePrefix $i",
+                alertTimeOffsetMinutes = i * 30,
+                startTimeOffsetMinutes = i * 60
+            )
+            alerts.add(alert)
+        }
+        DevLog.info(LOG_TAG, "Seeded $count upcoming events")
+        return alerts
+    }
+    
+    /**
+     * Clears all upcoming events from MonitorStorage.
+     */
+    fun clearUpcomingEvents() {
+        MonitorStorage(context).use { storage ->
+            storage.alerts.forEach { alert ->
+                storage.deleteAlert(alert)
+            }
+        }
+        DevLog.info(LOG_TAG, "Cleared all upcoming events")
     }
     
     companion object {

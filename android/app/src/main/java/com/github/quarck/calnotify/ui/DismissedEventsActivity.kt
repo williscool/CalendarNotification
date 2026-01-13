@@ -64,10 +64,8 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
     private fun reloadData() {
         background {
             val events =
-                    getDismissedEventsStorage(this).classCustomUse {
-                        db ->
-                        // Room sorts in query, but legacy storage doesn't - sort in memory as fallback
-                        db.events.sortedByDescending { it.dismissTime }.toTypedArray()
+                    getDismissedEventsStorage(this).classCustomUse { db ->
+                        db.eventsForDisplay.toTypedArray()
                     }
             runOnUiThread {
                 adapter.setEventsToDisplay(events);

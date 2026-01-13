@@ -44,6 +44,17 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
 
     companion object {
         private const val LOG_TAG = "RoomEventsStorage"
+        
+        /** Sort order for display: snoozedUntil asc, then lastStatusChangeTime desc */
+        private val DISPLAY_COMPARATOR = Comparator<EventAlertRecord> { lhs, rhs ->
+            when {
+                lhs.snoozedUntil < rhs.snoozedUntil -> -1
+                lhs.snoozedUntil > rhs.snoozedUntil -> 1
+                lhs.lastStatusChangeTime > rhs.lastStatusChangeTime -> -1
+                lhs.lastStatusChangeTime < rhs.lastStatusChangeTime -> 1
+                else -> 0
+            }
+        }
     }
 
     private val database = EventsDatabase.getInstance(context)
@@ -380,6 +391,17 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
     override val events: List<EventAlertRecord>
         get() = synchronized(RoomEventsStorage::class.java) {
             dao.getAll().map { it.toRecord() }
+        }
+
+    /**
+     * Retrieves all events sorted for UI display.
+     * Sort order: snoozedUntil ascending, then lastStatusChangeTime descending.
+     */
+    override val eventsForDisplay: List<EventAlertRecord>
+        get() = synchronized(RoomEventsStorage::class.java) {
+            dao.getAll()
+                .map { it.toRecord() }
+                .sortedWith(DISPLAY_COMPARATOR)
         }
 
     /** Room manages connections via singleton; individual close is a no-op. */

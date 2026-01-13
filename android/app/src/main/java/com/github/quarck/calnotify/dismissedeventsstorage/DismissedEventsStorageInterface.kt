@@ -38,5 +38,8 @@ interface DismissedEventsStorageInterface {
     fun purgeOld(currentTime: Long, maxLiveTime: Long);
 
     val events: List<DismissedEventAlertRecord> get
+    
+    /** Events sorted for UI display: dismissTime descending (most recent first) */
+    val eventsForDisplay: List<DismissedEventAlertRecord> get
 
 }

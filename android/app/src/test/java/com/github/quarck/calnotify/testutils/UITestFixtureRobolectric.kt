@@ -3,22 +3,32 @@ package com.github.quarck.calnotify.testutils
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Bundle
+import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.CalendarRecord
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.app.CalendarReloadManager
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
+import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
+import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
+import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
+import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import io.mockk.every
 import io.mockk.mockkObject
@@ -44,6 +54,7 @@ class UITestFixtureRobolectric {
     // In-memory storage for tests
     val eventsStorage = MockEventsStorage()
     val dismissedEventsStorage = MockDismissedEventsStorage()
+    val monitorStorage = MockMonitorStorage()
     
     /**
      * Sets up the fixture. Call in @Before.
@@ -55,9 +66,18 @@ class UITestFixtureRobolectric {
         // Grant calendar permissions for Robolectric
         grantCalendarPermissions()
         
+        // Use legacy UI for MainActivity tests (new navigation UI is fragment-based)
+        Settings(context).useNewNavigationUI = false
+        
+        // Configure upcoming events lookahead to use fixed mode with 24 hours
+        // This ensures seeded events are always within range regardless of test run time
+        Settings(context).upcomingEventsMode = "fixed"
+        Settings(context).upcomingEventsFixedHours = 24
+        
         // Clear any existing data
         eventsStorage.clear()
         dismissedEventsStorage.clear()
+        monitorStorage.clear()
         
         // Inject mock storage into ApplicationController
         // This ensures any code that uses ApplicationController.getEventsStorage() will get our mock
@@ -68,6 +88,11 @@ class UITestFixtureRobolectric {
         MainActivity.eventsStorageProvider = { eventsStorage }
         DismissedEventsActivity.dismissedEventsStorageProvider = { dismissedEventsStorage }
         ViewEventActivityNoRecents.eventsStorageProvider = { eventsStorage }
+        
+        // Inject mock storage into fragments
+        ActiveEventsFragment.eventsStorageProvider = { eventsStorage }
+        DismissedEventsFragment.dismissedEventsStorageProvider = { dismissedEventsStorage }
+        UpcomingEventsFragment.monitorStorageProvider = { monitorStorage }
         
         // Mock PermissionsManager to return true for calendar permissions
         mockkObject(PermissionsManager)
@@ -91,6 +116,27 @@ class UITestFixtureRobolectric {
         )
         every { CalendarProvider.getNextEventReminderTime(any(), any()) } returns 0L
         
+        // Mock CalendarProvider.getEvent for UpcomingEventsProvider enrichment
+        every { CalendarProvider.getEvent(any(), any()) } answers {
+            val eventId = arg<Long>(1)
+            val now = System.currentTimeMillis()
+            EventRecord(
+                calendarId = 1L,
+                eventId = eventId,
+                details = CalendarEventDetails(
+                    title = "Test Event $eventId",
+                    desc = "Description for event $eventId",
+                    location = "Test Location",
+                    timezone = "UTC",
+                    startTime = now + Consts.HOUR_IN_MILLISECONDS,
+                    endTime = now + 2 * Consts.HOUR_IN_MILLISECONDS,
+                    isAllDay = false,
+                    reminders = listOf(),
+                    color = 0xFF6200EE.toInt()
+                )
+            )
+        }
+        
         // Mock CalendarReloadManager to prevent reloading from real calendar
         mockkObject(CalendarReloadManager)
         every { CalendarReloadManager.reloadSingleEvent(any(), any(), any(), any(), any()) } returns false
@@ -106,7 +152,9 @@ class UITestFixtureRobolectric {
         val shadowApp = shadowOf(app)
         shadowApp.grantPermissions(
             android.Manifest.permission.READ_CALENDAR,
-            android.Manifest.permission.WRITE_CALENDAR
+            android.Manifest.permission.WRITE_CALENDAR,
+            // Required for ContextCompat.registerReceiver with RECEIVER_NOT_EXPORTED
+            "com.github.quarck.calnotify.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         )
     }
     
@@ -119,6 +167,7 @@ class UITestFixtureRobolectric {
         // Clear storage
         eventsStorage.clear()
         dismissedEventsStorage.clear()
+        monitorStorage.clear()
         
         // Reset ApplicationController and activities to use real storage
         ApplicationController.eventsStorageProvider = null
@@ -126,6 +175,11 @@ class UITestFixtureRobolectric {
         MainActivity.eventsStorageProvider = null
         DismissedEventsActivity.dismissedEventsStorageProvider = null
         ViewEventActivityNoRecents.eventsStorageProvider = null
+        
+        // Reset fragment providers
+        ActiveEventsFragment.resetProviders()
+        DismissedEventsFragment.resetProviders()
+        UpcomingEventsFragment.resetProviders()
         
         unmockkAll()
     }
@@ -240,6 +294,59 @@ class UITestFixtureRobolectric {
     }
     
     /**
+     * Creates an upcoming event (adds alert to MonitorStorage).
+     * The alert will be in the future and unhandled, so it shows in UpcomingEventsFragment.
+     * 
+     * Note: The actual event title/details come from CalendarProvider which is mocked
+     * to return a generic EventRecord. For tests, the eventId can be used to distinguish events.
+     */
+    fun createUpcomingEvent(
+        title: String = "Upcoming Event",
+        alertTimeOffsetMinutes: Int = 30,
+        startTimeOffsetMinutes: Int = 60,
+        durationMinutes: Int = 60,
+        isAllDay: Boolean = false
+    ): MonitorEventAlertEntry {
+        val currentTime = System.currentTimeMillis()
+        val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val eventId = eventIdCounter++
+        
+        val alert = MonitorEventAlertEntry(
+            eventId = eventId,
+            isAllDay = isAllDay,
+            alertTime = alertTime,
+            instanceStartTime = instanceStart,
+            instanceEndTime = instanceEnd,
+            alertCreatedByUs = false,
+            wasHandled = false
+        )
+        
+        monitorStorage.addAlert(alert)
+        
+        DevLog.info(LOG_TAG, "Created upcoming event: eventId=$eventId, title=$title, alertTime=$alertTime")
+        return alert
+    }
+    
+    /**
+     * Seeds multiple upcoming events.
+     */
+    fun seedUpcomingEvents(count: Int, titlePrefix: String = "Upcoming"): List<MonitorEventAlertEntry> {
+        val alerts = mutableListOf<MonitorEventAlertEntry>()
+        for (i in 1..count) {
+            val alert = createUpcomingEvent(
+                title = "$titlePrefix $i",
+                alertTimeOffsetMinutes = i * 30,  // Stagger alerts
+                startTimeOffsetMinutes = i * 60
+            )
+            alerts.add(alert)
+        }
+        DevLog.info(LOG_TAG, "Seeded $count upcoming events")
+        return alerts
+    }
+    
+    /**
      * Clears all events from mock storage.
      */
     fun clearAllEvents() {
@@ -325,6 +432,39 @@ class UITestFixtureRobolectric {
     fun launchSnoozeAllActivityWithIntent(intent: Intent): ActivityScenario<SnoozeAllActivity> {
         DevLog.info(LOG_TAG, "Launching SnoozeAllActivity with intent")
         return ActivityScenario.launch(intent)
+    }
+    
+    /**
+     * Launches ActiveEventsFragment in a test container.
+     */
+    fun launchActiveEventsFragment(): FragmentScenario<ActiveEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching ActiveEventsFragment")
+        return FragmentScenario.launchInContainer(
+            ActiveEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
+    }
+    
+    /**
+     * Launches DismissedEventsFragment in a test container.
+     */
+    fun launchDismissedEventsFragment(): FragmentScenario<DismissedEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching DismissedEventsFragment")
+        return FragmentScenario.launchInContainer(
+            DismissedEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
+    }
+    
+    /**
+     * Launches UpcomingEventsFragment in a test container.
+     */
+    fun launchUpcomingEventsFragment(): FragmentScenario<UpcomingEventsFragment> {
+        DevLog.info(LOG_TAG, "Launching UpcomingEventsFragment")
+        return FragmentScenario.launchInContainer(
+            UpcomingEventsFragment::class.java,
+            themeResId = R.style.AppTheme
+        )
     }
     
     /**

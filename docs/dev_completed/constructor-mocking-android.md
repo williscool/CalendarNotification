@@ -41,3 +41,7 @@ This approach:
 **Constructor mocking for Android framework classes is unreliable in instrumentation tests. For legacy code, the minimum viable path to testability is to allow optional injection of dependencies in methods under test.**
 
 See the relevant test and implementation changes for an example of this approach.
+
+---
+
+**See also:** [Dependency Injection Patterns](../testing/dependency_injection_patterns.md) for the full guide on when to use optional parameters vs companion object providers.
