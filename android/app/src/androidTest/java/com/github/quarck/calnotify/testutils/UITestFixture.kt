@@ -17,8 +17,10 @@ import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.calendar.EventRecord
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
@@ -102,6 +104,14 @@ class UITestFixture {
         if (suppressBatteryDialog) {
             suppressBatteryOptimizationDialog()
         }
+        
+        // Use legacy UI for MainActivity tests (new navigation UI uses fragments with different IDs)
+        Settings(context).useNewNavigationUI = false
+        
+        // Configure upcoming events lookahead to use fixed mode with 24 hours
+        // This ensures seeded events are always within range regardless of test run time
+        Settings(context).upcomingEventsMode = "fixed"
+        Settings(context).upcomingEventsFixedHours = 24
         
         // Grant runtime permissions programmatically if requested
         // This speeds up tests by avoiding permission dialogs
@@ -359,6 +369,11 @@ class UITestFixture {
             // SharedPreferences operations can fail - log and continue cleanup
             DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
         }
+        
+        // Reset fragment providers to prevent test pollution
+        UpcomingEventsFragment.resetProviders()
+        ActiveEventsFragment.resetProviders()
+        DismissedEventsFragment.resetProviders()
         
         // Clear IdlingResources to ensure clean state for next test
         clearIdlingResources()
@@ -734,13 +749,61 @@ class UITestFixture {
     
     /**
      * Launches UpcomingEventsFragment in a test container.
+     * Sets up a mock CalendarProvider that returns EventRecords for any eventId.
      */
     fun launchUpcomingEventsFragment(): FragmentScenario<UpcomingEventsFragment> {
         DevLog.info(LOG_TAG, "Launching UpcomingEventsFragment")
+        
+        // Set up mock CalendarProvider that returns EventRecords for any eventId
+        UpcomingEventsFragment.calendarProviderProvider = { mockCalendarProvider }
+        
         return FragmentScenario.launchInContainer(
             UpcomingEventsFragment::class.java,
             themeResId = R.style.AppTheme
         )
+    }
+    
+    /**
+     * Mock CalendarProvider that returns an EventRecord for any eventId.
+     * Used for testing UpcomingEventsFragment without real calendar data.
+     */
+    private val mockCalendarProvider = object : CalendarProviderInterface {
+        override fun getCalendars(context: Context) = listOf<com.github.quarck.calnotify.calendar.CalendarRecord>()
+        override fun getHandledCalendarsIds(context: Context, settings: Settings) = setOf<Long>()
+        override fun getCalendarById(context: Context, calendarId: Long) = null
+        override fun findNextAlarmTime(context: Context, instanceStart: Long) = null
+        override fun getAlertByTime(context: Context, alertTime: Long, skipDismissed: Boolean) = listOf<com.github.quarck.calnotify.calendar.EventAlertRecord>()
+        override fun getEventAlerts(context: Context, eventId: Long, startingAlertTime: Long, maxEntries: Int) = listOf<Pair<Long, Long>>()
+        override fun getEventReminders(context: Context, eventId: Long) = listOf<com.github.quarck.calnotify.calendar.EventReminderRecord>()
+        override fun getEvent(context: Context, eventId: Long): EventRecord? {
+            // Return a mock EventRecord for any eventId
+            val now = System.currentTimeMillis()
+            return EventRecord(
+                calendarId = 1L,
+                eventId = eventId,
+                eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
+                attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None,
+                title = "Mock Event $eventId",
+                desc = "",
+                startTime = now + Consts.HOUR_IN_MILLISECONDS,
+                endTime = now + 2 * Consts.HOUR_IN_MILLISECONDS,
+                location = "",
+                timezone = "UTC",
+                color = 0xFF6200EE.toInt(),
+                repeatingRule = "",
+                repeatingRDate = "",
+                repeatingExRule = "",
+                repeatingExRDate = "",
+                allDay = false
+            )
+        }
+        override fun getEventAlertsForInstancesInRange(context: Context, instanceFrom: Long, instanceTo: Long) = listOf<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>()
+        override fun getNextEventReminderTime(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord) = 0L
+        override fun dismissNativeEventAlert(context: Context, eventId: Long) = false
+        override fun createEvent(context: Context, calendarId: Long, calendarOwnerAccount: String, details: com.github.quarck.calnotify.calendar.CalendarEventDetails) = -1L
+        override fun moveEvent(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord, addTimeMillis: Long) = false
+        override fun updateEvent(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord, newDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails) = false
+        override fun deleteEvent(context: Context, eventId: Long) = false
     }
     
     /**
