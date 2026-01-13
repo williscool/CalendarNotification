@@ -38,6 +38,7 @@ import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.CalendarIntents
 import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
@@ -130,7 +131,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
                     settings = settings,
                     clock = clock,
                     monitorStorage = storage,
-                    calendarProvider = CalendarProvider
+                    calendarProvider = getCalendarProvider()
                 )
                 provider.getUpcomingEvents().toTypedArray()
             }
@@ -190,13 +191,21 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
         /** Provider for MonitorStorage - enables DI for testing */
         var monitorStorageProvider: ((Context) -> MonitorStorageInterface)? = null
         
+        /** Provider for CalendarProvider - enables DI for testing */
+        var calendarProviderProvider: (() -> CalendarProviderInterface)? = null
+        
         /** Gets MonitorStorage - uses provider if set, otherwise creates real instance */
         fun getMonitorStorage(ctx: Context): MonitorStorageInterface =
             monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
         
+        /** Gets CalendarProvider - uses provider if set, otherwise returns real instance */
+        fun getCalendarProvider(): CalendarProviderInterface =
+            calendarProviderProvider?.invoke() ?: CalendarProvider
+        
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             monitorStorageProvider = null
+            calendarProviderProvider = null
         }
     }
 }

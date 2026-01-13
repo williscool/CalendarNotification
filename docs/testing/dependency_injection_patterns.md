@@ -215,7 +215,7 @@ fun testSomething() {
 - `AlarmScheduler` - `eventsStorageProvider`, `reminderStateProvider`
 - `ReminderAlarmBroadcastReceiver` - multiple providers (clock, settings, storage, etc.)
 - `ActiveEventsFragment` - `eventsStorageProvider`
-- `UpcomingEventsFragment` - `monitorStorageProvider`
+- `UpcomingEventsFragment` - `monitorStorageProvider`, `calendarProviderProvider`
 - `DismissedEventsFragment` - `dismissedEventsStorageProvider`
 
 ---

@@ -69,6 +69,11 @@ class UITestFixtureRobolectric {
         // Use legacy UI for MainActivity tests (new navigation UI is fragment-based)
         Settings(context).useNewNavigationUI = false
         
+        // Configure upcoming events lookahead to use fixed mode with 24 hours
+        // This ensures seeded events are always within range regardless of test run time
+        Settings(context).upcomingEventsMode = "fixed"
+        Settings(context).upcomingEventsFixedHours = 24
+        
         // Clear any existing data
         eventsStorage.clear()
         dismissedEventsStorage.clear()
