@@ -768,42 +768,67 @@ class UITestFixture {
      * Used for testing UpcomingEventsFragment without real calendar data.
      */
     private val mockCalendarProvider = object : CalendarProviderInterface {
+        override val clock = com.github.quarck.calnotify.utils.CNPlusSystemClock()
+        
         override fun getCalendars(context: Context) = listOf<com.github.quarck.calnotify.calendar.CalendarRecord>()
         override fun getHandledCalendarsIds(context: Context, settings: Settings) = setOf<Long>()
         override fun getCalendarById(context: Context, calendarId: Long) = null
-        override fun findNextAlarmTime(context: Context, instanceStart: Long) = null
-        override fun getAlertByTime(context: Context, alertTime: Long, skipDismissed: Boolean) = listOf<com.github.quarck.calnotify.calendar.EventAlertRecord>()
-        override fun getEventAlerts(context: Context, eventId: Long, startingAlertTime: Long, maxEntries: Int) = listOf<Pair<Long, Long>>()
+        override fun createCalendarNotFoundCal(context: Context) = com.github.quarck.calnotify.calendar.CalendarRecord(
+            calendarId = -1L,
+            owner = "",
+            displayName = "Calendar Not Found",
+            name = "not_found",
+            accountName = "",
+            accountType = "",
+            color = 0,
+            isVisible = false,
+            isPrimary = false,
+            isReadOnly = true,
+            isSynced = false,
+            timeZone = "UTC"
+        )
+        override fun findNextAlarmTime(cr: android.content.ContentResolver, millis: Long): Long? = null
+        override fun getAlertByTime(context: Context, alertTime: Long, skipDismissed: Boolean, skipExpiredEvents: Boolean) = listOf<com.github.quarck.calnotify.calendar.EventAlertRecord>()
+        override fun getAlertByEventIdAndTime(context: Context, eventId: Long, alertTime: Long) = null
         override fun getEventReminders(context: Context, eventId: Long) = listOf<com.github.quarck.calnotify.calendar.EventReminderRecord>()
         override fun getEvent(context: Context, eventId: Long): EventRecord? {
             // Return a mock EventRecord for any eventId
             val now = System.currentTimeMillis()
+            val details = com.github.quarck.calnotify.calendar.CalendarEventDetails(
+                title = "Mock Event $eventId",
+                desc = "",
+                location = "",
+                timezone = "UTC",
+                startTime = now + Consts.HOUR_IN_MILLISECONDS,
+                endTime = now + 2 * Consts.HOUR_IN_MILLISECONDS,
+                isAllDay = false,
+                reminders = listOf(),
+                color = 0xFF6200EE.toInt()
+            )
             return EventRecord(
                 calendarId = 1L,
                 eventId = eventId,
+                details = details,
                 eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
-                attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None,
-                title = "Mock Event $eventId",
-                desc = "",
-                startTime = now + Consts.HOUR_IN_MILLISECONDS,
-                endTime = now + 2 * Consts.HOUR_IN_MILLISECONDS,
-                location = "",
-                timezone = "UTC",
-                color = 0xFF6200EE.toInt(),
-                repeatingRule = "",
-                repeatingRDate = "",
-                repeatingExRule = "",
-                repeatingExRDate = "",
-                allDay = false
+                attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None
             )
         }
+        override fun getEventIsDirty(context: Context, eventId: Long) = false
+        override fun getEventAlertsForEvent(context: Context, event: EventRecord) = listOf<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>()
         override fun getEventAlertsForInstancesInRange(context: Context, instanceFrom: Long, instanceTo: Long) = listOf<com.github.quarck.calnotify.calendar.MonitorEventAlertEntry>()
+        override fun isRepeatingEvent(context: Context, eventId: Long) = false
         override fun getNextEventReminderTime(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord) = 0L
-        override fun dismissNativeEventAlert(context: Context, eventId: Long) = false
+        override fun getNextEventReminderTime(context: Context, eventId: Long, instanceStartTime: Long) = 0L
+        override fun dismissNativeEventAlert(context: Context, eventId: Long) { }
+        override fun cloneAndMoveEvent(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord, addTime: Long) = -1L
+        override fun moveEvent(context: Context, eventId: Long, newStartTime: Long, newEndTime: Long) = false
         override fun createEvent(context: Context, calendarId: Long, calendarOwnerAccount: String, details: com.github.quarck.calnotify.calendar.CalendarEventDetails) = -1L
-        override fun moveEvent(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord, addTimeMillis: Long) = false
-        override fun updateEvent(context: Context, event: com.github.quarck.calnotify.calendar.EventAlertRecord, newDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails) = false
+        override fun updateEvent(context: Context, eventId: Long, calendarId: Long, oldDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails, newDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails) = false
+        override fun updateEvent(context: Context, event: EventRecord, newDetails: com.github.quarck.calnotify.calendar.CalendarEventDetails) = false
         override fun deleteEvent(context: Context, eventId: Long) = false
+        override fun getCalendarBackupInfo(context: Context, calendarId: Long) = null
+        override fun findMatchingCalendarId(context: Context, backupInfo: com.github.quarck.calnotify.calendar.CalendarBackupInfo) = -1L
+        override fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int) = mapOf<Long, Int>()
     }
     
     /**
