@@ -183,10 +183,11 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     override fun onItemClick(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemClick, pos=$position, eventId=$eventId")
         
+        val ctx = context ?: return
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null && !event.isSpecial) {
             startActivity(
-                Intent(requireContext(), ViewEventActivity::class.java)
+                Intent(ctx, ViewEventActivity::class.java)
                     .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
                     .putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
                     .putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
@@ -229,10 +230,11 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     override fun onItemSnooze(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemSnooze, pos=$position, eventId=$eventId")
         
+        val ctx = context ?: return
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null) {
             startActivity(
-                Intent(requireContext(), ViewEventActivity::class.java)
+                Intent(ctx, ViewEventActivity::class.java)
                     .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
                     .putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
                     .putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
