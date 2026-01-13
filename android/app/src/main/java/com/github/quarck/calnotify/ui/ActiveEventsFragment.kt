@@ -55,7 +55,7 @@ import com.google.android.material.snackbar.Snackbar
  * Fragment for displaying active event notifications.
  * Migrated from MainActivity's event list functionality.
  */
-class ActiveEventsFragment : Fragment(), EventListCallback {
+class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private lateinit var settings: Settings
     
@@ -261,6 +261,16 @@ class ActiveEventsFragment : Fragment(), EventListCallback {
     override fun onScrollPositionChange(newPos: Int) {
         // Not needed for fragments - handled within adapter if needed
     }
+
+    // SearchableFragment implementation
+    
+    override fun setSearchQuery(query: String?) {
+        adapter.setSearchText(query)
+    }
+    
+    override fun getSearchQuery(): String? = adapter.searchString
+    
+    override fun getEventCount(): Int = adapter.getAllItemCount()
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"

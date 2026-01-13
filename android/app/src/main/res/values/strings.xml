@@ -690,6 +690,11 @@
     <string name="nav_active">Active</string>
     <string name="nav_upcoming">Upcoming</string>
     <string name="nav_dismissed">Dismissed</string>
+    
+    <!-- Toolbar titles for new navigation UI -->
+    <string name="title_active">Calendar Notifications - Active</string>
+    <string name="title_upcoming">Upcoming Events</string>
+    <string name="title_dismissed">Dismissed Events</string>
 
     <!-- Empty states -->
     <string name="empty_active">No active notifications</string>

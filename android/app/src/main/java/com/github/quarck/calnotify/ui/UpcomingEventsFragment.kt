@@ -54,7 +54,7 @@ import com.github.quarck.calnotify.utils.background
  * In Milestone 1, this is a read-only view. Pre-actions (snooze, mute, dismiss)
  * will be added in Milestone 2.
  */
-class UpcomingEventsFragment : Fragment(), EventListCallback {
+class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private lateinit var settings: Settings
     private val clock = CNPlusSystemClock()
@@ -184,6 +184,16 @@ class UpcomingEventsFragment : Fragment(), EventListCallback {
     override fun onScrollPositionChange(newPos: Int) {
         // Not needed
     }
+
+    // SearchableFragment implementation
+    
+    override fun setSearchQuery(query: String?) {
+        adapter.setSearchText(query)
+    }
+    
+    override fun getSearchQuery(): String? = adapter.searchString
+    
+    override fun getEventCount(): Int = adapter.getAllItemCount()
 
     companion object {
         private const val LOG_TAG = "UpcomingEventsFragment"

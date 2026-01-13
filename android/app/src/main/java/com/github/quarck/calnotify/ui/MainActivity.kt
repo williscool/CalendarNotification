@@ -150,6 +150,15 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     }
     
     /**
+     * Get the currently visible fragment that implements SearchableFragment.
+     */
+    private fun getCurrentSearchableFragment(): SearchableFragment? {
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        return navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
+    }
+    
+    /**
      * Set up the new navigation UI with bottom tabs and fragments.
      * Active/Upcoming/Dismissed events are shown in separate fragments.
      */
@@ -165,6 +174,19 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         
         val bottomNav = find<BottomNavigationView>(R.id.bottom_navigation)
         bottomNav?.setupWithNavController(navController!!)
+        
+        // Update toolbar title based on current destination
+        navController?.addOnDestinationChangedListener { _, destination, _ ->
+            supportActionBar?.title = when (destination.id) {
+                R.id.activeEventsFragment -> getString(R.string.title_active)
+                R.id.upcomingEventsFragment -> getString(R.string.title_upcoming)
+                R.id.dismissedEventsFragment -> getString(R.string.title_dismissed)
+                else -> getString(R.string.app_name)
+            }
+            // Clear search when switching tabs
+            searchView?.setQuery("", false)
+            searchMenuItem?.collapseActionView()
+        }
         
         // FAB for adding events
         floatingAddEvent = findOrThrow<FloatingActionButton>(R.id.action_btn_add_event)
@@ -481,16 +503,62 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
 
-        // In new navigation mode, hide legacy-specific menu items
+        // In new navigation mode, only show search and settings
         if (useNewNavigationUI) {
             // Dismissed events is now a tab, not a menu item
             menu.findItem(R.id.action_dismissed_events)?.isVisible = false
-            // Search, snooze all, mute all, dismiss all are handled by fragments
-            menu.findItem(R.id.action_search)?.isVisible = false
+            // Snooze all, mute all, dismiss all not yet implemented for fragments
             menu.findItem(R.id.action_snooze_all)?.isVisible = false
             menu.findItem(R.id.action_mute_all)?.isVisible = false
             menu.findItem(R.id.action_dismiss_all)?.isVisible = false
             menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
+            
+            // Set up search for new nav UI
+            searchMenuItem = menu.findItem(R.id.action_search)
+            searchMenuItem?.isVisible = true
+            searchMenuItem?.isEnabled = true
+            
+            searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+                override fun onMenuItemActionExpand(item: MenuItem): Boolean = true
+                
+                override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                    if (searchView?.hasFocus() == true) {
+                        searchView?.clearFocus()
+                        return false
+                    }
+                    getCurrentSearchableFragment()?.setSearchQuery(null)
+                    return true
+                }
+            })
+            
+            searchView = searchMenuItem?.actionView as? SearchView
+            val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
+            
+            val count = getCurrentSearchableFragment()?.getEventCount() ?: 0
+            searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, count, count)
+            searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
+            
+            searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    getCurrentSearchableFragment()?.setSearchQuery(query)
+                    searchView?.clearFocus()
+                    searchView?.setQuery(query, false)
+                    return true
+                }
+                
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    getCurrentSearchableFragment()?.setSearchQuery(newText)
+                    return true
+                }
+            })
+            
+            val closebutton: View? = searchView?.findViewById(androidx.appcompat.R.id.search_close_btn)
+            closebutton?.setOnClickListener {
+                searchView?.setQuery("", false)
+                searchView?.clearFocus()
+                getCurrentSearchableFragment()?.setSearchQuery(null)
+                searchMenuItem?.collapseActionView()
+            }
             
             // DEV_PAGE_ENABLED is set via local.properties (gitignored, can't leak to releases)
             menu.findItem(R.id.action_test_page)?.isVisible = BuildConfig.DEV_PAGE_ENABLED || settings.devModeEnabled

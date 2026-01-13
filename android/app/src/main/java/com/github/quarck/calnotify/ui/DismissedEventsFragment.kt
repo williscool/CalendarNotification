@@ -54,7 +54,7 @@ import com.github.quarck.calnotify.utils.background
  * Fragment for displaying dismissed events (the "bin").
  * Migrated from DismissedEventsActivity.
  */
-class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
+class DismissedEventsFragment : Fragment(), DismissedEventListCallback, SearchableFragment {
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
@@ -206,6 +206,16 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback {
         }
         updateEmptyState()
     }
+
+    // SearchableFragment implementation
+    
+    override fun setSearchQuery(query: String?) {
+        adapter.setSearchText(query)
+    }
+    
+    override fun getSearchQuery(): String? = adapter.searchString
+    
+    override fun getEventCount(): Int = adapter.getAllItemCount()
 
     companion object {
         private const val LOG_TAG = "DismissedEventsFragment"
