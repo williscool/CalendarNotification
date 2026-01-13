@@ -19,11 +19,9 @@
 
 package com.github.quarck.calnotify.ui
 
-import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.isDisplayed
 import com.github.quarck.calnotify.R
@@ -32,7 +30,6 @@ import com.github.quarck.calnotify.testutils.UITestFixture
 import io.mockk.*
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -159,56 +156,8 @@ class DismissedEventsFragmentTest : BaseUltronTest() {
         scenario.close()
     }
     
-    // === Options Menu Tests ===
-    
-    // Menu tests require a toolbar which isn't available when fragment is launched standalone
-    // These would need to be tested via MainActivity with the new navigation UI
-    @Ignore("Fragment launched standalone has no toolbar for overflow menu")
-    @Test
-    fun dismissedEventsFragment_has_remove_all_option() {
-        fixture.createDismissedEvent(title = "Test Event")
-        
-        val scenario = fixture.launchDismissedEventsFragment()
-        
-        // Wait for recycler to be ready
-        withId(R.id.recycler_view).isDisplayed()
-        
-        // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
-        
-        // Remove All option should be visible
-        withText(R.string.remove_all).isDisplayed()
-        
-        scenario.close()
-    }
-    
-    @Ignore("Fragment launched standalone has no toolbar for overflow menu")
-    @Test
-    fun clicking_remove_all_shows_confirmation_dialog() {
-        fixture.createDismissedEvent(title = "Test Event")
-        
-        val scenario = fixture.launchDismissedEventsFragment()
-        
-        // Wait for recycler to be ready
-        withId(R.id.recycler_view).isDisplayed()
-        
-        // Open overflow menu
-        openActionBarOverflowOrOptionsMenu(
-            InstrumentationRegistry.getInstrumentation().targetContext
-        )
-        
-        // Click Remove All
-        withText(R.string.remove_all).click()
-        
-        // Confirmation dialog should appear
-        withText(R.string.remove_all_confirmation).isDisplayed()
-        
-        scenario.close()
-    }
-    
     // === Multiple Dismissed Events Tests ===
+    // Note: Menu tests (Remove All) are in MainActivityDismissedEventsTabTest
     
     @Test
     fun dismissedEventsFragment_displays_multiple_events() {
