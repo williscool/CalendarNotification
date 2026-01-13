@@ -340,12 +340,14 @@ class DismissedEventListAdapter(
     fun removeEntry(entry: DismissedEventAlertRecord)
             = synchronized(this) {
         val idx = entries.indexOf(entry)
+        allEntries = allEntries.filter { ev -> ev != entry }.toTypedArray()
         entries = entries.filter { ev -> ev != entry }.toTypedArray()
         notifyItemRemoved(idx)
     }
 
-    fun removeAll() {
-        entries = arrayOf<DismissedEventAlertRecord>()
+    fun removeAll() = synchronized(this) {
+        allEntries = arrayOf()
+        entries = arrayOf()
         notifyDataSetChanged()
     }
 }
