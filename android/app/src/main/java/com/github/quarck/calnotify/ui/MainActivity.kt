@@ -174,14 +174,16 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
         window.statusBarColor = getColor(R.color.primary_dark)
         
-        // Apply status bar inset as top padding to AppBarLayout (expands to fit, has toolbar color)
-        find<AppBarLayout>(R.id.app_bar_layout)?.let { appBar ->
-            ViewCompat.setOnApplyWindowInsetsListener(appBar) { view, insets ->
+        // Set status bar spacer height (pinned, doesn't scroll with toolbar)
+        val statusBarSpacer = findViewById<View>(R.id.status_bar_spacer)
+        statusBarSpacer?.let { spacer ->
+            ViewCompat.setOnApplyWindowInsetsListener(spacer) { view, insets ->
                 val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
+                view.layoutParams.height = statusBarInset
+                view.requestLayout()
                 insets
             }
-            ViewCompat.requestApplyInsets(appBar)
+            ViewCompat.requestApplyInsets(spacer)
         }
         
         // Set up navigation
@@ -243,14 +245,15 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
         window.statusBarColor = getColor(R.color.primary_dark)
         
-        // Apply status bar inset as top padding to AppBarLayout
-        find<AppBarLayout>(R.id.app_bar_layout)?.let { appBar ->
-            ViewCompat.setOnApplyWindowInsetsListener(appBar) { view, insets ->
+        // Set status bar spacer height
+        findViewById<View>(R.id.status_bar_spacer)?.let { spacer ->
+            ViewCompat.setOnApplyWindowInsetsListener(spacer) { view, insets ->
                 val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
+                view.layoutParams.height = statusBarInset
+                view.requestLayout()
                 insets
             }
-            ViewCompat.requestApplyInsets(appBar)
+            ViewCompat.requestApplyInsets(spacer)
         }
 
         shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
