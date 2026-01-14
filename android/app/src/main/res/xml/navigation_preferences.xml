@@ -48,6 +48,12 @@
         android:title="@string/switch_view_category"
         android:key="_switch_view">
 
+        <CheckBoxPreference
+            android:key="show_new_ui_banner"
+            android:title="@string/show_new_ui_banner_title"
+            android:summary="@string/show_new_ui_banner_summary"
+            android:defaultValue="true" />
+
         <Preference
             android:key="switch_to_classic_view"
             android:title="@string/switch_to_classic_view_title"

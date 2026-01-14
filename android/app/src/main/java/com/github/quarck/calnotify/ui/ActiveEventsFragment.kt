@@ -112,8 +112,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         val bannerText = view.findViewById<TextView>(R.id.new_ui_banner_text)
         val dismissButton = view.findViewById<ImageButton>(R.id.new_ui_banner_dismiss)
         
-        // Show banner if not dismissed yet
-        if (!settings.newUIBannerDismissed) {
+        // Show banner if enabled in settings
+        if (settings.showNewUIBanner) {
             newUIBanner?.visibility = View.VISIBLE
         }
         
@@ -123,14 +123,14 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             dismissBanner()
         }
         
-        // Dismiss button just hides the banner
+        // Dismiss button hides the banner and turns off the setting
         dismissButton?.setOnClickListener {
             dismissBanner()
         }
     }
     
     private fun dismissBanner() {
-        settings.newUIBannerDismissed = true
+        settings.showNewUIBanner = false
         newUIBanner?.visibility = View.GONE
     }
     
@@ -153,6 +153,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             IntentFilter(Consts.DATA_UPDATED_BROADCAST),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+        
+        // Update banner visibility (may have changed in settings)
+        newUIBanner?.visibility = if (settings.showNewUIBanner) View.VISIBLE else View.GONE
         
         loadEvents()
     }
