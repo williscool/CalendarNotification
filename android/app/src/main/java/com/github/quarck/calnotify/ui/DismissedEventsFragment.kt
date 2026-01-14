@@ -168,6 +168,8 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
+                // Update search hint with new event count
+                activity?.invalidateOptionsMenu()
             }
         }
     }

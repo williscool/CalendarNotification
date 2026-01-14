@@ -12,6 +12,12 @@
         android:defaultValue="-1"
         android:persistent="false" />
 
+    <!-- Navigation/UI Settings -->
+    <Preference
+        android:key="pref_navigation"
+        android:title="@string/navigation_settings_title"
+        android:fragment="com.github.quarck.calnotify.prefs.NavigationSettingsFragmentX" />
+
     <!-- Calendars - launches separate activity -->
     <Preference
         android:key="pref_calendars"

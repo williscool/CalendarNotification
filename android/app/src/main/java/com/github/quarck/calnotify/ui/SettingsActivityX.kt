@@ -21,11 +21,11 @@ package com.github.quarck.calnotify.ui
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.prefs.NavigationSettingsFragmentX
 import com.github.quarck.calnotify.prefs.PreferenceHeadersFragment
 
 /**
@@ -43,8 +43,23 @@ class SettingsActivityX : AppCompatActivity(),
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
         if (savedInstanceState == null) {
-            supportFragmentManager.commit {
-                replace(R.id.settings_container, PreferenceHeadersFragment())
+            // Check if we should navigate directly to a specific fragment
+            val prefFragment = intent.getStringExtra(EXTRA_PREF_FRAGMENT)
+            val targetFragment = getFragmentForKey(prefFragment)
+            
+            if (targetFragment != null) {
+                // Show headers first, then push target fragment
+                supportFragmentManager.commit {
+                    replace(R.id.settings_container, PreferenceHeadersFragment())
+                }
+                supportFragmentManager.commit {
+                    replace(R.id.settings_container, targetFragment)
+                    addToBackStack(null)
+                }
+            } else {
+                supportFragmentManager.commit {
+                    replace(R.id.settings_container, PreferenceHeadersFragment())
+                }
             }
         }
         
@@ -52,6 +67,25 @@ class SettingsActivityX : AppCompatActivity(),
             updateTitle()
         }
         updateTitle()
+    }
+    
+    /**
+     * Returns the fragment instance for a given preference key.
+     * Used for direct navigation via intent extra.
+     */
+    private fun getFragmentForKey(key: String?): PreferenceFragmentCompat? {
+        return when (key) {
+            PREF_FRAGMENT_NAVIGATION -> NavigationSettingsFragmentX()
+            else -> null
+        }
+    }
+    
+    companion object {
+        /** Intent extra key for direct navigation to a preference fragment */
+        const val EXTRA_PREF_FRAGMENT = "pref_fragment"
+        
+        /** Value for navigating to Navigation/UI settings */
+        const val PREF_FRAGMENT_NAVIGATION = "navigation"
     }
     
     private fun updateTitle() {

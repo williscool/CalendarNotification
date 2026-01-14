@@ -503,15 +503,28 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
 
-        // In new navigation mode, only show search and settings
+        // In new navigation mode, only show search, snooze all (for active tab), and settings
         if (useNewNavigationUI) {
+            val currentFragment = getCurrentSearchableFragment()
+            
             // Dismissed events is now a tab, not a menu item
             menu.findItem(R.id.action_dismissed_events)?.isVisible = false
-            // Snooze all, mute all, dismiss all not yet implemented for fragments
-            menu.findItem(R.id.action_snooze_all)?.isVisible = false
+            // Mute all, dismiss all, custom quiet not yet implemented for fragments
             menu.findItem(R.id.action_mute_all)?.isVisible = false
             menu.findItem(R.id.action_dismiss_all)?.isVisible = false
             menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
+            
+            // Show snooze all only for fragments that support it (Active events)
+            val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
+            val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
+            val hasEvents = (currentFragment?.getDisplayedEventCount() ?: 0) > 0
+            snoozeAllMenuItem?.isVisible = supportsSnoozeAll
+            snoozeAllMenuItem?.isEnabled = hasEvents
+            if (supportsSnoozeAll) {
+                snoozeAllMenuItem?.title = resources.getString(
+                    if (currentFragment?.hasActiveEvents() == true) R.string.snooze_all else R.string.change_all
+                )
+            }
             
             // Set up search for new nav UI
             searchMenuItem = menu.findItem(R.id.action_search)
@@ -534,7 +547,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             searchView = searchMenuItem?.actionView as? SearchView
             val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
             
-            val count = getCurrentSearchableFragment()?.getEventCount() ?: 0
+            val count = currentFragment?.getEventCount() ?: 0
             searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, count, count)
             searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
             
@@ -671,14 +684,32 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         refreshReminderLastFired()
 
         when (item.itemId) {
-            R.id.action_snooze_all ->
+            R.id.action_snooze_all -> {
+                // In new UI mode, get data from current fragment; otherwise from adapter
+                val isChange: Boolean
+                val searchQuery: String?
+                val eventCount: Int
+                
+                if (useNewNavigationUI) {
+                    val fragment = getCurrentSearchableFragment()
+                    isChange = fragment?.hasActiveEvents() != true
+                    searchQuery = fragment?.getSearchQuery()
+                    eventCount = fragment?.getDisplayedEventCount() ?: 0
+                } else {
+                    isChange = !adapter.hasActiveEvents
+                    searchQuery = adapter.searchString
+                    eventCount = adapter.itemCount
+                }
+                
                 startActivity(
-                        Intent(this, SnoozeAllActivity::class.java)
-                                .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, !adapter.hasActiveEvents)
-                                .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                                .putExtra(Consts.INTENT_SEARCH_QUERY, adapter.searchString)
-                                .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, adapter.getItemCount())
-                                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                    Intent(this, SnoozeAllActivity::class.java)
+                        .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
+                        .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
+                        .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
+                        .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
+                        .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                )
+            }
 
             R.id.action_mute_all ->
                 onMuteAll()

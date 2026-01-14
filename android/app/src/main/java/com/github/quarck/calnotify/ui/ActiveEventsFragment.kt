@@ -100,6 +100,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             loadEvents()
         }
         
+        // Prevent pull-to-refresh from stealing horizontal swipes (for swipe-to-dismiss)
+        SwipeRefreshTouchHelper.setup(recyclerView, refreshLayout)
+        
         // Setup new UI banner
         setupNewUIBanner(view)
     }
@@ -114,9 +117,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             newUIBanner?.visibility = View.VISIBLE
         }
         
-        // Clicking the text opens settings
+        // Clicking the text opens Navigation settings
         bannerText?.setOnClickListener {
-            openMiscSettings()
+            openNavigationSettings()
             dismissBanner()
         }
         
@@ -131,10 +134,10 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         newUIBanner?.visibility = View.GONE
     }
     
-    private fun openMiscSettings() {
+    private fun openNavigationSettings() {
         startActivity(
             Intent(requireContext(), SettingsActivityX::class.java)
-                .putExtra("pref_fragment", "misc")
+                .putExtra(SettingsActivityX.EXTRA_PREF_FRAGMENT, SettingsActivityX.PREF_FRAGMENT_NAVIGATION)
                 .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )
     }
@@ -170,6 +173,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
+                // Update search hint with new event count
+                activity?.invalidateOptionsMenu()
             }
         }
     }
@@ -271,6 +276,12 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun getDisplayedEventCount(): Int = adapter.itemCount
+    
+    override fun hasActiveEvents(): Boolean = adapter.hasActiveEvents
+    
+    override fun supportsSnoozeAll(): Boolean = true
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"

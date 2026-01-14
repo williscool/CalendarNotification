@@ -17,27 +17,19 @@
 //   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 //
 
-package com.github.quarck.calnotify.ui
+package com.github.quarck.calnotify.prefs
+
+import android.os.Bundle
+import androidx.preference.PreferenceFragmentCompat
+import com.github.quarck.calnotify.R
 
 /**
- * Interface for fragments that support search filtering.
+ * Settings fragment for Navigation/UI preferences.
+ * Includes the new tabbed navigation toggle and upcoming events lookahead settings.
  */
-interface SearchableFragment {
-    /** Set the search query to filter events */
-    fun setSearchQuery(query: String?)
-    
-    /** Get the current search query */
-    fun getSearchQuery(): String?
-    
-    /** Get the total number of events (for search placeholder) */
-    fun getEventCount(): Int
-    
-    /** Get the count of currently displayed events (after filtering) */
-    fun getDisplayedEventCount(): Int = getEventCount()
-    
-    /** Whether there are active (non-snoozed) events - for snooze all label */
-    fun hasActiveEvents(): Boolean = true
-    
-    /** Whether this fragment supports snooze all action */
-    fun supportsSnoozeAll(): Boolean = false
+class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
+
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+        setPreferencesFromResource(R.xml.navigation_preferences, rootKey)
+    }
 }

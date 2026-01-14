@@ -711,6 +711,7 @@
     <string name="upcoming_events_mode_fixed">Fixed hours</string>
     <string name="upcoming_events_cutoff_hour_title">Morning Cutoff Time</string>
     <string name="upcoming_events_fixed_hours_title">Hours to Look Ahead</string>
+    <string name="navigation_settings_title">Navigation &amp; UI</string>
     <string name="use_new_navigation_ui_title">New Navigation UI</string>
     <string name="use_new_navigation_ui_summary">Use bottom tabs for Active, Upcoming, and Dismissed events (requires restart)</string>
 </resources>

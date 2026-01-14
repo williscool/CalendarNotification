@@ -140,6 +140,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
+                // Update search hint with new event count
+                activity?.invalidateOptionsMenu()
             }
         }
     }
