@@ -853,9 +853,10 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
             ApplicationController.dismissEvent(this, EventDismissType.ManuallyDismissedFromActivity, event)
 
+            // Use applicationContext for UndoManager since it persists across activity recreation
             undoManager.addUndoState(
                     UndoState(
-                            undo = Runnable { ApplicationController.restoreEvent(this, event) }))
+                            undo = Runnable { ApplicationController.restoreEvent(applicationContext, event) }))
 
             adapter.removeEvent(event)
             lastEventDismissalScrollPosition = adapter.scrollPosition

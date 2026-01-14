@@ -214,10 +214,11 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
             ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
             
-            // Capture context before creating Runnable to avoid crash if fragment detaches
+            // Use applicationContext for UndoManager since it persists across activity recreation
+            val appContext = ctx.applicationContext
             UndoManager.addUndoState(
                 UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(ctx, event) }
+                    undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
                 )
             )
             
