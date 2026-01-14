@@ -72,9 +72,12 @@ import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
+import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
@@ -166,6 +169,16 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         setContentView(R.layout.activity_main)
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayShowHomeEnabled(true)
+        
+        // Apply top inset only to AppBarLayout (for status bar padding)
+        // This avoids adding bottom padding for navigation bar
+        find<AppBarLayout>(R.id.app_bar_layout)?.let { appBar ->
+            ViewCompat.setOnApplyWindowInsetsListener(appBar) { view, insets ->
+                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
+                insets
+            }
+        }
         
         // Set up navigation
         val navHostFragment = supportFragmentManager
