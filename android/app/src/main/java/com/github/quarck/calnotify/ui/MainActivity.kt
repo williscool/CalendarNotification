@@ -174,14 +174,14 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
         window.statusBarColor = getColor(R.color.primary_dark)
         
-        // Apply status bar inset as top padding to Toolbar (so it doesn't overlap on scroll)
-        toolbar?.let { tb ->
-            ViewCompat.setOnApplyWindowInsetsListener(tb) { view, insets ->
+        // Apply status bar inset as top padding to AppBarLayout (expands to fit, has toolbar color)
+        find<AppBarLayout>(R.id.app_bar_layout)?.let { appBar ->
+            ViewCompat.setOnApplyWindowInsetsListener(appBar) { view, insets ->
                 val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
                 view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
                 insets
             }
-            ViewCompat.requestApplyInsets(tb)
+            ViewCompat.requestApplyInsets(appBar)
         }
         
         // Set up navigation
@@ -243,14 +243,14 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
         window.statusBarColor = getColor(R.color.primary_dark)
         
-        // Apply status bar inset as top padding to Toolbar
-        toolbar?.let { tb ->
-            ViewCompat.setOnApplyWindowInsetsListener(tb) { view, insets ->
+        // Apply status bar inset as top padding to AppBarLayout
+        find<AppBarLayout>(R.id.app_bar_layout)?.let { appBar ->
+            ViewCompat.setOnApplyWindowInsetsListener(appBar) { view, insets ->
                 val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
                 view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
                 insets
             }
-            ViewCompat.requestApplyInsets(tb)
+            ViewCompat.requestApplyInsets(appBar)
         }
 
         shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
