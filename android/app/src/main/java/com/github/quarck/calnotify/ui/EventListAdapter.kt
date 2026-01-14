@@ -447,6 +447,8 @@ class EventListAdapter(
     fun removeEvent(event: EventAlertRecord)
             = synchronized(this) {
         val idx = events.indexOf(event)
+        // Remove from both arrays so item doesn't reappear when search filter is cleared
+        allEvents = allEvents.filter { ev -> ev != event }.toTypedArray()
         events = events.filter { ev -> ev != event }.toTypedArray()
         notifyItemRemoved(idx)
     }
@@ -472,6 +474,8 @@ class EventListAdapter(
                         synchronized(this) {
                             val idx = events.indexOf(event)
                             if (idx != -1) {
+                                // Remove from both arrays so item doesn't reappear when search filter is cleared
+                                allEvents = allEvents.filter { ev -> ev != event }.toTypedArray()
                                 events = events.filter { ev -> ev != event }.toTypedArray()
                                 notifyItemRemoved(idx)
                             }
@@ -491,6 +495,10 @@ class EventListAdapter(
                                 DevLog.error(LOG_TAG, "Found by manual: ${foundByManual != null}")
 
                                 if (foundByManual != null) {
+                                    // Also remove from allEvents when found by manual search
+                                    allEvents = allEvents.filter { ev -> 
+                                        ev.eventId != event.eventId || ev.instanceStartTime != event.instanceStartTime 
+                                    }.toTypedArray()
                                     notifyItemRemoved(foundByManual.index)
                                 }
                             }
