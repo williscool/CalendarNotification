@@ -36,6 +36,11 @@ import com.github.quarck.calnotify.ui.MainActivity
  * Includes the new tabbed navigation toggle and upcoming events lookahead settings.
  */
 class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
+    
+    companion object {
+        // Delay before restarting app to let user see the "Restarting..." toast
+        private const val RESTART_DELAY_FOR_TOAST_VISIBILITY_MS = 500L
+    }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.navigation_preferences, rootKey)
@@ -74,6 +79,6 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             ctx.startActivity(intent)
-        }, 500)
+        }, RESTART_DELAY_FOR_TOAST_VISIBILITY_MS)
     }
 }
