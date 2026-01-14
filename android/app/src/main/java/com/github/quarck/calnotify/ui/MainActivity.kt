@@ -167,31 +167,40 @@ class MainActivity : AppCompatActivity(), EventListCallback {
      */
     private fun setupNewNavigationUI() {
         setContentView(R.layout.activity_main)
-        setSupportActionBar(find<Toolbar?>(R.id.toolbar))
+        val toolbar = find<Toolbar?>(R.id.toolbar)
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowHomeEnabled(true)
+        
+        // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
+        window.statusBarColor = getColor(R.color.primary_dark)
+        
+        // Apply status bar inset as top padding to Toolbar (so it doesn't overlap on scroll)
+        toolbar?.let { tb ->
+            ViewCompat.setOnApplyWindowInsetsListener(tb) { view, insets ->
+                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
+                insets
+            }
+            ViewCompat.requestApplyInsets(tb)
+        }
         
         // Set up navigation
         val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+            .findFragmentById(R .id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
         
         val bottomNav = find<BottomNavigationView>(R.id.bottom_navigation)
         bottomNav?.setupWithNavController(navController!!)
         
-        // Handle insets manually: status bar padding on top, nav bar padding only on bottom nav
-        find<CoordinatorLayout>(R.id.main_activity_coordinator)?.let { coordinator ->
-            ViewCompat.setOnApplyWindowInsetsListener(coordinator) { view, insets ->
-                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+        // Apply nav bar inset to bottom navigation only
+        // (AppBarLayout handles status bar via fitsSystemWindows in XML)
+        bottomNav?.let { nav ->
+            ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
                 val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-                
-                // Apply status bar padding to coordinator (top only)
-                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, 0)
-                
-                // Apply nav bar padding to bottom navigation view only
-                bottomNav?.setPadding(0, 0, 0, navBarInset)
-                
-                WindowInsetsCompat.CONSUMED
+                view.setPadding(0, 0, 0, navBarInset)
+                insets
             }
+            ViewCompat.requestApplyInsets(nav)
         }
         
         // Update toolbar title based on current destination
@@ -227,8 +236,22 @@ class MainActivity : AppCompatActivity(), EventListCallback {
      */
     private fun setupLegacyUI() {
         setContentView(R.layout.activity_main_legacy)
-        setSupportActionBar(find<Toolbar?>(R.id.toolbar))
+        val toolbar = find<Toolbar?>(R.id.toolbar)
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowHomeEnabled(true)
+        
+        // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
+        window.statusBarColor = getColor(R.color.primary_dark)
+        
+        // Apply status bar inset as top padding to Toolbar
+        toolbar?.let { tb ->
+            ViewCompat.setOnApplyWindowInsetsListener(tb) { view, insets ->
+                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
+                insets
+            }
+            ViewCompat.requestApplyInsets(tb)
+        }
 
         shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
 
