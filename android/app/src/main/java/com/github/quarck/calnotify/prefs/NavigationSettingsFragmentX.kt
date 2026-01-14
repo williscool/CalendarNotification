@@ -68,12 +68,12 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
         
         // Restart MainActivity after a short delay
+        // Use ctx.startActivity since fragment may be detached during delay
         Handler(Looper.getMainLooper()).postDelayed({
             val intent = Intent(ctx, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
-            startActivity(intent)
-            activity?.finish()
+            ctx.startActivity(intent)
         }, 500)
     }
 }

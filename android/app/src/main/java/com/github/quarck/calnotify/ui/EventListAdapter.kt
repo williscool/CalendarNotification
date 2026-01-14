@@ -495,8 +495,11 @@ class EventListAdapter(
                                 DevLog.error(LOG_TAG, "Found by manual: ${foundByManual != null}")
 
                                 if (foundByManual != null) {
-                                    // Also remove from allEvents when found by manual search
+                                    // Remove from both arrays when found by manual search
                                     allEvents = allEvents.filter { ev -> 
+                                        ev.eventId != event.eventId || ev.instanceStartTime != event.instanceStartTime 
+                                    }.toTypedArray()
+                                    events = events.filter { ev -> 
                                         ev.eventId != event.eventId || ev.instanceStartTime != event.instanceStartTime 
                                     }.toTypedArray()
                                     notifyItemRemoved(foundByManual.index)

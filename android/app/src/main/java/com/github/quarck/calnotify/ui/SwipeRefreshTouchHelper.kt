@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.ui
 
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import kotlin.math.abs
@@ -39,9 +40,10 @@ object SwipeRefreshTouchHelper {
      * @param refreshLayout The SwipeRefreshLayout wrapping the RecyclerView
      */
     fun setup(recyclerView: RecyclerView, refreshLayout: SwipeRefreshLayout) {
+        val touchSlop = ViewConfiguration.get(recyclerView.context).scaledTouchSlop
         var startX = 0f
         var startY = 0f
-        var isHorizontalSwipe = false
+        var directionDecided = false
         
         recyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
@@ -49,23 +51,34 @@ object SwipeRefreshTouchHelper {
                     MotionEvent.ACTION_DOWN -> {
                         startX = e.x
                         startY = e.y
-                        isHorizontalSwipe = false
+                        directionDecided = false
+                        // Keep refresh enabled initially
                         refreshLayout.isEnabled = true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        val dx = abs(e.x - startX)
-                        val dy = abs(e.y - startY)
-                        
-                        // If horizontal movement is greater than vertical, disable pull-to-refresh
-                        if (dx > dy && dx > 10) {
-                            isHorizontalSwipe = true
-                            refreshLayout.isEnabled = false
+                        if (!directionDecided) {
+                            val dx = abs(e.x - startX)
+                            val dy = abs(e.y - startY)
+                            
+                            // Once we've moved past touch slop, decide direction
+                            val minSlop = touchSlop / 2  // More sensitive than default
+                            if (dx > minSlop || dy > minSlop) {
+                                directionDecided = true
+                                
+                                // If horizontal movement is significant, disable pull-to-refresh
+                                // Use a 1.5:1 ratio favoring horizontal (more permissive for swipes)
+                                if (dx > dy * 0.67f) {
+                                    refreshLayout.isEnabled = false
+                                    // Also tell parent views not to intercept
+                                    rv.parent?.requestDisallowInterceptTouchEvent(true)
+                                }
+                            }
                         }
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         // Re-enable pull-to-refresh when gesture ends
                         refreshLayout.isEnabled = true
-                        isHorizontalSwipe = false
+                        directionDecided = false
                     }
                 }
                 // Don't consume the event - let ItemTouchHelper handle it
