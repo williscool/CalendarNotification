@@ -100,9 +100,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             loadEvents()
         }
         
-        // Prevent pull-to-refresh from stealing horizontal swipes (for swipe-to-dismiss)
-        SwipeRefreshTouchHelper.setup(recyclerView, refreshLayout)
-        
         // Setup new UI banner
         setupNewUIBanner(view)
     }
