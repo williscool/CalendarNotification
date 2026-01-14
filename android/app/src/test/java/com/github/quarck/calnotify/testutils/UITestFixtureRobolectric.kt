@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.testutils
 
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.fragment.app.testing.FragmentScenario
@@ -30,10 +31,15 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import com.github.quarck.calnotify.utils.AsyncTaskCallback
+import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.robolectric.Shadows.shadowOf
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Test fixture for Robolectric UI tests.
@@ -475,8 +481,54 @@ class UITestFixtureRobolectric {
         mockkObject(ApplicationController)
     }
     
+    /**
+     * Waits for all async tasks to complete.
+     * 
+     * Uses the globalAsyncTaskCallback mechanism to track pending tasks
+     * with a CountDownLatch for efficient blocking (no busy-wait).
+     * Then idles the main looper to process onPostExecute callbacks.
+     */
+    fun waitForAsyncTasks() {
+        // Wait for any pending async tasks to complete (with timeout)
+        if (pendingTaskCount.get() > 0) {
+            completionLatch?.await(5, TimeUnit.SECONDS)
+        }
+        // Idle the main looper to process onPostExecute callbacks
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+    
     companion object {
         private const val LOG_TAG = "UITestFixtureRobolectric"
+        
+        /** Tracks number of async tasks currently in flight */
+        private val pendingTaskCount = AtomicInteger(0)
+        
+        /** Latch that signals when all tasks complete */
+        @Volatile
+        private var completionLatch: CountDownLatch? = null
+        
+        /** Callback installed to track async task lifecycle */
+        private val taskTrackingCallback = object : AsyncTaskCallback {
+            override fun onTaskStarted() {
+                val count = pendingTaskCount.incrementAndGet()
+                if (count == 1) {
+                    // First task started - create a fresh latch
+                    completionLatch = CountDownLatch(1)
+                }
+            }
+            override fun onTaskCompleted() {
+                val count = pendingTaskCount.decrementAndGet()
+                if (count == 0) {
+                    // All tasks done - signal the latch
+                    completionLatch?.countDown()
+                }
+            }
+        }
+        
+        init {
+            // Install the callback globally to track all background { } calls
+            globalAsyncTaskCallback = taskTrackingCallback
+        }
         
         fun create(): UITestFixtureRobolectric = UITestFixtureRobolectric()
     }

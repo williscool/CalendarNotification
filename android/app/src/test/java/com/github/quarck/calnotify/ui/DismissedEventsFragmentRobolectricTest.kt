@@ -19,7 +19,6 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.os.Looper
 import android.view.View
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -32,7 +31,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -96,8 +94,7 @@ class DismissedEventsFragmentRobolectricTest {
         val scenario = fixture.launchDismissedEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -115,8 +112,7 @@ class DismissedEventsFragmentRobolectricTest {
         val scenario = fixture.launchDismissedEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -141,8 +137,7 @@ class DismissedEventsFragmentRobolectricTest {
         val scenario = fixture.launchDismissedEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -176,8 +171,7 @@ class DismissedEventsFragmentRobolectricTest {
         val scenario = fixture.launchDismissedEventsFragment()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val emptyView = fragment.requireView().findViewById<TextView>(R.id.empty_view)
@@ -197,8 +191,7 @@ class DismissedEventsFragmentRobolectricTest {
         fixture.createDismissedEvent(title = "Meeting Notes")
         
         val scenario = fixture.launchDismissedEventsFragment()
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onFragment { fragment ->
             val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
@@ -208,12 +201,12 @@ class DismissedEventsFragmentRobolectricTest {
             
             // Filter by "meeting" - should show 2
             (fragment as SearchableFragment).setSearchQuery("meeting")
-            shadowOf(Looper.getMainLooper()).idle()
+            fixture.waitForAsyncTasks()
             assertEquals(2, recyclerView.adapter?.itemCount)
             
             // Clear filter - back to 3
             fragment.setSearchQuery(null)
-            shadowOf(Looper.getMainLooper()).idle()
+            fixture.waitForAsyncTasks()
             assertEquals(3, recyclerView.adapter?.itemCount)
         }
         

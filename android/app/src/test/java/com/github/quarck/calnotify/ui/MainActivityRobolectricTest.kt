@@ -72,8 +72,7 @@ class MainActivityRobolectricTest {
         val scenario = fixture.launchMainActivity()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onActivity { activity ->
             val emptyView = activity.findViewById<View>(R.id.empty_view)
@@ -138,8 +137,7 @@ class MainActivityRobolectricTest {
         val scenario = fixture.launchMainActivity()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
@@ -190,8 +188,7 @@ class MainActivityRobolectricTest {
         val scenario = fixture.launchMainActivity()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
@@ -212,8 +209,7 @@ class MainActivityRobolectricTest {
         val scenario = fixture.launchMainActivity()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
@@ -234,8 +230,7 @@ class MainActivityRobolectricTest {
         val scenario = fixture.launchMainActivity()
         
         // Wait for async data loading
-        shadowOf(Looper.getMainLooper()).idle()
-        Thread.sleep(100)
+        fixture.waitForAsyncTasks()
         
         scenario.onActivity { activity ->
             val recyclerView = activity.findViewById<RecyclerView>(R.id.list_events)
