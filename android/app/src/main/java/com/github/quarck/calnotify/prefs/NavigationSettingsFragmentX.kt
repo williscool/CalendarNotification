@@ -19,9 +19,17 @@
 
 package com.github.quarck.calnotify.prefs
 
+import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.ui.MainActivity
 
 /**
  * Settings fragment for Navigation/UI preferences.
@@ -31,5 +39,41 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.navigation_preferences, rootKey)
+        
+        // Set up click handler for "Switch to Classic View" button
+        findPreference<Preference>("switch_to_classic_view")?.setOnPreferenceClickListener {
+            showSwitchToClassicViewDialog()
+            true
+        }
+    }
+    
+    private fun showSwitchToClassicViewDialog() {
+        val ctx = context ?: return
+        AlertDialog.Builder(ctx)
+            .setMessage(R.string.switch_to_classic_view_confirm)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                switchToClassicView()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+    
+    private fun switchToClassicView() {
+        val ctx = context ?: return
+        
+        // Disable new UI
+        Settings(ctx).useNewNavigationUI = false
+        
+        // Show toast and restart
+        Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
+        
+        // Restart MainActivity after a short delay
+        Handler(Looper.getMainLooper()).postDelayed({
+            val intent = Intent(ctx, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+            startActivity(intent)
+            activity?.finish()
+        }, 500)
     }
 }

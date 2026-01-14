@@ -44,4 +44,15 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:title="@string/switch_view_category"
+        android:key="_switch_view">
+
+        <Preference
+            android:key="switch_to_classic_view"
+            android:title="@string/switch_to_classic_view_title"
+            android:summary="@string/switch_to_classic_view_summary" />
+
+    </PreferenceCategory>
+
 </PreferenceScreen>

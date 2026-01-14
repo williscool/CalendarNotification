@@ -714,4 +714,9 @@
     <string name="navigation_settings_title">Navigation &amp; UI</string>
     <string name="use_new_navigation_ui_title">New Navigation UI</string>
     <string name="use_new_navigation_ui_summary">Use bottom tabs for Active, Upcoming, and Dismissed events (requires restart)</string>
+    <string name="switch_view_category">Quick Switch</string>
+    <string name="switch_to_classic_view_title">Switch to Classic View</string>
+    <string name="switch_to_classic_view_summary">Disable new UI and restart with the classic single-list view</string>
+    <string name="switch_to_classic_view_confirm">Switch to classic view? The app will restart.</string>
+    <string name="restarting">Restarting…</string>
 </resources>
