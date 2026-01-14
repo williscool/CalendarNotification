@@ -170,16 +170,6 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayShowHomeEnabled(true)
         
-        // Apply top inset only to AppBarLayout (for status bar padding)
-        // This avoids adding bottom padding for navigation bar
-        find<AppBarLayout>(R.id.app_bar_layout)?.let { appBar ->
-            ViewCompat.setOnApplyWindowInsetsListener(appBar) { view, insets ->
-                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, view.paddingBottom)
-                insets
-            }
-        }
-        
         // Set up navigation
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
@@ -187,6 +177,22 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         
         val bottomNav = find<BottomNavigationView>(R.id.bottom_navigation)
         bottomNav?.setupWithNavController(navController!!)
+        
+        // Handle insets manually: status bar padding on top, nav bar padding only on bottom nav
+        find<CoordinatorLayout>(R.id.main_activity_coordinator)?.let { coordinator ->
+            ViewCompat.setOnApplyWindowInsetsListener(coordinator) { view, insets ->
+                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                
+                // Apply status bar padding to coordinator (top only)
+                view.setPadding(view.paddingLeft, statusBarInset, view.paddingRight, 0)
+                
+                // Apply nav bar padding to bottom navigation view only
+                bottomNav?.setPadding(0, 0, 0, navBarInset)
+                
+                WindowInsetsCompat.CONSUMED
+            }
+        }
         
         // Update toolbar title based on current destination
         navController?.addOnDestinationChangedListener { _, destination, _ ->
