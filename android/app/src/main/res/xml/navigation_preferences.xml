@@ -24,15 +24,15 @@
             android:dialogTitle="@string/upcoming_events_mode_title"
             android:entries="@array/upcoming_events_mode_entries"
             android:entryValues="@array/upcoming_events_mode_values"
-            android:defaultValue="cutoff" />
+            android:defaultValue="fixed" />
 
         <ListPreference
-            android:key="upcoming_events_cutoff_hour"
-            android:title="@string/upcoming_events_cutoff_hour_title"
-            android:dialogTitle="@string/upcoming_events_cutoff_hour_title"
-            android:entries="@array/upcoming_events_cutoff_hour_entries"
-            android:entryValues="@array/upcoming_events_cutoff_hour_values"
-            android:defaultValue="10" />
+            android:key="upcoming_events_day_boundary_hour"
+            android:title="@string/upcoming_events_day_boundary_hour_title"
+            android:dialogTitle="@string/upcoming_events_day_boundary_hour_title"
+            android:entries="@array/upcoming_events_day_boundary_hour_entries"
+            android:entryValues="@array/upcoming_events_day_boundary_hour_values"
+            android:defaultValue="4" />
 
         <ListPreference
             android:key="upcoming_events_fixed_hours"

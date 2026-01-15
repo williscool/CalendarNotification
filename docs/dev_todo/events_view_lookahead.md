@@ -128,7 +128,7 @@ Moving `DismissedEventsActivity` into the main navigation:
 
 ### Storage Approach: Option A - Leverage MonitorStorage + Enrich
 
-**Chosen approach:** No new storage. Query `MonitorStorage.getAlertsForAlertRange(now, cutoffTime)` and enrich on-the-fly with `CalendarProvider.getEvent()`.
+**Chosen approach:** No new storage. Query `MonitorStorage.getAlertsForAlertRange(now, endTime)` and enrich on-the-fly with `CalendarProvider.getEvent()`.
 
 **Rationale:**
 - Reuses existing infrastructure
@@ -143,7 +143,7 @@ Moving `DismissedEventsActivity` into the main navigation:
 Simple and predictable: always show events X hours ahead (default: 8 hours).
 
 ```
-cutoffTime = now + fixedHours
+endTime = now + fixedHours
 ```
 
 | Current Time | Fixed Hours | Lookahead Until |
@@ -164,10 +164,10 @@ For users who think in terms of "today" vs "tomorrow" rather than hours. The day
 ```
 if currentHour < dayBoundaryHour:
     # Still "yesterday" mentally - show until boundary today
-    cutoffTime = today at dayBoundaryHour
+    endTime = today at dayBoundaryHour
 else:
     # "Today" has begun - show until boundary tomorrow
-    cutoffTime = tomorrow at dayBoundaryHour
+    endTime = tomorrow at dayBoundaryHour
 ```
 
 **Examples (boundary = 4am):**
@@ -668,8 +668,7 @@ internal const val MAX_DAY_BOUNDARY_HOUR = 10
 internal const val MIN_FIXED_HOURS = 1
 internal const val MAX_FIXED_HOURS = 48
 
-/** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary.
- *  Note: "cutoff" is a legacy value from earlier versions - UpcomingEventsLookahead treats it as "day_boundary". */
+/** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary */
 var upcomingEventsMode: String
     get() = getString(UPCOMING_EVENTS_MODE_KEY, "fixed")
     set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
@@ -693,7 +692,7 @@ var upcomingEventsFixedHours: Int
 package com.github.quarck.calnotify.upcoming
 
 /**
- * Calculates the lookahead cutoff time based on user settings.
+ * Calculates the end time for the upcoming events lookahead window.
  * 
  * Two modes:
  * - "fixed": Simple X hours ahead
@@ -706,13 +705,17 @@ class UpcomingEventsLookahead(
     /**
      * Returns the timestamp until which we should show upcoming events.
      */
-    fun getCutoffTime(): Long {
+    fun getLookaheadEndTime(): Long {
         val now = clock.currentTimeMillis()
         
         return when (settings.upcomingEventsMode) {
-            "day_boundary", "cutoff" -> calculateDayBoundaryCutoff(now)  // "cutoff" is legacy, treat same as day_boundary
-            else -> now + (settings.upcomingEventsFixedHours * Consts.HOUR_IN_MILLISECONDS)
+            MODE_DAY_BOUNDARY -> calculateDayBoundaryEndTime(now)
+            else -> calculateFixedEndTime(now)
         }
+    }
+    
+    private fun calculateFixedEndTime(now: Long): Long {
+        return now + (settings.upcomingEventsFixedHours * Consts.HOUR_IN_MILLISECONDS)
     }
     
     /**
@@ -723,7 +726,7 @@ class UpcomingEventsLookahead(
      * - At 1am: show until 4am today (3 hours) - "still yesterday"
      * - At 5am: show until 4am tomorrow (23 hours) - "today has begun"
      */
-    private fun calculateDayBoundaryCutoff(now: Long): Long {
+    private fun calculateDayBoundaryEndTime(now: Long): Long {
         val boundaryHour = settings.upcomingEventsDayBoundaryHour
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
         val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
@@ -740,6 +743,11 @@ class UpcomingEventsLookahead(
         }
         
         return calendar.timeInMillis
+    }
+    
+    companion object {
+        const val MODE_FIXED = "fixed"
+        const val MODE_DAY_BOUNDARY = "day_boundary"
     }
 }
 ```
@@ -760,16 +768,16 @@ class UpcomingEventsProvider(
     /**
      * Returns upcoming events that haven't fired yet, enriched with full details.
      * 
-     * @param cutoffTime Show events with alertTime up to this timestamp
+     * @param endTime Show events with alertTime up to this timestamp
      * @param calendarFilter Set of calendar IDs to include (empty = all)
      * @return List of EventAlertRecord representing upcoming events
      */
-    fun getUpcomingEvents(cutoffTime: Long, calendarFilter: Set<Long> = emptySet()): List<EventAlertRecord> {
+    fun getUpcomingEvents(endTime: Long, calendarFilter: Set<Long> = emptySet()): List<EventAlertRecord> {
         val now = clock.currentTimeMillis()
         
         // Get alerts from MonitorStorage
         val upcomingAlerts = MonitorStorage(context).use { storage ->
-            storage.getAlertsForAlertRange(now, cutoffTime)
+            storage.getAlertsForAlertRange(now, endTime)
                 .filter { !it.wasHandled }
                 .sortedBy { it.alertTime }
         }
@@ -826,7 +834,7 @@ private fun showUpcomingEvents() {
         val lookahead = UpcomingEventsLookahead(settings, clock)
         val provider = UpcomingEventsProvider(this, CalendarProvider, clock)
         val upcomingEvents = provider.getUpcomingEvents(
-            lookahead.getCutoffTime(),
+            lookahead.getLookaheadEndTime(),
             settings.selectedCalendarIds
         ).toTypedArray()
         
@@ -1376,7 +1384,7 @@ class UpcomingEventsFragment : EventListFragment() {
             
             // Step 1: Get alerts quickly (no CalendarProvider calls)
             val alerts = MonitorStorage(ctx).use { storage ->
-                storage.getAlertsForAlertRange(now, lookahead.getCutoffTime())
+                storage.getAlertsForAlertRange(now, lookahead.getLookaheadEndTime())
                     .filter { !it.wasHandled }
                     .sortedBy { it.alertTime }
             }
@@ -1476,7 +1484,7 @@ companion object {
 | `android/app/src/main/java/com/github/quarck/calnotify/ui/UpcomingEventsFragment.kt` | Upcoming events tab |
 | `android/app/src/main/java/com/github/quarck/calnotify/ui/DismissedEventsFragment.kt` | Dismissed events tab |
 | `android/app/src/main/java/com/github/quarck/calnotify/ui/CalendarFilterBottomSheet.kt` | Calendar multi-select bottom sheet |
-| `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookahead.kt` | Lookahead cutoff calculation |
+| `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookahead.kt` | Lookahead end time calculation |
 | `android/app/src/main/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProvider.kt` | Fetch and enrich upcoming events |
 | `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsLookaheadRobolectricTest.kt` | Unit tests for lookahead logic |
 | `android/app/src/test/java/com/github/quarck/calnotify/upcoming/UpcomingEventsProviderRobolectricTest.kt` | Unit tests for provider (mocked deps) |
@@ -1532,14 +1540,14 @@ class UpcomingEventsLookaheadRobolectricTest {
     @Test
     fun `fixed mode - returns now plus configured hours`() {
         // Given: mode = "fixed", hours = 8
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns now + 8 hours
     }
     
     @Test
     fun `fixed mode - is the default`() {
         // Given: Fresh settings (no mode set)
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Uses fixed hours calculation
     }
     
@@ -1548,52 +1556,43 @@ class UpcomingEventsLookaheadRobolectricTest {
     @Test
     fun `day boundary mode - before boundary returns today`() {
         // Given: 1:00 AM, boundary = 4am
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns today 4:00 AM (3 hours ahead)
     }
 
     @Test
     fun `day boundary mode - at boundary returns tomorrow`() {
         // Given: 4:00 AM, boundary = 4am
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns tomorrow 4:00 AM (24 hours ahead)
     }
 
     @Test
     fun `day boundary mode - after boundary returns tomorrow`() {
         // Given: 10:00 AM, boundary = 4am
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns tomorrow 4:00 AM (18 hours ahead)
     }
 
     @Test
     fun `day boundary mode - late night returns tomorrow`() {
         // Given: 11:00 PM, boundary = 4am
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns tomorrow 4:00 AM (5 hours ahead)
     }
     
     @Test
     fun `day boundary mode - midnight boundary (no slack)`() {
         // Given: 11:00 PM, boundary = 0 (midnight)
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns tomorrow midnight (1 hour ahead)
     }
     
     @Test
     fun `day boundary mode - 10am boundary (max slack)`() {
         // Given: 2:00 AM, boundary = 10am
-        // When: getCutoffTime()
+        // When: getLookaheadEndTime()
         // Then: Returns today 10:00 AM (8 hours ahead)
-    }
-    
-    // Legacy migration test
-    
-    @Test
-    fun `legacy cutoff mode - treated as day boundary`() {
-        // Given: mode = "cutoff" (legacy value from earlier app versions)
-        // When: getCutoffTime()
-        // Then: Uses day boundary calculation (not fixed hours)
     }
 }
 ```
@@ -1612,43 +1611,43 @@ class UpcomingEventsProviderRobolectricTest {
     
     @Test
     fun `returns events within lookahead window`() {
-        // Given: Events at +1h, +5h, +12h, cutoff = +8h
-        // When: getUpcomingEvents(cutoff)
+        // Given: Events at +1h, +5h, +12h, endTime = +8h
+        // When: getUpcomingEvents(endTime)
         // Then: Returns events at +1h, +5h only
     }
 
     @Test
     fun `excludes already handled events`() {
         // Given: Event in MonitorStorage with wasHandled = true
-        // When: getUpcomingEvents(cutoff)
+        // When: getUpcomingEvents(endTime)
         // Then: Event not returned
     }
 
     @Test
     fun `enriches with full event details`() {
         // Given: Event in MonitorStorage, CalendarProvider returns EventRecord
-        // When: getUpcomingEvents(cutoff)
+        // When: getUpcomingEvents(endTime)
         // Then: Returned EventAlertRecord has title, description, color, location
     }
 
     @Test
     fun `returns empty list when no upcoming events`() {
         // Given: No events in lookahead window
-        // When: getUpcomingEvents(cutoff)
+        // When: getUpcomingEvents(endTime)
         // Then: Returns empty list
     }
 
     @Test
     fun `filters by calendar when filter set`() {
         // Given: Events from calendar A and B, filter = {A}
-        // When: getUpcomingEvents(cutoff, filter)
+        // When: getUpcomingEvents(endTime, filter)
         // Then: Only returns events from calendar A
     }
     
     @Test
     fun `handles CalendarProvider returning null gracefully`() {
         // Given: Event in MonitorStorage, but CalendarProvider.getEvent returns null
-        // When: getUpcomingEvents(cutoff)
+        // When: getUpcomingEvents(endTime)
         // Then: That event is skipped, no crash
     }
 }

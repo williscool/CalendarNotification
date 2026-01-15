@@ -25,7 +25,7 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import java.util.Calendar
 
 /**
- * Calculates the cutoff time for the upcoming events lookahead window.
+ * Calculates the end time for the upcoming events lookahead window.
  * 
  * Supports two modes:
  * - "fixed" (default): Shows events for a fixed number of hours ahead
@@ -41,24 +41,24 @@ class UpcomingEventsLookahead(
 ) {
     
     /**
-     * Get the cutoff time for the upcoming events window.
-     * Events with alertTime between now and this cutoff will be shown.
+     * Get the end time for the upcoming events lookahead window.
+     * Events with alertTime between now and this end time will be shown.
      * 
-     * @return The cutoff time in milliseconds since epoch
+     * @return The lookahead end time in milliseconds since epoch
      */
-    fun getCutoffTime(): Long {
+    fun getLookaheadEndTime(): Long {
         val now = clock.currentTimeMillis()
         
         return when (settings.upcomingEventsMode) {
-            MODE_DAY_BOUNDARY, MODE_CUTOFF -> calculateDayBoundaryCutoff(now)  // "cutoff" is legacy
-            else -> calculateFixedCutoff(now)  // Default to fixed mode
+            MODE_DAY_BOUNDARY -> calculateDayBoundaryEndTime(now)
+            else -> calculateFixedEndTime(now)  // Default to fixed mode
         }
     }
     
     /**
      * Fixed hours lookahead: now + configured hours
      */
-    private fun calculateFixedCutoff(now: Long): Long {
+    private fun calculateFixedEndTime(now: Long): Long {
         val fixedHours = settings.upcomingEventsFixedHours
         return now + (fixedHours * Consts.HOUR_IN_MILLISECONDS)
     }
@@ -72,7 +72,7 @@ class UpcomingEventsLookahead(
      * - At 5 AM: show until 4 AM tomorrow (23 hours) - "today has begun"
      * - At 10 PM: show until 4 AM tomorrow (6 hours) - "winding down"
      */
-    private fun calculateDayBoundaryCutoff(now: Long): Long {
+    private fun calculateDayBoundaryEndTime(now: Long): Long {
         val boundaryHour = settings.upcomingEventsDayBoundaryHour
         
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
@@ -95,6 +95,5 @@ class UpcomingEventsLookahead(
     companion object {
         const val MODE_FIXED = "fixed"
         const val MODE_DAY_BOUNDARY = "day_boundary"
-        const val MODE_CUTOFF = "cutoff"  // Legacy, treated as day_boundary
     }
 }

@@ -33,7 +33,7 @@ import org.robolectric.annotation.Config
 import java.util.Calendar
 
 /**
- * Tests for UpcomingEventsLookahead - cutoff time calculations
+ * Tests for UpcomingEventsLookahead - lookahead end time calculations
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [24])
@@ -62,10 +62,10 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
-        val expectedCutoff = now + (8 * Consts.HOUR_IN_MILLISECONDS)
-        assertEquals("Fixed hours cutoff should be now + 8 hours", expectedCutoff, cutoff)
+        val expectedEndTime = now + (8 * Consts.HOUR_IN_MILLISECONDS)
+        assertEquals("Fixed hours should be now + 8 hours", expectedEndTime, endTime)
     }
 
     @Test
@@ -77,10 +77,10 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
-        val expectedCutoff = now + (24 * Consts.HOUR_IN_MILLISECONDS)
-        assertEquals("Fixed hours cutoff should be now + 24 hours", expectedCutoff, cutoff)
+        val expectedEndTime = now + (24 * Consts.HOUR_IN_MILLISECONDS)
+        assertEquals("Fixed hours should be now + 24 hours", expectedEndTime, endTime)
     }
 
     @Test
@@ -94,10 +94,10 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
-        val expectedCutoff = now + (8 * Consts.HOUR_IN_MILLISECONDS)
-        assertEquals("Unknown mode should default to fixed hours", expectedCutoff, cutoff)
+        val expectedEndTime = now + (8 * Consts.HOUR_IN_MILLISECONDS)
+        assertEquals("Unknown mode should default to fixed hours", expectedEndTime, endTime)
     }
 
     // === Day Boundary Mode Tests ===
@@ -117,7 +117,7 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(calendar.timeInMillis)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
         // Expected: 4 AM today (3 hours ahead)
         val expectedCalendar = Calendar.getInstance().apply {
@@ -127,7 +127,7 @@ class UpcomingEventsLookaheadTest {
             set(Calendar.MILLISECOND, 0)
         }
         
-        assertEquals("At 1 AM with 4 AM boundary, should use 4 AM today", expectedCalendar.timeInMillis, cutoff)
+        assertEquals("At 1 AM with 4 AM boundary, should use 4 AM today", expectedCalendar.timeInMillis, endTime)
     }
 
     @Test
@@ -145,7 +145,7 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(calendar.timeInMillis)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
         // Expected: 4 AM tomorrow (24 hours ahead)
         val expectedCalendar = Calendar.getInstance().apply {
@@ -156,7 +156,7 @@ class UpcomingEventsLookaheadTest {
             add(Calendar.DAY_OF_YEAR, 1)
         }
         
-        assertEquals("At 4 AM with 4 AM boundary, should use 4 AM tomorrow", expectedCalendar.timeInMillis, cutoff)
+        assertEquals("At 4 AM with 4 AM boundary, should use 4 AM tomorrow", expectedCalendar.timeInMillis, endTime)
     }
 
     @Test
@@ -174,7 +174,7 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(calendar.timeInMillis)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
         // Expected: 4 AM tomorrow (18 hours ahead)
         val expectedCalendar = Calendar.getInstance().apply {
@@ -185,7 +185,7 @@ class UpcomingEventsLookaheadTest {
             add(Calendar.DAY_OF_YEAR, 1)
         }
         
-        assertEquals("At 10 AM with 4 AM boundary, should use 4 AM tomorrow", expectedCalendar.timeInMillis, cutoff)
+        assertEquals("At 10 AM with 4 AM boundary, should use 4 AM tomorrow", expectedCalendar.timeInMillis, endTime)
     }
 
     @Test
@@ -203,7 +203,7 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(calendar.timeInMillis)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
         // Expected: 4 AM tomorrow (6 hours ahead)
         val expectedCalendar = Calendar.getInstance().apply {
@@ -214,7 +214,7 @@ class UpcomingEventsLookaheadTest {
             add(Calendar.DAY_OF_YEAR, 1)
         }
         
-        assertEquals("At 10 PM with 4 AM boundary, should use 4 AM tomorrow", expectedCalendar.timeInMillis, cutoff)
+        assertEquals("At 10 PM with 4 AM boundary, should use 4 AM tomorrow", expectedCalendar.timeInMillis, endTime)
     }
 
     @Test
@@ -232,7 +232,7 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(calendar.timeInMillis)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
         // Expected: Midnight tomorrow (1 hour ahead)
         val expectedCalendar = Calendar.getInstance().apply {
@@ -243,7 +243,7 @@ class UpcomingEventsLookaheadTest {
             add(Calendar.DAY_OF_YEAR, 1)
         }
         
-        assertEquals("At 11 PM with midnight boundary, should use midnight tomorrow", expectedCalendar.timeInMillis, cutoff)
+        assertEquals("At 11 PM with midnight boundary, should use midnight tomorrow", expectedCalendar.timeInMillis, endTime)
     }
 
     @Test
@@ -261,7 +261,7 @@ class UpcomingEventsLookaheadTest {
         clock.setCurrentTime(calendar.timeInMillis)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
         // Expected: 10 AM today (8 hours ahead)
         val expectedCalendar = Calendar.getInstance().apply {
@@ -271,39 +271,7 @@ class UpcomingEventsLookaheadTest {
             set(Calendar.MILLISECOND, 0)
         }
         
-        assertEquals("At 2 AM with 10 AM boundary, should use 10 AM today", expectedCalendar.timeInMillis, cutoff)
-    }
-
-    // === Legacy "cutoff" Mode Tests ===
-    // Legacy users with mode="cutoff" get day_boundary behavior with default 4am boundary
-
-    @Test
-    fun testLegacyCutoffMode_usesDayBoundaryWithDefault() {
-        // Legacy users have mode="cutoff" stored in prefs - they get day boundary with default 4am
-        settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_CUTOFF
-        // Note: any old cutoff hour setting is ignored, uses new default of 4am
-        
-        // Set clock to 3 AM (before 4am boundary)
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 3)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        clock.setCurrentTime(calendar.timeInMillis)
-        
-        val lookahead = UpcomingEventsLookahead(settings, clock)
-        val cutoff = lookahead.getCutoffTime()
-        
-        // Expected: 4 AM today (default boundary)
-        val expectedCalendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 4)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        
-        assertEquals("Legacy cutoff mode should use day boundary with default 4am", expectedCalendar.timeInMillis, cutoff)
+        assertEquals("At 2 AM with 10 AM boundary, should use 10 AM today", expectedCalendar.timeInMillis, endTime)
     }
 
     // === Settings Bounds Tests ===

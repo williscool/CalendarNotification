@@ -455,8 +455,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         get() = getBoolean(SHOW_NEW_UI_BANNER_KEY, true)
         set(value) = setBoolean(SHOW_NEW_UI_BANNER_KEY, value)
     
-    /** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary.
-     *  Note: "cutoff" is a legacy value - UpcomingEventsLookahead treats it as "day_boundary". */
+    /** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary.*/
     var upcomingEventsMode: String
         get() = getString(UPCOMING_EVENTS_MODE_KEY, "fixed")
         set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)

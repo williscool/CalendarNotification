@@ -32,7 +32,7 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
  * 
  * "Upcoming" events are alerts that:
  * - Have not been handled yet (wasHandled = false)
- * - Have alertTime between now and the lookahead cutoff
+ * - Have alertTime within the configured lookahead window
  * 
  * This class is designed to be testable with injected dependencies.
  */
@@ -53,12 +53,12 @@ class UpcomingEventsProvider(
      */
     fun getUpcomingEvents(): List<EventAlertRecord> {
         val now = clock.currentTimeMillis()
-        val cutoffTime = lookahead.getCutoffTime()
+        val endTime = lookahead.getLookaheadEndTime()
         
-        DevLog.debug(LOG_TAG, "getUpcomingEvents: now=$now, cutoff=$cutoffTime")
+        DevLog.debug(LOG_TAG, "getUpcomingEvents: now=$now, endTime=$endTime")
         
         // Fetch alerts in the time range
-        val alerts = monitorStorage.getAlertsForAlertRange(now, cutoffTime)
+        val alerts = monitorStorage.getAlertsForAlertRange(now, endTime)
             .filter { !it.wasHandled }
             .sortedBy { it.alertTime }
         
