@@ -255,6 +255,19 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             }
             ViewCompat.requestApplyInsets(spacer)
         }
+        
+        // Apply nav bar inset to FAB bottom margin
+        findViewById<FloatingActionButton>(R.id.action_btn_add_event)?.let { fab ->
+            ViewCompat.setOnApplyWindowInsetsListener(fab) { view, insets ->
+                val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                val params = view.layoutParams as CoordinatorLayout.LayoutParams
+                val defaultMargin = resources.getDimensionPixelSize(R.dimen.fab_margin)
+                params.bottomMargin = defaultMargin + navBarInset
+                view.layoutParams = params
+                insets
+            }
+            ViewCompat.requestApplyInsets(fab)
+        }
 
         shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
 
