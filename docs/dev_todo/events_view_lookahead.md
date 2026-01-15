@@ -668,7 +668,8 @@ internal const val MAX_DAY_BOUNDARY_HOUR = 10
 internal const val MIN_FIXED_HOURS = 1
 internal const val MAX_FIXED_HOURS = 48
 
-/** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary */
+/** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary.
+ *  Note: "cutoff" is a legacy value from earlier versions - UpcomingEventsLookahead treats it as "day_boundary". */
 var upcomingEventsMode: String
     get() = getString(UPCOMING_EVENTS_MODE_KEY, "fixed")
     set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
@@ -709,7 +710,7 @@ class UpcomingEventsLookahead(
         val now = clock.currentTimeMillis()
         
         return when (settings.upcomingEventsMode) {
-            "day_boundary" -> calculateDayBoundaryCutoff(now)
+            "day_boundary", "cutoff" -> calculateDayBoundaryCutoff(now)  // "cutoff" is legacy, treat same as day_boundary
             else -> now + (settings.upcomingEventsFixedHours * Consts.HOUR_IN_MILLISECONDS)
         }
     }
@@ -1584,6 +1585,15 @@ class UpcomingEventsLookaheadRobolectricTest {
         // Given: 2:00 AM, boundary = 10am
         // When: getCutoffTime()
         // Then: Returns today 10:00 AM (8 hours ahead)
+    }
+    
+    // Legacy migration test
+    
+    @Test
+    fun `legacy cutoff mode - treated as day boundary`() {
+        // Given: mode = "cutoff" (legacy value from earlier app versions)
+        // When: getCutoffTime()
+        // Then: Uses day boundary calculation (not fixed hours)
     }
 }
 ```

@@ -465,17 +465,19 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         }
         set(value) = setBoolean(SHOW_NEW_UI_BANNER_KEY, value)
     
-    /** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
+    /** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary.
+     *  Note: "cutoff" is a legacy value - UpcomingEventsLookahead treats it as "day_boundary". */
     var upcomingEventsMode: String
-        get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
+        get() = getString(UPCOMING_EVENTS_MODE_KEY, "fixed")
         set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
     
-    /** Hour of day for morning cutoff (6-12, default 10). Bounded to prevent date rollover. */
-    var upcomingEventsCutoffHour: Int
-        get() = (getString(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR.toString())
-            .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
-            .coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR)
-        set(value) = setString(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR).toString())
+    /** Hour when "new day" begins (0-10, default 4am). Before this hour, show until today's boundary;
+     *  after, show until tomorrow's boundary. */
+    var upcomingEventsDayBoundaryHour: Int
+        get() = (getString(UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_DAY_BOUNDARY_HOUR.toString())
+            .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_DAY_BOUNDARY_HOUR)
+            .coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR)
+        set(value) = setString(UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY, value.coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR).toString())
     
     /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
     var upcomingEventsFixedHours: Int
@@ -580,7 +582,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val NEW_UI_BANNER_DISMISSED_KEY = "new_ui_banner_dismissed"
         private const val SHOW_NEW_UI_BANNER_KEY = "show_new_ui_banner"
         private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
-        private const val UPCOMING_EVENTS_CUTOFF_HOUR_KEY = "upcoming_events_cutoff_hour"
+        private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
 
         // Default values
@@ -594,10 +596,10 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val DEFAULT_KEEP_HISTORY_DAYS = 14
         
         // Upcoming events defaults and bounds
-        internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR = 10
+        internal const val DEFAULT_UPCOMING_EVENTS_DAY_BOUNDARY_HOUR = 4  // 4am - when "new day" begins
         internal const val DEFAULT_UPCOMING_EVENTS_FIXED_HOURS = 8
-        internal const val MIN_CUTOFF_HOUR = 6
-        internal const val MAX_CUTOFF_HOUR = 12
+        internal const val MIN_DAY_BOUNDARY_HOUR = 0   // Midnight (no slack)
+        internal const val MAX_DAY_BOUNDARY_HOUR = 10  // 10am (max slack for night owls)
         internal const val MIN_FIXED_HOURS = 1
         internal const val MAX_FIXED_HOURS = 48
     }
