@@ -31,6 +31,8 @@ Display upcoming (not yet fired) events with a modern, intuitive UI that include
 | Data source for upcoming | **MonitorStorage + CalendarProvider enrichment** | Reuse existing data, no duplication |
 | Enrichment strategy | **Sync first, lazy if needed** | Simple initially; add placeholders/batching only if performance requires |
 | Testing approach | **Robolectric primary, instrumentation for Calendar Provider** | Fast tests, real API tests where needed |
+| Lookahead default mode | **Fixed hours (8hr)** | Simple, predictable for most users |
+| Day boundary mode | **4am default, configurable 12am-10am** | Night owls: before boundary = "still yesterday", after = "today" |
 
 ## UI Vision
 
@@ -134,30 +136,49 @@ Moving `DismissedEventsActivity` into the main navigation:
 - Avoids duplication
 - Can revisit with dedicated storage (Option B) if performance becomes an issue
 
-### Lookahead Logic: "Next Morning Cutoff" with Rollover
+### Lookahead Logic: Two Modes
 
-Users want to see events happening "today" including late-night events that are technically tomorrow. The cutoff should be a morning time (default: 10am) that rolls over at midnight.
+#### Mode 1: Fixed Hours (Default)
+
+Simple and predictable: always show events X hours ahead (default: 8 hours).
+
+```
+cutoffTime = now + fixedHours
+```
+
+| Current Time | Fixed Hours | Lookahead Until |
+|--------------|-------------|-----------------|
+| Mon 6:00 PM | 8 hours | Tue 2:00 AM |
+| Mon 11:00 PM | 8 hours | Tue 7:00 AM |
+| Tue 9:00 AM | 8 hours | Tue 5:00 PM |
+
+**Best for:** Most users who want consistent, predictable behavior.
+
+#### Mode 2: Day Boundary
+
+For users who think in terms of "today" vs "tomorrow" rather than hours. The day boundary (default: 4am) marks when your mental "new day" begins.
+
+**Concept:** Before the boundary, you're still in "yesterday's" mindset—show only what's left until the boundary. After the boundary, you're planning "today"—show until tomorrow's boundary.
 
 **Algorithm:**
 ```
-if currentHour < cutoffHour:
-    # After midnight but before cutoff - look until cutoff today
-    cutoffTime = today at cutoffHour
+if currentHour < dayBoundaryHour:
+    # Still "yesterday" mentally - show until boundary today
+    cutoffTime = today at dayBoundaryHour
 else:
-    # After cutoff - look until cutoff tomorrow
-    cutoffTime = tomorrow at cutoffHour
+    # "Today" has begun - show until boundary tomorrow
+    cutoffTime = tomorrow at dayBoundaryHour
 ```
 
-**Examples (cutoff = 10am):**
-| Current Time | Lookahead Until | Window |
-|--------------|-----------------|--------|
-| Mon 6:00 PM | Tue 10:00 AM | ~16 hours |
-| Mon 11:00 PM | Tue 10:00 AM | ~11 hours |
-| Tue 12:01 AM | Tue 10:00 AM | ~10 hours |
-| Tue 9:00 AM | Tue 10:00 AM | ~1 hour |
-| Tue 11:00 AM | Wed 10:00 AM | ~23 hours |
+**Examples (boundary = 4am):**
+| Current Time | Lookahead Until | Window | Mental State |
+|--------------|-----------------|--------|--------------|
+| Mon 1:00 AM | Mon 4:00 AM | 3 hours | "Still Sunday night" |
+| Mon 3:00 AM | Mon 4:00 AM | 1 hour | "Still Sunday night" |
+| Mon 4:00 AM | Tue 4:00 AM | 24 hours | "Monday begins" |
+| Mon 10:00 PM | Tue 4:00 AM | 6 hours | "Winding down Monday" |
 
-**Alternative mode:** Fixed hours (e.g., 8 hours from now) for users who prefer simpler behavior.
+**Best for:** Night owls who stay up past midnight but don't want to see "tomorrow's" events until they've slept.
 
 ### UI Approach: Single-Activity with Navigation Component
 
@@ -629,37 +650,39 @@ val filteredEvents = events.filter { event ->
 ```kotlin
 // In companion object - Keys
 private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
-private const val UPCOMING_EVENTS_CUTOFF_HOUR_KEY = "upcoming_events_cutoff_hour"
+private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
 private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
 private const val SELECTED_CALENDAR_IDS_KEY = "selected_calendar_ids"
 
 // Defaults
-internal const val DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR = 10
+internal const val DEFAULT_UPCOMING_EVENTS_DAY_BOUNDARY_HOUR = 4
 internal const val DEFAULT_UPCOMING_EVENTS_FIXED_HOURS = 8
 
-// Valid range for cutoff hour: 6 AM to 12 PM (enforced by ListPreference options)
-internal const val MIN_CUTOFF_HOUR = 6
-internal const val MAX_CUTOFF_HOUR = 12
+// Valid range for day boundary: 12 AM (midnight) to 10 AM
+// 12am = no slack (day changes at midnight)
+// 10am = max slack for extreme night owls
+internal const val MIN_DAY_BOUNDARY_HOUR = 0
+internal const val MAX_DAY_BOUNDARY_HOUR = 10
 
 // Valid range for fixed hours: 1-48 (enforced by ListPreference options, but validate anyway)
 internal const val MIN_FIXED_HOURS = 1
 internal const val MAX_FIXED_HOURS = 48
 
-/** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
+/** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary */
 var upcomingEventsMode: String
-    get() = getString(UPCOMING_EVENTS_MODE_KEY, "cutoff")
+    get() = getString(UPCOMING_EVENTS_MODE_KEY, "fixed")
     set(value) = setString(UPCOMING_EVENTS_MODE_KEY, value)
 
-/** Hour of day for morning cutoff (6-12, default 10). Bounded to prevent date rollover from corrupted prefs. */
-var upcomingEventsCutoffHour: Int
-    get() = getInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_CUTOFF_HOUR)
-        .coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR)  // Also validate on read for corrupted prefs
-    set(value) = setInt(UPCOMING_EVENTS_CUTOFF_HOUR_KEY, value.coerceIn(MIN_CUTOFF_HOUR, MAX_CUTOFF_HOUR))
+/** Hour when "new day" begins (0-10, default 4am). Before this hour, show until today's boundary; after, show until tomorrow's. */
+var upcomingEventsDayBoundaryHour: Int
+    get() = getInt(UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY, DEFAULT_UPCOMING_EVENTS_DAY_BOUNDARY_HOUR)
+        .coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR)
+    set(value) = setInt(UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY, value.coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR))
 
 /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
 var upcomingEventsFixedHours: Int
     get() = getInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
-        .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)  // Also validate on read for corrupted prefs
+        .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)
     set(value) = setInt(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS))
 ```
 
@@ -670,6 +693,10 @@ package com.github.quarck.calnotify.upcoming
 
 /**
  * Calculates the lookahead cutoff time based on user settings.
+ * 
+ * Two modes:
+ * - "fixed": Simple X hours ahead
+ * - "day_boundary": Show until the next day boundary (e.g., 4am)
  */
 class UpcomingEventsLookahead(
     private val settings: Settings,
@@ -682,24 +709,32 @@ class UpcomingEventsLookahead(
         val now = clock.currentTimeMillis()
         
         return when (settings.upcomingEventsMode) {
-            "fixed" -> now + (settings.upcomingEventsFixedHours * Consts.HOUR_IN_MILLISECONDS)
-            else -> calculateMorningCutoff(now)
+            "day_boundary" -> calculateDayBoundaryCutoff(now)
+            else -> now + (settings.upcomingEventsFixedHours * Consts.HOUR_IN_MILLISECONDS)
         }
     }
     
-    private fun calculateMorningCutoff(now: Long): Long {
-        val cutoffHour = settings.upcomingEventsCutoffHour
+    /**
+     * Day boundary mode: before the boundary hour, show until today's boundary;
+     * after the boundary hour, show until tomorrow's boundary.
+     * 
+     * Example with boundary = 4am:
+     * - At 1am: show until 4am today (3 hours) - "still yesterday"
+     * - At 5am: show until 4am tomorrow (23 hours) - "today has begun"
+     */
+    private fun calculateDayBoundaryCutoff(now: Long): Long {
+        val boundaryHour = settings.upcomingEventsDayBoundaryHour
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
         val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
         
-        // Set to cutoff time (on the hour)
-        calendar.set(Calendar.HOUR_OF_DAY, cutoffHour)
+        // Set to boundary time today
+        calendar.set(Calendar.HOUR_OF_DAY, boundaryHour)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
         
-        // If we're past the cutoff hour, move to tomorrow
-        if (currentHour >= cutoffHour) {
+        // If we're at or past the boundary hour, use tomorrow's boundary
+        if (currentHour >= boundaryHour) {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
         
@@ -1093,23 +1128,24 @@ MonitorStorage(context).use { storage ->
         android:title="@string/upcoming_events_mode"
         android:entries="@array/upcoming_events_mode_entries"
         android:entryValues="@array/upcoming_events_mode_values"
-        android:defaultValue="cutoff" />
+        android:defaultValue="fixed" />
     
-    <!-- Cutoff hour as dropdown - only valid options (6 AM - 12 PM) -->
-    <ListPreference
-        android:key="upcoming_events_cutoff_hour"
-        android:title="@string/upcoming_events_cutoff_time"
-        android:summary="%s"
-        android:entries="@array/upcoming_events_cutoff_entries"
-        android:entryValues="@array/upcoming_events_cutoff_values"
-        android:defaultValue="10" />
-    
+    <!-- Fixed hours - shown when mode is "fixed" -->
     <ListPreference
         android:key="upcoming_events_fixed_hours"
         android:title="@string/upcoming_events_fixed_hours"
         android:entries="@array/upcoming_events_fixed_hours_entries"
         android:entryValues="@array/upcoming_events_fixed_hours_values"
         android:defaultValue="8" />
+    
+    <!-- Day boundary hour - shown when mode is "day_boundary" -->
+    <ListPreference
+        android:key="upcoming_events_day_boundary_hour"
+        android:title="@string/upcoming_events_day_boundary"
+        android:summary="%s"
+        android:entries="@array/upcoming_events_day_boundary_entries"
+        android:entryValues="@array/upcoming_events_day_boundary_values"
+        android:defaultValue="4" />
 
 </PreferenceCategory>
 ```
@@ -1119,7 +1155,8 @@ MonitorStorage(context).use { storage ->
 ```xml
 <string name="upcoming_events_category">Upcoming Events</string>
 <string name="upcoming_events_mode">Lookahead mode</string>
-<string name="upcoming_events_cutoff_time">Morning cutoff time</string>
+<string name="upcoming_events_day_boundary">Day boundary</string>
+<string name="upcoming_events_day_boundary_summary">New day begins at %s</string>
 <string name="upcoming_events_fixed_hours">Hours ahead</string>
 <string name="upcoming">Upcoming</string>
 <string name="alert_at">Alert at %s</string>
@@ -1145,31 +1182,40 @@ MonitorStorage(context).use { storage ->
 <string name="use_new_navigation_ui_summary">Tabbed interface with bottom navigation</string>
 
 <string-array name="upcoming_events_mode_entries">
-    <item>Until morning cutoff</item>
     <item>Fixed hours ahead</item>
+    <item>Until day boundary</item>
 </string-array>
 <string-array name="upcoming_events_mode_values">
-    <item>cutoff</item>
     <item>fixed</item>
+    <item>day_boundary</item>
 </string-array>
 
-<string-array name="upcoming_events_cutoff_entries">
+<!-- Day boundary: 12am (midnight) to 10am, default 4am -->
+<string-array name="upcoming_events_day_boundary_entries">
+    <item>12:00 AM (midnight)</item>
+    <item>1:00 AM</item>
+    <item>2:00 AM</item>
+    <item>3:00 AM</item>
+    <item>4:00 AM</item>
+    <item>5:00 AM</item>
     <item>6:00 AM</item>
     <item>7:00 AM</item>
     <item>8:00 AM</item>
     <item>9:00 AM</item>
     <item>10:00 AM</item>
-    <item>11:00 AM</item>
-    <item>12:00 PM</item>
 </string-array>
-<string-array name="upcoming_events_cutoff_values">
+<string-array name="upcoming_events_day_boundary_values">
+    <item>0</item>
+    <item>1</item>
+    <item>2</item>
+    <item>3</item>
+    <item>4</item>
+    <item>5</item>
     <item>6</item>
     <item>7</item>
     <item>8</item>
     <item>9</item>
     <item>10</item>
-    <item>11</item>
-    <item>12</item>
 </string-array>
 
 <string-array name="upcoming_events_fixed_hours_entries">
@@ -1445,7 +1491,7 @@ companion object {
 | `build.gradle` (app) | Add Navigation Component dependencies |
 | `activity_main.xml` | Replace FrameLayout with NavHostFragment, add BottomNavigationView |
 | `MainActivity.kt` | Setup NavController, legacy UI toggle, move list logic to fragments |
-| `Settings.kt` | Add `useNewNavigationUI`, lookahead settings, calendar filter selection |
+| `Settings.kt` | Add `useNewNavigationUI`, lookahead settings (`upcomingEventsMode`, `upcomingEventsDayBoundaryHour`, `upcomingEventsFixedHours`), calendar filter selection |
 | `MonitorEventAlertEntry.kt` | Add `flags` field with `preMuted` accessor (uses existing `i1` column) |
 | `MonitorAlertEntity.kt` | Rename `reservedInt1` to `flags`, update toAlertEntry/fromAlertEntry |
 | `EventListAdapter.kt` | Handle display modes (active/upcoming/dismissed), placeholder support |
@@ -1480,39 +1526,64 @@ companion object {
 @RunWith(RobolectricTestRunner::class)
 class UpcomingEventsLookaheadRobolectricTest {
     
-    @Test
-    fun `cutoff mode - before cutoff hour returns today`() {
-        // Given: 8:00 AM, cutoff = 10
-        // When: getCutoffTime()
-        // Then: Returns today 10:00 AM
-    }
-
-    @Test
-    fun `cutoff mode - after cutoff hour returns tomorrow`() {
-        // Given: 11:00 AM, cutoff = 10
-        // When: getCutoffTime()
-        // Then: Returns tomorrow 10:00 AM
-    }
-
-    @Test
-    fun `cutoff mode - just before midnight returns next day`() {
-        // Given: 11:59 PM, cutoff = 10
-        // When: getCutoffTime()
-        // Then: Returns tomorrow 10:00 AM
-    }
-
-    @Test
-    fun `cutoff mode - just after midnight returns same day`() {
-        // Given: 12:01 AM, cutoff = 10
-        // When: getCutoffTime()
-        // Then: Returns today 10:00 AM
-    }
-
+    // Fixed mode tests (default)
+    
     @Test
     fun `fixed mode - returns now plus configured hours`() {
         // Given: mode = "fixed", hours = 8
         // When: getCutoffTime()
         // Then: Returns now + 8 hours
+    }
+    
+    @Test
+    fun `fixed mode - is the default`() {
+        // Given: Fresh settings (no mode set)
+        // When: getCutoffTime()
+        // Then: Uses fixed hours calculation
+    }
+    
+    // Day boundary mode tests
+
+    @Test
+    fun `day boundary mode - before boundary returns today`() {
+        // Given: 1:00 AM, boundary = 4am
+        // When: getCutoffTime()
+        // Then: Returns today 4:00 AM (3 hours ahead)
+    }
+
+    @Test
+    fun `day boundary mode - at boundary returns tomorrow`() {
+        // Given: 4:00 AM, boundary = 4am
+        // When: getCutoffTime()
+        // Then: Returns tomorrow 4:00 AM (24 hours ahead)
+    }
+
+    @Test
+    fun `day boundary mode - after boundary returns tomorrow`() {
+        // Given: 10:00 AM, boundary = 4am
+        // When: getCutoffTime()
+        // Then: Returns tomorrow 4:00 AM (18 hours ahead)
+    }
+
+    @Test
+    fun `day boundary mode - late night returns tomorrow`() {
+        // Given: 11:00 PM, boundary = 4am
+        // When: getCutoffTime()
+        // Then: Returns tomorrow 4:00 AM (5 hours ahead)
+    }
+    
+    @Test
+    fun `day boundary mode - midnight boundary (no slack)`() {
+        // Given: 11:00 PM, boundary = 0 (midnight)
+        // When: getCutoffTime()
+        // Then: Returns tomorrow midnight (1 hour ahead)
+    }
+    
+    @Test
+    fun `day boundary mode - 10am boundary (max slack)`() {
+        // Given: 2:00 AM, boundary = 10am
+        // When: getCutoffTime()
+        // Then: Returns today 10:00 AM (8 hours ahead)
     }
 }
 ```
@@ -1913,7 +1984,7 @@ This keeps the UX consistent and predictable.
 - Each instance is tracked independently in MonitorStorage
 
 **Settings changes:**
-- Changing lookahead window (mode, cutoff hour, or fixed hours) triggers immediate refresh of Upcoming tab
+- Changing lookahead window (mode, day boundary hour, or fixed hours) triggers immediate refresh of Upcoming tab
 
 ### Technical Notes
 
@@ -1966,7 +2037,7 @@ Build the navigation infrastructure and data flow without pre-actions:
 - Navigation Component wired up and testable
 - Active/Dismissed events working in new fragment architecture
 - Upcoming events displayed read-only (can see what's coming but not act on it yet)
-- Configurable lookahead window (cutoff vs fixed hours)
+- Configurable lookahead window (fixed hours default, day boundary mode available)
 
 **Checkpoint:** Validate architecture works before proceeding. Fix any issues.
 
