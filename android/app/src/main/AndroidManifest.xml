@@ -42,6 +42,7 @@
         android:usesCleartextTraffic="true"
         android:extractNativeLibs="true"
         >
+        <!-- Router activity that delegates to Legacy or Modern MainActivity -->
         <activity
             android:name=".ui.MainActivity"
             android:label="@string/main_activity_title"
@@ -55,6 +56,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Legacy MainActivity: monolithic UI with single RecyclerView -->
+        <activity
+            android:name=".ui.MainActivityLegacy"
+            android:label="@string/main_activity_title"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing"
+            android:exported="false" />
+        <!-- Modern MainActivity: fragment-based navigation with bottom tabs -->
+        <activity
+            android:name=".ui.MainActivityModern"
+            android:label="@string/main_activity_title"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing"
+            android:exported="false" />
         <activity
             android:name=".ui.SettingsActivityX"
             android:label="@string/settings_name"

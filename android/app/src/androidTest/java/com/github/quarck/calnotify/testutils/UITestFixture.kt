@@ -32,6 +32,8 @@ import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
+import com.github.quarck.calnotify.ui.MainActivityLegacy
+import com.github.quarck.calnotify.ui.MainActivityModern
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
@@ -592,17 +594,47 @@ class UITestFixture {
     }
     
     /**
-     * Launches MainActivity with ActivityScenario.
+     * Launches MainActivityLegacy with ActivityScenario.
+     * 
+     * This directly launches the legacy activity (bypassing the MainActivity router)
+     * since tests are configured with useNewNavigationUI = false.
      * 
      * If calendar reload prevention is active, also clears any pre-existing notifications
      * to prevent them from interfering with UI tests (e.g., blocking toolbar buttons).
      */
-    fun launchMainActivity(): ActivityScenario<MainActivity> {
-        DevLog.info(LOG_TAG, "Launching MainActivity")
-        val scenario = ActivityScenario.launch<MainActivity>(MainActivity::class.java)
+    fun launchMainActivity(): ActivityScenario<MainActivityLegacy> {
+        DevLog.info(LOG_TAG, "Launching MainActivityLegacy")
+        val scenario = ActivityScenario.launch<MainActivityLegacy>(MainActivityLegacy::class.java)
         // Wait for activity to be created and ready before proceeding
         scenario.onActivity { activity ->
-            DevLog.info(LOG_TAG, "MainActivity is ready: ${activity.javaClass.simpleName}")
+            DevLog.info(LOG_TAG, "MainActivityLegacy is ready: ${activity.javaClass.simpleName}")
+        }
+        dismissStartupDialogs()
+        
+        // Clear any pre-existing notifications that could interfere with UI tests
+        // (e.g., heads-up notifications blocking toolbar buttons)
+        if (calendarReloadPrevented) {
+            cancelAllNotifications()
+        }
+        
+        return scenario
+    }
+    
+    /**
+     * Launches MainActivityModern with ActivityScenario.
+     * 
+     * This directly launches the modern activity with fragment-based navigation.
+     * Use this for tests that need the new navigation UI with bottom tabs.
+     * 
+     * Note: Callers should set useNewNavigationUI = true before calling this method
+     * to ensure consistent behavior.
+     */
+    fun launchMainActivityModern(): ActivityScenario<MainActivityModern> {
+        DevLog.info(LOG_TAG, "Launching MainActivityModern")
+        val scenario = ActivityScenario.launch<MainActivityModern>(MainActivityModern::class.java)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "MainActivityModern is ready: ${activity.javaClass.simpleName}")
         }
         dismissStartupDialogs()
         

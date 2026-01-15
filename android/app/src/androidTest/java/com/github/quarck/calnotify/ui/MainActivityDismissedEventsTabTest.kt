@@ -73,7 +73,7 @@ class MainActivityDismissedEventsTabTest : BaseUltronTest() {
     fun clicking_remove_all_shows_confirmation_dialog() {
         fixture.createDismissedEvent(title = "Test Dismissed Event")
         
-        val scenario = fixture.launchMainActivity()
+        val scenario = fixture.launchMainActivityModern()
         
         // Navigate to Dismissed tab via bottom navigation
         withId(R.id.dismissedEventsFragment).click()
