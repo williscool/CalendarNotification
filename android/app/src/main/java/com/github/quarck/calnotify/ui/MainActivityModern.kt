@@ -20,6 +20,7 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.app.AlertDialog
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -37,6 +38,8 @@ import androidx.navigation.ui.setupWithNavController
 import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
@@ -147,10 +150,20 @@ class MainActivityModern : MainActivityBase() {
 
         // Dismissed events is now a tab, not a menu item
         menu.findItem(R.id.action_dismissed_events)?.isVisible = false
-        // Mute all, dismiss all, custom quiet not yet implemented for fragments
-        menu.findItem(R.id.action_mute_all)?.isVisible = false
-        menu.findItem(R.id.action_dismiss_all)?.isVisible = false
+        // Custom quiet hours is deprecated
         menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
+
+        // Show mute all only for fragments that support it (Active events)
+        val muteAllMenuItem = menu.findItem(R.id.action_mute_all)
+        val supportsMuteAll = currentFragment?.supportsMuteAll() == true
+        muteAllMenuItem?.isVisible = supportsMuteAll && settings.enableNotificationMute
+        muteAllMenuItem?.isEnabled = currentFragment?.anyForMuteAll() == true
+
+        // Show dismiss all only for fragments that support it (Active events)
+        val dismissAllMenuItem = menu.findItem(R.id.action_dismiss_all)
+        val supportsDismissAll = currentFragment?.supportsDismissAll() == true
+        dismissAllMenuItem?.isVisible = supportsDismissAll
+        dismissAllMenuItem?.isEnabled = currentFragment?.anyForDismissAll() == true
 
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
@@ -241,9 +254,53 @@ class MainActivityModern : MainActivityBase() {
                         .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 )
             }
+
+            R.id.action_mute_all -> onMuteAll()
+
+            R.id.action_dismiss_all -> onDismissAll()
         }
 
         return super.onOptionsItemSelected(item)
+    }
+
+    // === Bulk actions ===
+
+    private fun onDismissAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.dismiss_all_events_confirmation)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doDismissAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doDismissAll() {
+        ApplicationController.dismissAllButRecentAndSnoozed(
+            this, EventDismissType.ManuallyDismissedFromActivity
+        )
+        getCurrentSearchableFragment()?.onDismissAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onMuteAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.mute_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doMuteAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doMuteAll() {
+        ApplicationController.muteAllVisibleEvents(this)
+        getCurrentSearchableFragment()?.onMuteAllComplete()
+        invalidateOptionsMenu()
     }
 
     companion object {

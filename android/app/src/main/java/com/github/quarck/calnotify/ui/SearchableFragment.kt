@@ -40,4 +40,22 @@ interface SearchableFragment {
     
     /** Whether this fragment supports snooze all action */
     fun supportsSnoozeAll(): Boolean = false
+    
+    /** Whether this fragment supports mute all action */
+    fun supportsMuteAll(): Boolean = false
+    
+    /** Whether this fragment supports dismiss all action */
+    fun supportsDismissAll(): Boolean = false
+    
+    /** Whether there are any events eligible for mute all */
+    fun anyForMuteAll(): Boolean = false
+    
+    /** Whether there are any events eligible for dismiss all */
+    fun anyForDismissAll(): Boolean = false
+    
+    /** Called when mute all action is triggered - fragment should reload data */
+    fun onMuteAllComplete() {}
+    
+    /** Called when dismiss all action is triggered - fragment should reload data */
+    fun onDismissAllComplete() {}
 }
