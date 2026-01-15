@@ -455,9 +455,14 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         get() = getBoolean(NEW_UI_BANNER_DISMISSED_KEY, false)
         set(value) = setBoolean(NEW_UI_BANNER_DISMISSED_KEY, value)
     
-    /** Whether to show the "new UI" info banner on Active events screen */
+    /** Whether to show the "new UI" info banner on Active events screen.
+     *  Migrates from old newUIBannerDismissed preference if user previously dismissed banner. */
     var showNewUIBanner: Boolean
-        get() = getBoolean(SHOW_NEW_UI_BANNER_KEY, true)
+        get() {
+            // Migration: if user dismissed banner with old preference, respect that
+            if (newUIBannerDismissed) return false
+            return getBoolean(SHOW_NEW_UI_BANNER_KEY, true)
+        }
         set(value) = setBoolean(SHOW_NEW_UI_BANNER_KEY, value)
     
     /** Lookahead mode: "cutoff" = next morning cutoff, "fixed" = fixed hours */
