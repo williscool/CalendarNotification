@@ -450,19 +450,9 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         get() = getBoolean(USE_NEW_NAVIGATION_UI_KEY, true)
         set(value) = setBoolean(USE_NEW_NAVIGATION_UI_KEY, value)
     
-    /** Whether the "new UI" info banner has been dismissed (legacy, kept for compatibility) */
-    var newUIBannerDismissed: Boolean
-        get() = getBoolean(NEW_UI_BANNER_DISMISSED_KEY, false)
-        set(value) = setBoolean(NEW_UI_BANNER_DISMISSED_KEY, value)
-    
-    /** Whether to show the "new UI" info banner on Active events screen.
-     *  Migrates from old newUIBannerDismissed preference if user previously dismissed banner. */
+    /** Whether to show the "new UI" info banner on Active events screen */
     var showNewUIBanner: Boolean
-        get() {
-            // Migration: if user dismissed banner with old preference, respect that
-            if (newUIBannerDismissed) return false
-            return getBoolean(SHOW_NEW_UI_BANNER_KEY, true)
-        }
+        get() = getBoolean(SHOW_NEW_UI_BANNER_KEY, true)
         set(value) = setBoolean(SHOW_NEW_UI_BANNER_KEY, value)
     
     /** Lookahead mode: "fixed" = fixed hours ahead (default), "day_boundary" = until day boundary.
@@ -579,7 +569,6 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         
         // Upcoming events / navigation settings
         private const val USE_NEW_NAVIGATION_UI_KEY = "use_new_navigation_ui"
-        private const val NEW_UI_BANNER_DISMISSED_KEY = "new_ui_banner_dismissed"
         private const val SHOW_NEW_UI_BANNER_KEY = "show_new_ui_banner"
         private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
         private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
