@@ -720,5 +720,8 @@
     <string name="switch_to_classic_view_title">Switch to Classic View</string>
     <string name="switch_to_classic_view_summary">Disable new UI and restart with the classic single-list view</string>
     <string name="switch_to_classic_view_confirm">Switch to classic view? The app will restart.</string>
+    <string name="switch_to_new_view_title">Switch to New View</string>
+    <string name="switch_to_new_view_summary">Enable new UI and restart with the tabbed navigation view</string>
+    <string name="switch_to_new_view_confirm">Switch to new view? The app will restart.</string>
     <string name="restarting">Restarting…</string>
 </resources>

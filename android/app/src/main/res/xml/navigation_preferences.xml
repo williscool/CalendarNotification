@@ -59,6 +59,11 @@
             android:title="@string/switch_to_classic_view_title"
             android:summary="@string/switch_to_classic_view_summary" />
 
+        <Preference
+            android:key="switch_to_new_view"
+            android:title="@string/switch_to_new_view_title"
+            android:summary="@string/switch_to_new_view_summary" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

@@ -50,6 +50,12 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
             showSwitchToClassicViewDialog()
             true
         }
+        
+        // Set up click handler for "Switch to New View" button
+        findPreference<Preference>("switch_to_new_view")?.setOnPreferenceClickListener {
+            showSwitchToNewViewDialog()
+            true
+        }
     }
     
     private fun showSwitchToClassicViewDialog() {
@@ -63,12 +69,43 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
             .show()
     }
     
+    private fun showSwitchToNewViewDialog() {
+        val ctx = context ?: return
+        AlertDialog.Builder(ctx)
+            .setMessage(R.string.switch_to_new_view_confirm)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                switchToNewView()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+    
     private fun switchToClassicView() {
         val ctx = context ?: return
         val appContext = ctx.applicationContext
         
         // Disable new UI
         Settings(appContext).useNewNavigationUI = false
+        
+        // Show toast and restart
+        Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
+        
+        // Restart MainActivity after a short delay
+        // Use applicationContext since activity may be destroyed during delay
+        Handler(Looper.getMainLooper()).postDelayed({
+            val intent = Intent(appContext, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+            appContext.startActivity(intent)
+        }, RESTART_DELAY_FOR_TOAST_VISIBILITY_MS)
+    }
+    
+    private fun switchToNewView() {
+        val ctx = context ?: return
+        val appContext = ctx.applicationContext
+        
+        // Enable new UI
+        Settings(appContext).useNewNavigationUI = true
         
         // Show toast and restart
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
