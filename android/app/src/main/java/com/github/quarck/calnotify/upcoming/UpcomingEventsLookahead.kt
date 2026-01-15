@@ -25,13 +25,15 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import java.util.Calendar
 
 /**
- * Calculates the cutoff time for the upcoming events lookahead window.
+ * Calculates the end time for the upcoming events lookahead window.
  * 
  * Supports two modes:
- * - "cutoff": Shows events until the next morning cutoff time (e.g., 10 AM tomorrow)
- * - "fixed": Shows events for a fixed number of hours ahead
+ * - "fixed" (default): Shows events for a fixed number of hours ahead
+ * - "day_boundary": Shows events until the next day boundary (e.g., 4 AM)
  * 
- * The cutoff mode is useful for seeing late-night events without showing all of tomorrow's events.
+ * The day boundary mode is for night owls who think in terms of "today" vs "tomorrow"
+ * rather than fixed hours. Before the boundary hour, you're still mentally in "yesterday";
+ * after it, you're planning "today".
  */
 class UpcomingEventsLookahead(
     private val settings: Settings,
@@ -39,52 +41,51 @@ class UpcomingEventsLookahead(
 ) {
     
     /**
-     * Get the cutoff time for the upcoming events window.
-     * Events with alertTime between now and this cutoff will be shown.
+     * Get the end time for the upcoming events lookahead window.
+     * Events with alertTime between now and this end time will be shown.
      * 
-     * @return The cutoff time in milliseconds since epoch
+     * @return The lookahead end time in milliseconds since epoch
      */
-    fun getCutoffTime(): Long {
+    fun getLookaheadEndTime(): Long {
         val now = clock.currentTimeMillis()
         
         return when (settings.upcomingEventsMode) {
-            MODE_FIXED -> calculateFixedCutoff(now)
-            MODE_CUTOFF -> calculateMorningCutoff(now)
-            else -> calculateMorningCutoff(now)  // Default to cutoff mode
+            MODE_DAY_BOUNDARY -> calculateDayBoundaryEndTime(now)
+            else -> calculateFixedEndTime(now)  // Default to fixed mode
         }
     }
     
     /**
      * Fixed hours lookahead: now + configured hours
      */
-    private fun calculateFixedCutoff(now: Long): Long {
+    private fun calculateFixedEndTime(now: Long): Long {
         val fixedHours = settings.upcomingEventsFixedHours
         return now + (fixedHours * Consts.HOUR_IN_MILLISECONDS)
     }
     
     /**
-     * Next morning cutoff: Shows events until the cutoff hour the next morning.
+     * Day boundary mode: before the boundary hour, show until today's boundary;
+     * after the boundary hour, show until tomorrow's boundary.
      * 
-     * If current time is before the cutoff hour, use today's cutoff.
-     * If current time is at or after the cutoff hour, use tomorrow's cutoff.
-     * 
-     * Example with cutoff at 10 AM:
-     * - At 2 AM: show events until 10 AM today
-     * - At 11 PM: show events until 10 AM tomorrow
+     * Example with boundary at 4 AM:
+     * - At 1 AM: show until 4 AM today (3 hours) - "still yesterday"
+     * - At 5 AM: show until 4 AM tomorrow (23 hours) - "today has begun"
+     * - At 10 PM: show until 4 AM tomorrow (6 hours) - "winding down"
      */
-    private fun calculateMorningCutoff(now: Long): Long {
-        val cutoffHour = settings.upcomingEventsCutoffHour
+    private fun calculateDayBoundaryEndTime(now: Long): Long {
+        val boundaryHour = settings.upcomingEventsDayBoundaryHour
+        
         val calendar = Calendar.getInstance().apply { timeInMillis = now }
         val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
         
-        // Set to today at cutoff hour
-        calendar.set(Calendar.HOUR_OF_DAY, cutoffHour)
+        // Set to today at boundary hour
+        calendar.set(Calendar.HOUR_OF_DAY, boundaryHour)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
         
-        // If we're past the cutoff already, move to tomorrow
-        if (currentHour >= cutoffHour) {
+        // If we're at or past the boundary, use tomorrow's boundary
+        if (currentHour >= boundaryHour) {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
         
@@ -92,7 +93,7 @@ class UpcomingEventsLookahead(
     }
     
     companion object {
-        const val MODE_CUTOFF = "cutoff"
         const val MODE_FIXED = "fixed"
+        const val MODE_DAY_BOUNDARY = "day_boundary"
     }
 }
