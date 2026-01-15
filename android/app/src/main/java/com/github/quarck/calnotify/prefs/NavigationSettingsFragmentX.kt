@@ -65,20 +65,21 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     
     private fun switchToClassicView() {
         val ctx = context ?: return
+        val appContext = ctx.applicationContext
         
         // Disable new UI
-        Settings(ctx).useNewNavigationUI = false
+        Settings(appContext).useNewNavigationUI = false
         
         // Show toast and restart
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
         
         // Restart MainActivity after a short delay
-        // Use ctx.startActivity since fragment may be detached during delay
+        // Use applicationContext since activity may be destroyed during delay
         Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(ctx, MainActivity::class.java).apply {
+            val intent = Intent(appContext, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
-            ctx.startActivity(intent)
+            appContext.startActivity(intent)
         }, RESTART_DELAY_FOR_TOAST_VISIBILITY_MS)
     }
 }
