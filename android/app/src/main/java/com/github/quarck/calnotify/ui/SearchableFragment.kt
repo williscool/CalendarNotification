@@ -31,4 +31,13 @@ interface SearchableFragment {
     
     /** Get the total number of events (for search placeholder) */
     fun getEventCount(): Int
+    
+    /** Get the count of currently displayed events (after filtering) */
+    fun getDisplayedEventCount(): Int = getEventCount()
+    
+    /** Whether there are active (non-snoozed) events - for snooze all label */
+    fun hasActiveEvents(): Boolean = true
+    
+    /** Whether this fragment supports snooze all action */
+    fun supportsSnoozeAll(): Boolean = false
 }

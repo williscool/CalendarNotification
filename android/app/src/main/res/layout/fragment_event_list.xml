@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Shared layout for event list fragments (Active, Upcoming, Dismissed).
-    Contains a SwipeRefreshLayout with a RecyclerView and an empty state view.
+    Uses HorizontalSwipeAwareRefreshLayout to allow swipe-to-dismiss alongside pull-to-refresh.
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -43,7 +43,7 @@
 
     </LinearLayout>
 
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    <com.github.quarck.calnotify.ui.HorizontalSwipeAwareRefreshLayout
         android:id="@+id/refresh_layout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -75,6 +75,6 @@
 
         </FrameLayout>
 
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </com.github.quarck.calnotify.ui.HorizontalSwipeAwareRefreshLayout>
 
 </LinearLayout>

@@ -109,32 +109,32 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         val bannerText = view.findViewById<TextView>(R.id.new_ui_banner_text)
         val dismissButton = view.findViewById<ImageButton>(R.id.new_ui_banner_dismiss)
         
-        // Show banner if not dismissed yet
-        if (!settings.newUIBannerDismissed) {
+        // Show banner if enabled in settings
+        if (settings.showNewUIBanner) {
             newUIBanner?.visibility = View.VISIBLE
         }
         
-        // Clicking the text opens settings
+        // Clicking the text opens Navigation settings
         bannerText?.setOnClickListener {
-            openMiscSettings()
+            openNavigationSettings()
             dismissBanner()
         }
         
-        // Dismiss button just hides the banner
+        // Dismiss button hides the banner and turns off the setting
         dismissButton?.setOnClickListener {
             dismissBanner()
         }
     }
     
     private fun dismissBanner() {
-        settings.newUIBannerDismissed = true
+        settings.showNewUIBanner = false
         newUIBanner?.visibility = View.GONE
     }
     
-    private fun openMiscSettings() {
+    private fun openNavigationSettings() {
         startActivity(
             Intent(requireContext(), SettingsActivityX::class.java)
-                .putExtra("pref_fragment", "misc")
+                .putExtra(SettingsActivityX.EXTRA_PREF_FRAGMENT, SettingsActivityX.PREF_FRAGMENT_NAVIGATION)
                 .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )
     }
@@ -150,6 +150,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             IntentFilter(Consts.DATA_UPDATED_BROADCAST),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+        
+        // Update banner visibility (may have changed in settings)
+        newUIBanner?.visibility = if (settings.showNewUIBanner) View.VISIBLE else View.GONE
         
         loadEvents()
     }
@@ -170,6 +173,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
+                // Update search hint with new event count
+                activity?.invalidateOptionsMenu()
             }
         }
     }
@@ -206,10 +211,11 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
             ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
             
-            // Capture context before creating Runnable to avoid crash if fragment detaches
+            // Use applicationContext for UndoManager since it persists across activity recreation
+            val appContext = ctx.applicationContext
             UndoManager.addUndoState(
                 UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(ctx, event) }
+                    undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
                 )
             )
             
@@ -271,6 +277,12 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun getDisplayedEventCount(): Int = adapter.itemCount
+    
+    override fun hasActiveEvents(): Boolean = adapter.hasActiveEvents
+    
+    override fun supportsSnoozeAll(): Boolean = true
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"

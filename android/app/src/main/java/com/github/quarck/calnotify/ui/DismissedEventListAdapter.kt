@@ -186,6 +186,8 @@ class DismissedEventListAdapter(
                             if (entry != null) {
 
                                 val idx = entries.indexOf(entry)
+                                // Remove from both arrays so item doesn't reappear when search filter is cleared
+                                allEntries = allEntries.filter { ev -> ev != entry }.toTypedArray()
                                 entries = entries.filter { ev -> ev != entry }.toTypedArray()
 
                                 notifyItemRemoved(idx)

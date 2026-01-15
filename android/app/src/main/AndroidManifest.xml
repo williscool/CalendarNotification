@@ -47,6 +47,7 @@
             android:label="@string/main_activity_title"
             android:theme="@style/AppTheme.NoActionBar"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -72,9 +72,12 @@ import java.util.*
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
+import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class DataUpdatedReceiver(val activity: MainActivity): BroadcastReceiver() {
@@ -164,16 +167,43 @@ class MainActivity : AppCompatActivity(), EventListCallback {
      */
     private fun setupNewNavigationUI() {
         setContentView(R.layout.activity_main)
-        setSupportActionBar(find<Toolbar?>(R.id.toolbar))
+        val toolbar = find<Toolbar?>(R.id.toolbar)
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowHomeEnabled(true)
+        
+        // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
+        window.statusBarColor = getColor(R.color.primary_dark)
+        
+        // Set status bar spacer height (pinned, doesn't scroll with toolbar)
+        val statusBarSpacer = findViewById<View>(R.id.status_bar_spacer)
+        statusBarSpacer?.let { spacer ->
+            ViewCompat.setOnApplyWindowInsetsListener(spacer) { view, insets ->
+                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                view.layoutParams.height = statusBarInset
+                view.requestLayout()
+                insets
+            }
+            ViewCompat.requestApplyInsets(spacer)
+        }
         
         // Set up navigation
         val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+            .findFragmentById(R .id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
         
         val bottomNav = find<BottomNavigationView>(R.id.bottom_navigation)
         bottomNav?.setupWithNavController(navController!!)
+        
+        // Apply nav bar inset to bottom navigation only
+        // (AppBarLayout handles status bar via fitsSystemWindows in XML)
+        bottomNav?.let { nav ->
+            ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+                val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                view.setPadding(0, 0, 0, navBarInset)
+                insets
+            }
+            ViewCompat.requestApplyInsets(nav)
+        }
         
         // Update toolbar title based on current destination
         navController?.addOnDestinationChangedListener { _, destination, _ ->
@@ -208,8 +238,36 @@ class MainActivity : AppCompatActivity(), EventListCallback {
      */
     private fun setupLegacyUI() {
         setContentView(R.layout.activity_main_legacy)
-        setSupportActionBar(find<Toolbar?>(R.id.toolbar))
+        val toolbar = find<Toolbar?>(R.id.toolbar)
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowHomeEnabled(true)
+        
+        // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
+        window.statusBarColor = getColor(R.color.primary_dark)
+        
+        // Set status bar spacer height
+        findViewById<View>(R.id.status_bar_spacer)?.let { spacer ->
+            ViewCompat.setOnApplyWindowInsetsListener(spacer) { view, insets ->
+                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+                view.layoutParams.height = statusBarInset
+                view.requestLayout()
+                insets
+            }
+            ViewCompat.requestApplyInsets(spacer)
+        }
+        
+        // Apply nav bar inset to FAB bottom margin
+        findViewById<FloatingActionButton>(R.id.action_btn_add_event)?.let { fab ->
+            ViewCompat.setOnApplyWindowInsetsListener(fab) { view, insets ->
+                val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                val params = view.layoutParams as CoordinatorLayout.LayoutParams
+                val defaultMargin = resources.getDimensionPixelSize(R.dimen.fab_margin)
+                params.bottomMargin = defaultMargin + navBarInset
+                view.layoutParams = params
+                insets
+            }
+            ViewCompat.requestApplyInsets(fab)
+        }
 
         shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
 
@@ -229,6 +287,15 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         recyclerView.layoutManager = staggeredLayoutManager;
         recyclerView.adapter = adapter;
         adapter.recyclerView = recyclerView
+        
+        // Apply nav bar inset as bottom padding so last item isn't hidden
+        recyclerView.clipToPadding = false
+        ViewCompat.setOnApplyWindowInsetsListener(recyclerView) { view, insets ->
+            val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, navBarInset)
+            insets
+        }
+        ViewCompat.requestApplyInsets(recyclerView)
 
         reloadLayout = findOrThrow<RelativeLayout>(R.id.activity_main_reload_layout)
 
@@ -503,15 +570,28 @@ class MainActivity : AppCompatActivity(), EventListCallback {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
 
-        // In new navigation mode, only show search and settings
+        // In new navigation mode, only show search, snooze all (for active tab), and settings
         if (useNewNavigationUI) {
+            val currentFragment = getCurrentSearchableFragment()
+            
             // Dismissed events is now a tab, not a menu item
             menu.findItem(R.id.action_dismissed_events)?.isVisible = false
-            // Snooze all, mute all, dismiss all not yet implemented for fragments
-            menu.findItem(R.id.action_snooze_all)?.isVisible = false
+            // Mute all, dismiss all, custom quiet not yet implemented for fragments
             menu.findItem(R.id.action_mute_all)?.isVisible = false
             menu.findItem(R.id.action_dismiss_all)?.isVisible = false
             menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
+            
+            // Show snooze all only for fragments that support it (Active events)
+            val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
+            val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
+            val hasEvents = (currentFragment?.getDisplayedEventCount() ?: 0) > 0
+            snoozeAllMenuItem?.isVisible = supportsSnoozeAll
+            snoozeAllMenuItem?.isEnabled = hasEvents
+            if (supportsSnoozeAll) {
+                snoozeAllMenuItem?.title = resources.getString(
+                    if (currentFragment?.hasActiveEvents() == true) R.string.snooze_all else R.string.change_all
+                )
+            }
             
             // Set up search for new nav UI
             searchMenuItem = menu.findItem(R.id.action_search)
@@ -534,7 +614,7 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             searchView = searchMenuItem?.actionView as? SearchView
             val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
             
-            val count = getCurrentSearchableFragment()?.getEventCount() ?: 0
+            val count = currentFragment?.getEventCount() ?: 0
             searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, count, count)
             searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
             
@@ -671,14 +751,32 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         refreshReminderLastFired()
 
         when (item.itemId) {
-            R.id.action_snooze_all ->
+            R.id.action_snooze_all -> {
+                // In new UI mode, get data from current fragment; otherwise from adapter
+                val isChange: Boolean
+                val searchQuery: String?
+                val eventCount: Int
+                
+                if (useNewNavigationUI) {
+                    val fragment = getCurrentSearchableFragment()
+                    isChange = fragment?.hasActiveEvents() != true
+                    searchQuery = fragment?.getSearchQuery()
+                    eventCount = fragment?.getDisplayedEventCount() ?: 0
+                } else {
+                    isChange = !adapter.hasActiveEvents
+                    searchQuery = adapter.searchString
+                    eventCount = adapter.itemCount
+                }
+                
                 startActivity(
-                        Intent(this, SnoozeAllActivity::class.java)
-                                .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, !adapter.hasActiveEvents)
-                                .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                                .putExtra(Consts.INTENT_SEARCH_QUERY, adapter.searchString)
-                                .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, adapter.getItemCount())
-                                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                    Intent(this, SnoozeAllActivity::class.java)
+                        .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
+                        .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
+                        .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
+                        .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
+                        .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                )
+            }
 
             R.id.action_mute_all ->
                 onMuteAll()
@@ -822,9 +920,10 @@ class MainActivity : AppCompatActivity(), EventListCallback {
             DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
             ApplicationController.dismissEvent(this, EventDismissType.ManuallyDismissedFromActivity, event)
 
+            // Use applicationContext for UndoManager since it persists across activity recreation
             undoManager.addUndoState(
                     UndoState(
-                            undo = Runnable { ApplicationController.restoreEvent(this, event) }))
+                            undo = Runnable { ApplicationController.restoreEvent(applicationContext, event) }))
 
             adapter.removeEvent(event)
             lastEventDismissalScrollPosition = adapter.scrollPosition

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Navigation/UI preferences - settings for the new tabbed navigation UI.
+    This is a top-level settings section for easy access.
+-->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:title="@string/navigation_settings_title">
+
+    <CheckBoxPreference
+        android:key="use_new_navigation_ui"
+        android:title="@string/use_new_navigation_ui_title"
+        android:summary="@string/use_new_navigation_ui_summary"
+        android:defaultValue="true" />
+
+    <PreferenceCategory
+        android:title="@string/upcoming_events_category"
+        android:key="_upcoming_events"
+        android:dependency="use_new_navigation_ui">
+
+        <ListPreference
+            android:key="upcoming_events_mode"
+            android:title="@string/upcoming_events_mode_title"
+            android:dialogTitle="@string/upcoming_events_mode_title"
+            android:entries="@array/upcoming_events_mode_entries"
+            android:entryValues="@array/upcoming_events_mode_values"
+            android:defaultValue="cutoff" />
+
+        <ListPreference
+            android:key="upcoming_events_cutoff_hour"
+            android:title="@string/upcoming_events_cutoff_hour_title"
+            android:dialogTitle="@string/upcoming_events_cutoff_hour_title"
+            android:entries="@array/upcoming_events_cutoff_hour_entries"
+            android:entryValues="@array/upcoming_events_cutoff_hour_values"
+            android:defaultValue="10" />
+
+        <ListPreference
+            android:key="upcoming_events_fixed_hours"
+            android:title="@string/upcoming_events_fixed_hours_title"
+            android:dialogTitle="@string/upcoming_events_fixed_hours_title"
+            android:entries="@array/upcoming_events_fixed_hours_entries"
+            android:entryValues="@array/upcoming_events_fixed_hours_values"
+            android:defaultValue="8" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/switch_view_category"
+        android:key="_switch_view">
+
+        <CheckBoxPreference
+            android:key="show_new_ui_banner"
+            android:title="@string/show_new_ui_banner_title"
+            android:summary="@string/show_new_ui_banner_summary"
+            android:defaultValue="true" />
+
+        <Preference
+            android:key="switch_to_classic_view"
+            android:title="@string/switch_to_classic_view_title"
+            android:summary="@string/switch_to_classic_view_summary" />
+
+        <Preference
+            android:key="switch_to_new_view"
+            android:title="@string/switch_to_new_view_title"
+            android:summary="@string/switch_to_new_view_summary" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
