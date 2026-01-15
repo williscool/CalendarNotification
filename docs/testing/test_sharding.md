@@ -97,18 +97,7 @@ SHARD_INDEX=1 NUM_SHARDS=4 ./scripts/matrix_run_android_tests.sh
 | `--arch` | `ARCH` | `x86_64` | Build architecture |
 | `--module` | `MODULE` | `app` | Gradle module name |
 | `--timeout` | `TEST_TIMEOUT` | `30m` | Test execution timeout |
-| `--single-test` | `SINGLE_TEST` | - | Run specific test class/method |
 | `--help` | - | - | Show usage |
-
-### Running a Single Test
-
-```bash
-# Run specific test method
-./scripts/matrix_run_android_tests.sh --single-test com.example.MyTest#testMethod
-
-# Run all tests in a class
-./scripts/matrix_run_android_tests.sh --single-test com.example.MyTest
-```
 
 ## CI Workflow
 

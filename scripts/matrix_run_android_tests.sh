@@ -30,7 +30,6 @@ NUM_SHARDS="${NUM_SHARDS:-}"
 ARCH="${ARCH:-x86_64}"
 MODULE="${MODULE:-app}"
 TEST_TIMEOUT="${TEST_TIMEOUT:-30m}"
-SINGLE_TEST="${SINGLE_TEST:-}"
 
 # --- Functions ---
 show_usage() {
@@ -49,7 +48,6 @@ Options:
   --arch ARCH        Build architecture (default: x86_64). Env: ARCH
   --module MODULE    Gradle module name (default: app). Env: MODULE
   --timeout TIME     Test timeout (default: 30m). Env: TEST_TIMEOUT
-  --single-test TEST Run specific test class or class#method. Env: SINGLE_TEST
   --help             Show this help message
 
 Examples:
@@ -64,9 +62,6 @@ Examples:
 
   # Via env vars
   SHARD_INDEX=1 NUM_SHARDS=4 $(basename "$0")
-
-  # Run single test
-  $(basename "$0") --single-test com.example.MyTest#testMethod
 EOF
 }
 
@@ -78,7 +73,6 @@ parse_args() {
       --arch)         ARCH="$2"; shift 2 ;;
       --module)       MODULE="$2"; shift 2 ;;
       --timeout)      TEST_TIMEOUT="$2"; shift 2 ;;
-      --single-test)  SINGLE_TEST="$2"; shift 2 ;;
       --help)         show_usage; exit 0 ;;
       *) echo "Error: Unknown option: $1"; show_usage; exit 1 ;;
     esac
@@ -187,11 +181,6 @@ build_instrument_command() {
     echo "Running all tests (no sharding)" >&2
   fi
 
-  # Add single test filter if specified (overrides package filter)
-  if [ -n "$SINGLE_TEST" ]; then
-    cmd+=" -e class $SINGLE_TEST"
-  fi
-
   cmd+=" \"$TEST_PACKAGE/$TEST_RUNNER\""
   echo "$cmd"
 }
@@ -237,9 +226,6 @@ main() {
     fi
   else
     echo "Sharding: disabled (running all tests)"
-  fi
-  if [ -n "$SINGLE_TEST" ]; then
-    echo "Single test: $SINGLE_TEST"
   fi
   echo "=================================="
 
