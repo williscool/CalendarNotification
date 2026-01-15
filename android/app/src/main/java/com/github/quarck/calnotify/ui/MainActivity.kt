@@ -287,6 +287,15 @@ class MainActivity : AppCompatActivity(), EventListCallback {
         recyclerView.layoutManager = staggeredLayoutManager;
         recyclerView.adapter = adapter;
         adapter.recyclerView = recyclerView
+        
+        // Apply nav bar inset as bottom padding so last item isn't hidden
+        recyclerView.clipToPadding = false
+        ViewCompat.setOnApplyWindowInsetsListener(recyclerView) { view, insets ->
+            val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, navBarInset)
+            insets
+        }
+        ViewCompat.requestApplyInsets(recyclerView)
 
         reloadLayout = findOrThrow<RelativeLayout>(R.id.activity_main_reload_layout)
 
