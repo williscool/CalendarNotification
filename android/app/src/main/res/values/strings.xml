@@ -39,6 +39,7 @@
     <string name="title_activity_activity_test_buttons_and_to_do" translatable="false">ActivityTestButtonsAndToDo</string>
 
     <string name="snoozed_until_string">Snoozed until </string>
+    <string name="alert_at">Alert at %s</string>
     <string name="card_view_btn_change">CHANGE</string>
     <string name="card_view_btn_snooze">SNOOZE</string>
     <string name="settings_name">Settings</string>
