@@ -409,5 +409,164 @@ class MainActivityModernTest : BaseUltronTest() {
         scenario.close()
     }
     
+    // === Tab Switching Tests ===
+    
+    @Test
+    fun tab_switching_to_upcoming_works() {
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Start on Active tab (default)
+        withId(R.id.activeEventsFragment).isDisplayed()
+        
+        // Switch to Upcoming tab
+        withId(R.id.upcomingEventsFragment).click()
+        
+        // Upcoming tab content should be visible
+        withId(R.id.recycler_view).isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun tab_switching_to_dismissed_works() {
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Start on Active tab (default)
+        withId(R.id.activeEventsFragment).isDisplayed()
+        
+        // Switch to Dismissed tab
+        withId(R.id.dismissedEventsFragment).click()
+        
+        // Dismissed tab content should be visible
+        withId(R.id.recycler_view).isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun tab_switching_back_to_active_works() {
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Switch to Upcoming tab
+        withId(R.id.upcomingEventsFragment).click()
+        
+        // Switch back to Active tab
+        withId(R.id.activeEventsFragment).click()
+        
+        // Active tab content should be visible
+        withId(R.id.recycler_view).isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_clears_when_switching_tabs() {
+        fixture.createEvent(title = "Alpha Meeting")
+        fixture.createEvent(title = "Beta Meeting")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Both events visible
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").isDisplayed()
+        
+        // Open search and filter
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha visible
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").doesNotExist()
+        
+        // Switch to Upcoming tab - search should clear
+        withId(R.id.upcomingEventsFragment).click()
+        fixture.clearNavigationStack()
+        
+        // Switch back to Active tab
+        withId(R.id.activeEventsFragment).click()
+        
+        // Both events should be visible again (search was cleared)
+        withText("Alpha Meeting").isDisplayed()
+        withText("Beta Meeting").isDisplayed()
+        
+        scenario.close()
+    }
+    
+    // === Menu Items Per Tab Tests ===
+    
+    @Test
+    fun snooze_all_menu_visible_on_active_tab() {
+        fixture.seedEvents(2)
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Wait for events to load
+        withText("Event 1").isDisplayed()
+        
+        // On Active tab - snooze all should be visible
+        withId(R.id.action_snooze_all).isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun snooze_all_menu_hidden_on_upcoming_tab() {
+        fixture.seedEvents(2)
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Wait for events to load
+        withText("Event 1").isDisplayed()
+        
+        // Switch to Upcoming tab
+        withId(R.id.upcomingEventsFragment).click()
+        
+        // Snooze all should not be visible on Upcoming tab
+        withId(R.id.action_snooze_all).isNotDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun dismiss_all_menu_visible_on_active_tab() {
+        fixture.seedEvents(2)
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Wait for events to load
+        withText("Event 1").isDisplayed()
+        
+        // Open overflow menu
+        openActionBarOverflowOrOptionsMenu(
+            InstrumentationRegistry.getInstrumentation().targetContext
+        )
+        
+        // Dismiss all should be visible on Active tab
+        withText(R.string.dismiss_all_events).isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun dismiss_all_menu_hidden_on_dismissed_tab() {
+        fixture.seedEvents(2)
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Switch to Dismissed tab
+        withId(R.id.dismissedEventsFragment).click()
+        
+        // Open overflow menu
+        openActionBarOverflowOrOptionsMenu(
+            InstrumentationRegistry.getInstrumentation().targetContext
+        )
+        
+        // Dismiss all should not be visible on Dismissed tab
+        withText(R.string.dismiss_all_events).doesNotExist()
+        
+        scenario.close()
+    }
+    
     // Inherits setConfig() from BaseUltronTest
 }
