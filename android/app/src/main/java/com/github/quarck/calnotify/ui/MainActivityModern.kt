@@ -116,6 +116,8 @@ class MainActivityModern : MainActivityBase() {
             // Clear search when switching tabs
             searchView?.setQuery("", false)
             searchMenuItem?.collapseActionView()
+            // Update menu items based on current tab (e.g., hide snooze/dismiss all on non-active tabs)
+            invalidateOptionsMenu()
         }
 
         // FAB for adding events

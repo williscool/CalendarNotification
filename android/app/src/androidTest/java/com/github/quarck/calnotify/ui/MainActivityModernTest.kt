@@ -522,8 +522,11 @@ class MainActivityModernTest : BaseUltronTest() {
         // Switch to Upcoming tab
         withId(R.id.upcomingEventsFragment).click()
         
-        // Snooze all should not be visible on Upcoming tab
-        withId(R.id.action_snooze_all).isNotDisplayed()
+        // Wait for tab switch to complete (title updates)
+        withText(R.string.title_upcoming).isDisplayed()
+        
+        // Snooze all menu item should not exist on Upcoming tab (isVisible = false removes it from hierarchy)
+        withId(R.id.action_snooze_all).doesNotExist()
         
         scenario.close()
     }
