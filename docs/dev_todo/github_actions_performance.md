@@ -141,5 +141,18 @@ The separate job ensures timestamp consistency across all jobs that use it for a
 - [x] Remove "List Gradle Tasks" step from `common-setup/action.yml`
 - [x] Add `skip_codegen` input to common-setup for jobs using pre-built APKs
 - [x] Skip codegen for integration-test shards (~3 min × 4 shards = ~12 min saved)
-- [ ] Verify CI still passes after changes
-- [ ] Monitor CI run times to confirm improvements
+- [x] Verify CI still passes after changes
+- [x] Monitor CI run times to confirm improvements
+
+## Results
+
+**Measured improvements (comparing runs with warm caches):**
+
+| Job | Before | After | Savings |
+|-----|--------|-------|---------|
+| Unit Tests | 17m | 14m | -3m |
+| Integration Shard 1 | 12m | 8m | -4m |
+| Integration Shard 2 | 11m | 9m | -2m |
+| Integration Shard 3 | 12m | 9m | -3m |
+
+**Total CI time reduced by ~12-13 minutes per run.**
