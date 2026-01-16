@@ -28,6 +28,7 @@ import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.MainActivityLegacy
+import com.github.quarck.calnotify.ui.MainActivityModern
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
@@ -381,6 +382,17 @@ class UITestFixtureRobolectric {
     fun launchMainActivity(): ActivityScenario<MainActivityLegacy> {
         DevLog.info(LOG_TAG, "Launching MainActivityLegacy")
         return ActivityScenario.launch(MainActivityLegacy::class.java)
+    }
+    
+    /**
+     * Launches MainActivityModern with ActivityScenario.
+     * 
+     * This directly launches the modern activity with fragment-based navigation.
+     * Use this for tests that need the new navigation UI with bottom tabs.
+     */
+    fun launchMainActivityModern(): ActivityScenario<MainActivityModern> {
+        DevLog.info(LOG_TAG, "Launching MainActivityModern")
+        return ActivityScenario.launch(MainActivityModern::class.java)
     }
     
     /**
