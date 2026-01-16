@@ -272,14 +272,6 @@ runs:
       run: cd android && chmod +x gradlew
       shell: bash
 
-    # List all available Gradle tasks (also warms up Gradle cache)
-    - name: List Gradle Tasks
-      run: |
-        cd android && \
-        ./gradlew tasks --all > gradle-tasks.txt
-        cat gradle-tasks.txt
-      shell: bash
-
     # Run codegen for all React Native libraries (required for New Architecture)
     - name: Generate React Native Codegen
       run: |
