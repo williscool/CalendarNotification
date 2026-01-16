@@ -81,6 +81,20 @@ Analysis of GitHub Actions workflow performance based on run 21023241683 (Januar
 
 ---
 
+### 4. Skip Codegen for Integration Test Shards
+
+**Location**: `.github/workflows/actions.yml` integration-test job + `.github/actions/common-setup/action.yml`
+
+**Problem**: Integration test shards download pre-built APKs and run `am instrument` directly - they don't build anything. But common-setup still runs React Native codegen (~3 min).
+
+**Solution**: Added `skip_codegen` input to common-setup. Integration test shards now pass `skip_codegen: "true"`.
+
+**Measured impact**: ~3 min × 4 shards = **~12 min aggregate saved**
+
+**Risk**: Low - integration test shards only run pre-built APKs via `am instrument`
+
+---
+
 ## Estimated Total Savings
 
 | Optimization | Time Saved |
@@ -88,7 +102,8 @@ Analysis of GitHub Actions workflow performance based on run 21023241683 (Januar
 | Remove build dry-run | ~4 min |
 | Remove unit test dry-run | ~2.5 min |
 | Remove gradle tasks list | ~5-10 min |
-| **Total** | **~11-16 minutes per CI run** |
+| Skip codegen for integration test shards | ~12 min |
+| **Total** | **~23-28 minutes per CI run** |
 
 ---
 
@@ -124,5 +139,7 @@ The separate job ensures timestamp consistency across all jobs that use it for a
 - [x] Remove "Debug Main Build Task Graph" step from `actions.yml`
 - [x] Remove "Debug Unit Test Task Graph" step from `actions.yml`
 - [x] Remove "List Gradle Tasks" step from `common-setup/action.yml`
+- [x] Add `skip_codegen` input to common-setup for jobs using pre-built APKs
+- [x] Skip codegen for integration-test shards (~3 min × 4 shards = ~12 min saved)
 - [ ] Verify CI still passes after changes
 - [ ] Monitor CI run times to confirm improvements

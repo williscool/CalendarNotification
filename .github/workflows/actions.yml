@@ -705,6 +705,7 @@ jobs:
         fetch-depth: 1
 
     # Execute the common setup with emulator configuration
+    # Skip codegen since we use pre-built APKs (saves ~3 min per shard)
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
@@ -717,6 +718,7 @@ jobs:
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
+        skip_codegen: "true"
 
     - name: Make scripts executable
       run: |
