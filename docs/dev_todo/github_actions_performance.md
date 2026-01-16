@@ -121,8 +121,8 @@ The separate job ensures timestamp consistency across all jobs that use it for a
 
 ## Implementation Checklist
 
-- [ ] Remove "Debug Main Build Task Graph" step from `actions.yml`
-- [ ] Remove "Debug Unit Test Task Graph" step from `actions.yml`
-- [ ] Remove "List Gradle Tasks" step from `common-setup/action.yml`
+- [x] Remove "Debug Main Build Task Graph" step from `actions.yml`
+- [x] Remove "Debug Unit Test Task Graph" step from `actions.yml`
+- [x] Remove "List Gradle Tasks" step from `common-setup/action.yml`
 - [ ] Verify CI still passes after changes
 - [ ] Monitor CI run times to confirm improvements
