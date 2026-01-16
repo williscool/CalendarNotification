@@ -58,12 +58,10 @@ class MainActivity : AppCompatActivity() {
         val targetIntent = Intent(this, targetClass).apply {
             // Preserve any extras from the launching intent (e.g., from notifications)
             intent.extras?.let { putExtras(it) }
-            // Clear the task so back button doesn't return to this router
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
 
         startActivity(targetIntent)
-        finish()
+        finish()  // Router removed from back stack, no flags needed
     }
 
     companion object {
