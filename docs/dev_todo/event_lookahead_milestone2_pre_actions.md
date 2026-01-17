@@ -26,6 +26,7 @@ Milestone 1 delivered read-only upcoming events display. Milestone 2 adds the ab
 | **6.1** | Pre-Mute | Easiest | Single flag toggle, no data movement, infrastructure exists |
 | **6.2** | Pre-Snooze | Medium | Data movement + time picker + alarm reschedule |
 | **6.3** | Pre-Dismiss + Undo | Hardest | Multiple storages + undo logic + native calendar |
+| **6.4** | Unsnooze to Upcoming | Easy | Reverse of pre-snooze, only for events before alert time |
 
 ---
 
@@ -522,6 +523,113 @@ fun `undo pre-dismiss sets wasHandled back to false`()
 
 ---
 
+## Phase 6.4: Unsnooze to Upcoming (EASY)
+
+**Goal:** Allow users to "unsnooze" a pre-snoozed event back to the Upcoming tab, but only if the original alert time hasn't passed yet.
+
+### Why It's Easy
+- Reverse of pre-snooze logic (already understood)
+- Simple condition: `alertTime > currentTimeMillis()`
+- No new UI patterns needed (add option to existing snooze/event detail view)
+
+### Condition for Showing Option
+Only show "Unsnooze (back to upcoming)" when:
+```kotlin
+event.alertTime > clock.currentTimeMillis()
+```
+
+If the original alert time has passed, the event can't go "back" to upcoming—it would have fired anyway.
+
+### Implementation Steps
+
+#### 6.4.1 Add String Resources
+
+```xml
+<string name="unsnooze_to_upcoming">Unsnooze (back to upcoming)</string>
+<string name="event_restored_to_upcoming">Event restored to upcoming</string>
+```
+
+#### 6.4.2 Add Option to Active Event Actions
+
+In the snooze detail view or Active event action menu, add the option conditionally:
+
+```kotlin
+// Only show for events where the original alert time hasn't passed
+if (event.alertTime > clock.currentTimeMillis()) {
+    // Add "Unsnooze (back to upcoming)" option
+}
+```
+
+#### 6.4.3 Implement handleUnsnoozeToUpcoming
+
+```kotlin
+private fun handleUnsnoozeToUpcoming(event: EventAlertRecord) {
+    val ctx = context ?: return
+    background {
+        // 1. Delete from EventsStorage
+        EventsStorage(ctx).use { db ->
+            db.deleteEvent(event.eventId, event.instanceStartTime)
+        }
+        
+        // 2. Unmark as handled in MonitorStorage
+        MonitorStorage(ctx).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(wasHandled = false))
+            }
+        }
+        
+        // 3. Reschedule alarms
+        ApplicationController.afterCalendarEventFired(ctx)
+        
+        activity?.runOnUiThread {
+            loadEvents() // Event disappears from Active, reappears in Upcoming
+            view?.let { v ->
+                Snackbar.make(v, R.string.event_restored_to_upcoming, Snackbar.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+```
+
+### Testing
+
+#### Robolectric UI Tests
+
+```kotlin
+@Test
+fun `unsnooze option shown for events before alert time`()
+
+@Test
+fun `unsnooze option hidden for events after alert time`()
+```
+
+#### Instrumentation Tests (`UnsnoozeToUpcomingIntegrationTest.kt`)
+
+```kotlin
+@Test
+fun `unsnooze removes event from EventsStorage`()
+
+@Test
+fun `unsnooze sets wasHandled false in MonitorStorage`()
+
+@Test
+fun `unsnooze event reappears in Upcoming tab`()
+
+@Test
+fun `unsnooze not available after alert time passes`()
+```
+
+### Files to Create/Modify
+
+| File | Changes |
+|------|---------|
+| `strings.xml` | Add `unsnooze_to_upcoming`, `event_restored_to_upcoming` |
+| `ActiveEventsFragment.kt` or `SnoozeActivity.kt` | Add unsnooze option conditionally |
+| `UnsnoozeToUpcomingIntegrationTest.kt` (new) | Integration tests |
+
+---
+
 ## Complete File Summary
 
 ### New Files
@@ -532,6 +640,7 @@ fun `undo pre-dismiss sets wasHandled back to false`()
 | `PreMuteIntegrationTest.kt` | 6.1 | Integration tests for pre-mute flow |
 | `PreSnoozeIntegrationTest.kt` | 6.2 | Integration tests for pre-snooze flow |
 | `PreDismissIntegrationTest.kt` | 6.3 | Integration tests for pre-dismiss flow |
+| `UnsnoozeToUpcomingIntegrationTest.kt` | 6.4 | Integration tests for unsnooze flow |
 
 ### Modified Files
 
@@ -569,13 +678,22 @@ fun `undo pre-dismiss sets wasHandled back to false`()
 - [ ] Event does not fire notification after dismiss
 - [ ] All tests pass
 
+### Phase 6.4: Unsnooze to Upcoming
+- [ ] "Unsnooze (back to upcoming)" option appears for snoozed events before alert time
+- [ ] Option hidden for events past their original alert time
+- [ ] Unsnooze removes event from Active/EventsStorage
+- [ ] Unsnooze sets wasHandled=false in MonitorStorage
+- [ ] Event reappears in Upcoming tab
+- [ ] All tests pass
+
 ---
 
 ## Questions Resolved
 
 | Question | Decision |
 |----------|----------|
-| Complexity order? | Mute → Snooze → Dismiss (easiest to hardest) |
+| Complexity order? | Mute → Snooze → Dismiss → Unsnooze (easiest to hardest) |
 | Snooze UI? | Reuse existing snooze presets in simple dialog |
 | Swipe for upcoming? | Start with dialog-only, can add swipe in 6.3 |
 | Pre-mute indicator? | Verify EventListAdapter already handles `isMuted` |
+| Unsnooze scope? | Added as Phase 6.4, only for events before original alert time |
