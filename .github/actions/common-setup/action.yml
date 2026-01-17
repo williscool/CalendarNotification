@@ -89,8 +89,10 @@ runs:
         echo "Detected ${CPU_COUNT} CPUs for parallel builds"
       shell: bash
 
-    # Free Disk Space - run for all jobs to prevent out-of-space errors
+    # Free Disk Space - skip for test_runner_only since it doesn't need Gradle/Node
+    # (emulator + APKs fit comfortably in default runner disk space)
     - name: Free Disk Space
+      if: inputs.test_runner_only != 'true'
       uses: endersonmenezes/free-disk-space@v3
       with:
         remove_android: false        # Keep Android SDK

@@ -113,11 +113,12 @@ runs:
         key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         
     # Yarn cache - Save only if not already cached
+    # Note: Yarn 3 default cache folder is .yarn/cache in project directory
     - name: Save yarn cache
       if: always() && inputs.test_runner_only != 'true' && inputs.yarn-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
-        path: $(yarn config get cacheFolder)
+        path: .yarn/cache
         key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
 
     # Yarn install state - Save only if not already cached
