@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -46,13 +47,16 @@ import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.upcoming.UpcomingEventsProvider
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
+import com.google.android.material.snackbar.Snackbar
 
 /**
  * Fragment for displaying upcoming events (before their notification fires).
  * Shows events within the lookahead window that haven't been handled yet.
  * 
- * In Milestone 1, this is a read-only view. Pre-actions (snooze, mute, dismiss)
- * will be added in Milestone 2.
+ * Pre-actions available:
+ * - Pre-mute: Mark event to fire silently (Milestone 2, Phase 6.1)
+ * - Pre-snooze: Snooze before notification fires (Milestone 2, Phase 6.2)
+ * - Pre-dismiss: Dismiss without ever firing (Milestone 2, Phase 6.3)
  */
 class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
@@ -151,40 +155,124 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     // EventListCallback implementation
-    // In Milestone 1, clicking opens the event details (read-only)
-    // Dismiss/Snooze will be implemented in Milestone 2 as pre-actions
     
     override fun onItemClick(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemClick, pos=$position, eventId=$eventId")
         
-        val ctx = context ?: return
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null) {
-            // Open event directly in calendar app (upcoming events aren't in EventsStorage)
-            CalendarIntents.viewCalendarEvent(ctx, event)
+            showUpcomingEventActionDialog(event)
         }
     }
 
     override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        // Pre-dismiss will be implemented in Milestone 2
-        DevLog.info(LOG_TAG, "onItemDismiss (not implemented in M1), pos=$position, eventId=$eventId")
+        // Pre-dismiss will be implemented in Phase 6.3
+        DevLog.info(LOG_TAG, "onItemDismiss (not yet implemented), pos=$position, eventId=$eventId")
     }
 
     override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        // Pre-snooze will be implemented in Milestone 2
-        DevLog.info(LOG_TAG, "onItemSnooze (not implemented in M1), pos=$position, eventId=$eventId")
+        // Pre-snooze will be implemented in Phase 6.2
+        DevLog.info(LOG_TAG, "onItemSnooze (not yet implemented), pos=$position, eventId=$eventId")
     }
 
     override fun onItemRemoved(event: EventAlertRecord) {
-        // Not used for upcoming events in Milestone 1
+        // Not used for upcoming events
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
-        // Not used for upcoming events in Milestone 1
+        // Not used for upcoming events
     }
 
     override fun onScrollPositionChange(newPos: Int) {
         // Not needed
+    }
+    
+    // === Pre-action handlers ===
+    
+    /**
+     * Shows the action dialog for an upcoming event.
+     * Available actions: Mute/Unmute, View in Calendar
+     * (Snooze and Dismiss will be added in later phases)
+     */
+    private fun showUpcomingEventActionDialog(event: EventAlertRecord) {
+        val ctx = context ?: return
+        val isMuted = event.isMuted
+        
+        val actions = arrayOf(
+            getString(if (isMuted) R.string.pre_unmute else R.string.pre_mute),
+            getString(R.string.view_in_calendar)
+            // Snooze and Dismiss will be added in later phases
+        )
+        
+        AlertDialog.Builder(ctx)
+            .setTitle(event.title.ifEmpty { getString(R.string.empty_title) })
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> if (isMuted) handleUnPreMute(event) else handlePreMute(event)
+                    1 -> CalendarIntents.viewCalendarEvent(ctx, event)
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * Marks an upcoming event to be muted when its notification fires.
+     * Sets the preMuted flag in MonitorStorage.
+     */
+    private fun handlePreMute(event: EventAlertRecord) {
+        val ctx = context ?: return
+        background {
+            var success = false
+            getMonitorStorage(ctx).use { storage ->
+                val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+                if (alert != null) {
+                    storage.updateAlert(alert.withPreMuted(true))
+                    success = true
+                    DevLog.info(LOG_TAG, "Pre-muted event ${event.eventId}")
+                } else {
+                    DevLog.warn(LOG_TAG, "Could not find alert for event ${event.eventId} to pre-mute")
+                }
+            }
+            
+            activity?.runOnUiThread {
+                if (success) {
+                    loadEvents() // Refresh to show mute indicator
+                    view?.let { v ->
+                        Snackbar.make(v, R.string.event_will_be_muted, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Removes the pre-muted flag from an upcoming event.
+     * Clears the preMuted flag in MonitorStorage.
+     */
+    private fun handleUnPreMute(event: EventAlertRecord) {
+        val ctx = context ?: return
+        background {
+            var success = false
+            getMonitorStorage(ctx).use { storage ->
+                val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+                if (alert != null) {
+                    storage.updateAlert(alert.withPreMuted(false))
+                    success = true
+                    DevLog.info(LOG_TAG, "Un-pre-muted event ${event.eventId}")
+                } else {
+                    DevLog.warn(LOG_TAG, "Could not find alert for event ${event.eventId} to un-pre-mute")
+                }
+            }
+            
+            activity?.runOnUiThread {
+                if (success) {
+                    loadEvents() // Refresh to remove mute indicator
+                    view?.let { v ->
+                        Snackbar.make(v, R.string.event_unmuted, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
     }
 
     // SearchableFragment implementation

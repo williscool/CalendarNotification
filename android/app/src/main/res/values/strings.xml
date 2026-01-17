@@ -366,6 +366,13 @@
     <string name="mute_all">Mute all visible</string>
     <string name="mute_all_events_question">Mute all visible events? (Tasks excluded)</string>
 
+    <!-- Pre-actions for upcoming events -->
+    <string name="pre_mute">Mute when it fires</string>
+    <string name="pre_unmute">Unmute</string>
+    <string name="event_will_be_muted">Event will be muted when it fires</string>
+    <string name="event_unmuted">Event will no longer be muted</string>
+    <string name="view_in_calendar">View in Calendar</string>
+
     <string name="done">Done</string>
     <string name="notification_is_muted">Notification is muted</string>
     <string name="calendar_handling_options">Calendar handling options</string>
