@@ -272,6 +272,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     
     override fun setSearchQuery(query: String?) {
         adapter.setSearchText(query)
+        updateEmptyState()
     }
     
     override fun getSearchQuery(): String? = adapter.searchString
@@ -283,6 +284,22 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     override fun hasActiveEvents(): Boolean = adapter.hasActiveEvents
     
     override fun supportsSnoozeAll(): Boolean = true
+    
+    override fun supportsMuteAll(): Boolean = true
+    
+    override fun supportsDismissAll(): Boolean = true
+    
+    override fun anyForMuteAll(): Boolean = adapter.anyForMute
+    
+    override fun anyForDismissAll(): Boolean = adapter.anyForDismissAllButRecentAndSnoozed
+    
+    override fun onMuteAllComplete() {
+        loadEvents()
+    }
+    
+    override fun onDismissAllComplete() {
+        loadEvents()
+    }
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"

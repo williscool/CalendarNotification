@@ -29,7 +29,8 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
-import com.github.quarck.calnotify.ui.MainActivity
+import com.github.quarck.calnotify.ui.MainActivityLegacy
+import com.github.quarck.calnotify.ui.MainActivityModern
 
 /**
  * Settings fragment for Navigation/UI preferences.
@@ -90,10 +91,10 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         // Show toast and restart
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
         
-        // Restart MainActivity after a short delay
+        // Launch Legacy activity directly after a short delay
         // Use applicationContext since activity may be destroyed during delay
         Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(appContext, MainActivity::class.java).apply {
+            val intent = Intent(appContext, MainActivityLegacy::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             appContext.startActivity(intent)
@@ -110,10 +111,10 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         // Show toast and restart
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
         
-        // Restart MainActivity after a short delay
+        // Launch Modern activity directly after a short delay
         // Use applicationContext since activity may be destroyed during delay
         Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(appContext, MainActivity::class.java).apply {
+            val intent = Intent(appContext, MainActivityModern::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             appContext.startActivity(intent)
