@@ -168,9 +168,29 @@ If coverage files are missing from a shard:
 
 Ensure all shards completed successfully before the merge job runs. Failed shards won't upload their coverage artifacts.
 
+## CI Performance Optimizations
+
+Integration test shards use `test_runner_only` mode in the CI workflow, which significantly speeds up job startup:
+
+**What gets skipped:**
+- Node.js/Yarn setup
+- JS bundle generation
+- Gradle caches
+- React Native caches
+- Disk space cleanup
+
+**What's kept:**
+- JDK setup (for adb)
+- Android SDK/emulator setup
+
+This reduces Common Setup time from ~4 min to ~2 min per shard.
+
+See [GitHub Actions Performance](../dev_completed/github_actions_performance.md) for full details on CI optimization.
+
 ## Related Files
 
 - `scripts/matrix_run_android_tests.sh` - Main test runner with sharding support
 - `scripts/generate_android_coverage.sh` - Pulls coverage data from device
 - `.github/workflows/actions.yml` - CI workflow with sharding configuration
+- `.github/actions/common-setup/action.yml` - Common setup with `test_runner_only` option
 

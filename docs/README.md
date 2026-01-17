@@ -34,6 +34,7 @@
 
 Historical decisions and completed work, kept for reference:
 
+- [GitHub Actions Performance](dev_completed/github_actions_performance.md) - CI optimization (ccache, cache warming, test_runner_only) ⭐ *Key Reference*
 - [Constructor Mocking Limitations](dev_completed/constructor-mocking-android.md) ⭐ *Key Reference*
 - [Calendar Backup/Restore Test Isolation](dev_completed/calendar_backup_restore_test_isolation.md)
 - [Calendar Sync Refresh](dev_completed/calendar_sync_refresh.md) - Pull-to-refresh in Handled Calendars ✅
