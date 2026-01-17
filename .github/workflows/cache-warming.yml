@@ -37,6 +37,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      # ccache for native compilation - critical for fast builds
+      # This creates a cache entry on master that PR branches can restore from
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+
       - name: Common Setup
         uses: ./.github/actions/common-setup
         with:
@@ -44,16 +51,14 @@ jobs:
           node_version: "22.x"
           arch: ${{ matrix.arch }}
 
-      # Run a minimal gradle task to populate build caches
-      # This downloads dependencies and warms up the configuration cache
-      # Use architecture-specific task since this project uses per-arch build variants
-      - name: Warm Gradle Caches
+      # Build debug APK to populate ccache with compiled native code
+      # This is slower than minimal tasks but makes PR builds much faster
+      - name: Warm Gradle and Native Caches
         run: |
           cd android && \
           ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
                     -PreactNativeArchitectures="${{ matrix.arch }}" \
-                    :app:dependencies \
-                    :app:preBuild \
+                    :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
                     --parallel --max-workers=4 --build-cache
         env:
           BUILD_ARCH: ${{ matrix.arch }}
