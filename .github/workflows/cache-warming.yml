@@ -4,8 +4,8 @@ name: Cache Warming
 
 on:
   schedule:
-    # Run daily at 6 AM UTC (before most development activity)
-    - cron: '0 6 * * *'
+    # Run daily at 9 AM UTC (4 AM EST, before most development activity)
+    - cron: '0 9 * * *'
   push:
     branches: [master]
     paths:
@@ -46,13 +46,14 @@ jobs:
 
       # Run a minimal gradle task to populate build caches
       # This downloads dependencies and warms up the configuration cache
+      # Use architecture-specific task since this project uses per-arch build variants
       - name: Warm Gradle Caches
         run: |
           cd android && \
           ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
                     -PreactNativeArchitectures="${{ matrix.arch }}" \
                     :app:dependencies \
-                    :app:generateDebugBuildConfig \
+                    :app:preBuild \
                     --parallel --max-workers=4 --build-cache
         env:
           BUILD_ARCH: ${{ matrix.arch }}
