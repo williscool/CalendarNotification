@@ -453,8 +453,8 @@ task jacocoUnitTestReport(type: JacocoReport) {
     def archSuffix = buildArch == 'arm64-v8a' ? 'Arm64V8a' : 'X8664'
     def variantLower = archSuffix.toLowerCase()
     
-    // Must run after unit tests complete
-    dependsOn "test${archSuffix}DebugUnitTest"
+    // Must run after unit test coverage report completes (which creates the .exec file)
+    dependsOn "create${archSuffix}DebugUnitTestCoverageReport"
     
     reports {
         xml.required = true
