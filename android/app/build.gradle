@@ -453,6 +453,9 @@ task jacocoUnitTestReport(type: JacocoReport) {
     def archSuffix = buildArch == 'arm64-v8a' ? 'Arm64V8a' : 'X8664'
     def variantLower = archSuffix.toLowerCase()
     
+    // Must run after unit tests complete
+    dependsOn "test${archSuffix}DebugUnitTest"
+    
     reports {
         xml.required = true
         html.required = true
@@ -491,39 +494,24 @@ task jacocoUnitTestReport(type: JacocoReport) {
         )
     ]))
     
-    // Execution data from unit tests - standard Gradle JaCoCo location
-    // The test task generates testX8664DebugUnitTest.exec in build/jacoco/
-    executionData.setFrom(fileTree(
-        dir: "${buildDir}",
-        includes: [
-            "jacoco/test${archSuffix}DebugUnitTest.exec",
-            "jacoco/*.exec",
-            "outputs/unit_test_code_coverage/${variantLower}DebugUnitTest/*.exec"
-        ]
-    ))
+    // Execution data - use explicit file path for the .exec file
+    // The AGP puts it in outputs/unit_test_code_coverage/{variant}UnitTest/
+    def execFile = file("${buildDir}/outputs/unit_test_code_coverage/${variantLower}DebugUnitTest/test${archSuffix}DebugUnitTest.exec")
+    executionData.setFrom(files(execFile))
     
     doFirst {
         println "=== JaCoCo Unit Test Report Configuration ==="
         println "Architecture: ${buildArch} (${archSuffix})"
         println "Build dir: ${buildDir}"
-        println "Looking for exec files matching: jacoco/test${archSuffix}DebugUnitTest.exec"
-        
-        // Debug: List all files in jacoco directory
-        def jacocoDir = file("${buildDir}/jacoco")
-        if (jacocoDir.exists()) {
-            println "Contents of ${jacocoDir}:"
-            jacocoDir.listFiles().each { f ->
-                println "  - ${f.name} (${f.length()} bytes)"
-            }
-        } else {
-            println "JaCoCo directory does not exist: ${jacocoDir}"
-        }
-        
-        println "\nExecution data files found:"
-        executionData.files.each { file ->
-            println " - ${file.absolutePath} (exists: ${file.exists()}, size: ${file.exists() ? file.length() : 'N/A'})"
+        println "Exec file path: ${execFile.absolutePath}"
+        println "Exec file exists: ${execFile.exists()}"
+        if (execFile.exists()) {
+            println "Exec file size: ${execFile.length()} bytes"
         }
     }
+    
+    // Don't skip even if file doesn't exist at config time - it will exist at execution time
+    outputs.upToDateWhen { false }
 }
 
 // Add task to generate coverage report for Android tests
