@@ -24,6 +24,9 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Tests for preMuted flag storage operations in MockMonitorStorage.
@@ -31,8 +34,12 @@ import org.junit.Test
  * These tests verify that the preMuted flag is correctly persisted
  * through add/update/get operations on MonitorStorage.
  * 
+ * Uses Robolectric because MockMonitorStorage uses DevLog which requires Android APIs.
+ * 
  * Related: Milestone 2, Phase 6.1 (Pre-Mute)
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
 class MockMonitorStoragePreMutedTest {
 
     private lateinit var storage: MockMonitorStorage
