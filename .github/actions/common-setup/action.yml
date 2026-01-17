@@ -50,6 +50,10 @@ inputs:
     description: 'Minimal setup for running pre-built APKs on emulator (skips Node, Yarn, Gradle, JS bundle)'
     required: false
     default: "false"
+  skip_disk_space:
+    description: 'Skip free disk space cleanup (for jobs that dont need extra space)'
+    required: false
+    default: "false"
 
 outputs:
   build-outputs-cache-hit:
@@ -89,10 +93,10 @@ runs:
         echo "Detected ${CPU_COUNT} CPUs for parallel builds"
       shell: bash
 
-    # Free Disk Space - skip for test_runner_only since it doesn't need Gradle/Node
-    # (emulator + APKs fit comfortably in default runner disk space)
+    # Free Disk Space - skip for test_runner_only or skip_disk_space
+    # (emulator + APKs, or coverage merge jobs fit comfortably in default runner disk space)
     - name: Free Disk Space
-      if: inputs.test_runner_only != 'true'
+      if: inputs.test_runner_only != 'true' && inputs.skip_disk_space != 'true'
       uses: endersonmenezes/free-disk-space@v3
       with:
         remove_android: false        # Keep Android SDK

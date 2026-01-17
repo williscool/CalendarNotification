@@ -899,6 +899,7 @@ jobs:
           echo "=== Merged coverage files ==="
           find android/app/build/outputs/code_coverage/ -name "*.ec" -ls 2>/dev/null || echo "No .ec files found"
 
+      # Skip codegen and disk cleanup - this job only runs JaCoCo report generation
       - name: Common Setup
         uses: ./.github/actions/common-setup
         with:
@@ -906,6 +907,8 @@ jobs:
           gradle_max_workers: "4"
           node_version: "22.x"
           arch: x86_64
+          skip_codegen: "true"
+          skip_disk_space: "true"
 
       - name: Generate Merged JaCoCo Report
         run: |
