@@ -443,6 +443,18 @@ tasks.withType(JacocoReport).configureEach { task ->
             xml.required = true
             html.required = true
             csv.required = true
+            
+            // Add explicit output locations for unit test coverage reports
+            // Extract variant name from task name (e.g., "createX8664DebugUnitTestCoverageReport" -> "x8664Debug")
+            def taskName = task.name
+            def variantMatch = taskName =~ /create(.+)UnitTestCoverageReport/
+            if (variantMatch.find()) {
+                def variant = variantMatch.group(1)
+                def variantLower = variant[0].toLowerCase() + variant.substring(1)
+                html.outputLocation = file("${buildDir}/reports/jacoco/${variantLower}UnitTestCoverage/html")
+                xml.outputLocation = file("${buildDir}/reports/jacoco/${variantLower}UnitTestCoverage/xml/report.xml")
+                csv.outputLocation = file("${buildDir}/reports/jacoco/${variantLower}UnitTestCoverage/csv/report.csv")
+            }
         }
     }
 }

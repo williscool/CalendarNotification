@@ -458,7 +458,10 @@ jobs:
       if: always()
       run: |
         echo "=== Unit Test Coverage Reports ==="
-        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -20 || echo "No XML/CSV files found"
+        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -30 || echo "No XML/CSV files found"
+        echo ""
+        echo "=== JaCoCo CSV Reports (Unit Tests) ==="
+        find android/app/build/reports/jacoco -name "*.csv" 2>/dev/null || echo "No JaCoCo CSV files found"
         echo ""
         echo "=== Coverage directory structure ==="
         find android/app/build/reports/coverage -type f 2>/dev/null | head -20 || echo "No coverage directory"
