@@ -711,21 +711,19 @@ jobs:
       with:
         fetch-depth: 1
 
-    # Execute the common setup with emulator configuration
-    # Skip codegen since we use pre-built APKs (saves ~3 min per shard)
+    # Execute minimal setup for running pre-built APKs on emulator
+    # Skip Node.js, Yarn, Gradle, JS bundle - only need JDK and emulator
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
       with:
         optional_cache_key: "integration-test"
-        gradle_max_workers: "4"
-        node_version: "22.x"
         arch: ${{ matrix.arch }}
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
-        skip_codegen: "true"
+        test_runner_only: "true"
 
     - name: Make scripts executable
       run: |
@@ -831,7 +829,7 @@ jobs:
         path: emulator.log
         retention-days: 90
 
-    # Update all caches (skip saves for caches that were already hit)
+    # Only save Android cache for test runners (Node/Yarn/Gradle not restored)
     - name: Update Caches
       if: always()
       uses: ./.github/actions/cache-update
@@ -840,13 +838,8 @@ jobs:
         run_emulator_setup: "true"
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
-        yarn-cache-hit: ${{ steps.common-setup.outputs.yarn-cache-hit }}
-        yarn-install-state-cache-hit: ${{ steps.common-setup.outputs.yarn-install-state-cache-hit }}
-        js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
-        gradle-deps-cache-hit: ${{ steps.common-setup.outputs.gradle-deps-cache-hit }}
-        gradle-cache-hit: ${{ steps.common-setup.outputs.gradle-cache-hit }}
-        react-native-cache-hit: ${{ steps.common-setup.outputs.react-native-cache-hit }}
         android-cache-hit: ${{ steps.common-setup.outputs.android-cache-hit }}
+        test_runner_only: "true"
 
     - name: Setup tmate session
       if: ${{ failure() }}
