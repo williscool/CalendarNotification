@@ -111,24 +111,6 @@ jobs:
         node_version: "22.x"
         arch: ${{ matrix.arch }}
 
-    # Debug Main Build Task Graph
-    - name: Debug Main Build Task Graph
-      run: |
-        cd android && \
-        echo "=== Main Build Task Graph ===" && \
-        ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
-                  -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
-                  --dry-run \
-                  --info \
-                  --console=verbose \
-                  --parallel --max-workers=$MAX_WORKERS --build-cache
-      env:
-        BUILD_ARCH: ${{ matrix.arch }}
-
     - name: Ccachify the Native Modules
       shell: bash
       run: |
@@ -440,22 +422,6 @@ jobs:
         path: coverage/
         retention-days: 90
 
-    # Debug unit test task graph
-    - name: Debug Unit Test Task Graph
-      run: |
-        cd android && \
-        echo "=== Unit Test Task Graph ===" && \
-        ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
-                  -PreactNativeArchitectures="${{ matrix.arch }}" \
-                  :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
-                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-                  --dry-run \
-                  --info \
-                  --console=verbose \
-                  --continue
-      env:
-        BUILD_ARCH: ${{ matrix.arch }}
-
     # Run the unit tests
     - name: Run Unit Tests
       run: |
@@ -739,6 +705,7 @@ jobs:
         fetch-depth: 1
 
     # Execute the common setup with emulator configuration
+    # Skip codegen since we use pre-built APKs (saves ~3 min per shard)
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
@@ -751,6 +718,7 @@ jobs:
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
+        skip_codegen: "true"
 
     - name: Make scripts executable
       run: |
