@@ -48,8 +48,8 @@ class TagsManager : TagsManagerInterface {
             hasTag(this.title, tag) || hasTag(this.desc, tag)
 
     override fun parseEventTags(context: Context, settings: Settings, event: EventAlertRecord) {
-
-        event.isMuted = event.hasTag(MUTE_TAG)
+        // Preserve existing mute status (e.g., from pre-mute) while also checking for #mute tag
+        event.isMuted = event.isMuted || event.hasTag(MUTE_TAG)
         event.isTask = event.hasTag(TASK_TAG)
         event.isAlarm = event.hasTag(ALARM_TAG)
     }

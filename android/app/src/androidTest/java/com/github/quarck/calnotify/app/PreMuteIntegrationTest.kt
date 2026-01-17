@@ -107,7 +107,7 @@ class PreMuteIntegrationTest {
         title: String = "PreMute Test Event ${alert.eventId}"
     ): EventAlertRecord {
         return EventAlertRecord(
-            calendarId = 1L,
+            calendarId = -1L,  // Use -1L to bypass handled calendars filter in registerNewEvents
             eventId = alert.eventId,
             isAllDay = alert.isAllDay,
             isRepeating = false,
