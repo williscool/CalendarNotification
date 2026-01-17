@@ -42,10 +42,15 @@ import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
+import com.github.quarck.calnotify.prefs.PreferenceUtils
 import com.github.quarck.calnotify.upcoming.UpcomingEventsProvider
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.background
 import com.google.android.material.snackbar.Snackbar
 
@@ -191,25 +196,27 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     
     /**
      * Shows the action dialog for an upcoming event.
-     * Available actions: Mute/Unmute, View in Calendar
-     * (Snooze and Dismiss will be added in later phases)
+     * Available actions: Snooze, Mute/Unmute, View in Calendar
+     * (Dismiss will be added in Phase 6.3)
      */
     private fun showUpcomingEventActionDialog(event: EventAlertRecord) {
         val ctx = context ?: return
         val isMuted = event.isMuted
         
         val actions = arrayOf(
+            getString(R.string.pre_snooze),
             getString(if (isMuted) R.string.pre_unmute else R.string.pre_mute),
             getString(R.string.view_in_calendar)
-            // Snooze and Dismiss will be added in later phases
+            // Dismiss will be added in Phase 6.3
         )
         
         AlertDialog.Builder(ctx)
             .setTitle(event.title.ifEmpty { getString(R.string.empty_title) })
             .setItems(actions) { _, which ->
                 when (which) {
-                    0 -> if (isMuted) handleUnPreMute(event) else handlePreMute(event)
-                    1 -> CalendarIntents.viewCalendarEvent(ctx, event)
+                    0 -> showPreSnoozePicker(event)
+                    1 -> if (isMuted) handleUnPreMute(event) else handlePreMute(event)
+                    2 -> CalendarIntents.viewCalendarEvent(ctx, event)
                 }
             }
             .show()
@@ -274,6 +281,87 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
             }
         }
     }
+    
+    /**
+     * Shows a picker dialog with snooze preset durations.
+     * Only shows positive presets (not "X minutes before event" presets).
+     */
+    private fun showPreSnoozePicker(event: EventAlertRecord) {
+        val ctx = context ?: return
+        
+        // Get snooze presets, filter to only positive values (not "before event" presets)
+        val presets = settings.snoozePresets.filter { it > 0L }.toLongArray()
+        
+        if (presets.isEmpty()) {
+            DevLog.warn(LOG_TAG, "No positive snooze presets available")
+            return
+        }
+        
+        val labels = presets.map { PreferenceUtils.formatSnoozePreset(it) }.toTypedArray()
+        
+        AlertDialog.Builder(ctx)
+            .setTitle(R.string.pre_snooze)
+            .setItems(labels) { _, which ->
+                val snoozeUntil = getClock().currentTimeMillis() + presets[which]
+                handlePreSnooze(event, snoozeUntil)
+            }
+            .show()
+    }
+    
+    /**
+     * Pre-snoozes an upcoming event.
+     * - Marks alert as handled in MonitorStorage
+     * - Adds event to EventsStorage with snoozedUntil set
+     * - Reschedules alarms
+     */
+    private fun handlePreSnooze(event: EventAlertRecord, snoozeUntil: Long) {
+        val ctx = context ?: return
+        background {
+            var success = false
+            
+            // 1. Mark as handled in MonitorStorage (so it won't fire normally)
+            getMonitorStorage(ctx).use { storage ->
+                val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+                if (alert != null) {
+                    storage.updateAlert(alert.copy(wasHandled = true))
+                    DevLog.info(LOG_TAG, "Marked alert as handled for pre-snooze: event ${event.eventId}")
+                } else {
+                    DevLog.warn(LOG_TAG, "Could not find alert for event ${event.eventId} to mark as handled")
+                }
+            }
+            
+            // 2. Add to EventsStorage as snoozed
+            val currentTime = getClock().currentTimeMillis()
+            val snoozedEvent = event.copy(
+                snoozedUntil = snoozeUntil,
+                lastStatusChangeTime = currentTime,
+                displayStatus = EventDisplayStatus.Hidden
+            )
+            
+            EventsStorage(ctx).use { db ->
+                success = db.addEvent(snoozedEvent)
+                if (success) {
+                    DevLog.info(LOG_TAG, "Pre-snoozed event ${event.eventId} until $snoozeUntil")
+                } else {
+                    DevLog.error(LOG_TAG, "Failed to add pre-snoozed event ${event.eventId} to storage")
+                }
+            }
+            
+            // 3. Reschedule alarms
+            if (success) {
+                ApplicationController.afterCalendarEventFired(ctx)
+            }
+            
+            activity?.runOnUiThread {
+                if (success) {
+                    loadEvents() // Event disappears from Upcoming
+                    view?.let { v ->
+                        Snackbar.make(v, R.string.event_pre_snoozed, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
 
     // SearchableFragment implementation
     
@@ -295,6 +383,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         /** Provider for CalendarProvider - enables DI for testing */
         var calendarProviderProvider: (() -> CalendarProviderInterface)? = null
         
+        /** Provider for Clock - enables DI for testing */
+        var clockProvider: (() -> CNPlusClockInterface)? = null
+        
         /** Gets MonitorStorage - uses provider if set, otherwise creates real instance */
         fun getMonitorStorage(ctx: Context): MonitorStorageInterface =
             monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
@@ -303,10 +394,15 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         fun getCalendarProvider(): CalendarProviderInterface =
             calendarProviderProvider?.invoke() ?: CalendarProvider
         
+        /** Gets Clock - uses provider if set, otherwise returns real instance */
+        fun getClock(): CNPlusClockInterface =
+            clockProvider?.invoke() ?: CNPlusSystemClock()
+        
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             monitorStorageProvider = null
             calendarProviderProvider = null
+            clockProvider = null
         }
     }
 }
