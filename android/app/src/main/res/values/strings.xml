@@ -371,6 +371,8 @@
     <string name="pre_unmute">Unmute</string>
     <string name="event_will_be_muted">Event will be muted when it fires</string>
     <string name="event_unmuted">Event will no longer be muted</string>
+    <string name="pre_snooze">Snooze until…</string>
+    <string name="event_pre_snoozed">Event snoozed</string>
     <string name="view_in_calendar">View in Calendar</string>
 
     <string name="done">Done</string>
