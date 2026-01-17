@@ -491,24 +491,37 @@ task jacocoUnitTestReport(type: JacocoReport) {
         )
     ]))
     
-    // Execution data from unit tests
+    // Execution data from unit tests - standard Gradle JaCoCo location
+    // The test task generates testX8664DebugUnitTest.exec in build/jacoco/
     executionData.setFrom(fileTree(
         dir: "${buildDir}",
         includes: [
-            "outputs/unit_test_code_coverage/${variantLower}DebugUnitTest/*.exec",
-            "jacoco/*.exec"
+            "jacoco/test${archSuffix}DebugUnitTest.exec",
+            "jacoco/*.exec",
+            "outputs/unit_test_code_coverage/${variantLower}DebugUnitTest/*.exec"
         ]
     ))
     
     doFirst {
         println "=== JaCoCo Unit Test Report Configuration ==="
         println "Architecture: ${buildArch} (${archSuffix})"
-        println "Looking for .exec files in: ${buildDir}"
+        println "Build dir: ${buildDir}"
+        println "Looking for exec files matching: jacoco/test${archSuffix}DebugUnitTest.exec"
         
-        executionData.files.each { file ->
-            if (file.exists()) {
-                println " - Found: ${file.absolutePath} (${file.length()} bytes)"
+        // Debug: List all files in jacoco directory
+        def jacocoDir = file("${buildDir}/jacoco")
+        if (jacocoDir.exists()) {
+            println "Contents of ${jacocoDir}:"
+            jacocoDir.listFiles().each { f ->
+                println "  - ${f.name} (${f.length()} bytes)"
             }
+        } else {
+            println "JaCoCo directory does not exist: ${jacocoDir}"
+        }
+        
+        println "\nExecution data files found:"
+        executionData.files.each { file ->
+            println " - ${file.absolutePath} (exists: ${file.exists()}, size: ${file.exists() ? file.length() : 'N/A'})"
         }
     }
 }

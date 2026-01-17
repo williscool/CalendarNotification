@@ -458,6 +458,12 @@ jobs:
     - name: List Coverage Report Files
       if: always()
       run: |
+        echo "=== JaCoCo Execution Data Files (.exec) ==="
+        find android/app/build -name "*.exec" -ls 2>/dev/null || echo "No .exec files found"
+        echo ""
+        echo "=== JaCoCo Directory Contents ==="
+        ls -la android/app/build/jacoco/ 2>/dev/null || echo "No jacoco directory"
+        echo ""
         echo "=== Unit Test Coverage Reports ==="
         find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -30 || echo "No XML/CSV files found"
         echo ""
