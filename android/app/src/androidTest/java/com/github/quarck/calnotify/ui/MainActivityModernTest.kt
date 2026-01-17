@@ -333,9 +333,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha should be visible (Beta is filtered out completely)
@@ -356,9 +355,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha should be visible (Beta is filtered out completely)
@@ -387,9 +385,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible (Beta is filtered out completely)
@@ -475,9 +472,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Meeting").isDisplayed()
         
         // Open search and filter
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible
@@ -521,9 +517,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Planning Session").isDisplayed()
         
         // Search for "Alpha"
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha events visible (2 of 3)
@@ -547,9 +542,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Event").isDisplayed()
         
         // Search for Alpha
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible
@@ -585,9 +579,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Dismissed Beta").isDisplayed()
         
         // Search for Alpha
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha dismissed event visible
@@ -609,9 +602,8 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Search on Active tab
         withText("Active Alpha").isDisplayed()
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible
@@ -655,9 +647,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("MixedCase Event").isDisplayed()
         
         // Search with lowercase
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("event")
         
         // All should match (case insensitive)
@@ -670,8 +661,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withId(androidx.appcompat.R.id.search_close_btn).click()
         
         // Re-open search
-        withId(R.id.action_search).click()
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
+        openSearchViewReliably(scenario)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("MIXED")
         
         // Only MixedCase should match
@@ -715,9 +705,8 @@ class MainActivityModernTest : BaseUltronTest() {
         val scenario = fixture.launchMainActivityModern()
         
         // Search for non-existent term
-        withId(R.id.action_search).click()
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("ZZZZZZZ")
         
         // No events should be visible
