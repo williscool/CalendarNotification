@@ -482,9 +482,13 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch to Upcoming tab - search should clear (this also clears navigation)
         withId(R.id.upcomingEventsFragment).click()
+        // Wait for tab to load
+        withText(R.string.title_upcoming).isDisplayed()
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
+        // Wait for tab to load
+        withText(R.string.title_active).isDisplayed()
         
         // Both events should be visible again (search was cleared)
         withText("Alpha Meeting").isDisplayed()
@@ -608,6 +612,8 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch to Dismissed tab - this clears search and collapses the search view
         withId(R.id.dismissedEventsFragment).click()
+        // Wait for tab to load
+        withText(R.string.title_dismissed).isDisplayed()
         
         // Dismissed tab should show all events (search cleared)
         withText("Dismissed Gamma").isDisplayed()
@@ -615,6 +621,8 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
+        // Wait for tab to load
+        withText(R.string.title_active).isDisplayed()
         
         // Active tab should also show all events (search was cleared)
         withText("Active Alpha").isDisplayed()
