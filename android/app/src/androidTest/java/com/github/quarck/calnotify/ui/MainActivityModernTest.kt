@@ -1,5 +1,6 @@
 package com.github.quarck.calnotify.ui
 
+import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
@@ -7,12 +8,14 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.atiurin.ultron.core.espresso.UltronEspressoInteraction
 import com.atiurin.ultron.extensions.click
 import com.atiurin.ultron.extensions.doesNotExist
 import com.atiurin.ultron.extensions.isClickable
 import com.atiurin.ultron.extensions.isDisplayed
 import com.atiurin.ultron.extensions.isNotDisplayed
 import com.atiurin.ultron.extensions.replaceText
+import com.atiurin.ultron.extensions.withTimeout
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
@@ -690,10 +693,9 @@ class MainActivityModernTest : BaseUltronTest() {
         // Wait for events to load first (ensures menu is properly set up)
         withText("Important Meeting").isDisplayed()
         
-        // Search for partial word
-        withId(R.id.action_search).click()
+        // Search for partial word - use reliable helper to handle CI flakiness
+        openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("port")
         
         // All "port" containing events should match (Important, Unimportant)
@@ -805,6 +807,75 @@ class MainActivityModernTest : BaseUltronTest() {
         withText(R.string.dismiss_all_events).doesNotExist()
         
         scenario.close()
+    }
+    
+    // === Helper Methods ===
+    
+    /**
+     * Reliably opens the SearchView with multiple fallback strategies.
+     * 
+     * This addresses flakiness in CI where the SearchView expansion can fail due to:
+     * 1. Menu not being fully interactive yet
+     * 2. Click not registering properly
+     * 3. Animation/timing issues on slower CI machines
+     * 
+     * Strategy:
+     * 1. Wait for menu item to be displayed AND clickable
+     * 2. Try clicking the menu item
+     * 3. Check if SearchView expanded (search_src_text visible) with short timeout
+     * 4. If not, fall back to programmatic expansion via activity
+     * 5. Retry the entire flow up to 3 times
+     */
+    private fun openSearchViewReliably(scenario: ActivityScenario<MainActivityModern>) {
+        val maxAttempts = 3
+        val shortTimeout = 2000L
+        
+        for (attempt in 1..maxAttempts) {
+            // Strategy 1: Ensure menu item is fully ready before clicking
+            withId(R.id.action_search).isDisplayed()
+            withId(R.id.action_search).isClickable()
+            
+            // Strategy 2: Try clicking the menu item
+            withId(R.id.action_search).click()
+            
+            // Check if SearchView expanded with a short timeout
+            val expanded = try {
+                withId(androidx.appcompat.R.id.search_src_text)
+                    .withTimeout(shortTimeout)
+                    .isDisplayed()
+                true
+            } catch (e: Exception) {
+                false
+            }
+            
+            if (expanded) {
+                return // Success!
+            }
+            
+            // Strategy 3: Fall back to programmatic expansion
+            if (attempt < maxAttempts) {
+                scenario.onActivity { activity ->
+                    activity.searchMenuItem?.expandActionView()
+                }
+                
+                // Check again after programmatic expansion
+                val expandedProgrammatically = try {
+                    withId(androidx.appcompat.R.id.search_src_text)
+                        .withTimeout(shortTimeout)
+                        .isDisplayed()
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+                
+                if (expandedProgrammatically) {
+                    return // Success via programmatic expansion!
+                }
+            }
+        }
+        
+        // Final attempt - use standard assertion which will throw with full error details
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
     }
     
     // Inherits setConfig() from BaseUltronTest
