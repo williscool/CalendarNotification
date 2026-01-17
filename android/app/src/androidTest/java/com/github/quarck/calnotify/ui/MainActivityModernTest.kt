@@ -493,6 +493,215 @@ class MainActivityModernTest : BaseUltronTest() {
         scenario.close()
     }
     
+    // === Search Integration Tests ===
+    
+    @Test
+    fun search_query_filters_events_correctly() {
+        fixture.createEvent(title = "Project Alpha Review")
+        fixture.createEvent(title = "Team Beta Standup")
+        fixture.createEvent(title = "Alpha Planning Session")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // All 3 events visible
+        withText("Project Alpha Review").isDisplayed()
+        withText("Team Beta Standup").isDisplayed()
+        withText("Alpha Planning Session").isDisplayed()
+        
+        // Search for "Alpha"
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha events visible (2 of 3)
+        withText("Project Alpha Review").isDisplayed()
+        withText("Alpha Planning Session").isDisplayed()
+        withText("Team Beta Standup").doesNotExist()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
+    @Test
+    fun search_close_button_clears_filter() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Both events visible
+        withText("Alpha Event").isDisplayed()
+        withText("Beta Event").isDisplayed()
+        
+        // Search for Alpha
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha visible
+        withText("Alpha Event").isDisplayed()
+        withText("Beta Event").doesNotExist()
+        
+        // Click close button (X) to clear search
+        withId(androidx.appcompat.R.id.search_close_btn).click()
+        fixture.clearNavigationStack()
+        
+        // Both events should be visible again
+        withText("Alpha Event").isDisplayed()
+        withText("Beta Event").isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_on_dismissed_tab_filters_dismissed_events() {
+        fixture.createDismissedEvent(title = "Dismissed Alpha")
+        fixture.createDismissedEvent(title = "Dismissed Beta")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Switch to Dismissed tab
+        withId(R.id.dismissedEventsFragment).click()
+        
+        // Wait for tab to load
+        withText(R.string.title_dismissed).isDisplayed()
+        
+        // Both dismissed events visible
+        withText("Dismissed Alpha").isDisplayed()
+        withText("Dismissed Beta").isDisplayed()
+        
+        // Search for Alpha
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha dismissed event visible
+        withText("Dismissed Alpha").isDisplayed()
+        withText("Dismissed Beta").doesNotExist()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
+    @Test
+    fun search_state_clears_when_navigating_between_tabs() {
+        fixture.createEvent(title = "Active Alpha")
+        fixture.createEvent(title = "Active Beta")
+        fixture.createDismissedEvent(title = "Dismissed Gamma")
+        fixture.createDismissedEvent(title = "Dismissed Delta")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Search on Active tab
+        withText("Active Alpha").isDisplayed()
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
+        
+        // Only Alpha visible
+        withText("Active Alpha").isDisplayed()
+        withText("Active Beta").doesNotExist()
+        
+        // Switch to Dismissed tab
+        withId(R.id.dismissedEventsFragment).click()
+        fixture.clearNavigationStack()
+        
+        // Dismissed tab should show all events (search cleared)
+        withText("Dismissed Gamma").isDisplayed()
+        withText("Dismissed Delta").isDisplayed()
+        
+        // Switch back to Active tab
+        withId(R.id.activeEventsFragment).click()
+        
+        // Active tab should also show all events (search was cleared)
+        withText("Active Alpha").isDisplayed()
+        withText("Active Beta").isDisplayed()
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_is_case_insensitive() {
+        fixture.createEvent(title = "UPPERCASE EVENT")
+        fixture.createEvent(title = "lowercase event")
+        fixture.createEvent(title = "MixedCase Event")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // All events visible
+        withText("UPPERCASE EVENT").isDisplayed()
+        withText("lowercase event").isDisplayed()
+        withText("MixedCase Event").isDisplayed()
+        
+        // Search with lowercase
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("event")
+        
+        // All should match (case insensitive)
+        withText("UPPERCASE EVENT").isDisplayed()
+        withText("lowercase event").isDisplayed()
+        withText("MixedCase Event").isDisplayed()
+        
+        // Clear and search with uppercase
+        withId(androidx.appcompat.R.id.search_close_btn).click()
+        withId(R.id.action_search).click()
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("MIXED")
+        
+        // Only MixedCase should match
+        withText("MixedCase Event").isDisplayed()
+        withText("UPPERCASE EVENT").doesNotExist()
+        withText("lowercase event").doesNotExist()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
+    @Test
+    fun search_partial_match_works() {
+        fixture.createEvent(title = "Important Meeting")
+        fixture.createEvent(title = "Unimportant Task")
+        fixture.createEvent(title = "Very Important Discussion")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Search for partial word
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("port")
+        
+        // Both "Important" events should match
+        withText("Important Meeting").isDisplayed()
+        withText("Unimportant Task").isDisplayed()
+        withText("Very Important Discussion").isDisplayed()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
+    @Test
+    fun search_no_results_shows_empty_state() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivityModern()
+        
+        // Search for non-existent term
+        withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).replaceText("ZZZZZZZ")
+        
+        // No events should be visible
+        withText("Alpha Event").doesNotExist()
+        withText("Beta Event").doesNotExist()
+        
+        // Empty view should be shown
+        withId(R.id.empty_view).isDisplayed()
+        
+        fixture.clearNavigationStack()
+        scenario.close()
+    }
+    
     // === Menu Items Per Tab Tests ===
     
     @Test

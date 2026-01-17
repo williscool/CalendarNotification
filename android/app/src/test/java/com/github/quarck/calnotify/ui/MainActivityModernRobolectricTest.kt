@@ -3,6 +3,7 @@ package com.github.quarck.calnotify.ui
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.widget.SearchView
+import androidx.navigation.fragment.NavHostFragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
@@ -444,6 +445,267 @@ class MainActivityModernRobolectricTest {
             
             // Search should be cleared
             assertEquals("", searchView.query.toString())
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_hint_shows_correct_event_count() {
+        fixture.createEvent(title = "Event 1")
+        fixture.createEvent(title = "Event 2")
+        fixture.createEvent(title = "Event 3")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val searchView = activity.searchView
+            assertNotNull("SearchView should be initialized", searchView)
+            
+            // Query hint should contain the event count (3 events)
+            val hint = searchView!!.queryHint?.toString() ?: ""
+            assertTrue("Search hint should contain event count", hint.contains("3"))
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_query_propagates_to_fragment_adapter() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Initially no search
+            assertTrue(adapter.searchString.isNullOrEmpty())
+            assertEquals(2, adapter.itemCount)
+            
+            // Type search query
+            val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Alpha", false)
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Adapter should have the search string and filtered count
+            assertEquals("Alpha", adapter.searchString)
+            assertEquals(1, adapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_submit_triggers_query_propagation() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Expand search and submit query
+            val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Beta", true) // true = submit
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Adapter should have the search string
+            assertEquals("Beta", adapter.searchString)
+            assertEquals(1, adapter.itemCount)
+            
+            // SearchView should have cleared focus after submit
+            assertFalse("SearchView should clear focus after submit", searchView.hasFocus())
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_close_button_clears_query() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Set up search filter
+            val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Alpha", false)
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            assertEquals("Alpha", adapter.searchString)
+            assertEquals(1, adapter.itemCount)
+            
+            // Click close button (X)
+            val closeButton = searchView.findViewById<View>(androidx.appcompat.R.id.search_close_btn)
+            assertNotNull("Close button should exist", closeButton)
+            closeButton.performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Query should be cleared
+            assertTrue(adapter.searchString.isNullOrEmpty())
+            assertEquals(2, adapter.itemCount)
+            assertEquals("", searchView.query.toString())
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_works_on_dismissed_tab() {
+        fixture.createDismissedEvent(title = "Dismissed Alpha")
+        fixture.createDismissedEvent(title = "Dismissed Beta")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            // Switch to Dismissed tab
+            val bottomNav = activity.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
+            bottomNav.selectedItemId = R.id.dismissedEventsFragment
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as DismissedEventListAdapter
+            
+            // Initially shows both events
+            assertEquals(2, adapter.itemCount)
+            
+            // Search for Alpha
+            val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Alpha", false)
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Should filter to 1 event
+            assertEquals("Alpha", adapter.searchString)
+            assertEquals(1, adapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_state_not_shared_between_tabs() {
+        fixture.createEvent(title = "Active Alpha")
+        fixture.createEvent(title = "Active Beta")
+        fixture.createDismissedEvent(title = "Dismissed Gamma")
+        fixture.createDismissedEvent(title = "Dismissed Delta")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val bottomNav = activity.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
+            
+            // Search on Active tab
+            val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Alpha", false)
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val activeRecycler = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val activeAdapter = activeRecycler.adapter as EventListAdapter
+            assertEquals(1, activeAdapter.itemCount)
+            
+            // Switch to Dismissed tab - search should clear
+            bottomNav.selectedItemId = R.id.dismissedEventsFragment
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // SearchView query should be cleared
+            assertEquals("", searchView.query.toString())
+            
+            // Dismissed tab should show all its events (not filtered)
+            val dismissedRecycler = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val dismissedAdapter = dismissedRecycler.adapter as DismissedEventListAdapter
+            assertEquals(2, dismissedAdapter.itemCount)
+            
+            // Switch back to Active - should also be cleared
+            bottomNav.selectedItemId = R.id.activeEventsFragment
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val backToActiveRecycler = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val backToActiveAdapter = backToActiveRecycler.adapter as EventListAdapter
+            assertEquals(2, backToActiveAdapter.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun displayed_event_count_updates_during_search() {
+        fixture.createEvent(title = "Alpha Event")
+        fixture.createEvent(title = "Beta Event")
+        fixture.createEvent(title = "Alpha Meeting")
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val recyclerView = activity.findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as EventListAdapter
+            
+            // Get current fragment to check counts
+            val navHostFragment = activity.supportFragmentManager
+                .findFragmentById(R.id.nav_host_fragment) as? androidx.navigation.fragment.NavHostFragment
+            val currentFragment = navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
+            assertNotNull("Current fragment should implement SearchableFragment", currentFragment)
+            
+            // Initially: all 3 events
+            assertEquals(3, currentFragment!!.getEventCount())
+            assertEquals(3, currentFragment.getDisplayedEventCount())
+            
+            // Search for "Alpha" - should show 2 events
+            val searchView = activity.searchView
+            val searchMenuItem = activity.searchMenuItem
+            searchMenuItem!!.expandActionView()
+            searchView!!.setQuery("Alpha", false)
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Total count stays the same, displayed count changes
+            assertEquals(3, currentFragment.getEventCount())
+            assertEquals(2, currentFragment.getDisplayedEventCount())
         }
         
         scenario.close()
