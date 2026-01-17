@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.ui
 
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -480,15 +481,21 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
-        // Switch to Upcoming tab - search should clear (this also clears navigation)
-        withId(R.id.upcomingEventsFragment).click()
-        // Wait for tab content to load
-        withId(R.id.recycler_view).isDisplayed()
+        // Dismiss keyboard so we can click bottom nav (keyboard covers it)
+        pressBack()
+        fixture.popNavigation()
+        
+        // Switch to Upcoming tab using content description (more reliable for BottomNav items)
+        withContentDescription(R.string.nav_upcoming).click()
+        // Verify we're on Upcoming tab by checking toolbar title changed
+        withText("Upcoming Events").isDisplayed()
         
         // Switch back to Active tab
-        withId(R.id.activeEventsFragment).click()
-        // Wait for actual data to load (not just recycler_view container)
-        // New fragment instance loads events asynchronously in onResume
+        withContentDescription(R.string.nav_active).click()
+        // Verify we're back on Active tab by checking toolbar title
+        withText("Calendar Notifications - Active").isDisplayed()
+        
+        // Both events should be visible again (search was cleared)
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").isDisplayed()
         
@@ -608,14 +615,22 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Active Alpha").isDisplayed()
         withText("Active Beta").doesNotExist()
         
-        // Switch to Dismissed tab - this clears search and collapses the search view
-        withId(R.id.dismissedEventsFragment).click()
-        // Wait for actual data to load (new fragment loads events asynchronously)
+        // Dismiss keyboard so we can click bottom nav (keyboard covers it)
+        pressBack()
+        fixture.popNavigation()
+        
+        // Switch to Dismissed tab using content description (more reliable for BottomNav items)
+        withContentDescription(R.string.nav_dismissed).click()
+        // Verify we're on Dismissed tab by checking toolbar title changed
+        withText("Dismissed Events").isDisplayed()
+        // Wait for actual data to load
         withText("Dismissed Gamma").isDisplayed()
         withText("Dismissed Delta").isDisplayed()
         
         // Switch back to Active tab
-        withId(R.id.activeEventsFragment).click()
+        withContentDescription(R.string.nav_active).click()
+        // Verify we're back on Active tab by checking toolbar title
+        withText("Calendar Notifications - Active").isDisplayed()
         // Wait for actual data to load (new fragment loads events asynchronously)
         withText("Active Alpha").isDisplayed()
         withText("Active Beta").isDisplayed()
