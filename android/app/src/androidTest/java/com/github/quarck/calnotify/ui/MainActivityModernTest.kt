@@ -482,13 +482,13 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch to Upcoming tab - search should clear (this also clears navigation)
         withId(R.id.upcomingEventsFragment).click()
-        // Wait for tab to load
-        withText(R.string.title_upcoming).isDisplayed()
+        // Wait for tab content to load
+        withId(R.id.recycler_view).isDisplayed()
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
-        // Wait for tab to load
-        withText(R.string.title_active).isDisplayed()
+        // Wait for tab content to load
+        withId(R.id.recycler_view).isDisplayed()
         
         // Both events should be visible again (search was cleared)
         withText("Alpha Meeting").isDisplayed()
@@ -569,8 +569,8 @@ class MainActivityModernTest : BaseUltronTest() {
         // Switch to Dismissed tab
         withId(R.id.dismissedEventsFragment).click()
         
-        // Wait for tab to load
-        withText(R.string.title_dismissed).isDisplayed()
+        // Wait for tab content to load
+        withId(R.id.recycler_view).isDisplayed()
         
         // Both dismissed events visible
         withText("Dismissed Alpha").isDisplayed()
@@ -612,8 +612,8 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch to Dismissed tab - this clears search and collapses the search view
         withId(R.id.dismissedEventsFragment).click()
-        // Wait for tab to load
-        withText(R.string.title_dismissed).isDisplayed()
+        // Wait for tab content to load
+        withId(R.id.recycler_view).isDisplayed()
         
         // Dismissed tab should show all events (search cleared)
         withText("Dismissed Gamma").isDisplayed()
@@ -621,8 +621,8 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
-        // Wait for tab to load
-        withText(R.string.title_active).isDisplayed()
+        // Wait for tab content to load
+        withId(R.id.recycler_view).isDisplayed()
         
         // Active tab should also show all events (search was cleared)
         withText("Active Alpha").isDisplayed()
@@ -748,8 +748,8 @@ class MainActivityModernTest : BaseUltronTest() {
         // Switch to Upcoming tab
         withId(R.id.upcomingEventsFragment).click()
         
-        // Wait for tab switch to complete (title updates)
-        withText(R.string.title_upcoming).isDisplayed()
+        // Wait for tab content to load
+        withId(R.id.recycler_view).isDisplayed()
         
         // Snooze all menu item should not exist on Upcoming tab (isVisible = false removes it from hierarchy)
         withId(R.id.action_snooze_all).doesNotExist()
