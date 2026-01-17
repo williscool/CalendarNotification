@@ -82,13 +82,14 @@ jobs:
           arch: x86_64
 
       # Warm up unit test related caches
+      # Use architecture-specific task (X8664 for x86_64)
       - name: Warm Unit Test Caches
         run: |
           cd android && \
           ./gradlew -PBUILD_ARCH="x86_64" \
                     -PreactNativeArchitectures="x86_64" \
                     :app:dependencies \
-                    :app:compileDebugUnitTestKotlin \
+                    :app:compileX8664DebugUnitTestKotlin \
                     --parallel --max-workers=4 --build-cache \
                     -Pandroid.externalNativeBuild.skip=true
         env:
