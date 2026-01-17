@@ -1,5 +1,5 @@
 name: 'Cache Update'
-description: 'Updates caches for Android builds'
+description: 'Updates caches for Android builds. Skips saving caches that were already hit.'
 
 inputs:
   optional_cache_key:
@@ -22,13 +22,46 @@ inputs:
     description: 'Android target for emulator cache'
     required: false
     default: "google_apis"
+  # Cache hit inputs - skip saving if already hit
+  yarn-cache-hit:
+    description: 'Whether yarn cache was hit (skip save if true)'
+    required: false
+    default: ""
+  yarn-install-state-cache-hit:
+    description: 'Whether yarn install state cache was hit (skip save if true)'
+    required: false
+    default: ""
+  js-bundle-cache-hit:
+    description: 'Whether JS bundle cache was hit (skip save if true)'
+    required: false
+    default: ""
+  gradle-deps-cache-hit:
+    description: 'Whether Gradle deps cache was hit (skip save if true)'
+    required: false
+    default: ""
+  gradle-cache-hit:
+    description: 'Whether Gradle cache was hit (skip save if true)'
+    required: false
+    default: ""
+  build-outputs-cache-hit:
+    description: 'Whether build outputs cache was hit (skip save if true)'
+    required: false
+    default: ""
+  react-native-cache-hit:
+    description: 'Whether React Native cache was hit (skip save if true)'
+    required: false
+    default: ""
+  android-cache-hit:
+    description: 'Whether Android SDK/AVD cache was hit (skip save if true)'
+    required: false
+    default: ""
 
 runs:
   using: "composite"
   steps:
-    # JS Bundle and Assets Cache - Save only
+    # JS Bundle and Assets Cache - Save only if not already cached
     - name: Save JS Bundle and Assets Cache
-      if: always()
+      if: always() && inputs.js-bundle-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -37,9 +70,9 @@ runs:
           android/app/src/main/res/raw-*
         key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
 
-    # Build Outputs Cache - Save only
+    # Build Outputs Cache - Save only if not already cached
     - name: Save Build Outputs Cache
-      if: always() && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
+      if: always() && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests' && inputs.build-outputs-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -52,10 +85,10 @@ runs:
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
 
-    # Gradle dependencies cache - Save only (more stable than build cache)
+    # Gradle dependencies cache - Save only if not already cached
     # Prevents intermittent 403s from Maven Central rate limiting in CI
     - name: Save Gradle Dependencies Cache
-      if: always()
+      if: always() && inputs.gradle-deps-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -63,9 +96,9 @@ runs:
           ~/.gradle/caches/jars-*
         key: ${{ runner.os }}-gradle-deps-v1-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
-    # Gradle cache - Save only with architecture in key
+    # Gradle cache - Save only if not already cached
     - name: Save Gradle Cache
-      if: always()
+      if: always() && inputs.gradle-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -75,25 +108,25 @@ runs:
           android/build-cache
         key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         
-    # Yarn cache - Save only
+    # Yarn cache - Save only if not already cached
     - name: Save yarn cache
-      if: always()
+      if: always() && inputs.yarn-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: $(yarn config get cacheFolder)
         key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
 
-    # Yarn install state - Save only
+    # Yarn install state - Save only if not already cached
     - name: Save yarn install state
-      if: always()
+      if: always() && inputs.yarn-install-state-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: .yarn/ci-cache/
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
 
-    # React Native cache - Save only
+    # React Native cache - Save only if not already cached
     - name: Save React Native cache
-      if: always()
+      if: always() && inputs.react-native-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -102,9 +135,9 @@ runs:
           node_modules/.cache/@react-native-community/cli
         key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
 
-    # Android SDK and AVD cache - Save only
+    # Android SDK and AVD cache - Save only if not already cached
     - name: Save Android SDK and AVD Cache
-      if: always() && inputs.run_emulator_setup == 'true'
+      if: always() && inputs.run_emulator_setup == 'true' && inputs.android-cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |

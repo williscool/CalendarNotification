@@ -54,6 +54,24 @@ outputs:
   android-cache-hit:
     description: 'Whether the Android SDK and AVD cache was hit'
     value: ${{ steps.android-cache.outputs.cache-hit }}
+  yarn-cache-hit:
+    description: 'Whether the yarn download cache was hit'
+    value: ${{ steps.yarn-download-cache-restore.outputs.cache-hit }}
+  yarn-install-state-cache-hit:
+    description: 'Whether the yarn install state cache was hit'
+    value: ${{ steps.yarn-install-state-cache-restore.outputs.cache-hit }}
+  js-bundle-cache-hit:
+    description: 'Whether the JS bundle cache was hit'
+    value: ${{ steps.js-bundle-cache-restore.outputs.cache-hit }}
+  gradle-deps-cache-hit:
+    description: 'Whether the Gradle dependencies cache was hit'
+    value: ${{ steps.gradle-deps-cache-restore.outputs.cache-hit }}
+  gradle-cache-hit:
+    description: 'Whether the Gradle cache was hit'
+    value: ${{ steps.gradle-cache-restore.outputs.cache-hit }}
+  react-native-cache-hit:
+    description: 'Whether the React Native cache was hit'
+    value: ${{ steps.react-native-cache-restore.outputs.cache-hit }}
 
 runs:
   using: "composite"
@@ -229,9 +247,12 @@ runs:
           android/.gradle
           android/build-cache
         key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        # Removed broad fallback patterns to prevent accumulating old Gradle version caches
+        # Broad fallback patterns to share caches across jobs and branches
+        # Falls back to: same job type -> any job type with same arch -> any cache with same arch
         restore-keys: |
           ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
+          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4.0.0
@@ -309,8 +330,10 @@ runs:
           ~/.android/adb_usb.ini
           /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
         key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+        # Broader fallbacks to share AVD caches when target/arch might differ slightly
         restore-keys: |
-          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-
+          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-
 
     # Setup Android SDK for emulator if needed and not cached
     - name: Setup Android SDK
