@@ -103,7 +103,36 @@ Analysis of GitHub Actions workflow performance based on run 21023241683 (Januar
 | Remove unit test dry-run | ~2.5 min |
 | Remove gradle tasks list | ~5-10 min |
 | Skip codegen for integration test shards | ~12 min |
-| **Total** | **~23-28 minutes per CI run** |
+| Lighter test runner setup for shards | ~6-8 min |
+| **Total** | **~29-36 minutes per CI run** |
+
+---
+
+### 5. Lighter Setup for Integration Test Shards
+
+**Location**: `.github/actions/common-setup/action.yml` and `.github/workflows/actions.yml` integration-test job
+
+**Problem**: Integration test shards were still running full Node.js/Yarn/Gradle setup (~1.5-2 min) even though they only need:
+- JDK (for adb commands and coverage tools)
+- Android SDK/emulator
+
+They don't need: Node.js, Yarn, JS bundle, Gradle caches, React Native caches, or codegen.
+
+**Solution**: Added `test_runner_only` input to common-setup that skips all unnecessary steps:
+- Node.js setup
+- Yarn config/install
+- JS bundle cache/generation
+- Gradle caches
+- Gradlew permissions
+- Ccachify scripts
+- React Native caches
+- Codegen (already had skip_codegen)
+
+Also updated cache-update action with `test_runner_only` to skip saving non-Android caches.
+
+**Estimated impact**: ~1.5-2 min × 4 shards = **~6-8 min aggregate saved**
+
+**Risk**: Low - integration test shards only run pre-built APKs via `am instrument`
 
 ---
 
@@ -141,8 +170,10 @@ The separate job ensures timestamp consistency across all jobs that use it for a
 - [x] Remove "List Gradle Tasks" step from `common-setup/action.yml`
 - [x] Add `skip_codegen` input to common-setup for jobs using pre-built APKs
 - [x] Skip codegen for integration-test shards (~3 min × 4 shards = ~12 min saved)
+- [x] Add `test_runner_only` input for lightweight emulator-only setup
+- [x] Update integration-test shards to use `test_runner_only: "true"` (skips Node/Yarn/Gradle)
 - [x] Verify CI still passes after changes
-- [x] Monitor CI run times to confirm improvements
+- [ ] Monitor CI run times to confirm improvements from lighter test setup
 
 ## Results
 

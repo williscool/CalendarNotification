@@ -46,6 +46,10 @@ inputs:
     description: 'Skip React Native codegen (for jobs that use pre-built APKs)'
     required: false
     default: "false"
+  test_runner_only:
+    description: 'Minimal setup for running pre-built APKs on emulator (skips Node, Yarn, Gradle, JS bundle)'
+    required: false
+    default: "false"
 
 outputs:
   build-outputs-cache-hit:
@@ -99,6 +103,7 @@ runs:
 
     # Early cleanup of old Gradle caches BEFORE restoring (prevents accumulation)
     - name: Pre-cleanup old Gradle caches
+      if: inputs.test_runner_only != 'true'
       shell: bash
       run: |
         echo "Pre-cleanup: Checking for old Gradle caches..."
@@ -132,12 +137,14 @@ runs:
         df -h / | tail -1
 
     - name: Use Node.js ${{ inputs.node_version }}
+      if: inputs.test_runner_only != 'true'
       uses: actions/setup-node@v3
       with:
         node-version: ${{ inputs.node_version }}
         cache: "yarn"
 
     - name: Expose yarn config as "$GITHUB_OUTPUT"
+      if: inputs.test_runner_only != 'true'
       id: yarn-config
       shell: bash
       run: |
@@ -145,6 +152,7 @@ runs:
 
     # Yarn caches
     - name: Restore yarn cache
+      if: inputs.test_runner_only != 'true'
       uses: actions/cache/restore@v4
       id: yarn-download-cache-restore
       with:
@@ -154,6 +162,7 @@ runs:
           yarn-download-cache-
 
     - name: Install dependencies
+      if: inputs.test_runner_only != 'true'
       run: yarn install --immutable --inline-builds
       shell: bash
       env:
@@ -166,6 +175,7 @@ runs:
     # This prevents "duplicate class" errors when dependencies change
     # (e.g., react-native-worklets removed since reanimated includes it)
     - name: Clean stale node_modules build artifacts
+      if: inputs.test_runner_only != 'true'
       shell: bash
       run: |
         echo "Cleaning stale native build artifacts from node_modules..."
@@ -183,6 +193,7 @@ runs:
         echo "Cleanup complete"
 
     - name: Restore yarn install state
+      if: inputs.test_runner_only != 'true'
       id: yarn-install-state-cache-restore
       uses: actions/cache/restore@v4
       with:
@@ -193,6 +204,7 @@ runs:
 
     # Cache JS Bundle and Assets
     - name: Restore JS Bundle and Assets Cache
+      if: inputs.test_runner_only != 'true'
       uses: actions/cache/restore@v4
       id: js-bundle-cache-restore
       with:
@@ -207,7 +219,7 @@ runs:
 
     # Generate JS bundle if needed
     - name: Generate JS Bundle
-      if: steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
+      if: inputs.test_runner_only != 'true' && steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
       run: yarn bundle:android --dev=true
       shell: bash
 
@@ -224,6 +236,7 @@ runs:
     # This uses a stable key so dependencies persist across gradle file changes
     # Prevents intermittent 403s from Maven Central rate limiting in CI
     - name: Restore Gradle Dependencies Cache
+      if: inputs.test_runner_only != 'true'
       uses: actions/cache/restore@v4
       id: gradle-deps-cache-restore
       with:
@@ -238,6 +251,7 @@ runs:
     # Cache Gradle files
     # Note: Cache key includes gradle-wrapper.properties hash to invalidate on Gradle version changes
     - name: Restore Cache Gradle files
+      if: inputs.test_runner_only != 'true'
       uses: actions/cache/restore@v4
       id: gradle-cache-restore
       with:
@@ -255,6 +269,7 @@ runs:
           ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
 
     - name: Setup Gradle
+      if: inputs.test_runner_only != 'true'
       uses: gradle/actions/setup-gradle@v4.0.0
       with:
         # Cache is writeable for: tag builds (to update after release) and manual dispatch from master (to refresh cache)
@@ -270,7 +285,7 @@ runs:
 
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
-      if: inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
+      if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
       uses: actions/cache/restore@v4
       id: build-outputs-cache-restore
       with:
@@ -288,19 +303,21 @@ runs:
           ${{ runner.os }}-build-outputs-${{ inputs.arch }}-
 
     - name: Ccachify the Native Modules
+      if: inputs.test_runner_only != 'true'
       shell: bash
       run: |
         chmod +x scripts/ccachify_native_modules.sh
         ./scripts/ccachify_native_modules.sh
 
     - name: Grant execute permission for gradlew
+      if: inputs.test_runner_only != 'true'
       run: cd android && chmod +x gradlew
       shell: bash
 
     # Run codegen for all React Native libraries (required for New Architecture)
     # Skip for jobs that use pre-built APKs (integration test shards)
     - name: Generate React Native Codegen
-      if: inputs.skip_codegen != 'true'
+      if: inputs.test_runner_only != 'true' && inputs.skip_codegen != 'true'
       run: |
         cd android && \
         ./gradlew generateCodegenSchemaFromJavaScript generateCodegenArtifactsFromSchema --parallel --max-workers=$MAX_WORKERS
@@ -308,6 +325,7 @@ runs:
 
     # Cache React Native specific files
     - name: Restore Cache React Native files
+      if: inputs.test_runner_only != 'true'
       uses: actions/cache/restore@v4
       id: react-native-cache-restore
       with:
