@@ -54,6 +54,24 @@ outputs:
   android-cache-hit:
     description: 'Whether the Android SDK and AVD cache was hit'
     value: ${{ steps.android-cache.outputs.cache-hit }}
+  yarn-cache-hit:
+    description: 'Whether the yarn download cache was hit'
+    value: ${{ steps.yarn-download-cache-restore.outputs.cache-hit }}
+  yarn-install-state-cache-hit:
+    description: 'Whether the yarn install state cache was hit'
+    value: ${{ steps.yarn-install-state-cache-restore.outputs.cache-hit }}
+  js-bundle-cache-hit:
+    description: 'Whether the JS bundle cache was hit'
+    value: ${{ steps.js-bundle-cache-restore.outputs.cache-hit }}
+  gradle-deps-cache-hit:
+    description: 'Whether the Gradle dependencies cache was hit'
+    value: ${{ steps.gradle-deps-cache-restore.outputs.cache-hit }}
+  gradle-cache-hit:
+    description: 'Whether the Gradle cache was hit'
+    value: ${{ steps.gradle-cache-restore.outputs.cache-hit }}
+  react-native-cache-hit:
+    description: 'Whether the React Native cache was hit'
+    value: ${{ steps.react-native-cache-restore.outputs.cache-hit }}
 
 runs:
   using: "composite"

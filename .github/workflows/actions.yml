@@ -185,12 +185,19 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-    # Update all caches
+    # Update all caches (skip saves for caches that were already hit)
     - name: Update Caches
       if: always()
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
+        yarn-cache-hit: ${{ steps.common-setup.outputs.yarn-cache-hit }}
+        yarn-install-state-cache-hit: ${{ steps.common-setup.outputs.yarn-install-state-cache-hit }}
+        js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
+        gradle-deps-cache-hit: ${{ steps.common-setup.outputs.gradle-deps-cache-hit }}
+        gradle-cache-hit: ${{ steps.common-setup.outputs.gradle-cache-hit }}
+        build-outputs-cache-hit: ${{ steps.common-setup.outputs.build-outputs-cache-hit }}
+        react-native-cache-hit: ${{ steps.common-setup.outputs.react-native-cache-hit }}
 
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
@@ -824,7 +831,7 @@ jobs:
         path: emulator.log
         retention-days: 90
 
-    # Update all caches
+    # Update all caches (skip saves for caches that were already hit)
     - name: Update Caches
       if: always()
       uses: ./.github/actions/cache-update
@@ -833,6 +840,13 @@ jobs:
         run_emulator_setup: "true"
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
+        yarn-cache-hit: ${{ steps.common-setup.outputs.yarn-cache-hit }}
+        yarn-install-state-cache-hit: ${{ steps.common-setup.outputs.yarn-install-state-cache-hit }}
+        js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
+        gradle-deps-cache-hit: ${{ steps.common-setup.outputs.gradle-deps-cache-hit }}
+        gradle-cache-hit: ${{ steps.common-setup.outputs.gradle-cache-hit }}
+        react-native-cache-hit: ${{ steps.common-setup.outputs.react-native-cache-hit }}
+        android-cache-hit: ${{ steps.common-setup.outputs.android-cache-hit }}
 
     - name: Setup tmate session
       if: ${{ failure() }}
