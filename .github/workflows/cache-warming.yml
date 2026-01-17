@@ -51,14 +51,17 @@ jobs:
           node_version: "22.x"
           arch: ${{ matrix.arch }}
 
-      # Build debug APK to populate ccache with compiled native code
-      # This is slower than minimal tasks but makes PR builds much faster
+      # Build debug, release, and test APKs to fully populate ccache
+      # Regular builds compile ~596 native files (debug + release + test)
+      # This is slower but makes PR builds much faster
       - name: Warm Gradle and Native Caches
         run: |
           cd android && \
           ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
                     -PreactNativeArchitectures="${{ matrix.arch }}" \
                     :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
+                    :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+                    :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
                     --parallel --max-workers=4 --build-cache
         env:
           BUILD_ARCH: ${{ matrix.arch }}
