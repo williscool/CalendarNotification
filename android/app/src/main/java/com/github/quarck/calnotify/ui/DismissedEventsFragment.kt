@@ -213,6 +213,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     
     override fun setSearchQuery(query: String?) {
         adapter.setSearchText(query)
+        updateEmptyState()
     }
     
     override fun getSearchQuery(): String? = adapter.searchString

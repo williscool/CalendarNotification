@@ -272,6 +272,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     
     override fun setSearchQuery(query: String?) {
         adapter.setSearchText(query)
+        updateEmptyState()
     }
     
     override fun getSearchQuery(): String? = adapter.searchString

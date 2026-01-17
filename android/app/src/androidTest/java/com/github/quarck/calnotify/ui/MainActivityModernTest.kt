@@ -543,8 +543,8 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Event").doesNotExist()
         
         // Click close button (X) to clear search
+        // Note: Close button collapses the search action view, which clears the navigation stack
         withId(androidx.appcompat.R.id.search_close_btn).click()
-        fixture.clearNavigationStack()
         
         // Both events should be visible again
         withText("Alpha Event").isDisplayed()
@@ -644,8 +644,11 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("MixedCase Event").isDisplayed()
         
         // Clear and search with uppercase
+        // Note: Close button collapses the search action view
         withId(androidx.appcompat.R.id.search_close_btn).click()
+        // Re-open search (need to push navigation again)
         withId(R.id.action_search).click()
+        fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("MIXED")
         
         // Only MixedCase should match
