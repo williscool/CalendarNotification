@@ -473,15 +473,15 @@ class MainActivityModernTest : BaseUltronTest() {
         // Open search and filter
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
-        // Switch to Upcoming tab - search should clear
+        // Switch to Upcoming tab - search should clear (this also clears navigation)
         withId(R.id.upcomingEventsFragment).click()
-        fixture.clearNavigationStack()
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
@@ -511,6 +511,7 @@ class MainActivityModernTest : BaseUltronTest() {
         // Search for "Alpha"
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha events visible (2 of 3)
@@ -536,6 +537,7 @@ class MainActivityModernTest : BaseUltronTest() {
         // Search for Alpha
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible
@@ -543,7 +545,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Event").doesNotExist()
         
         // Click close button (X) to clear search
-        // Note: Close button collapses the search action view, which clears the navigation stack
+        // Note: Close button collapses the search action view
         withId(androidx.appcompat.R.id.search_close_btn).click()
         
         // Both events should be visible again
@@ -573,6 +575,7 @@ class MainActivityModernTest : BaseUltronTest() {
         // Search for Alpha
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha dismissed event visible
@@ -596,15 +599,15 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Active Alpha").isDisplayed()
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible
         withText("Active Alpha").isDisplayed()
         withText("Active Beta").doesNotExist()
         
-        // Switch to Dismissed tab
+        // Switch to Dismissed tab - this clears search and collapses the search view
         withId(R.id.dismissedEventsFragment).click()
-        fixture.clearNavigationStack()
         
         // Dismissed tab should show all events (search cleared)
         withText("Dismissed Gamma").isDisplayed()
@@ -636,6 +639,7 @@ class MainActivityModernTest : BaseUltronTest() {
         // Search with lowercase
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("event")
         
         // All should match (case insensitive)
@@ -644,11 +648,12 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("MixedCase Event").isDisplayed()
         
         // Clear and search with uppercase
-        // Note: Close button collapses the search action view
+        // Note: Close button collapses the search action view, clearing our navigation tracking
         withId(androidx.appcompat.R.id.search_close_btn).click()
-        // Re-open search (need to push navigation again)
+        
+        // Re-open search
         withId(R.id.action_search).click()
-        fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("MIXED")
         
         // Only MixedCase should match
@@ -656,7 +661,6 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("UPPERCASE EVENT").doesNotExist()
         withText("lowercase event").doesNotExist()
         
-        fixture.clearNavigationStack()
         scenario.close()
     }
     
@@ -671,9 +675,10 @@ class MainActivityModernTest : BaseUltronTest() {
         // Search for partial word
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("port")
         
-        // Both "Important" events should match
+        // All "port" containing events should match (Important, Unimportant)
         withText("Important Meeting").isDisplayed()
         withText("Unimportant Task").isDisplayed()
         withText("Very Important Discussion").isDisplayed()
@@ -692,6 +697,7 @@ class MainActivityModernTest : BaseUltronTest() {
         // Search for non-existent term
         withId(R.id.action_search).click()
         fixture.pushNavigation(2)
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("ZZZZZZZ")
         
         // No events should be visible
