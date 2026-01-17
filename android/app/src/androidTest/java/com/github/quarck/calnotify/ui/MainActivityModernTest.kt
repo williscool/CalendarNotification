@@ -487,10 +487,8 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
-        // Wait for tab content to load
-        withId(R.id.recycler_view).isDisplayed()
-        
-        // Both events should be visible again (search was cleared)
+        // Wait for actual data to load (not just recycler_view container)
+        // New fragment instance loads events asynchronously in onResume
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").isDisplayed()
         
@@ -612,19 +610,13 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Switch to Dismissed tab - this clears search and collapses the search view
         withId(R.id.dismissedEventsFragment).click()
-        // Wait for tab content to load
-        withId(R.id.recycler_view).isDisplayed()
-        
-        // Dismissed tab should show all events (search cleared)
+        // Wait for actual data to load (new fragment loads events asynchronously)
         withText("Dismissed Gamma").isDisplayed()
         withText("Dismissed Delta").isDisplayed()
         
         // Switch back to Active tab
         withId(R.id.activeEventsFragment).click()
-        // Wait for tab content to load
-        withId(R.id.recycler_view).isDisplayed()
-        
-        // Active tab should also show all events (search was cleared)
+        // Wait for actual data to load (new fragment loads events asynchronously)
         withText("Active Alpha").isDisplayed()
         withText("Active Beta").isDisplayed()
         
@@ -679,6 +671,9 @@ class MainActivityModernTest : BaseUltronTest() {
         fixture.createEvent(title = "Very Important Discussion")
         
         val scenario = fixture.launchMainActivityModern()
+        
+        // Wait for events to load first (ensures menu is properly set up)
+        withText("Important Meeting").isDisplayed()
         
         // Search for partial word
         withId(R.id.action_search).click()
