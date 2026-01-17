@@ -435,25 +435,79 @@ tasks.withType(Test) {
     jacoco.excludes = ['jdk.internal.*']
 }
 
-// Configure unit test coverage reports to generate XML and CSV (not just HTML)
-tasks.withType(JacocoReport).configureEach { task ->
-    // Only configure the unit test coverage reports (create*UnitTestCoverageReport)
-    if (task.name.contains('UnitTestCoverageReport')) {
-        reports {
-            xml.required = true
-            html.required = true
-            csv.required = true
-            
-            // Add explicit output locations for unit test coverage reports
-            // Extract variant name from task name (e.g., "createX8664DebugUnitTestCoverageReport" -> "x8664Debug")
-            def taskName = task.name
-            def variantMatch = taskName =~ /create(.+)UnitTestCoverageReport/
-            if (variantMatch.find()) {
-                def variant = variantMatch.group(1)
-                def variantLower = variant[0].toLowerCase() + variant.substring(1)
-                html.outputLocation = file("${buildDir}/reports/jacoco/${variantLower}UnitTestCoverage/html")
-                xml.outputLocation = file("${buildDir}/reports/jacoco/${variantLower}UnitTestCoverage/xml/report.xml")
-                csv.outputLocation = file("${buildDir}/reports/jacoco/${variantLower}UnitTestCoverage/csv/report.csv")
+// Create a task to generate unit test coverage CSV report
+// The Android Gradle Plugin's createX8664DebugUnitTestCoverageReport generates HTML and XML
+// but doesn't support CSV output, so we create a separate JaCoCo task for CSV generation
+task jacocoUnitTestReport(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate JaCoCo CSV report for unit tests"
+    
+    // Get architecture from property or environment, defaulting to x86_64
+    def buildArch = providers.gradleProperty('BUILD_ARCH')
+        .orElse(providers.environmentVariable('BUILD_ARCH'))
+        .orElse('x86_64')
+        .forUseAtConfigurationTime()
+        .get()
+    
+    // Convert architecture to variant name format
+    def archSuffix = buildArch == 'arm64-v8a' ? 'Arm64V8a' : 'X8664'
+    def variantLower = archSuffix.toLowerCase()
+    
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = true
+        
+        html.outputLocation = file("${buildDir}/reports/jacoco/unitTestCoverage/html")
+        xml.outputLocation = file("${buildDir}/reports/jacoco/unitTestCoverage/xml/report.xml")
+        csv.outputLocation = file("${buildDir}/reports/jacoco/unitTestCoverage/csv/report.csv")
+    }
+    
+    // Source directories
+    sourceDirectories.setFrom(files([
+        'src/main/java',
+        'src/main/kotlin'
+    ]))
+    
+    // Class directories - use the compiled classes from unit test builds
+    classDirectories.setFrom(files([
+        fileTree(
+            dir: "${buildDir}",
+            includes: [
+                "**/tmp/kotlin-classes/${variantLower}Debug/**/*.class",
+                "**/intermediates/javac/${variantLower}Debug/classes/**/*.class"
+            ],
+            excludes: [
+                '**/R.class',
+                '**/R$*.class',
+                '**/BuildConfig.*',
+                '**/Manifest*.*',
+                '**/*Test*.*',
+                '**/com/facebook/react/**',
+                '**/com/facebook/hermes/**',
+                '**/com/facebook/jni/**',
+                '**/org/jacoco/**'
+            ]
+        )
+    ]))
+    
+    // Execution data from unit tests
+    executionData.setFrom(fileTree(
+        dir: "${buildDir}",
+        includes: [
+            "outputs/unit_test_code_coverage/${variantLower}DebugUnitTest/*.exec",
+            "jacoco/*.exec"
+        ]
+    ))
+    
+    doFirst {
+        println "=== JaCoCo Unit Test Report Configuration ==="
+        println "Architecture: ${buildArch} (${archSuffix})"
+        println "Looking for .exec files in: ${buildDir}"
+        
+        executionData.files.each { file ->
+            if (file.exists()) {
+                println " - Found: ${file.absolutePath} (${file.length()} bytes)"
             }
         }
     }
