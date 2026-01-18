@@ -308,10 +308,8 @@ class PreActionActivity : AppCompatActivity() {
             
             // 1. Mark as handled in MonitorStorage - must succeed before proceeding
             getMonitorStorage(this).use { storage ->
-                val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
-                if (alert != null) {
-                    storage.updateAlert(alert.copy(wasHandled = true))
-                    monitorSuccess = true
+                monitorSuccess = storage.setWasHandled(eventId, alertTime, instanceStartTime)
+                if (monitorSuccess) {
                     DevLog.info(LOG_TAG, "Marked alert as handled for pre-snooze: event $eventId")
                 } else {
                     DevLog.error(LOG_TAG, "Could not find alert for event $eventId - aborting pre-snooze")
@@ -334,13 +332,11 @@ class PreActionActivity : AppCompatActivity() {
                 }
                 
                 // Rollback MonitorStorage if EventsStorage failed to prevent event loss
+                // Note: Cross-database transactions aren't possible with Room, so we use manual rollback
                 if (!storageSuccess) {
                     getMonitorStorage(this).use { storage ->
-                        val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
-                        if (alert != null) {
-                            storage.updateAlert(alert.copy(wasHandled = false))
-                            DevLog.info(LOG_TAG, "Rolled back wasHandled for event $eventId after storage failure")
-                        }
+                        storage.clearWasHandled(eventId, alertTime, instanceStartTime)
+                        DevLog.info(LOG_TAG, "Rolled back wasHandled for event $eventId after storage failure")
                     }
                 }
                 

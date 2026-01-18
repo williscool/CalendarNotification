@@ -1306,27 +1306,30 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         DevLog.info(LOG_TAG, "Pre-dismissing event ${event.eventId}")
         
         // 1. Mark as handled in MonitorStorage - must succeed before proceeding
-        val success = getMonitorStorage(context).use { storage ->
-            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
-            if (alert != null) {
-                storage.updateAlert(alert.copy(wasHandled = true))
-                DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
-                true
-            } else {
-                DevLog.error(LOG_TAG, "Could not find alert for event ${event.eventId} - aborting pre-dismiss")
-                false
-            }
+        val monitorSuccess = getMonitorStorage(context).use { storage ->
+            storage.setWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
         }
         
-        if (!success) {
+        if (!monitorSuccess) {
+            DevLog.error(LOG_TAG, "Could not find alert for event ${event.eventId} - aborting pre-dismiss")
             return false
         }
+        DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
         
         // 2. Add to DismissedEventsStorage
+        // Note: Cross-database transactions aren't possible, so we use manual rollback on failure
         val dismissedDb = dismissedEventsStorage ?: DismissedEventsStorage(context)
-        dismissedDb.classCustomUse { dbInst ->
-            dbInst.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        try {
+            dismissedDb.classCustomUse { dbInst ->
+                dbInst.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+            }
             DevLog.info(LOG_TAG, "Pre-dismissed event ${event.eventId} added to DismissedEventsStorage")
+        } catch (e: android.database.SQLException) {
+            DevLog.error(LOG_TAG, "Failed to add to DismissedEventsStorage - rolling back: ${e.message}")
+            getMonitorStorage(context).use { storage ->
+                storage.clearWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+            }
+            return false
         }
         
         // 3. Dismiss native calendar alert
