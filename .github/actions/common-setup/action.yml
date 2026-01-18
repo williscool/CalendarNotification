@@ -290,9 +290,9 @@ runs:
           wrapper
 
     # Restore Build Outputs Cache if arch is provided
-    # Unit tests can restore this to get pre-generated codegen artifacts from cache warmer
+    # Excluded for unit-tests: codegen can't be skipped via caching (Gradle task graph requires it)
     - name: Restore Build Outputs Cache
-      if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test'
+      if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
       uses: actions/cache/restore@v4
       id: build-outputs-cache-restore
       with:

@@ -395,7 +395,8 @@ jobs:
         create-symlink: true
 
     # Execute the common setup
-    # Skip disk cleanup (no emulator), skip codegen (restored from build outputs cache)
+    # Skip disk cleanup (no emulator needed)
+    # Note: codegen cannot be skipped - Gradle's task graph requires it even with cached outputs
     - name: Common Setup
       uses: ./.github/actions/common-setup
       with:
@@ -404,7 +405,6 @@ jobs:
         node_version: "22.x"
         arch: ${{ matrix.arch }}
         skip_disk_space: "true"
-        skip_codegen: "true"
 
     # Run Jest tests (TypeScript/JavaScript unit tests) with coverage
     - name: Run Jest Tests
