@@ -1332,8 +1332,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
         
         // 2. Check if alert already fired (race condition: alert fired just before we set wasHandled)
-        val eventsStorage = getEventsStorage(context)
-        val existingEvent = eventsStorage.use { db ->
+        val existingEvent = getEventsStorage(context).classCustomUse { db ->
             db.getEvent(event.eventId, event.instanceStartTime)
         }
         if (existingEvent != null) {
