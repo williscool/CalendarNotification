@@ -75,6 +75,7 @@ runs:
         key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
 
     # Build Outputs Cache - Save only if not already cached
+    # Unit tests restore but don't save (they only do partial builds, warmer does full builds)
     - name: Save Build Outputs Cache
       if: always() && inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests' && inputs.build-outputs-cache-hit != 'true'
       uses: actions/cache/save@v4
@@ -87,7 +88,8 @@ runs:
           android/app/build/intermediates/instrumented_classes
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        # Include yarn.lock to invalidate cache when JS deps change (affects codegen)
+        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'yarn.lock') }}-${{ github.sha }}
 
     # Gradle dependencies cache - Save only if not already cached
     # Prevents intermittent 403s from Maven Central rate limiting in CI

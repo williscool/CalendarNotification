@@ -290,8 +290,9 @@ runs:
           wrapper
 
     # Restore Build Outputs Cache if arch is provided
+    # Unit tests can restore this to get pre-generated codegen artifacts from cache warmer
     - name: Restore Build Outputs Cache
-      if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
+      if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test'
       uses: actions/cache/restore@v4
       id: build-outputs-cache-restore
       with:
@@ -303,9 +304,10 @@ runs:
           android/app/build/intermediates/instrumented_classes
           android/app/build/intermediates/test_apk
           android/app/build/intermediates/test_apk_androidTest
-        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+        # Include yarn.lock to invalidate cache when JS deps change (affects codegen)
+        key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'yarn.lock') }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'yarn.lock') }}-
           ${{ runner.os }}-build-outputs-${{ inputs.arch }}-
 
     - name: Ccachify the Native Modules
