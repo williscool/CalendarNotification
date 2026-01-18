@@ -497,35 +497,6 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
         }
     }
 
-    override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
-
-        val event = adapter.getEventAtPosition(position, eventId)
-
-        if (event != null) {
-            DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
-            ApplicationController.dismissEvent(this, EventDismissType.ManuallyDismissedFromActivity, event)
-
-            // Use applicationContext for UndoManager since it persists across activity recreation
-            undoManager.addUndoState(
-                UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(applicationContext, event) }
-                )
-            )
-
-            adapter.removeEvent(event)
-            lastEventDismissalScrollPosition = adapter.scrollPosition
-
-            onNumEventsUpdated()
-
-            val coordinatorLayout = findOrThrow<CoordinatorLayout>(R.id.main_activity_coordinator)
-
-            Snackbar.make(coordinatorLayout, resources.getString(R.string.event_dismissed), Snackbar.LENGTH_LONG)
-                .setAction(resources.getString(R.string.undo)) { onUndoButtonClick(null) }
-                .show()
-        }
-    }
-
     override fun onItemRemoved(event: EventAlertRecord) {
         DevLog.info(LOG_TAG, "onItemRemoved: Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
         ApplicationController.dismissEvent(this, EventDismissType.ManuallyDismissedFromActivity, event)

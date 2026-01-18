@@ -45,7 +45,6 @@ import com.github.quarck.calnotify.utils.findOrThrow
 
 interface EventListCallback {
     fun onItemClick(v: View, position: Int, eventId: Long): Unit
-    fun onItemDismiss(v: View, position: Int, eventId: Long): Unit
     fun onItemSnooze(v: View, position: Int, eventId: Long): Unit
     fun onItemRemoved(event: EventAlertRecord)
     fun onItemRestored(event: EventAlertRecord) // e.g. undo

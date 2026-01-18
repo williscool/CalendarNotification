@@ -165,11 +165,6 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         }
     }
 
-    override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        // Not used for swipe - swipe triggers onItemRemoved
-        DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
-    }
-
     override fun onItemSnooze(v: View, position: Int, eventId: Long) {
         // Snooze from swipe not implemented - use PreActionActivity for snooze options
         DevLog.info(LOG_TAG, "onItemSnooze - redirecting to PreActionActivity")

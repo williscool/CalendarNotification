@@ -202,37 +202,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         }
     }
 
-    override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
-        
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
-            ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
-            
-            // Use applicationContext for UndoManager since it persists across activity recreation
-            val appContext = ctx.applicationContext
-            UndoManager.addUndoState(
-                UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
-                )
-            )
-            
-            adapter.removeEvent(event)
-            updateEmptyState()
-            
-            view?.let { v ->
-                Snackbar.make(v, getString(R.string.event_dismissed), Snackbar.LENGTH_LONG)
-                    .setAction(getString(R.string.undo)) { 
-                        UndoManager.undo()
-                        loadEvents()
-                    }
-                    .show()
-            }
-        }
-    }
-
     override fun onItemSnooze(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemSnooze, pos=$position, eventId=$eventId")
         

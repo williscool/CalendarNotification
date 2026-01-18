@@ -473,8 +473,8 @@ adapter = EventListAdapter(requireContext(), this, swipeEnabled = false)
 // To:
 adapter = EventListAdapter(requireContext(), this, swipeEnabled = true)
 
-// And implement onItemDismiss to call handlePreDismiss
-override fun onItemDismiss(v: View, position: Int, eventId: Long) {
+// And implement onItemRemoved to call handlePreDismiss
+override fun onItemRemoved(v: View, position: Int, eventId: Long) {
     val event = adapter.getEventAtPosition(position, eventId)
     if (event != null) {
         handlePreDismiss(event)
@@ -521,7 +521,7 @@ fun `undo pre-dismiss sets wasHandled back to false`()
 | File | Changes |
 |------|---------|
 | `strings.xml` | Add `pre_dismiss`, `event_dismissed`, `view_in_calendar` |
-| `UpcomingEventsFragment.kt` | Add `handlePreDismiss()`, `undoPreDismiss()`, update `onItemDismiss()` |
+| `UpcomingEventsFragment.kt` | Add `handlePreDismiss()`, `undoPreDismiss()`, update `onItemRemoved()` |
 | `UpcomingEventsFragmentRobolectricTest.kt` | Add dismiss/undo UI tests |
 | `PreDismissIntegrationTest.kt` (new) | Integration tests |
 
