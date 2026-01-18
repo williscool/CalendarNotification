@@ -83,7 +83,9 @@ class PreActionActivity : AppCompatActivity() {
                 putExtra(Consts.INTENT_EVENT_TITLE_KEY, event.title)
                 putExtra(Consts.INTENT_EVENT_START_TIME_KEY, event.startTime)
                 putExtra(Consts.INTENT_EVENT_END_TIME_KEY, event.endTime)
+                putExtra(Consts.INTENT_EVENT_INSTANCE_END_TIME_KEY, event.instanceEndTime)
                 putExtra(Consts.INTENT_EVENT_ALL_DAY_KEY, event.isAllDay)
+                putExtra(Consts.INTENT_EVENT_IS_REPEATING_KEY, event.isRepeating)
                 putExtra(Consts.INTENT_EVENT_LOCATION_KEY, event.location)
                 putExtra(Consts.INTENT_EVENT_COLOR_KEY, event.color)
                 putExtra(Consts.INTENT_EVENT_IS_MUTED_KEY, event.isMuted)
@@ -97,11 +99,13 @@ class PreActionActivity : AppCompatActivity() {
     // Event data from intent
     private var eventId: Long = -1L
     private var instanceStartTime: Long = -1L
+    private var instanceEndTime: Long = -1L
     private var alertTime: Long = -1L
     private var eventTitle: String = ""
     private var eventStartTime: Long = 0L
     private var eventEndTime: Long = 0L
     private var eventAllDay: Boolean = false
+    private var eventIsRepeating: Boolean = false
     private var eventLocation: String = ""
     private var eventColor: Int = 0
     private var eventIsMuted: Boolean = false
@@ -118,11 +122,13 @@ class PreActionActivity : AppCompatActivity() {
         // Load event data from intent
         eventId = intent.getLongExtra(Consts.INTENT_EVENT_ID_KEY, -1L)
         instanceStartTime = intent.getLongExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, -1L)
+        instanceEndTime = intent.getLongExtra(Consts.INTENT_EVENT_INSTANCE_END_TIME_KEY, -1L)
         alertTime = intent.getLongExtra(Consts.INTENT_ALERT_TIME_KEY, -1L)
         eventTitle = intent.getStringExtra(Consts.INTENT_EVENT_TITLE_KEY) ?: ""
         eventStartTime = intent.getLongExtra(Consts.INTENT_EVENT_START_TIME_KEY, 0L)
         eventEndTime = intent.getLongExtra(Consts.INTENT_EVENT_END_TIME_KEY, 0L)
         eventAllDay = intent.getBooleanExtra(Consts.INTENT_EVENT_ALL_DAY_KEY, false)
+        eventIsRepeating = intent.getBooleanExtra(Consts.INTENT_EVENT_IS_REPEATING_KEY, false)
         eventLocation = intent.getStringExtra(Consts.INTENT_EVENT_LOCATION_KEY) ?: ""
         eventColor = intent.getIntExtra(Consts.INTENT_EVENT_COLOR_KEY, 0)
         eventIsMuted = intent.getBooleanExtra(Consts.INTENT_EVENT_IS_MUTED_KEY, false)
@@ -299,7 +305,7 @@ class PreActionActivity : AppCompatActivity() {
             calendarId = -1L,  // Bypass calendar filter
             eventId = eventId,
             isAllDay = eventAllDay,
-            isRepeating = false,
+            isRepeating = eventIsRepeating,
             alertTime = alertTime,
             notificationId = 0,
             title = eventTitle,
@@ -307,7 +313,7 @@ class PreActionActivity : AppCompatActivity() {
             startTime = eventStartTime,
             endTime = eventEndTime,
             instanceStartTime = instanceStartTime,
-            instanceEndTime = eventEndTime,
+            instanceEndTime = instanceEndTime,
             location = eventLocation,
             lastStatusChangeTime = currentTime,
             snoozedUntil = snoozeUntil,
@@ -322,8 +328,8 @@ class PreActionActivity : AppCompatActivity() {
     }
     
     private fun updateMuteButton() {
-        val muteView = findViewById<TextView>(R.id.pre_action_mute_toggle)
-        // Update text but keep the same icon - icon shows the action (mute/unmute)
+        // Null check in case activity is destroyed while background task runs
+        val muteView = findViewById<TextView>(R.id.pre_action_mute_toggle) ?: return
         muteView.text = getString(if (eventIsMuted) R.string.pre_unmute else R.string.pre_mute)
     }
     
