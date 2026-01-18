@@ -51,7 +51,7 @@
                     android:paddingStart="@dimen/snooze_view_img_padding_end"
                     android:paddingEnd="@dimen/snooze_view_img_padding_start"
                     android:background="?android:attr/selectableItemBackground"
-                    android:contentDescription="@string/overflow_menu" />
+                    android:contentDescription="@string/content_desc_menu" />
 
                 <TextView
                     android:layout_width="match_parent"

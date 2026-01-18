@@ -47,6 +47,8 @@ import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.app.UndoManager
+import com.github.quarck.calnotify.app.UndoState
 
 /**
  * Fragment for displaying upcoming events (before their notification fires).
