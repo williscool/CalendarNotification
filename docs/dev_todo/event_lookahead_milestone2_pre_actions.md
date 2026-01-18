@@ -701,3 +701,44 @@ fun `unsnooze not available after alert time passes`()
 | Pre-mute indicator? | Verify EventListAdapter already handles `isMuted` |
 | Unsnooze scope? | Added as Phase 6.4, only for events before original alert time |
 | Pre-dismiss restore behavior? | Smart restore: if alertTime > now → Upcoming; else → Active |
+
+---
+
+## Code Cleanup (During Implementation)
+
+During Milestone 2 implementation, we discovered and removed dead code from `EventListCallback`:
+
+### Removed: `onItemDismiss` and `onItemSnooze`
+
+Both methods were defined in the `EventListCallback` interface but **never called** anywhere in the codebase:
+
+- `onItemDismiss(v: View, position: Int, eventId: Long)` - Likely intended for a "dismiss button" on event cards
+- `onItemSnooze(v: View, position: Int, eventId: Long)` - Likely intended for a "snooze button" on event cards
+
+**Why removed:**
+- Dead code that was never invoked by `EventListAdapter`
+- Confusing - developers might implement logic there thinking it would be called
+- Swipe-to-dismiss via `onItemRemoved()` is the correct pattern for dismissal
+- Tap-to-open-activity (`onItemClick`) is the correct pattern for snooze options
+
+**Final interface:**
+```kotlin
+interface EventListCallback {
+    fun onItemClick(v: View, position: Int, eventId: Long): Unit
+    fun onItemRemoved(event: EventAlertRecord)
+    fun onItemRestored(event: EventAlertRecord) // e.g. undo
+    fun onScrollPositionChange(newPos: Int)
+}
+```
+
+**Files cleaned:**
+- `EventListAdapter.kt` - Interface definition
+- `UpcomingEventsFragment.kt` - Implementation removed
+- `ActiveEventsFragment.kt` - Implementation removed
+- `MainActivityLegacy.kt` - Implementation removed
+
+### Added: `EventDismissType.ManuallyDismissedFromUpcoming`
+
+New dismiss type to differentiate dismissals from Upcoming vs Active events:
+- Dismissed events now show "Dismissed from Active in the app on..." or "Dismissed from Upcoming in the app on..."
+- Helps users understand where an event was dismissed from when viewing the Dismissed list
