@@ -376,6 +376,8 @@
     <string name="view_in_calendar">View in Calendar</string>
     <string name="alert_fires_at">Alert fires at %s</string>
     <string name="error">Error</string>
+    <string name="pre_dismiss">Dismiss</string>
+    <string name="event_pre_dismissed">Event dismissed</string>
 
     <string name="done">Done</string>
     <string name="notification_is_muted">Notification is muted</string>

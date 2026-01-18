@@ -38,6 +38,9 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.AttendanceStatus
+import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
@@ -66,11 +69,31 @@ class PreActionActivity : AppCompatActivity() {
     companion object {
         private const val LOG_TAG = "PreActionActivity"
         
-        // For DI in tests
+        // DI providers for testing (Pattern B - Companion Object Provider)
         var clockProvider: (() -> CNPlusClockInterface)? = null
+        var monitorStorageProvider: ((Context) -> MonitorStorage)? = null
+        var eventsStorageProvider: ((Context) -> EventsStorage)? = null
+        var dismissedEventsStorageProvider: ((Context) -> DismissedEventsStorage)? = null
         
         private fun getClock(): CNPlusClockInterface =
             clockProvider?.invoke() ?: CNPlusSystemClock()
+        
+        private fun getMonitorStorage(context: Context): MonitorStorage =
+            monitorStorageProvider?.invoke(context) ?: MonitorStorage(context)
+        
+        private fun getEventsStorage(context: Context): EventsStorage =
+            eventsStorageProvider?.invoke(context) ?: EventsStorage(context)
+        
+        private fun getDismissedEventsStorage(context: Context): DismissedEventsStorage =
+            dismissedEventsStorageProvider?.invoke(context) ?: DismissedEventsStorage(context)
+        
+        /** Reset all providers - call in @After to prevent test pollution */
+        fun resetProviders() {
+            clockProvider = null
+            monitorStorageProvider = null
+            eventsStorageProvider = null
+            dismissedEventsStorageProvider = null
+        }
         
         /**
          * Creates an intent to launch PreActionActivity for the given event.
@@ -191,6 +214,11 @@ class PreActionActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.pre_action_view_calendar).setOnClickListener {
             viewInCalendar()
         }
+        
+        // Dismiss
+        findViewById<TextView>(R.id.pre_action_dismiss).setOnClickListener {
+            executePreDismiss()
+        }
     }
     
     private fun setupSnoozePresets() {
@@ -261,7 +289,7 @@ class PreActionActivity : AppCompatActivity() {
             var success = false
             
             // 1. Mark as handled in MonitorStorage
-            MonitorStorage(this).use { storage ->
+            getMonitorStorage(this).use { storage ->
                 val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
                 if (alert != null) {
                     storage.updateAlert(alert.copy(wasHandled = true))
@@ -275,7 +303,7 @@ class PreActionActivity : AppCompatActivity() {
             val currentTime = getClock().currentTimeMillis()
             val snoozedEvent = createEventRecord(snoozeUntil, currentTime)
             
-            EventsStorage(this).use { db ->
+            getEventsStorage(this).use { db ->
                 success = db.addEvent(snoozedEvent)
                 if (success) {
                     DevLog.info(LOG_TAG, "Pre-snoozed event $eventId until $snoozeUntil")
@@ -336,7 +364,7 @@ class PreActionActivity : AppCompatActivity() {
     private fun toggleMute() {
         background {
             var success = false
-            MonitorStorage(this).use { storage ->
+            getMonitorStorage(this).use { storage ->
                 val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
                 if (alert != null) {
                     val newMuted = !eventIsMuted
@@ -353,6 +381,37 @@ class PreActionActivity : AppCompatActivity() {
                     val msgRes = if (eventIsMuted) R.string.event_will_be_muted else R.string.event_unmuted
                     Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+    }
+    
+    private fun executePreDismiss() {
+        background {
+            // 1. Mark as handled in MonitorStorage
+            getMonitorStorage(this).use { storage ->
+                val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
+                if (alert != null) {
+                    storage.updateAlert(alert.copy(wasHandled = true))
+                    DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event $eventId")
+                } else {
+                    DevLog.warn(LOG_TAG, "Could not find alert for event $eventId to mark as handled")
+                }
+            }
+            
+            // 2. Add to DismissedEventsStorage
+            val currentTime = getClock().currentTimeMillis()
+            val eventRecord = createEventRecord(0, currentTime)
+            getDismissedEventsStorage(this).use { dismissedDb ->
+                dismissedDb.addEvent(EventDismissType.ManuallyDismissedFromActivity, eventRecord)
+                DevLog.info(LOG_TAG, "Pre-dismissed event $eventId added to DismissedEventsStorage")
+            }
+            
+            // 3. Dismiss native calendar alert
+            CalendarProvider.dismissNativeEventAlert(this, eventId)
+            
+            runOnUiThread {
+                Toast.makeText(this, R.string.event_pre_dismissed, Toast.LENGTH_SHORT).show()
+                finish()
             }
         }
     }

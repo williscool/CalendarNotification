@@ -212,6 +212,7 @@ fun testSomething() {
 - `MainActivity` - `eventsStorageProvider`, `dismissedEventsStorageProvider`
 - `ViewEventActivityNoRecents` - `eventsStorageProvider`
 - `DismissedEventsActivity` - `dismissedEventsStorageProvider`
+- `PreActionActivity` - `clockProvider`, `monitorStorageProvider`, `eventsStorageProvider`, `dismissedEventsStorageProvider`
 - `AlarmScheduler` - `eventsStorageProvider`, `reminderStateProvider`
 - `ReminderAlarmBroadcastReceiver` - multiple providers (clock, settings, storage, etc.)
 - `ActiveEventsFragment` - `eventsStorageProvider`

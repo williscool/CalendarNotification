@@ -347,9 +347,26 @@ fun `pre-snoozed event appears in Active tab as snoozed`()
 
 ---
 
-## Phase 6.3: Pre-Dismiss + Undo (HARDEST)
+## Phase 6.3: Pre-Dismiss (HARDEST) - ✅ IMPLEMENTED
 
-**Goal:** Allow users to dismiss an upcoming event entirely—goes straight to Dismissed storage with undo capability.
+**Goal:** Allow users to dismiss an upcoming event entirely—goes straight to Dismissed storage.
+
+### Implementation (Completed)
+
+Added dismiss functionality to `PreActionActivity`:
+
+1. **New UI**: Added "Dismiss" button to `activity_pre_action.xml`
+2. **Logic in `executePreDismiss()`**:
+   - Marks alert as `wasHandled = true` in MonitorStorage
+   - Adds event to DismissedEventsStorage with `EventDismissType.ManuallyDismissedFromActivity`
+   - Dismisses native calendar alert via `CalendarProvider.dismissNativeEventAlert()`
+   - Shows toast and finishes activity
+
+**Note**: Undo functionality was descoped for initial implementation. Event goes directly to Dismissed tab.
+
+---
+
+### Original Plan (for reference)
 
 ### Why It's Hardest
 - Two storage operations that must be coordinated
