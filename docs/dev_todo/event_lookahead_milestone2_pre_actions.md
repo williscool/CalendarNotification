@@ -675,11 +675,10 @@ fun `unsnooze not available after alert time passes`()
 - [ ] All tests pass
 
 ### Phase 6.3: Pre-Dismiss
-- [ ] "Dismiss" removes event from Upcoming
-- [ ] Event goes to Dismissed storage
-- [ ] Undo snackbar appears
-- [ ] Undo restores event to Upcoming
-- [ ] Event does not fire notification after dismiss
+- [x] "Dismiss" removes event from Upcoming
+- [x] Event goes to Dismissed storage
+- [x] Smart restore: if alertTime > now → restore to Upcoming; else → restore to Active
+- [x] Event does not fire notification after dismiss (wasHandled=true)
 - [ ] All tests pass
 
 ### Phase 6.4: Unsnooze to Upcoming
@@ -701,3 +700,4 @@ fun `unsnooze not available after alert time passes`()
 | Swipe for upcoming? | Start with dialog-only, can add swipe in 6.3 |
 | Pre-mute indicator? | Verify EventListAdapter already handles `isMuted` |
 | Unsnooze scope? | Added as Phase 6.4, only for events before original alert time |
+| Pre-dismiss restore behavior? | Smart restore: if alertTime > now → Upcoming; else → Active |

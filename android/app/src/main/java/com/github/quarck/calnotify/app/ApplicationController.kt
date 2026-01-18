@@ -36,6 +36,8 @@ import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.globalState
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
@@ -153,6 +155,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private fun getEventsStorage(ctx: Context): EventsStorageInterface {
         return eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
+    }
+
+    // Injectable MonitorStorage provider for testing - when null, uses real MonitorStorage
+    var monitorStorageProvider: ((Context) -> MonitorStorageInterface)? = null
+
+    private fun getMonitorStorage(ctx: Context): MonitorStorageInterface {
+        return monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
     }
 
     // Injectable ReminderState provider for testing - when null, uses real ReminderState
@@ -1158,6 +1167,49 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         db: EventsStorageInterface?,
         dismissedEventsStorage: DismissedEventsStorage?
     ) {
+        val currentTime = clock.currentTimeMillis()
+        
+        // Smart restore: if alert hasn't fired yet, restore to Upcoming; otherwise restore to Active
+        if (event.alertTime > currentTime) {
+            restoreToUpcoming(context, event, dismissedEventsStorage)
+        } else {
+            restoreToActive(context, event, db, dismissedEventsStorage)
+        }
+    }
+    
+    private fun restoreToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorage?
+    ) {
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Upcoming (alertTime ${event.alertTime} is in the future)")
+        
+        // 1. Clear wasHandled flag in MonitorStorage so event appears in Upcoming again
+        getMonitorStorage(context).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(wasHandled = false))
+                DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+            } else {
+                DevLog.warn(LOG_TAG, "Could not find alert in MonitorStorage for event ${event.eventId}")
+            }
+        }
+        
+        // 2. Remove from DismissedEventsStorage
+        val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+        dismissedStorage.classCustomUse { dbInst ->
+            dbInst.deleteEvent(event)
+        }
+        
+        DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to Upcoming")
+    }
+    
+    private fun restoreToActive(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface?,
+        dismissedEventsStorage: DismissedEventsStorage?
+    ) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
         
@@ -1166,7 +1218,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             calendarProvider.findMatchingCalendarId(context, backupInfo)
         } ?: event.calendarId // Fallback to original ID if no match found
         
-        DevLog.info(LOG_TAG, "Restoring event ${event.eventId}: original calendar ${event.calendarId}, matched calendar $newCalendarId")
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Active: original calendar ${event.calendarId}, matched calendar $newCalendarId")
         
         // Create restored event with updated calendar ID
         val toRestore = event.copy(
