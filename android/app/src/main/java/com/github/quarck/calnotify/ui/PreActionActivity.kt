@@ -322,7 +322,7 @@ class PreActionActivity : AppCompatActivity() {
                 val currentTime = getClock().currentTimeMillis()
                 val snoozedEvent = createEventRecord(snoozeUntil, currentTime)
                 
-                getEventsStorage(this).use { db ->
+                getEventsStorage(this).classCustomUse { db ->
                     storageSuccess = db.addEvent(snoozedEvent)
                     if (storageSuccess) {
                         DevLog.info(LOG_TAG, "Pre-snoozed event $eventId until $snoozeUntil")
