@@ -334,7 +334,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -356,7 +356,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -386,7 +386,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -473,7 +473,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Meeting").isDisplayed()
         
         // Open search and filter
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -518,7 +518,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Planning Session").isDisplayed()
         
         // Search for "Alpha"
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -543,7 +543,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Beta Event").isDisplayed()
         
         // Search for Alpha
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -580,7 +580,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Dismissed Beta").isDisplayed()
         
         // Search for Alpha
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -603,7 +603,7 @@ class MainActivityModernTest : BaseUltronTest() {
         
         // Search on Active tab
         withText("Active Alpha").isDisplayed()
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
@@ -648,7 +648,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("MixedCase Event").isDisplayed()
         
         // Search with lowercase
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("event")
         
@@ -662,7 +662,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withId(androidx.appcompat.R.id.search_close_btn).click()
         
         // Re-open search
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("MIXED")
         
         // Only MixedCase should match
@@ -686,7 +686,7 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Important Meeting").isDisplayed()
         
         // Search for partial word - use reliable helper to handle CI flakiness
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("port")
         
@@ -707,7 +707,7 @@ class MainActivityModernTest : BaseUltronTest() {
         val scenario = fixture.launchMainActivityModern()
         
         // Search for non-existent term
-        openSearchViewReliably(scenario)
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
         withId(androidx.appcompat.R.id.search_src_text).replaceText("ZZZZZZZ")
         
@@ -801,73 +801,6 @@ class MainActivityModernTest : BaseUltronTest() {
     }
     
     // === Helper Methods ===
-    
-    /**
-     * Reliably opens the SearchView with multiple fallback strategies.
-     * 
-     * This addresses flakiness in CI where the SearchView expansion can fail due to:
-     * 1. Menu not being fully interactive yet
-     * 2. Click not registering properly
-     * 3. Animation/timing issues on slower CI machines
-     * 
-     * Strategy:
-     * 1. Wait for menu item to be displayed AND clickable
-     * 2. Try clicking the menu item
-     * 3. Check if SearchView expanded (search_src_text visible) with short timeout
-     * 4. If not, fall back to programmatic expansion via activity
-     * 5. Retry the entire flow up to 3 times
-     */
-    private fun openSearchViewReliably(scenario: ActivityScenario<MainActivityModern>) {
-        val maxAttempts = 3
-        val shortTimeout = 2000L
-        
-        for (attempt in 1..maxAttempts) {
-            // Strategy 1: Ensure menu item is fully ready before clicking
-            withId(R.id.action_search).isDisplayed()
-            withId(R.id.action_search).isClickable()
-            
-            // Strategy 2: Try clicking the menu item
-            withId(R.id.action_search).click()
-            
-            // Check if SearchView expanded with a short timeout
-            val expanded = try {
-                withId(androidx.appcompat.R.id.search_src_text)
-                    .withTimeout(shortTimeout)
-                    .isDisplayed()
-                true
-            } catch (e: Exception) {
-                false
-            }
-            
-            if (expanded) {
-                return // Success!
-            }
-            
-            // Strategy 3: Fall back to programmatic expansion
-            if (attempt < maxAttempts) {
-                scenario.onActivity { activity ->
-                    activity.searchMenuItem?.expandActionView()
-                }
-                
-                // Check again after programmatic expansion
-                val expandedProgrammatically = try {
-                    withId(androidx.appcompat.R.id.search_src_text)
-                        .withTimeout(shortTimeout)
-                        .isDisplayed()
-                    true
-                } catch (e: Exception) {
-                    false
-                }
-                
-                if (expandedProgrammatically) {
-                    return // Success via programmatic expansion!
-                }
-            }
-        }
-        
-        // Final attempt - use standard assertion which will throw with full error details
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
-    }
     
     // Inherits setConfig() from BaseUltronTest
 }

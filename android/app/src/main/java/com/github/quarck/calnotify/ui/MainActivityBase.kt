@@ -28,6 +28,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
@@ -64,6 +65,10 @@ abstract class MainActivityBase : AppCompatActivity() {
     protected val undoManager by lazy { UndoManager }
 
     open val clock: CNPlusClockInterface = CNPlusSystemClock()
+
+    // Visible for testing - shared search UI components
+    internal var searchView: SearchView? = null
+    internal var searchMenuItem: MenuItem? = null
 
     protected var calendarRescanEnabled = true
     protected var shouldRemindForEventsWithNoReminders = true
