@@ -62,6 +62,7 @@ object Consts {
     //
     const val INTENT_NOTIFICATION_ID_KEY = "notificationId"
     const val INTENT_EVENT_ID_KEY = "eventId"
+    const val INTENT_CALENDAR_ID_KEY = "calendarId"
     const val INTENT_INSTANCE_START_TIME_KEY = "instanceStartTime"
     const val INTENT_SNOOZE_ALL_IS_CHANGE = "snooze_all_is_change"
     const val INTENT_SNOOZE_FROM_MAIN_ACTIVITY = "snooze_by_main_activity"

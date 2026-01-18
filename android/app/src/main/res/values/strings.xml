@@ -374,7 +374,7 @@
     <string name="event_unmuted">Event will no longer be muted</string>
     <string name="pre_snooze">Snooze until…</string>
     <string name="event_pre_snoozed">Event snoozed</string>
-    <string name="unsnooze_to_upcoming">Back to upcoming</string>
+    <string name="unsnooze_to_upcoming">Unsnooze (to Upcoming)</string>
     <string name="event_restored_to_upcoming">Event returned to upcoming</string>
     <string name="view_in_calendar">View in Calendar</string>
     <string name="alert_fires_at">Alert fires at %s</string>

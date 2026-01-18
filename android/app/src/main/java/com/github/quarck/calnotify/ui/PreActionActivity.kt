@@ -102,6 +102,7 @@ class PreActionActivity : AppCompatActivity() {
         fun createIntent(context: Context, event: EventAlertRecord): Intent {
             return Intent(context, PreActionActivity::class.java).apply {
                 putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
+                putExtra(Consts.INTENT_CALENDAR_ID_KEY, event.calendarId)
                 putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
                 putExtra(Consts.INTENT_ALERT_TIME_KEY, event.alertTime)
                 putExtra(Consts.INTENT_EVENT_TITLE_KEY, event.title)
@@ -123,6 +124,7 @@ class PreActionActivity : AppCompatActivity() {
     
     // Event data from intent
     private var eventId: Long = -1L
+    private var calendarId: Long = -1L
     private var instanceStartTime: Long = -1L
     private var instanceEndTime: Long = -1L
     private var alertTime: Long = -1L
@@ -147,6 +149,7 @@ class PreActionActivity : AppCompatActivity() {
         
         // Load event data from intent
         eventId = intent.getLongExtra(Consts.INTENT_EVENT_ID_KEY, -1L)
+        calendarId = intent.getLongExtra(Consts.INTENT_CALENDAR_ID_KEY, -1L)
         instanceStartTime = intent.getLongExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, -1L)
         instanceEndTime = intent.getLongExtra(Consts.INTENT_EVENT_INSTANCE_END_TIME_KEY, -1L)
         alertTime = intent.getLongExtra(Consts.INTENT_ALERT_TIME_KEY, -1L)
@@ -360,7 +363,7 @@ class PreActionActivity : AppCompatActivity() {
     
     private fun createEventRecord(snoozeUntil: Long, currentTime: Long): EventAlertRecord {
         return EventAlertRecord(
-            calendarId = -1L,  // Bypass calendar filter
+            calendarId = calendarId,
             eventId = eventId,
             isAllDay = eventAllDay,
             isRepeating = eventIsRepeating,
