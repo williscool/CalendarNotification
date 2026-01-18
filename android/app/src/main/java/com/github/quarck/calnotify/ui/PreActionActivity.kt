@@ -319,6 +319,17 @@ class PreActionActivity : AppCompatActivity() {
                     }
                 }
                 
+                // Rollback MonitorStorage if EventsStorage failed to prevent event loss
+                if (!storageSuccess) {
+                    getMonitorStorage(this).use { storage ->
+                        val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
+                        if (alert != null) {
+                            storage.updateAlert(alert.copy(wasHandled = false))
+                            DevLog.info(LOG_TAG, "Rolled back wasHandled for event $eventId after storage failure")
+                        }
+                    }
+                }
+                
                 // 3. Reschedule alarms
                 if (storageSuccess) {
                     ApplicationController.afterCalendarEventFired(this)

@@ -540,13 +540,14 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
                 DevLog.info(LOG_TAG, "registerNewEvents: Event fired, calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime=${event.alertTime}")
 
+                tagsManager.parseEventTags(context, settings, event)
+
                 // Apply pre-mute flag if set (user marked event to be muted before it fired)
+                // Must be after parseEventTags so user preference takes precedence over tag parsing
                 if (alert.preMuted && !event.isMuted) {
                     event.isMuted = true
                     DevLog.info(LOG_TAG, "Event ${event.eventId} was pre-muted, applying mute flag")
                 }
-
-                tagsManager.parseEventTags(context, settings, event)
 
                 if (event.isRepeating) {
                     // repeating event - always simply add
