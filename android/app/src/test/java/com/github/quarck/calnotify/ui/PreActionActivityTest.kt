@@ -61,7 +61,7 @@ class PreActionActivityTest {
 
     @After
     fun teardown() {
-        PreActionActivity.clockProvider = null
+        PreActionActivity.resetProviders()
         if (::activityController.isInitialized) {
             activityController.pause().stop().destroy()
         }
@@ -156,5 +156,14 @@ class PreActionActivityTest {
         assertEquals(testEvent.isAllDay, intent.getBooleanExtra(Consts.INTENT_EVENT_ALL_DAY_KEY, true))
         assertEquals(testEvent.isRepeating, intent.getBooleanExtra(Consts.INTENT_EVENT_IS_REPEATING_KEY, true))
         assertEquals(testEvent.color, intent.getIntExtra(Consts.INTENT_EVENT_COLOR_KEY, -1))
+    }
+
+    @Test
+    fun `dismiss button is present`() {
+        val activity = launchActivity()
+        
+        val dismissButton = activity.findViewById<TextView>(R.id.pre_action_dismiss)
+        assertNotNull(dismissButton)
+        assertEquals(activity.getString(R.string.pre_dismiss), dismissButton.text)
     }
 }
