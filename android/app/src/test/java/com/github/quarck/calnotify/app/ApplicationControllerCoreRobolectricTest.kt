@@ -630,6 +630,50 @@ class ApplicationControllerCoreRobolectricTest {
         assertEquals("Event should NOT be in DismissedEventsStorage", 0, mockDismissedEventsStorageMock.eventCount)
     }
 
+    @Test
+    fun testPreDismissEvent_alertAlreadyFired_dismissesFromActive() {
+        // Race condition: alert fired just before we set wasHandled
+        // Event is already in EventsStorage (Active) when preDismissEvent runs
+        
+        val alertTime = baseTime // Alert time is now (just fired)
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = alertTime)
+        
+        // Add alert to MonitorStorage
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Simulate race: event already in EventsStorage (alert fired just before)
+        mockEventsStorage.addEvent(event)
+        assertEquals("Event should be in Active", 1, mockEventsStorage.events.size)
+        
+        // Pre-dismiss - should detect event in Active and dismiss from there
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorageMock)
+        
+        assertTrue("Pre-dismiss should succeed", result)
+        
+        // Verify event was removed from EventsStorage (dismissed from Active)
+        assertEquals("Event should be removed from Active", 0, mockEventsStorage.events.size)
+        
+        // Verify wasHandled was set (prevents future firing)
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)
+        assertTrue("wasHandled should be set", updatedAlert!!.wasHandled)
+        
+        // Verify notification was dismissed
+        verify { mockNotificationManager.onEventsDismissing(any(), any()) }
+    }
+
     // === Alarm/Notification scheduling tests for pre-actions ===
 
     @Test

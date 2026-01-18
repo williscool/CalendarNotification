@@ -1326,7 +1326,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
         DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
         
-        // 2. Add to DismissedEventsStorage
+        // 2. Check if alert already fired (race condition: alert fired just before we set wasHandled)
+        val existingEvent = EventsStorage(context).use { db ->
+            db.getEvent(event.eventId, event.instanceStartTime)
+        }
+        if (existingEvent != null) {
+            // Alert already fired and is in Active - dismiss from there instead
+            DevLog.info(LOG_TAG, "Event ${event.eventId} already in Active (race condition) - dismissing from Active")
+            EventsStorage(context).classCustomUse { db ->
+                dismissEvent(context, db, existingEvent, EventDismissType.ManuallyDismissedFromUpcoming, true)
+            }
+            return true
+        }
+        
+        // 3. Normal pre-dismiss: Add to DismissedEventsStorage
         // Note: Cross-database transactions aren't possible, so we use manual rollback on failure
         val dismissedDb = dismissedEventsStorage ?: DismissedEventsStorage(context)
         try {
@@ -1342,7 +1355,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             return false
         }
         
-        // 3. Dismiss native calendar alert
+        // 4. Dismiss native calendar alert
         calendarProvider.dismissNativeEventAlert(context, event.eventId)
         
         DevLog.info(LOG_TAG, "Successfully pre-dismissed event ${event.eventId}")
