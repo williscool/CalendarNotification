@@ -202,23 +202,6 @@
                 android:paddingBottom="@dimen/snooze_view_action_padding_bottom">
 
                 <TextView
-                    android:id="@+id/pre_action_mute_toggle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:drawableStart="@drawable/ic_volume_off_black_24dp"
-                    android:drawablePadding="@dimen/snooze_view_img_padding_end"
-                    android:paddingBottom="@dimen/snooze_view_spacing"
-                    android:paddingEnd="@dimen/snooze_view_padding_end"
-                    android:paddingStart="@dimen/snooze_view_img_padding_start"
-                    android:paddingTop="@dimen/snooze_view_spacing"
-                    android:text="@string/pre_mute"
-                    android:textAppearance="?android:textAppearanceMedium"
-                    android:textColor="@color/primary_text" />
-
-                <TextView
                     android:id="@+id/pre_action_view_calendar"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -232,6 +215,23 @@
                     android:paddingStart="@dimen/snooze_view_img_padding_start"
                     android:paddingTop="@dimen/snooze_view_spacing"
                     android:text="@string/view_in_calendar"
+                    android:textAppearance="?android:textAppearanceMedium"
+                    android:textColor="@color/primary_text" />
+
+                <TextView
+                    android:id="@+id/pre_action_mute_toggle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:drawableStart="@drawable/ic_volume_off_black_24dp"
+                    android:drawablePadding="@dimen/snooze_view_img_padding_end"
+                    android:paddingBottom="@dimen/snooze_view_spacing"
+                    android:paddingEnd="@dimen/snooze_view_padding_end"
+                    android:paddingStart="@dimen/snooze_view_img_padding_start"
+                    android:paddingTop="@dimen/snooze_view_spacing"
+                    android:text="@string/pre_mute"
                     android:textAppearance="?android:textAppearanceMedium"
                     android:textColor="@color/primary_text" />
 
