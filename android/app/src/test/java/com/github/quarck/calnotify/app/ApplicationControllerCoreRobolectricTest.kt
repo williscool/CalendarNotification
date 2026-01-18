@@ -501,5 +501,69 @@ class ApplicationControllerCoreRobolectricTest {
         // Verify event was added to EventsStorage (Active) - alertTime == currentTime means it's fired
         assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
     }
+
+    // === unsnoozeToUpcoming tests ===
+
+    @Test
+    fun testUnsnoozeToUpcoming_alertTimeInFuture_succeeds() {
+        // Snoozed event with alertTime in the future
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L,
+            snoozedUntil = baseTime + 1800000L // Snoozed for 30 mins
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add event to EventsStorage (it's snoozed/active)
+        mockEventsStorage.addEvent(event)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Unsnooze to upcoming
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertTrue("Unsnooze should succeed", result)
+        
+        // Verify event was removed from EventsStorage
+        assertEquals("Event should be removed from EventsStorage", 0, mockEventsStorage.events.size)
+        
+        // Verify wasHandled flag is cleared in MonitorStorage
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
+        assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
+    }
+
+    @Test
+    fun testUnsnoozeToUpcoming_alertTimePassed_fails() {
+        // Snoozed event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L,
+            snoozedUntil = baseTime + 1800000L // Snoozed for later
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add event to EventsStorage
+        mockEventsStorage.addEvent(event)
+        
+        // Unsnooze to upcoming should fail
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertFalse("Unsnooze should fail for past alert time", result)
+        
+        // Verify event was NOT removed from EventsStorage
+        assertEquals("Event should still be in EventsStorage", 1, mockEventsStorage.events.size)
+    }
 }
 

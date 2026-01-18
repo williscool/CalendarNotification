@@ -21,12 +21,12 @@ Milestone 1 delivered read-only upcoming events display. Milestone 2 adds the ab
 
 ## Implementation Order (By Complexity)
 
-| Phase | Action | Complexity | Rationale |
-|-------|--------|------------|-----------|
-| **6.1** | Pre-Mute | Easiest | Single flag toggle, no data movement, infrastructure exists |
-| **6.2** | Pre-Snooze | Medium | Data movement + time picker + alarm reschedule |
-| **6.3** | Pre-Dismiss + Undo | Hardest | Multiple storages + undo logic + native calendar |
-| **6.4** | Unsnooze to Upcoming | Easy | Reverse of pre-snooze, only for events before alert time |
+| Phase | Action | Complexity | Status |
+|-------|--------|------------|--------|
+| **6.1** | Pre-Mute | Easiest | ✅ Done |
+| **6.2** | Pre-Snooze | Medium | ✅ Done |
+| **6.3** | Pre-Dismiss | Hardest | ✅ Done |
+| **6.4** | Unsnooze to Upcoming | Easy | ✅ Done |
 
 ---
 
@@ -659,19 +659,19 @@ fun `unsnooze not available after alert time passes`()
 
 ## Acceptance Criteria
 
-### Phase 6.1: Pre-Mute
-- [ ] Tapping upcoming event shows action dialog
-- [ ] "Mute when it fires" option sets preMuted flag
-- [ ] Pre-muted events show mute indicator in list
-- [ ] When pre-muted event fires, it's muted (no sound/vibration)
-- [ ] "Unmute" option clears preMuted flag
+### Phase 6.1: Pre-Mute - ✅ IMPLEMENTED
+- [x] Tapping upcoming event shows PreActionActivity
+- [x] "Mute when it fires" option sets preMuted flag
+- [x] Pre-muted events show mute indicator in list
+- [x] When pre-muted event fires, it's muted (no sound/vibration)
+- [x] "Unmute" option clears preMuted flag
 - [ ] All tests pass
 
-### Phase 6.2: Pre-Snooze
-- [ ] "Snooze until..." shows time picker
-- [ ] Selecting snooze time moves event to Active tab (snoozed)
-- [ ] Event disappears from Upcoming tab
-- [ ] MonitorStorage alert marked as handled
+### Phase 6.2: Pre-Snooze - ✅ IMPLEMENTED
+- [x] Snooze presets shown in PreActionActivity
+- [x] Selecting snooze time moves event to Active tab (snoozed)
+- [x] Event disappears from Upcoming tab
+- [x] MonitorStorage alert marked as handled
 - [ ] All tests pass
 
 ### Phase 6.3: Pre-Dismiss
@@ -681,12 +681,12 @@ fun `unsnooze not available after alert time passes`()
 - [x] Event does not fire notification after dismiss (wasHandled=true)
 - [ ] All tests pass
 
-### Phase 6.4: Unsnooze to Upcoming
-- [ ] "Unsnooze (back to upcoming)" option appears for snoozed events before alert time
-- [ ] Option hidden for events past their original alert time
-- [ ] Unsnooze removes event from Active/EventsStorage
-- [ ] Unsnooze sets wasHandled=false in MonitorStorage
-- [ ] Event reappears in Upcoming tab
+### Phase 6.4: Unsnooze to Upcoming - ✅ IMPLEMENTED
+- [x] "Back to upcoming" option appears for snoozed events before alert time
+- [x] Option hidden for events past their original alert time
+- [x] Unsnooze removes event from Active/EventsStorage
+- [x] Unsnooze sets wasHandled=false in MonitorStorage
+- [x] Event reappears in Upcoming tab
 - [ ] All tests pass
 
 ---
