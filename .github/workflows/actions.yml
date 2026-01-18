@@ -438,6 +438,7 @@ jobs:
                   :${{ env.main_project_module }}:generatePackageList \
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
                   :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
+                  :${{ env.main_project_module }}:jacocoUnitTestReport \
         --continue \
         -Pandroid.externalNativeBuild.skip=true \
         -x preBuild -x preDebugBuild -x preReleaseBuild
@@ -457,8 +458,17 @@ jobs:
     - name: List Coverage Report Files
       if: always()
       run: |
+        echo "=== JaCoCo Execution Data Files (.exec) ==="
+        find android/app/build -name "*.exec" -ls 2>/dev/null || echo "No .exec files found"
+        echo ""
+        echo "=== JaCoCo Directory Contents ==="
+        ls -la android/app/build/jacoco/ 2>/dev/null || echo "No jacoco directory"
+        echo ""
         echo "=== Unit Test Coverage Reports ==="
-        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -20 || echo "No XML/CSV files found"
+        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -30 || echo "No XML/CSV files found"
+        echo ""
+        echo "=== JaCoCo CSV Reports (Unit Tests) ==="
+        find android/app/build/reports/jacoco -name "*.csv" 2>/dev/null || echo "No JaCoCo CSV files found"
         echo ""
         echo "=== Coverage directory structure ==="
         find android/app/build/reports/coverage -type f 2>/dev/null | head -20 || echo "No coverage directory"
