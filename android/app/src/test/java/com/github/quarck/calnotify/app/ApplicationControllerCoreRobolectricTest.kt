@@ -565,5 +565,63 @@ class ApplicationControllerCoreRobolectricTest {
         // Verify event was NOT removed from EventsStorage
         assertEquals("Event should still be in EventsStorage", 1, mockEventsStorage.events.size)
     }
+
+    // === preDismissEvent tests ===
+
+    @Test
+    fun testPreDismissEvent_alertInFuture_succeeds() {
+        // Event with alertTime in the future (hasn't fired yet)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = false
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Pre-dismiss the event
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorageMock)
+        
+        assertTrue("Pre-dismiss should succeed", result)
+        
+        // Verify alert's wasHandled flag is set
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
+        assertTrue("wasHandled should be set after pre-dismiss", updatedAlert!!.wasHandled)
+        
+        // Verify event was added to DismissedEventsStorage
+        assertEquals("Event should be in DismissedEventsStorage", 1, mockDismissedEventsStorageMock.eventCount)
+    }
+
+    @Test
+    fun testPreDismissEvent_alertNotFound_fails() {
+        // Event with alertTime in the future but no alert in MonitorStorage
+        val futureAlertTime = baseTime + 3600000L
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Don't add alert to MonitorStorage - simulates orphaned event
+        
+        // Pre-dismiss should fail
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorageMock)
+        
+        assertFalse("Pre-dismiss should fail when alert not found", result)
+        
+        // Verify nothing was added to DismissedEventsStorage
+        assertEquals("Event should NOT be in DismissedEventsStorage", 0, mockDismissedEventsStorageMock.eventCount)
+    }
 }
 
