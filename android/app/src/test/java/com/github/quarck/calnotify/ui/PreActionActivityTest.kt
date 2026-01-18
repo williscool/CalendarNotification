@@ -148,11 +148,13 @@ class PreActionActivityTest {
         
         assertEquals(testEvent.eventId, intent.getLongExtra(Consts.INTENT_EVENT_ID_KEY, -1))
         assertEquals(testEvent.instanceStartTime, intent.getLongExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, -1))
+        assertEquals(testEvent.instanceEndTime, intent.getLongExtra(Consts.INTENT_EVENT_INSTANCE_END_TIME_KEY, -1))
         assertEquals(testEvent.alertTime, intent.getLongExtra(Consts.INTENT_ALERT_TIME_KEY, -1))
         assertEquals(testEvent.title, intent.getStringExtra(Consts.INTENT_EVENT_TITLE_KEY))
         assertEquals(testEvent.startTime, intent.getLongExtra(Consts.INTENT_EVENT_START_TIME_KEY, -1))
         assertEquals(testEvent.endTime, intent.getLongExtra(Consts.INTENT_EVENT_END_TIME_KEY, -1))
         assertEquals(testEvent.isAllDay, intent.getBooleanExtra(Consts.INTENT_EVENT_ALL_DAY_KEY, true))
+        assertEquals(testEvent.isRepeating, intent.getBooleanExtra(Consts.INTENT_EVENT_IS_REPEATING_KEY, true))
         assertEquals(testEvent.color, intent.getIntExtra(Consts.INTENT_EVENT_COLOR_KEY, -1))
     }
 }
