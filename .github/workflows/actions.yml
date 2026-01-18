@@ -395,6 +395,7 @@ jobs:
         create-symlink: true
 
     # Execute the common setup
+    # Skip disk cleanup and codegen - unit tests are pure Kotlin/Java, don't use emulator
     - name: Common Setup
       uses: ./.github/actions/common-setup
       with:
@@ -402,6 +403,8 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
+        skip_disk_space: "true"
+        skip_codegen: "true"
 
     # Run Jest tests (TypeScript/JavaScript unit tests) with coverage
     - name: Run Jest Tests
