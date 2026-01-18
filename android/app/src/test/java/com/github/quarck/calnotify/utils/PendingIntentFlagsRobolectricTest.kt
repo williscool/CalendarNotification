@@ -33,20 +33,41 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class PendingIntentFlagsRobolectricTest {
 
+    private data class FlagCase(val name: String, val baseFlags: Int, val expectedFlags: Int)
+
     /**
      * Test that on SDK 31+ (Android 12+), FLAG_IMMUTABLE is added.
      */
     @Test
     @Config(sdk = [34])
     fun `pendingIntentFlagCompat adds FLAG_IMMUTABLE on SDK 31+`() {
-        val baseFlags = PendingIntent.FLAG_UPDATE_CURRENT
-        val result = pendingIntentFlagCompat(baseFlags)
-        
-        // Should have both the base flag and FLAG_IMMUTABLE
-        assertTrue("FLAG_UPDATE_CURRENT should be present",
-            (result and PendingIntent.FLAG_UPDATE_CURRENT) != 0)
-        assertTrue("FLAG_IMMUTABLE should be present on SDK 31+",
-            (result and PendingIntent.FLAG_IMMUTABLE) != 0)
+        val cases = listOf(
+            FlagCase(
+                name = "FLAG_UPDATE_CURRENT",
+                baseFlags = PendingIntent.FLAG_UPDATE_CURRENT,
+                expectedFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            ),
+            FlagCase(
+                name = "FLAG_CANCEL_CURRENT",
+                baseFlags = PendingIntent.FLAG_CANCEL_CURRENT,
+                expectedFlags = PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            ),
+            FlagCase(
+                name = "FLAG_NO_CREATE",
+                baseFlags = PendingIntent.FLAG_NO_CREATE,
+                expectedFlags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            ),
+            FlagCase(
+                name = "zero flags",
+                baseFlags = 0,
+                expectedFlags = PendingIntent.FLAG_IMMUTABLE
+            )
+        )
+
+        for (case in cases) {
+            val result = pendingIntentFlagCompat(case.baseFlags)
+            assertEquals("${case.name} should include FLAG_IMMUTABLE", case.expectedFlags, result)
+        }
     }
 
     /**
@@ -55,65 +76,23 @@ class PendingIntentFlagsRobolectricTest {
     @Test
     @Config(sdk = [30])
     fun `pendingIntentFlagCompat does not add FLAG_IMMUTABLE on SDK 30`() {
-        val baseFlags = PendingIntent.FLAG_UPDATE_CURRENT
-        val result = pendingIntentFlagCompat(baseFlags)
-        
-        // Should only have the base flag
-        assertEquals("Should only have FLAG_UPDATE_CURRENT on SDK 30",
-            PendingIntent.FLAG_UPDATE_CURRENT, result)
-    }
+        val cases = listOf(
+            FlagCase(
+                name = "FLAG_UPDATE_CURRENT",
+                baseFlags = PendingIntent.FLAG_UPDATE_CURRENT,
+                expectedFlags = PendingIntent.FLAG_UPDATE_CURRENT
+            ),
+            FlagCase(
+                name = "zero flags",
+                baseFlags = 0,
+                expectedFlags = 0
+            )
+        )
 
-    /**
-     * Test with FLAG_CANCEL_CURRENT base flag on SDK 31+.
-     */
-    @Test
-    @Config(sdk = [34])
-    fun `pendingIntentFlagCompat works with FLAG_CANCEL_CURRENT on SDK 31+`() {
-        val baseFlags = PendingIntent.FLAG_CANCEL_CURRENT
-        val result = pendingIntentFlagCompat(baseFlags)
-        
-        assertTrue("FLAG_CANCEL_CURRENT should be present",
-            (result and PendingIntent.FLAG_CANCEL_CURRENT) != 0)
-        assertTrue("FLAG_IMMUTABLE should be present on SDK 31+",
-            (result and PendingIntent.FLAG_IMMUTABLE) != 0)
-    }
-
-    /**
-     * Test with zero flags on SDK 31+.
-     */
-    @Test
-    @Config(sdk = [34])
-    fun `pendingIntentFlagCompat adds FLAG_IMMUTABLE to zero flags on SDK 31+`() {
-        val result = pendingIntentFlagCompat(0)
-        
-        assertEquals("Should have only FLAG_IMMUTABLE when base is 0",
-            PendingIntent.FLAG_IMMUTABLE, result)
-    }
-
-    /**
-     * Test with zero flags on SDK 30 (pre-Android 12).
-     */
-    @Test
-    @Config(sdk = [30])
-    fun `pendingIntentFlagCompat returns zero for zero flags on SDK 30`() {
-        val result = pendingIntentFlagCompat(0)
-        
-        assertEquals("Should return 0 when base is 0 on SDK 30", 0, result)
-    }
-
-    /**
-     * Test with FLAG_NO_CREATE on SDK 31+.
-     */
-    @Test
-    @Config(sdk = [34])
-    fun `pendingIntentFlagCompat works with FLAG_NO_CREATE on SDK 31+`() {
-        val baseFlags = PendingIntent.FLAG_NO_CREATE
-        val result = pendingIntentFlagCompat(baseFlags)
-        
-        assertTrue("FLAG_NO_CREATE should be present",
-            (result and PendingIntent.FLAG_NO_CREATE) != 0)
-        assertTrue("FLAG_IMMUTABLE should be present on SDK 31+",
-            (result and PendingIntent.FLAG_IMMUTABLE) != 0)
+        for (case in cases) {
+            val result = pendingIntentFlagCompat(case.baseFlags)
+            assertEquals("${case.name} should remain unchanged", case.expectedFlags, result)
+        }
     }
 }
 
