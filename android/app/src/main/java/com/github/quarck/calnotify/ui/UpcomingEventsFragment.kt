@@ -174,11 +174,14 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     override fun onItemRemoved(event: EventAlertRecord) {
-        // Not used for upcoming events
+        // Upcoming events are not removed via swipe-to-dismiss like Active events.
+        // Instead, pre-actions (dismiss/snooze) go through PreActionActivity which
+        // updates MonitorStorage directly. The list refreshes via broadcast receiver.
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
-        // Not used for upcoming events
+        // Upcoming events don't support undo/restore from swipe because they use
+        // PreActionActivity for all actions. No swipe = no undo needed.
     }
 
     override fun onScrollPositionChange(newPos: Int) {

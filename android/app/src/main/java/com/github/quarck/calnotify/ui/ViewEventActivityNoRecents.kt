@@ -416,8 +416,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         // Show "Back to upcoming" for snoozed events whose alert time hasn't passed
         val menuItemUnsnooze = popup.menu.findItem(R.id.action_unsnooze_to_upcoming)
         if (menuItemUnsnooze != null) {
-            val currentTime = clock.currentTimeMillis()
-            menuItemUnsnooze.isVisible = event.snoozedUntil != 0L && event.alertTime > currentTime
+            menuItemUnsnooze.isVisible = event.canUnsnoozeToUpcoming(clock.currentTimeMillis())
         }
 
         if (event.isTask) {

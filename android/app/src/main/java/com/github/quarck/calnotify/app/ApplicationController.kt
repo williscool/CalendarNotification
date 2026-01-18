@@ -1174,10 +1174,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         db: EventsStorageInterface?,
         dismissedEventsStorage: DismissedEventsStorageInterface?
     ) {
-        val currentTime = clock.currentTimeMillis()
-        
         // Smart restore: if alert hasn't fired yet, restore to Upcoming; otherwise restore to Active
-        if (event.alertTime > currentTime) {
+        if (!event.hasAlertFired(clock.currentTimeMillis())) {
             restoreToUpcoming(context, event, dismissedEventsStorage)
         } else {
             restoreToActive(context, event, db, dismissedEventsStorage)
@@ -1188,27 +1186,28 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context,
         event: EventAlertRecord,
         dismissedEventsStorage: DismissedEventsStorageInterface?
-    ) {
+    ): Boolean {
         DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Upcoming (alertTime ${event.alertTime} is in the future)")
         
-        // 1. Clear wasHandled flag in MonitorStorage so event appears in Upcoming again
-        getMonitorStorage(context).use { storage ->
-            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
-            if (alert != null) {
-                storage.updateAlert(alert.copy(wasHandled = false))
-                DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
-            } else {
-                DevLog.warn(LOG_TAG, "Could not find alert in MonitorStorage for event ${event.eventId}")
-            }
+        // 1. First verify and clear wasHandled flag - abort if alert not found to prevent data loss
+        val alertCleared = getMonitorStorage(context).use { storage ->
+            storage.clearWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
         }
         
-        // 2. Remove from DismissedEventsStorage
+        if (!alertCleared) {
+            DevLog.error(LOG_TAG, "Cannot restore to Upcoming: alert not found in MonitorStorage for event ${event.eventId}")
+            return false
+        }
+        DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+        
+        // 2. Now safe to remove from DismissedEventsStorage
         val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
         dismissedStorage.classCustomUse { dbInst ->
             dbInst.deleteEvent(event)
         }
         
         DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to Upcoming")
+        return true
     }
     
     private fun restoreToActive(
@@ -1261,31 +1260,29 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         event: EventAlertRecord,
         db: EventsStorageInterface?
     ): Boolean {
-        val currentTime = clock.currentTimeMillis()
-        
         // Only allow unsnooze to upcoming if alert time hasn't passed
-        if (event.alertTime <= currentTime) {
+        if (event.hasAlertFired(clock.currentTimeMillis())) {
             DevLog.warn(LOG_TAG, "Cannot unsnooze to upcoming: alertTime ${event.alertTime} has already passed")
             return false
         }
         
         DevLog.info(LOG_TAG, "Unsnoozing event ${event.eventId} back to Upcoming")
         
-        // 1. Delete from EventsStorage
+        // 1. First verify alert exists in MonitorStorage - abort if not found to prevent data loss
+        val alertCleared = getMonitorStorage(context).use { storage ->
+            storage.clearWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+        }
+        
+        if (!alertCleared) {
+            DevLog.error(LOG_TAG, "Cannot unsnooze: alert not found in MonitorStorage for event ${event.eventId}")
+            return false
+        }
+        DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+        
+        // 2. Now safe to delete from EventsStorage
         val eventsDb = db ?: EventsStorage(context)
         eventsDb.classCustomUse { dbInst ->
             dbInst.deleteEvent(event.eventId, event.instanceStartTime)
-        }
-        
-        // 2. Clear wasHandled flag in MonitorStorage so event appears in Upcoming
-        getMonitorStorage(context).use { storage ->
-            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
-            if (alert != null) {
-                storage.updateAlert(alert.copy(wasHandled = false))
-                DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
-            } else {
-                DevLog.warn(LOG_TAG, "Could not find alert in MonitorStorage for event ${event.eventId}")
-            }
         }
         
         // 3. Cancel any scheduled snooze alarm and repost notifications

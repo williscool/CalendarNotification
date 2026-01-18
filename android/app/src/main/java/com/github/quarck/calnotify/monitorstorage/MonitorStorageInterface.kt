@@ -48,4 +48,32 @@ interface MonitorStorageInterface : Closeable {
     fun getAlertsForInstanceStartRange(scanFrom: Long, scanTo: Long): List<MonitorEventAlertEntry>
 
     fun getAlertsForAlertRange(scanFrom: Long, scanTo: Long): List<MonitorEventAlertEntry>
+    
+    /**
+     * Clears the wasHandled flag for an alert, making it appear in Upcoming again.
+     * @return true if the alert was found and updated, false if not found
+     */
+    fun clearWasHandled(eventId: Long, alertTime: Long, instanceStart: Long): Boolean {
+        val alert = getAlert(eventId, alertTime, instanceStart)
+        return if (alert != null) {
+            updateAlert(alert.copy(wasHandled = false))
+            true
+        } else {
+            false
+        }
+    }
+    
+    /**
+     * Sets the wasHandled flag for an alert.
+     * @return true if the alert was found and updated, false if not found
+     */
+    fun setWasHandled(eventId: Long, alertTime: Long, instanceStart: Long): Boolean {
+        val alert = getAlert(eventId, alertTime, instanceStart)
+        return if (alert != null) {
+            updateAlert(alert.copy(wasHandled = true))
+            true
+        } else {
+            false
+        }
+    }
 }

@@ -264,25 +264,18 @@ class PreActionActivity : AppCompatActivity() {
     }
     
     private fun showCustomSnoozeDialog() {
-        // Simple duration options for custom snooze
-        val durations = arrayOf(
-            Pair("5 minutes", 5 * 60 * 1000L),
-            Pair("10 minutes", 10 * 60 * 1000L),
-            Pair("30 minutes", 30 * 60 * 1000L),
-            Pair("1 hour", 60 * 60 * 1000L),
-            Pair("2 hours", 2 * 60 * 60 * 1000L),
-            Pair("4 hours", 4 * 60 * 60 * 1000L),
-            Pair("8 hours", 8 * 60 * 60 * 1000L),
-            Pair("1 day", 24 * 60 * 60 * 1000L)
-        )
-        
-        val labels = durations.map { it.first }.toTypedArray()
+        // Use centralized snooze intervals from resources (same as ViewEventActivityNoRecents)
+        val intervalNames = resources.getStringArray(R.array.default_snooze_intervals)
+        val intervalValues = resources.getIntArray(R.array.default_snooze_intervals_seconds_values)
         
         AlertDialog.Builder(this)
             .setTitle(R.string.for_a_custom_time)
-            .setItems(labels) { _, which ->
-                val snoozeUntil = getClock().currentTimeMillis() + durations[which].second
-                executePreSnooze(snoozeUntil)
+            .setItems(intervalNames) { _, which ->
+                val intervalSeconds = intervalValues.getOrNull(which)?.toLong() ?: return@setItems
+                if (intervalSeconds > 0) {
+                    val snoozeUntil = getClock().currentTimeMillis() + intervalSeconds * 1000L
+                    executePreSnooze(snoozeUntil)
+                }
             }
             .show()
     }

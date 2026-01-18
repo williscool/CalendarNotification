@@ -29,6 +29,8 @@
         android:id="@+id/action_open_in_calendar"
         android:title="@string/open_in_calendar" />
 
+    <!-- Hidden by default; shown programmatically in ViewEventActivityNoRecents
+         when event.canUnsnoozeToUpcoming() returns true (snoozed + alert time not passed) -->
     <item
         android:id="@+id/action_unsnooze_to_upcoming"
         android:title="@string/unsnooze_to_upcoming"
