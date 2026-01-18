@@ -1181,7 +1181,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     ) {
         // Smart restore: if alert hasn't fired yet, restore to Upcoming; otherwise restore to Active
         if (!event.hasAlertFired(clock.currentTimeMillis())) {
-            restoreToUpcoming(context, event, dismissedEventsStorage)
+            val success = restoreToUpcoming(context, event, dismissedEventsStorage)
+            if (!success) {
+                // Failed to restore to Upcoming (alert not found) - fall back to Active
+                DevLog.warn(LOG_TAG, "restoreToUpcoming failed for event ${event.eventId}, falling back to Active")
+                restoreToActive(context, event, db, dismissedEventsStorage)
+            }
         } else {
             restoreToActive(context, event, db, dismissedEventsStorage)
         }
@@ -1327,13 +1332,14 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
         
         // 2. Check if alert already fired (race condition: alert fired just before we set wasHandled)
-        val existingEvent = EventsStorage(context).use { db ->
+        val eventsStorage = getEventsStorage(context)
+        val existingEvent = eventsStorage.use { db ->
             db.getEvent(event.eventId, event.instanceStartTime)
         }
         if (existingEvent != null) {
             // Alert already fired and is in Active - dismiss from there instead
             DevLog.info(LOG_TAG, "Event ${event.eventId} already in Active (race condition) - dismissing from Active")
-            EventsStorage(context).classCustomUse { db ->
+            getEventsStorage(context).classCustomUse { db ->
                 dismissEvent(context, db, existingEvent, EventDismissType.ManuallyDismissedFromUpcoming, true)
             }
             return true

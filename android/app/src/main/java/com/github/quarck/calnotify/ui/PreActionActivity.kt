@@ -392,20 +392,17 @@ class PreActionActivity : AppCompatActivity() {
     
     private fun toggleMute() {
         background {
-            var success = false
-            getMonitorStorage(this).use { storage ->
-                val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
-                if (alert != null) {
-                    val newMuted = !eventIsMuted
-                    storage.updateAlert(alert.withPreMuted(newMuted))
-                    eventIsMuted = newMuted
-                    success = true
-                    DevLog.info(LOG_TAG, "Toggled pre-mute for event $eventId to $newMuted")
-                }
+            val newMutedState = getMonitorStorage(this).use { storage ->
+                storage.togglePreMuted(eventId, alertTime, instanceStartTime)
+            }
+            
+            if (newMutedState != null) {
+                eventIsMuted = newMutedState
+                DevLog.info(LOG_TAG, "Toggled pre-mute for event $eventId to $newMutedState")
             }
             
             runOnUiThread {
-                if (success) {
+                if (newMutedState != null) {
                     updateMuteButton()
                     val msgRes = if (eventIsMuted) R.string.event_will_be_muted else R.string.event_unmuted
                     Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()

@@ -76,4 +76,19 @@ interface MonitorStorageInterface : Closeable {
             false
         }
     }
+    
+    /**
+     * Toggles the preMuted flag for an alert.
+     * @return the new preMuted value, or null if alert not found
+     */
+    fun togglePreMuted(eventId: Long, alertTime: Long, instanceStart: Long): Boolean? {
+        val alert = getAlert(eventId, alertTime, instanceStart)
+        return if (alert != null) {
+            val newMuted = !alert.preMuted
+            updateAlert(alert.withPreMuted(newMuted))
+            newMuted
+        } else {
+            null
+        }
+    }
 }
