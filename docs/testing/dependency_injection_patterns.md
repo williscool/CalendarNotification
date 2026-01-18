@@ -209,6 +209,7 @@ fun testSomething() {
 - `UpcomingEventsProvider` - constructor injection for `monitorStorage`, `calendarProvider`, `clock`, `settings`
 
 ### Pattern B (Companion Provider)
+- `ApplicationController` - `eventsStorageProvider`, `reminderStateProvider`, `monitorStorageProvider`
 - `MainActivity` - `eventsStorageProvider`, `dismissedEventsStorageProvider`
 - `ViewEventActivityNoRecents` - `eventsStorageProvider`
 - `DismissedEventsActivity` - `dismissedEventsStorageProvider`

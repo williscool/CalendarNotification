@@ -29,6 +29,12 @@
         android:id="@+id/action_open_in_calendar"
         android:title="@string/open_in_calendar" />
 
+    <item
+        android:id="@+id/action_unsnooze_to_upcoming"
+        android:title="@string/unsnooze_to_upcoming"
+        android:visible="false"
+        />
+
     <item android:id="@+id/action_delete_event"
         android:title="@string/delete_event"
         android:visible="false"

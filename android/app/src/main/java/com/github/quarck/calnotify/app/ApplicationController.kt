@@ -101,6 +101,11 @@ interface ApplicationControllerInterface {
         db: EventsStorageInterface? = null,
         dismissedEventsStorage: DismissedEventsStorage? = null
     )
+    fun unsnoozeToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface? = null
+    ): Boolean
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
     fun forceRepostNotifications(context: Context)
@@ -1247,6 +1252,46 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         } else {
             DevLog.error(LOG_TAG, "Failed to restore event ${event.eventId}")
         }
+    }
+
+    override fun unsnoozeToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface?
+    ): Boolean {
+        val currentTime = clock.currentTimeMillis()
+        
+        // Only allow unsnooze to upcoming if alert time hasn't passed
+        if (event.alertTime <= currentTime) {
+            DevLog.warn(LOG_TAG, "Cannot unsnooze to upcoming: alertTime ${event.alertTime} has already passed")
+            return false
+        }
+        
+        DevLog.info(LOG_TAG, "Unsnoozing event ${event.eventId} back to Upcoming")
+        
+        // 1. Delete from EventsStorage
+        val eventsDb = db ?: EventsStorage(context)
+        eventsDb.classCustomUse { dbInst ->
+            dbInst.deleteEvent(event.eventId, event.instanceStartTime)
+        }
+        
+        // 2. Clear wasHandled flag in MonitorStorage so event appears in Upcoming
+        getMonitorStorage(context).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(wasHandled = false))
+                DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+            } else {
+                DevLog.warn(LOG_TAG, "Could not find alert in MonitorStorage for event ${event.eventId}")
+            }
+        }
+        
+        // 3. Cancel any scheduled snooze alarm and repost notifications
+        notificationManager.onEventsDismissing(context, listOf(event))
+        alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
+        
+        DevLog.info(LOG_TAG, "Successfully unsnoozed event ${event.eventId} to Upcoming")
+        return true
     }
 
     override fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean {

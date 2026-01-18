@@ -413,6 +413,13 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             menuItemUnMute.isVisible = event.isMuted
         }
 
+        // Show "Back to upcoming" for snoozed events whose alert time hasn't passed
+        val menuItemUnsnooze = popup.menu.findItem(R.id.action_unsnooze_to_upcoming)
+        if (menuItemUnsnooze != null) {
+            val currentTime = clock.currentTimeMillis()
+            menuItemUnsnooze.isVisible = event.snoozedUntil != 0L && event.alertTime > currentTime
+        }
+
         if (event.isTask) {
             val menuItemDismiss = popup.menu.findItem(R.id.action_dismiss_event)
             val menuItemDone = popup.menu.findItem(R.id.action_done_event)
@@ -487,6 +494,15 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
                 R.id.action_open_in_calendar -> {
                     openEventInCalendar(event)
+                    finish()
+                    true
+                }
+
+                R.id.action_unsnooze_to_upcoming -> {
+                    val success = ApplicationController.unsnoozeToUpcoming(this, event)
+                    if (success) {
+                        Toast.makeText(this, R.string.event_restored_to_upcoming, Toast.LENGTH_SHORT).show()
+                    }
                     finish()
                     true
                 }
