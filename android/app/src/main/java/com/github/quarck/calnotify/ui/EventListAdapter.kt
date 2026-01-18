@@ -131,6 +131,7 @@ class EventListAdapter(
     private val changeString: String
     private val snoozeString: String
     private var currentSearchString: String? = null
+    private var displayMode: EventDisplayMode = EventDisplayMode.ACTIVE
 
     private var currentScrollPosition: Int = 0
 
@@ -349,15 +350,26 @@ class EventListAdapter(
                 holder.eventTimeText.text = detail2
             }
 
-            if (event.snoozedUntil != 0L) {
-                holder.snoozedUntilText?.text =
-                        context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event);
-
-                holder.snoozedUntilText?.visibility = View.VISIBLE;
-            }
-            else {
-                holder.snoozedUntilText?.text = "";
-                holder.snoozedUntilText?.visibility = View.GONE;
+            when {
+                // Upcoming events: show "Alert at X" (when the notification will fire)
+                displayMode == EventDisplayMode.UPCOMING -> {
+                    holder.snoozedUntilText?.text = context.resources.getString(
+                        R.string.alert_at,
+                        eventFormatter.formatTimePoint(event.alertTime)
+                    )
+                    holder.snoozedUntilText?.visibility = View.VISIBLE
+                }
+                // Active snoozed events: show "Snoozed until X"
+                event.snoozedUntil != 0L -> {
+                    holder.snoozedUntilText?.text =
+                        context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event)
+                    holder.snoozedUntilText?.visibility = View.VISIBLE
+                }
+                // Active non-snoozed events: hide the text
+                else -> {
+                    holder.snoozedUntilText?.text = ""
+                    holder.snoozedUntilText?.visibility = View.GONE
+                }
             }
 
             holder.calendarColor.color =
@@ -386,8 +398,13 @@ class EventListAdapter(
       setEventsToDisplay()
     }
 
-    fun setEventsToDisplay(newEvents: Array<EventAlertRecord>? = null) = synchronized(this) {
+    fun setEventsToDisplay(
+        newEvents: Array<EventAlertRecord>? = null,
+        mode: EventDisplayMode = EventDisplayMode.ACTIVE
+    ) = synchronized(this) {
 
+        displayMode = mode
+        
         if (newEvents != null){
           allEvents = newEvents
           events = newEvents;
