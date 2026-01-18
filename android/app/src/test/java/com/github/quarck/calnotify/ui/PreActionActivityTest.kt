@@ -11,6 +11,7 @@
 package com.github.quarck.calnotify.ui
 
 import android.content.Intent
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
@@ -160,11 +161,10 @@ class PreActionActivityTest {
     }
 
     @Test
-    fun `dismiss button is present`() {
+    fun `menu button is present`() {
         val activity = launchActivity()
         
-        val dismissButton = activity.findViewById<TextView>(R.id.pre_action_dismiss)
-        assertNotNull(dismissButton)
-        assertEquals(activity.getString(R.string.pre_dismiss), dismissButton.text)
+        val menuButton = activity.findViewById<View>(R.id.pre_action_menu)
+        assertNotNull(menuButton)
     }
 }
