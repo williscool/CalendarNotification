@@ -33,7 +33,10 @@ import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
-import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
+import com.github.quarck.calnotify.utils.CNPlusTestClock
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -57,18 +60,17 @@ class PreDismissIntegrationTest {
     private lateinit var context: Context
     private val baseTime = System.currentTimeMillis()
     private var testEventId = 920000L  // Use high IDs to avoid conflicts
-    private lateinit var testClock: CNPlusUnitTestClock
-    private var originalClock: Any? = null
+    private lateinit var testClock: CNPlusTestClock
 
     @Before
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up test")
         context = InstrumentationRegistry.getInstrumentation().targetContext
         
-        // Set up test clock
-        testClock = CNPlusUnitTestClock(baseTime)
-        originalClock = ApplicationController.clock
-        ApplicationController.clock = testClock
+        // Set up test clock using MockK
+        testClock = CNPlusTestClock(baseTime)
+        mockkObject(ApplicationController)
+        every { ApplicationController.clock } returns testClock
         
         // Clean up any leftover test data
         cleanupTestData()
@@ -79,10 +81,8 @@ class PreDismissIntegrationTest {
         DevLog.info(LOG_TAG, "Cleaning up test")
         cleanupTestData()
         
-        // Restore original clock
-        if (originalClock != null) {
-            ApplicationController.clock = originalClock as com.github.quarck.calnotify.utils.CNPlusClockInterface
-        }
+        // Restore original clock by unmocking
+        unmockkObject(ApplicationController)
     }
     
     private fun cleanupTestData() {
@@ -287,7 +287,7 @@ class PreDismissIntegrationTest {
         ApplicationController.preDismissEvent(context, event)
         
         // Simulate time passing - advance clock past the alert time
-        testClock.currentTimeMs = alertTime + Consts.MINUTE_IN_MILLISECONDS
+        testClock.setCurrentTime(alertTime + Consts.MINUTE_IN_MILLISECONDS)
         DevLog.info(LOG_TAG, "Advanced clock past alert time")
         
         // Restore the event (alertTime now in past)
@@ -325,7 +325,7 @@ class PreDismissIntegrationTest {
         ApplicationController.preDismissEvent(context, event)
         
         // Set clock to exactly alertTime
-        testClock.currentTimeMs = alertTime
+        testClock.setCurrentTime(alertTime)
         DevLog.info(LOG_TAG, "Set clock to exactly alert time")
         
         // Restore the event (alertTime == currentTime means it has fired)
@@ -369,7 +369,7 @@ class PreDismissIntegrationTest {
         }
         
         // Step 2: Time passes - alert time fires
-        testClock.currentTimeMs = alertTime + 5 * Consts.MINUTE_IN_MILLISECONDS
+        testClock.setCurrentTime(alertTime + 5 * Consts.MINUTE_IN_MILLISECONDS)
         
         // Step 3: User hits undo (calls restoreEvent)
         ApplicationController.restoreEvent(context, event)
