@@ -32,6 +32,7 @@ import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitor
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
@@ -99,7 +100,7 @@ interface ApplicationControllerInterface {
         context: Context, 
         event: EventAlertRecord,
         db: EventsStorageInterface? = null,
-        dismissedEventsStorage: DismissedEventsStorage? = null
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     )
     fun unsnoozeToUpcoming(
         context: Context,
@@ -1170,7 +1171,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context, 
         event: EventAlertRecord,
         db: EventsStorageInterface?,
-        dismissedEventsStorage: DismissedEventsStorage?
+        dismissedEventsStorage: DismissedEventsStorageInterface?
     ) {
         val currentTime = clock.currentTimeMillis()
         
@@ -1185,7 +1186,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     private fun restoreToUpcoming(
         context: Context,
         event: EventAlertRecord,
-        dismissedEventsStorage: DismissedEventsStorage?
+        dismissedEventsStorage: DismissedEventsStorageInterface?
     ) {
         DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Upcoming (alertTime ${event.alertTime} is in the future)")
         
@@ -1213,7 +1214,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context,
         event: EventAlertRecord,
         db: EventsStorageInterface?,
-        dismissedEventsStorage: DismissedEventsStorage?
+        dismissedEventsStorage: DismissedEventsStorageInterface?
     ) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
