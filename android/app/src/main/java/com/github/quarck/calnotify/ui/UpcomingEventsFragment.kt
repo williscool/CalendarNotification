@@ -188,11 +188,15 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
-        // Called when undo is triggered
+        // Called when undo is triggered - run in background to avoid race with preDismissEvent
         val ctx = context ?: return
         DevLog.info(LOG_TAG, "onItemRestored, eventId=${event.eventId}")
-        ApplicationController.restoreEvent(ctx, event)
-        loadEvents() // Refresh to show restored event
+        background {
+            ApplicationController.restoreEvent(ctx, event)
+            activity?.runOnUiThread {
+                loadEvents() // Refresh to show restored event
+            }
+        }
     }
 
     override fun onScrollPositionChange(newPos: Int) {

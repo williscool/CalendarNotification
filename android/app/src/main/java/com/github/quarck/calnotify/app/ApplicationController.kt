@@ -1285,9 +1285,19 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
         
         // 2. Now safe to delete from EventsStorage
+        // Note: Cross-database transactions aren't possible, so we use manual rollback on failure
         val eventsDb = db ?: EventsStorage(context)
+        var deleteSuccess = false
         eventsDb.classCustomUse { dbInst ->
-            dbInst.deleteEvent(event.eventId, event.instanceStartTime)
+            deleteSuccess = dbInst.deleteEvent(event.eventId, event.instanceStartTime)
+        }
+        
+        if (!deleteSuccess) {
+            DevLog.error(LOG_TAG, "Failed to delete from EventsStorage - rolling back MonitorStorage")
+            getMonitorStorage(context).use { storage ->
+                storage.setWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+            }
+            return false
         }
         
         // 3. Cancel any scheduled snooze alarm and repost notifications
