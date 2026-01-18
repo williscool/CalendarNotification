@@ -25,100 +25,52 @@
 
 ### Key Findings
 
-1. **Massive Duplication**: ~20 test classes exist as BOTH Robolectric (unit) AND instrumented (integration) versions with nearly identical tests
-2. **Deprecated Tests**: ~5,000 lines in `deprecated_raw_calendarmonitor/` folder that should be removed or archived
-3. **Testing Overly Simple Logic**: Some tests verify trivial functionality that could be simplified
-4. **Large Monolithic Tests**: Several test files exceed 700+ lines and could be split or simplified
+1. **Intentional Duplication**: Robolectric + Instrumented pairs are **intentional** - Robolectric provides quick PR-blocking sanity checks, while Instrumentation provides real Android verification for releases
+2. **Deprecated Tests**: ~5,000 lines in `deprecated_raw_calendarmonitor/` - these are actually **valuable** for their clarity and test core functionality; keep until fixtures are refactored to be equally clear
+3. **Testing Overly Simple Logic**: Some tests verify trivial functionality that could be simplified ✅
+4. **Large Monolithic Tests**: Several test files exceed 700+ lines and could be split or simplified ✅
+
+### Important Architecture Notes
+
+- **Robolectric tests block PRs** - fast sanity checks
+- **Instrumentation tests block releases** - real Android verification
+- **SQLite/Room testing MUST use instrumentation** - Robolectric's SQLite support is rudimentary and we use custom extensions
+- **Storage is critical** - if storage breaks, nothing works
 
 ---
 
-## Consolidation Plan
+## Revised Consolidation Plan
 
-### Phase 1: Remove Deprecated Tests (~5,000 lines reduction)
+### ~~Phase 1: Remove Deprecated Tests~~ → DEFERRED
 
-**Target Directory:** `app/src/androidTest/java/.../deprecated_raw_calendarmonitor/`
+**Status:** ON HOLD
 
-| File | Lines | Action |
-|------|-------|--------|
-| `CalendarMonitorServiceTest.kt` | 2,001 | DELETE - replaced by `FixturedCalendarMonitorServiceTest` |
-| `CalendarMonitorServiceTestFirstScanEver.kt` | 2,034 | DELETE - covered by newer tests |
-| `CalendarMonitorServiceEventReminderTest.kt` | 966 | DELETE - functionality tested elsewhere |
+The `deprecated_raw_calendarmonitor/` tests (~5,000 lines) are actually valuable because:
+- They're straightforward to follow (easier than fixtures)
+- They test core calendar monitoring functionality
+- If this breaks, nothing else works
 
-**Verification:** Run integration tests after removal to ensure no functionality gaps.
-
----
-
-### Phase 2: Consolidate Duplicate Test Pairs (~5,000-7,000 lines reduction)
-
-For tests that exist in both unit AND integration form with nearly identical logic, consolidate to ONE version (preferring Robolectric for speed, keeping instrumented only where Android runtime is essential).
-
-#### Priority 1 - Direct Duplicates (Pure Logic Tests - Keep Robolectric Only)
-
-These tests verify pure Kotlin/Java logic that doesn't require real Android runtime:
-
-| Test Pair | Unit Lines | Int Lines | Action |
-|-----------|------------|-----------|--------|
-| `TagsManager*Test.kt` | 206 | 205 | **DELETE integration** - pure string parsing |
-| `AlarmScheduler*Test.kt` | 282 | 289 | **KEEP BOTH** - integration verifies real AlarmManager |
-| `CalendarReloadManager*Test.kt` | 292 | 283 | **DELETE integration** - logic can be tested with mocks |
-| `SnoozeTest.kt` / `SnoozeRobolectricTest.kt` | 334 | 380 | **DELETE integration** - snooze logic testable with mocks |
-| `ComponentIsolation*Test.kt` | 319 | 297 | **DELETE integration** - isolation tests work in Robolectric |
-
-**Estimated Reduction:** ~1,400 lines
-
-#### Priority 2 - UI Tests (Keep Integration, Delete/Reduce Robolectric)
-
-UI tests benefit from real Android runtime. Robolectric UI tests are often flaky or limited:
-
-| Test Pair | Unit Lines | Int Lines | Action |
-|-----------|------------|-----------|--------|
-| `MainActivityModernTest.kt` | 775 | 873 | **REVIEW** - consider keeping integration only |
-| `MainActivityTest.kt` | 367 | 460 | **REVIEW** - may consolidate with Modern |
-| `ViewEventActivityTest.kt` | 383 | 306 | **REVIEW** - prefer integration for UI |
-| `SnoozeAllActivityTest.kt` | N/A | 279 | **KEEP** - no Robolectric version |
-
-**Estimated Reduction:** ~500-1,000 lines (after review)
-
-#### Priority 3 - CalendarProvider Tests (Keep Integration)
-
-CalendarProvider tests require real ContentProvider access:
-
-| Test Pair | Unit Lines | Int Lines | Action |
-|-----------|------------|-----------|--------|
-| `CalendarProviderBasicTest.kt` | 349 | 270 | **DELETE Robolectric** - needs real ContentProvider |
-| `CalendarProviderEventTest.kt` | 314 | 276 | **DELETE Robolectric** - needs real ContentProvider |
-| `CalendarProviderReminderTest.kt` | 340 | 315 | **DELETE Robolectric** - needs real ContentProvider |
-| `CalendarBackupRestoreTest.kt` | 289 | 333 | **DELETE Robolectric** - needs real storage |
-
-**Estimated Reduction:** ~1,300 lines
-
-#### Priority 4 - Storage/Database Tests (Keep Integration)
-
-Storage tests benefit from real SQLite/Room:
-
-| Test Pair | Unit Lines | Int Lines | Action |
-|-----------|------------|-----------|--------|
-| `EventDismissTest.kt` | 726 | 735 | **DELETE Robolectric** - needs real Room |
-| `OriginalEventDismiss*Test.kt` | 318 | ~300 | **DELETE Robolectric** - needs real Room |
-
-**Estimated Reduction:** ~1,000 lines
-
-#### Priority 5 - Broadcast Receiver Tests (Keep Both, Reduce Overlap)
-
-Some broadcast tests need real Android, others can be unit tested:
-
-| Test Pair | Unit Lines | Int Lines | Action |
-|-----------|------------|-----------|--------|
-| `BroadcastReceiverTest.kt` | 356 | 315 | **MERGE** - combine unique tests, remove duplicates |
-| `ReminderAlarmTest.kt` | 422 | 305 | **MERGE** - keep real alarm behavior in integration |
-
-**Estimated Reduction:** ~300 lines
+**Prerequisite:** Refactor fixtures to be equally clear and easy to follow before considering removal. Possibly investigate fixture frameworks that could help.
 
 ---
 
-### Phase 3: Simplify Large Tests
+### Phase 1 (NEW): Simplify Overly Simple Tests
 
-#### Tests to Review for Simplification
+Focus on tests that verify trivial logic or have excessive boilerplate:
+
+| Area | Opportunity |
+|------|-------------|
+| Simple getter/setter tests | Remove or consolidate |
+| Excessive setup for simple assertions | Reduce boilerplate |
+| Duplicate assertions across test methods | Use parameterized tests |
+
+**Approach:** Review tests for low-value assertions that don't catch real bugs.
+
+---
+
+### Phase 2: Refactor Large Monolithic Tests
+
+#### Tests to Refactor
 
 | File | Lines | Opportunity |
 |------|-------|-------------|
@@ -128,74 +80,104 @@ Some broadcast tests need real Android, others can be unit tested:
 | `MainActivityModernTest.kt` | 873 | Split into focused feature tests |
 | `SettingsBackupManagerRobolectricTest.kt` | 760 | Use shared fixtures |
 | `EventDismissTest.kt` | 735 | Consolidate similar test cases |
-| `EventsStorageMigrationTest.kt` | 637 | Consider if all migration paths need testing |
 
-**Estimated Reduction:** ~500-1,500 lines through refactoring
+**Goal:** Make tests more readable and maintainable without removing coverage.
 
 ---
 
-### Phase 4: Consolidate Test Fixtures
+### Phase 3: Improve Test Fixtures (Prerequisite for Deprecated Test Removal)
 
-| Fixture Pair | Lines | Action |
-|--------------|-------|--------|
-| `UITestFixture.kt` | 978 | **MERGE** - combine shared utilities |
-| `UITestFixtureRobolectric.kt` | 551 | Into single fixture with platform-specific overrides |
-| `CalendarProviderTestFixture.kt` | 414 | **KEEP** - integration only |
-| `CalendarMonitorTestFixture.kt` | 398 | **KEEP** - integration only |
-| `BaseCalendarTestFixture.kt` | 531 | **KEEP** - base class |
+Current fixtures are powerful but hard to follow. Options to explore:
 
-**Estimated Reduction:** ~400 lines
+1. **Add documentation** to existing fixtures explaining the flow
+2. **Investigate fixture frameworks** (e.g., test containers, better base classes)
+3. **Create "example" tests** that show how to use fixtures clearly
+4. **Simplify fixture APIs** where possible
+
+Once fixtures are as clear as the deprecated tests, we can revisit Phase 1.
+
+---
+
+### ~~Phase 2: Consolidate Duplicate Test Pairs~~ → NOT RECOMMENDED
+
+**Status:** KEEP AS-IS
+
+The Robolectric + Instrumentation duplication is **intentional**:
+- Different purposes (PR blocking vs release blocking)
+- Different capabilities (Robolectric can't test real SQLite)
+- Defense in depth for critical functionality
+
+**Exception:** If specific test pairs are truly identical with no value difference, those can be consolidated case-by-case.
 
 ---
 
 ## Implementation Order
 
-### Batch 1: Low-Risk Deletions (No coverage loss expected)
-1. Delete `deprecated_raw_calendarmonitor/` folder (~5,000 lines)
-2. Delete `TagsManagerTest.kt` (integration) - keep Robolectric version
-3. Delete CalendarProvider Robolectric tests (keep integration versions)
+### Batch 1: Low-Hanging Fruit (Safe Simplifications)
+1. Review and remove overly simple tests that don't catch real bugs
+2. Consolidate duplicate assertions using parameterized tests
+3. Extract common setup code into helper methods
 
-### Batch 2: Consolidations Requiring Verification
-4. Merge BroadcastReceiver test pairs
-5. Consolidate EventDismiss test pairs
-6. Review and consolidate SnoozeTest pairs
+### Batch 2: Large Test Refactoring
+4. Refactor `EventNotificationManagerRobolectricTest.kt` (1,480 lines)
+5. Review `NotificationContextInvariantTest.kt` (999 lines) for necessary cases
+6. Apply parameterized tests to `EventFormatterRobolectricTest.kt` (956 lines)
 
-### Batch 3: UI Test Consolidation
-7. Review MainActivity test strategy
-8. Consolidate UI test fixtures
+### Batch 3: Fixture Improvements (Prerequisite for Future Work)
+7. Document existing fixtures with clear explanations
+8. Research fixture frameworks that could help
+9. Create example tests showing proper fixture usage
 
-### Batch 4: Refactoring Large Tests
-9. Apply shared fixtures to large test files
-10. Use parameterized tests where applicable
+### Batch 4: Future Consideration (After Fixtures Improved)
+10. Revisit deprecated tests once fixtures are equally clear
+11. Case-by-case review of any truly redundant test pairs
 
 ---
 
 ## Success Criteria
 
 1. **No Coverage Regression**: Coverage percentages should remain at or above baseline
-2. **Test Count Reduction**: Target 20-30% reduction in total test lines
-3. **Test Speed**: Unit test suite should run faster (fewer duplicate runs)
-4. **Maintainability**: Clear separation of unit vs integration test responsibilities
+2. **Improved Readability**: Tests should be easier to understand and maintain
+3. **Faster Feedback**: Reduce test execution time where possible without losing coverage
+4. **Preserve Defense in Depth**: Keep intentional Robolectric + Instrumentation separation
 
 ---
 
-## Estimated Total Reduction
+## Revised Estimated Reduction
 
 | Phase | Lines Removed |
 |-------|---------------|
-| Phase 1: Deprecated | ~5,000 |
-| Phase 2: Duplicates | ~4,500 |
-| Phase 3: Simplify | ~1,000 |
-| Phase 4: Fixtures | ~400 |
-| **Total** | **~10,900 lines (28% reduction)** |
+| Phase 1: Simplify overly simple tests | ~500-1,000 |
+| Phase 2: Refactor large tests | ~500-1,500 |
+| Phase 3: Fixture improvements | ~0 (readability focus) |
+| **Conservative Total** | **~1,000-2,500 lines (3-7% reduction)** |
 
-**Post-Consolidation Target:** ~27,000 lines (down from ~38,000)
+**Note:** This is a more conservative estimate that respects the intentional architecture choices. The focus shifts from "delete code" to "improve code quality."
+
+---
+
+## Key Decisions
+
+### Keep (Intentional Design)
+- ✅ Robolectric + Instrumentation pairs (different purposes)
+- ✅ Deprecated calendar monitor tests (clear, test core functionality)
+- ✅ All storage/SQLite instrumentation tests (Robolectric can't handle custom SQLite)
+
+### Remove/Simplify
+- ❌ Overly simple tests that don't catch bugs
+- ❌ Excessive boilerplate in test setup
+- ❌ Duplicate assertions that could be parameterized
+
+### Improve
+- 📝 Fixture documentation and clarity
+- 📝 Large test file organization
+- 📝 Helper method extraction
 
 ---
 
 ## Notes
 
-- Always verify coverage after each batch
+- Always verify coverage after each change
 - Run full test suite before and after changes
-- Document any intentional coverage reductions with justification
-- Keep integration tests for anything that truly requires Android runtime
+- Instrumentation test coverage is particularly important (blocks releases)
+- When in doubt, keep the test - false confidence is worse than bloat
