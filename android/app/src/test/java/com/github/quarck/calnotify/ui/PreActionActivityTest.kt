@@ -17,7 +17,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.calendar.EventAlertRecord
-import com.github.quarck.calnotify.testutils.MockClock
+import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -33,7 +33,7 @@ import org.robolectric.annotation.Config
 class PreActionActivityTest {
 
     private lateinit var activityController: ActivityController<PreActionActivity>
-    private val mockClock = MockClock(baseTime = 1700000000000L)
+    private val testClock = CNPlusUnitTestClock(currentTimeMs = 1700000000000L)
     
     private val testEvent = EventAlertRecord(
         calendarId = 1L,
@@ -56,7 +56,7 @@ class PreActionActivityTest {
 
     @Before
     fun setup() {
-        PreActionActivity.clockProvider = { mockClock }
+        PreActionActivity.clockProvider = { testClock }
     }
 
     @After
