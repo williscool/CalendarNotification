@@ -5,7 +5,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventOrigin
-import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
@@ -40,10 +39,9 @@ class ApplicationControllerCoreRobolectricTest {
     private lateinit var testClock: CNPlusUnitTestClock
     private lateinit var mockEventsStorage: MockEventsStorage
     private lateinit var mockMonitorStorage: MockMonitorStorage
-    private lateinit var mockDismissedEventsStorageMock: MockDismissedEventsStorage
+    private lateinit var mockDismissedEventsStorage: MockDismissedEventsStorage
     private lateinit var mockNotificationManager: EventNotificationManagerInterface
     private lateinit var mockAlarmScheduler: AlarmSchedulerInterface
-    private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
     private lateinit var mockReminderState: ReminderStateInterface
 
     private val baseTime = 1635724800000L // 2021-11-01 00:00:00 UTC
@@ -54,11 +52,10 @@ class ApplicationControllerCoreRobolectricTest {
         testClock = CNPlusUnitTestClock(baseTime)
         mockEventsStorage = MockEventsStorage()
         mockMonitorStorage = MockMonitorStorage()
-        mockDismissedEventsStorageMock = MockDismissedEventsStorage()
+        mockDismissedEventsStorage = MockDismissedEventsStorage()
 
         mockNotificationManager = mockk(relaxed = true)
         mockAlarmScheduler = mockk(relaxed = true)
-        mockDismissedEventsStorage = mockk(relaxed = true)
         mockReminderState = mockk(relaxed = true)
 
         mockkObject(ApplicationController)
@@ -70,6 +67,7 @@ class ApplicationControllerCoreRobolectricTest {
         ApplicationController.eventsStorageProvider = { mockEventsStorage }
         ApplicationController.reminderStateProvider = { mockReminderState }
         ApplicationController.monitorStorageProvider = { mockMonitorStorage }
+        ApplicationController.dismissedEventsStorageProvider = { mockDismissedEventsStorage }
     }
 
     @After
@@ -77,6 +75,7 @@ class ApplicationControllerCoreRobolectricTest {
         ApplicationController.eventsStorageProvider = null
         ApplicationController.reminderStateProvider = null
         ApplicationController.monitorStorageProvider = null
+        ApplicationController.dismissedEventsStorageProvider = null
         unmockkAll()
     }
 
@@ -443,10 +442,10 @@ class ApplicationControllerCoreRobolectricTest {
         mockMonitorStorage.addAlert(alert)
         
         // Add event to dismissed storage
-        mockDismissedEventsStorageMock.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
         
         // Restore the event
-        ApplicationController.restoreEvent(context, event, null, mockDismissedEventsStorageMock)
+        ApplicationController.restoreEvent(context, event, null, mockDismissedEventsStorage)
         
         // Verify alert's wasHandled flag is cleared (restored to Upcoming)
         val restoredAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
@@ -454,7 +453,7 @@ class ApplicationControllerCoreRobolectricTest {
         assertFalse("wasHandled should be cleared for restore to Upcoming", restoredAlert!!.wasHandled)
         
         // Verify event was removed from DismissedEventsStorage
-        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorageMock.eventCount)
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
         
         // Verify event was NOT added to EventsStorage (Active)
         assertEquals("Event should NOT be added to EventsStorage", 0, mockEventsStorage.events.size)
@@ -470,10 +469,10 @@ class ApplicationControllerCoreRobolectricTest {
         ).copy(alertTime = pastAlertTime)
         
         // Add event to dismissed storage
-        mockDismissedEventsStorageMock.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
         
         // Restore the event
-        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorageMock)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
         
         // Verify event was added to EventsStorage (Active)
         assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
@@ -481,7 +480,7 @@ class ApplicationControllerCoreRobolectricTest {
         assertEquals("Restored event should have correct eventId", event.eventId, restoredEvent.eventId)
         
         // Verify event was removed from DismissedEventsStorage
-        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorageMock.eventCount)
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
     }
 
     @Test
@@ -493,10 +492,10 @@ class ApplicationControllerCoreRobolectricTest {
         ).copy(alertTime = baseTime)
         
         // Add event to dismissed storage
-        mockDismissedEventsStorageMock.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
         
         // Restore the event
-        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorageMock)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
         
         // Verify event was added to EventsStorage (Active) - alertTime == currentTime means it's fired
         assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
@@ -597,7 +596,7 @@ class ApplicationControllerCoreRobolectricTest {
         mockMonitorStorage.addAlert(alert)
         
         // Pre-dismiss the event
-        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorageMock)
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
         
         assertTrue("Pre-dismiss should succeed", result)
         
@@ -607,7 +606,7 @@ class ApplicationControllerCoreRobolectricTest {
         assertTrue("wasHandled should be set after pre-dismiss", updatedAlert!!.wasHandled)
         
         // Verify event was added to DismissedEventsStorage
-        assertEquals("Event should be in DismissedEventsStorage", 1, mockDismissedEventsStorageMock.eventCount)
+        assertEquals("Event should be in DismissedEventsStorage", 1, mockDismissedEventsStorage.eventCount)
     }
 
     @Test
@@ -622,12 +621,12 @@ class ApplicationControllerCoreRobolectricTest {
         // Don't add alert to MonitorStorage - simulates orphaned event
         
         // Pre-dismiss should fail
-        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorageMock)
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
         
         assertFalse("Pre-dismiss should fail when alert not found", result)
         
         // Verify nothing was added to DismissedEventsStorage
-        assertEquals("Event should NOT be in DismissedEventsStorage", 0, mockDismissedEventsStorageMock.eventCount)
+        assertEquals("Event should NOT be in DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
     }
 
     @Test
@@ -659,7 +658,7 @@ class ApplicationControllerCoreRobolectricTest {
         assertEquals("Event should be in Active", 1, mockEventsStorage.events.size)
         
         // Pre-dismiss - should detect event in Active and dismiss from there
-        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorageMock)
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
         
         assertTrue("Pre-dismiss should succeed", result)
         
@@ -670,8 +669,8 @@ class ApplicationControllerCoreRobolectricTest {
         val updatedAlert = mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)
         assertTrue("wasHandled should be set", updatedAlert!!.wasHandled)
         
-        // Verify notification was dismissed
-        verify { mockNotificationManager.onEventsDismissing(any(), any()) }
+        // Verify notification was dismissed (singular dismiss for single event)
+        verify { mockNotificationManager.onEventDismissing(any(), any(), any()) }
     }
 
     // === Alarm/Notification scheduling tests for pre-actions ===
@@ -699,10 +698,10 @@ class ApplicationControllerCoreRobolectricTest {
         mockMonitorStorage.addAlert(alert)
         
         // Add event to DismissedEventsStorage
-        mockDismissedEventsStorageMock.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
         
         // Restore the event (alertTime in past -> restores to Active)
-        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorageMock)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
         
         // Verify notification was posted via onEventRestored
         verify { mockNotificationManager.onEventRestored(any(), any(), match { it.eventId == event.eventId }) }
@@ -734,10 +733,10 @@ class ApplicationControllerCoreRobolectricTest {
         mockMonitorStorage.addAlert(alert)
         
         // Add event to DismissedEventsStorage
-        mockDismissedEventsStorageMock.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
         
         // Restore the event (alertTime in future -> restores to Upcoming)
-        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorageMock)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
         
         // Verify wasHandled was cleared (event will fire when Android sends EVENT_REMINDER)
         val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
@@ -751,7 +750,7 @@ class ApplicationControllerCoreRobolectricTest {
         assertEquals("Event should NOT be in EventsStorage", 0, mockEventsStorage.events.size)
         
         // Verify event was removed from DismissedEventsStorage
-        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorageMock.eventCount)
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
     }
 
     @Test

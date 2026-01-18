@@ -83,7 +83,7 @@ interface ApplicationControllerInterface {
     fun onMainActivityStarted(context: Context?)
     fun onMainActivityResumed(context: Context?, shouldRepost: Boolean, monitorSettingsChanged: Boolean)
     fun onTimeChanged(context: Context)
-    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean, dismissedEventsStorage: DismissedEventsStorage? = null)
+    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean, dismissedEventsStorage: DismissedEventsStorageInterface? = null)
     fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord)
     fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean
     fun dismissEvent(
@@ -94,7 +94,7 @@ interface ApplicationControllerInterface {
         notificationId: Int,
         notifyActivity: Boolean,
         db: EventsStorageInterface? = null,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter here too
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     )
     fun restoreEvent(
         context: Context, 
@@ -129,7 +129,7 @@ interface ApplicationControllerInterface {
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     ): List<Pair<EventAlertRecord, EventDismissResult>>
 
     fun safeDismissEventsById(
@@ -138,7 +138,7 @@ interface ApplicationControllerInterface {
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     ): List<Pair<Long, EventDismissResult>>
 }
 
@@ -180,6 +180,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private fun getReminderState(ctx: Context): ReminderStateInterface {
         return reminderStateProvider?.invoke(ctx) ?: ReminderState(ctx)
+    }
+
+    // Injectable DismissedEventsStorage provider for testing - when null, uses real DismissedEventsStorage
+    var dismissedEventsStorageProvider: ((Context) -> DismissedEventsStorageInterface)? = null
+
+    private fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface {
+        return dismissedEventsStorageProvider?.invoke(ctx) ?: DismissedEventsStorage(ctx)
     }
 
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
@@ -998,14 +1005,14 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             events: Collection<EventAlertRecord>,
             dismissType: EventDismissType,
             notifyActivity: Boolean,
-            dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
+            dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing ${events.size}  requests")
 
         if (dismissType.shouldKeep) {
-            // Use injected storage if available, otherwise create new
-            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            // Use injected storage if available, otherwise use provider
+            val storage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
             storage.classCustomUse {
                 it.addEvents(dismissType, events)
             }
@@ -1044,7 +1051,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     fun dismissAllButRecentAndSnoozed(
         context: Context, 
         dismissType: EventDismissType,
-        dismissedEventsStorage: DismissedEventsStorage? = null
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     ) {
         val currentTime = clock.currentTimeMillis()
 
@@ -1090,14 +1097,14 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             event: EventAlertRecord,
             dismissType: EventDismissType,
             notifyActivity: Boolean,
-            dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+            dismissedEventsStorage: DismissedEventsStorageInterface? = null // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing event id ${event.eventId} / instance ${event.instanceStartTime}")
 
         if (dismissType.shouldKeep && event.isNotSpecial) {
-            // Use injected storage if available, otherwise create new
-            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            // Use injected storage if available, otherwise use provider
+            val storage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
             storage.classCustomUse {
                 it.addEvent(dismissType, event)
             }
@@ -1153,7 +1160,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         notificationId: Int,
         notifyActivity: Boolean,
         db: EventsStorageInterface?, // <-- existing optional parameter
-        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter here too
+        dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Add optional parameter here too
     ) {
         val storage = db ?: EventsStorage(context)
         storage.classCustomUse {
@@ -1211,7 +1218,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
         
         // 2. Now safe to remove from DismissedEventsStorage
-        val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+        val dismissedStorage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
         dismissedStorage.classCustomUse { dbInst ->
             dbInst.deleteEvent(event)
         }
@@ -1254,7 +1261,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+            val dismissedStorage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
             dismissedStorage.classCustomUse { dbInst ->
                 dbInst.deleteEvent(event)
             }
@@ -1346,7 +1353,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         
         // 3. Normal pre-dismiss: Add to DismissedEventsStorage
         // Note: Cross-database transactions aren't possible, so we use manual rollback on failure
-        val dismissedDb = dismissedEventsStorage ?: DismissedEventsStorage(context)
+        val dismissedDb = dismissedEventsStorage ?: getDismissedEventsStorage(context)
         try {
             dismissedDb.classCustomUse { dbInst ->
                 dbInst.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
@@ -1499,7 +1506,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Add optional parameter
     ): List<Pair<EventAlertRecord, EventDismissResult>> {
         val results = mutableListOf<Pair<EventAlertRecord, EventDismissResult>>()
         
@@ -1521,8 +1528,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             // Store dismissed events if needed
             val successfullyStoredEvents = if (dismissType.shouldKeep) {
                 try {
-                    // Use injected storage if available, otherwise create new
-                    val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+                    // Use injected storage if available, otherwise use provider
+                    val storage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
                     storage.classCustomUse {
                         it.addEvents(dismissType, validEvents)
                     }
@@ -1635,7 +1642,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? // <-- Remove default value
+        dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Remove default value
     ): List<Pair<Long, EventDismissResult>> {
         val results = mutableListOf<Pair<Long, EventDismissResult>>()
         
@@ -1696,7 +1703,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         confirmations: List<JsRescheduleConfirmationObject>,
         notifyActivity: Boolean = false,
         db: EventsStorageInterface? = null, // <-- Add optional parameter
-        dismissedEventsStorage: DismissedEventsStorage? = null,
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null,
     ): List<Pair<Long, EventDismissResult>> {
         DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
 

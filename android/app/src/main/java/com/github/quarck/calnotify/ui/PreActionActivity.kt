@@ -40,6 +40,7 @@ import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
