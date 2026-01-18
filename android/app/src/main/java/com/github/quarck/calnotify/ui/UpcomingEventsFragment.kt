@@ -166,28 +166,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     override fun onItemDismiss(v: View, position: Int, eventId: Long) {
+        // Not used for swipe - swipe triggers onItemRemoved
         DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
-        
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            DevLog.info(LOG_TAG, "Pre-dismissing event id ${event.eventId}")
-            background {
-                val success = ApplicationController.preDismissEvent(ctx, event)
-                if (success) {
-                    // Add undo state - smart restore will handle returning to Upcoming
-                    val appContext = ctx.applicationContext
-                    UndoManager.addUndoState(
-                        UndoState(
-                            undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
-                        )
-                    )
-                }
-                activity?.runOnUiThread {
-                    updateEmptyState()
-                }
-            }
-        }
     }
 
     override fun onItemSnooze(v: View, position: Int, eventId: Long) {
@@ -200,10 +180,25 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     override fun onItemRemoved(event: EventAlertRecord) {
-        // Called by adapter after swipe animation completes
-        // Pre-dismiss already handled in onItemDismiss, just update UI
-        DevLog.info(LOG_TAG, "onItemRemoved: event ${event.eventId}")
-        updateEmptyState()
+        // Called by adapter after swipe - this is where we do the actual pre-dismiss
+        val ctx = context ?: return
+        DevLog.info(LOG_TAG, "onItemRemoved: Pre-dismissing event ${event.eventId}")
+        
+        background {
+            val success = ApplicationController.preDismissEvent(ctx, event)
+            if (success) {
+                // Add undo state - smart restore will handle returning to Upcoming
+                val appContext = ctx.applicationContext
+                UndoManager.addUndoState(
+                    UndoState(
+                        undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
+                    )
+                )
+            }
+            activity?.runOnUiThread {
+                updateEmptyState()
+            }
+        }
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
