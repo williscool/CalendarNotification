@@ -36,8 +36,11 @@ import org.robolectric.annotation.Config
 /**
  * Robolectric UI tests for UpcomingEventsFragment
  * 
- * Tests the upcoming events list display (read-only in Milestone 1).
- * Pre-actions (snooze, mute, dismiss) will be tested in Milestone 2.
+ * Tests include:
+ * - Fragment launch and lifecycle
+ * - Empty state display  
+ * - RecyclerView event list
+ * - Pre-mute functionality (Milestone 2, Phase 6.1)
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = "AndroidManifest.xml", sdk = [24])
@@ -232,5 +235,112 @@ class UpcomingEventsFragmentRobolectricTest {
         }
         
         scenario.close()
+    }
+    
+    // === Pre-Mute Tests (Milestone 2, Phase 6.1) ===
+    
+    @Test
+    fun upcomingEventsFragment_preMute_sets_flag_in_storage() {
+        // Create an upcoming event
+        val alert = fixture.createUpcomingEvent(title = "Test Event")
+        assertFalse("Precondition: alert should not be pre-muted", alert.preMuted)
+        
+        val scenario = fixture.launchUpcomingEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        // Get the event from adapter and verify it exists
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as? EventListAdapter
+            assertNotNull("Adapter should exist", adapter)
+            assertEquals("Should have 1 event", 1, adapter?.itemCount)
+        }
+        
+        // Directly update the flag in MonitorStorage (simulating what handlePreMute does)
+        val updatedAlert = alert.withPreMuted(true)
+        fixture.monitorStorage.updateAlert(updatedAlert)
+        
+        // Verify the flag was set
+        val retrievedAlert = fixture.monitorStorage.getAlert(
+            alert.eventId, alert.alertTime, alert.instanceStartTime
+        )
+        assertNotNull("Alert should exist in storage", retrievedAlert)
+        assertTrue("Alert should be pre-muted", retrievedAlert!!.preMuted)
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun upcomingEventsFragment_preMute_flag_survives_reload() {
+        // Create an upcoming event and pre-mute it
+        val alert = fixture.createUpcomingEvent(title = "Test Event")
+        val mutedAlert = alert.withPreMuted(true)
+        fixture.monitorStorage.updateAlert(mutedAlert)
+        
+        // Launch fragment and load events
+        val scenario = fixture.launchUpcomingEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        // Verify the event appears in the list
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as? EventListAdapter
+            assertEquals("Should have 1 event", 1, adapter?.itemCount)
+            
+            // The event loaded should have isMuted = true (from UpcomingEventsProvider)
+            val event = adapter?.getEventAtPosition(0, alert.eventId)
+            assertNotNull("Event should be in adapter", event)
+            assertTrue("Event should be muted (from preMuted flag)", event!!.isMuted)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun upcomingEventsFragment_unPreMute_clears_flag() {
+        // Create a pre-muted upcoming event
+        val alert = fixture.createUpcomingEvent(title = "Test Event")
+        fixture.monitorStorage.updateAlert(alert.withPreMuted(true))
+        
+        // Verify it's pre-muted
+        val preMutedAlert = fixture.monitorStorage.getAlert(
+            alert.eventId, alert.alertTime, alert.instanceStartTime
+        )
+        assertTrue("Precondition: alert should be pre-muted", preMutedAlert!!.preMuted)
+        
+        // Un-pre-mute it
+        fixture.monitorStorage.updateAlert(preMutedAlert.withPreMuted(false))
+        
+        // Verify the flag was cleared
+        val unMutedAlert = fixture.monitorStorage.getAlert(
+            alert.eventId, alert.alertTime, alert.instanceStartTime
+        )
+        assertFalse("Alert should no longer be pre-muted", unMutedAlert!!.preMuted)
+    }
+    
+    @Test
+    fun upcomingEventsFragment_multiple_events_independent_preMute_flags() {
+        // Create multiple upcoming events
+        val alert1 = fixture.createUpcomingEvent(title = "Event 1")
+        val alert2 = fixture.createUpcomingEvent(title = "Event 2")
+        val alert3 = fixture.createUpcomingEvent(title = "Event 3")
+        
+        // Pre-mute only the second event
+        fixture.monitorStorage.updateAlert(alert2.withPreMuted(true))
+        
+        // Verify flags are independent
+        val retrieved1 = fixture.monitorStorage.getAlert(
+            alert1.eventId, alert1.alertTime, alert1.instanceStartTime
+        )
+        val retrieved2 = fixture.monitorStorage.getAlert(
+            alert2.eventId, alert2.alertTime, alert2.instanceStartTime
+        )
+        val retrieved3 = fixture.monitorStorage.getAlert(
+            alert3.eventId, alert3.alertTime, alert3.instanceStartTime
+        )
+        
+        assertFalse("Event 1 should NOT be pre-muted", retrieved1!!.preMuted)
+        assertTrue("Event 2 should be pre-muted", retrieved2!!.preMuted)
+        assertFalse("Event 3 should NOT be pre-muted", retrieved3!!.preMuted)
     }
 }

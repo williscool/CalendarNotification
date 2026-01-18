@@ -32,10 +32,13 @@ import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitor
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.globalState
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
@@ -97,8 +100,13 @@ interface ApplicationControllerInterface {
         context: Context, 
         event: EventAlertRecord,
         db: EventsStorageInterface? = null,
-        dismissedEventsStorage: DismissedEventsStorage? = null
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     )
+    fun unsnoozeToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface? = null
+    ): Boolean
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
     fun forceRepostNotifications(context: Context)
@@ -153,6 +161,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private fun getEventsStorage(ctx: Context): EventsStorageInterface {
         return eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
+    }
+
+    // Injectable MonitorStorage provider for testing - when null, uses real MonitorStorage
+    var monitorStorageProvider: ((Context) -> MonitorStorageInterface)? = null
+
+    private fun getMonitorStorage(ctx: Context): MonitorStorageInterface {
+        return monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
     }
 
     // Injectable ReminderState provider for testing - when null, uses real ReminderState
@@ -524,6 +539,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             for ((alert, event) in handledPairs) {
 
                 DevLog.info(LOG_TAG, "registerNewEvents: Event fired, calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime=${event.alertTime}")
+
+                // Apply pre-mute flag if set (user marked event to be muted before it fired)
+                if (alert.preMuted && !event.isMuted) {
+                    event.isMuted = true
+                    DevLog.info(LOG_TAG, "Event ${event.eventId} was pre-muted, applying mute flag")
+                }
 
                 tagsManager.parseEventTags(context, settings, event)
 
@@ -1150,7 +1171,50 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context, 
         event: EventAlertRecord,
         db: EventsStorageInterface?,
-        dismissedEventsStorage: DismissedEventsStorage?
+        dismissedEventsStorage: DismissedEventsStorageInterface?
+    ) {
+        val currentTime = clock.currentTimeMillis()
+        
+        // Smart restore: if alert hasn't fired yet, restore to Upcoming; otherwise restore to Active
+        if (event.alertTime > currentTime) {
+            restoreToUpcoming(context, event, dismissedEventsStorage)
+        } else {
+            restoreToActive(context, event, db, dismissedEventsStorage)
+        }
+    }
+    
+    private fun restoreToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorageInterface?
+    ) {
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Upcoming (alertTime ${event.alertTime} is in the future)")
+        
+        // 1. Clear wasHandled flag in MonitorStorage so event appears in Upcoming again
+        getMonitorStorage(context).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(wasHandled = false))
+                DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+            } else {
+                DevLog.warn(LOG_TAG, "Could not find alert in MonitorStorage for event ${event.eventId}")
+            }
+        }
+        
+        // 2. Remove from DismissedEventsStorage
+        val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
+        dismissedStorage.classCustomUse { dbInst ->
+            dbInst.deleteEvent(event)
+        }
+        
+        DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to Upcoming")
+    }
+    
+    private fun restoreToActive(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface?,
+        dismissedEventsStorage: DismissedEventsStorageInterface?
     ) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
@@ -1160,7 +1224,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             calendarProvider.findMatchingCalendarId(context, backupInfo)
         } ?: event.calendarId // Fallback to original ID if no match found
         
-        DevLog.info(LOG_TAG, "Restoring event ${event.eventId}: original calendar ${event.calendarId}, matched calendar $newCalendarId")
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Active: original calendar ${event.calendarId}, matched calendar $newCalendarId")
         
         // Create restored event with updated calendar ID
         val toRestore = event.copy(
@@ -1189,6 +1253,46 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         } else {
             DevLog.error(LOG_TAG, "Failed to restore event ${event.eventId}")
         }
+    }
+
+    override fun unsnoozeToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface?
+    ): Boolean {
+        val currentTime = clock.currentTimeMillis()
+        
+        // Only allow unsnooze to upcoming if alert time hasn't passed
+        if (event.alertTime <= currentTime) {
+            DevLog.warn(LOG_TAG, "Cannot unsnooze to upcoming: alertTime ${event.alertTime} has already passed")
+            return false
+        }
+        
+        DevLog.info(LOG_TAG, "Unsnoozing event ${event.eventId} back to Upcoming")
+        
+        // 1. Delete from EventsStorage
+        val eventsDb = db ?: EventsStorage(context)
+        eventsDb.classCustomUse { dbInst ->
+            dbInst.deleteEvent(event.eventId, event.instanceStartTime)
+        }
+        
+        // 2. Clear wasHandled flag in MonitorStorage so event appears in Upcoming
+        getMonitorStorage(context).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(wasHandled = false))
+                DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+            } else {
+                DevLog.warn(LOG_TAG, "Could not find alert in MonitorStorage for event ${event.eventId}")
+            }
+        }
+        
+        // 3. Cancel any scheduled snooze alarm and repost notifications
+        notificationManager.onEventsDismissing(context, listOf(event))
+        alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
+        
+        DevLog.info(LOG_TAG, "Successfully unsnoozed event ${event.eventId} to Upcoming")
+        return true
     }
 
     override fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean {
