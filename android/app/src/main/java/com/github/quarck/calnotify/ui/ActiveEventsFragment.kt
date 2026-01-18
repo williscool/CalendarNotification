@@ -202,23 +202,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         }
     }
 
-    override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemSnooze, pos=$position, eventId=$eventId")
-        
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            startActivity(
-                Intent(ctx, ViewEventActivity::class.java)
-                    .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
-                    .putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
-                    .putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
-                    .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                    .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            )
-        }
-    }
-
     override fun onItemRemoved(event: EventAlertRecord) {
         val ctx = context ?: return
         DevLog.info(LOG_TAG, "onItemRemoved: Removing event id ${event.eventId}")

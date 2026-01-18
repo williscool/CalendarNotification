@@ -165,15 +165,6 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         }
     }
 
-    override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        // Snooze from swipe not implemented - use PreActionActivity for snooze options
-        DevLog.info(LOG_TAG, "onItemSnooze - redirecting to PreActionActivity")
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            launchPreActionActivity(event)
-        }
-    }
-
     override fun onItemRemoved(event: EventAlertRecord) {
         // Called by adapter after swipe - this is where we do the actual pre-dismiss
         val ctx = context ?: return
