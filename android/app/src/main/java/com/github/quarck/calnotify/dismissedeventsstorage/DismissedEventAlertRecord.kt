@@ -26,7 +26,8 @@ enum class EventDismissType(val code: Int) {
     ManuallyDismissedFromActivity(1),
     AutoDismissedDueToCalendarMove(2),
     EventMovedUsingApp(3),
-    AutoDismissedDueToRescheduleConfirmation(4);
+    AutoDismissedDueToRescheduleConfirmation(4),
+    ManuallyDismissedFromUpcoming(5);
 
     companion object {
         @JvmStatic

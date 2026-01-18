@@ -1325,7 +1325,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         // 2. Add to DismissedEventsStorage
         val dismissedDb = dismissedEventsStorage ?: DismissedEventsStorage(context)
         dismissedDb.classCustomUse { dbInst ->
-            dbInst.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+            dbInst.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
             DevLog.info(LOG_TAG, "Pre-dismissed event ${event.eventId} added to DismissedEventsStorage")
         }
         
