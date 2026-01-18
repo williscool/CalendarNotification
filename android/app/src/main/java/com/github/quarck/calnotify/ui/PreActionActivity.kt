@@ -104,6 +104,7 @@ class PreActionActivity : AppCompatActivity() {
                 putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
                 putExtra(Consts.INTENT_ALERT_TIME_KEY, event.alertTime)
                 putExtra(Consts.INTENT_EVENT_TITLE_KEY, event.title)
+                putExtra(Consts.INTENT_EVENT_DESC_KEY, event.desc)
                 putExtra(Consts.INTENT_EVENT_START_TIME_KEY, event.startTime)
                 putExtra(Consts.INTENT_EVENT_END_TIME_KEY, event.endTime)
                 putExtra(Consts.INTENT_EVENT_INSTANCE_END_TIME_KEY, event.instanceEndTime)
@@ -125,6 +126,7 @@ class PreActionActivity : AppCompatActivity() {
     private var instanceEndTime: Long = -1L
     private var alertTime: Long = -1L
     private var eventTitle: String = ""
+    private var eventDesc: String = ""
     private var eventStartTime: Long = 0L
     private var eventEndTime: Long = 0L
     private var eventAllDay: Boolean = false
@@ -148,6 +150,7 @@ class PreActionActivity : AppCompatActivity() {
         instanceEndTime = intent.getLongExtra(Consts.INTENT_EVENT_INSTANCE_END_TIME_KEY, -1L)
         alertTime = intent.getLongExtra(Consts.INTENT_ALERT_TIME_KEY, -1L)
         eventTitle = intent.getStringExtra(Consts.INTENT_EVENT_TITLE_KEY) ?: ""
+        eventDesc = intent.getStringExtra(Consts.INTENT_EVENT_DESC_KEY) ?: ""
         eventStartTime = intent.getLongExtra(Consts.INTENT_EVENT_START_TIME_KEY, 0L)
         eventEndTime = intent.getLongExtra(Consts.INTENT_EVENT_END_TIME_KEY, 0L)
         eventAllDay = intent.getBooleanExtra(Consts.INTENT_EVENT_ALL_DAY_KEY, false)
@@ -286,39 +289,44 @@ class PreActionActivity : AppCompatActivity() {
     
     private fun executePreSnooze(snoozeUntil: Long) {
         background {
-            var success = false
+            var monitorSuccess = false
+            var storageSuccess = false
             
-            // 1. Mark as handled in MonitorStorage
+            // 1. Mark as handled in MonitorStorage - must succeed before proceeding
             getMonitorStorage(this).use { storage ->
                 val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
                 if (alert != null) {
                     storage.updateAlert(alert.copy(wasHandled = true))
+                    monitorSuccess = true
                     DevLog.info(LOG_TAG, "Marked alert as handled for pre-snooze: event $eventId")
                 } else {
-                    DevLog.warn(LOG_TAG, "Could not find alert for event $eventId")
+                    DevLog.error(LOG_TAG, "Could not find alert for event $eventId - aborting pre-snooze")
                 }
             }
             
-            // 2. Add to EventsStorage as snoozed
-            val currentTime = getClock().currentTimeMillis()
-            val snoozedEvent = createEventRecord(snoozeUntil, currentTime)
-            
-            getEventsStorage(this).use { db ->
-                success = db.addEvent(snoozedEvent)
-                if (success) {
-                    DevLog.info(LOG_TAG, "Pre-snoozed event $eventId until $snoozeUntil")
-                } else {
-                    DevLog.error(LOG_TAG, "Failed to add pre-snoozed event $eventId")
+            // Only proceed if MonitorStorage update succeeded
+            if (monitorSuccess) {
+                // 2. Add to EventsStorage as snoozed
+                val currentTime = getClock().currentTimeMillis()
+                val snoozedEvent = createEventRecord(snoozeUntil, currentTime)
+                
+                getEventsStorage(this).use { db ->
+                    storageSuccess = db.addEvent(snoozedEvent)
+                    if (storageSuccess) {
+                        DevLog.info(LOG_TAG, "Pre-snoozed event $eventId until $snoozeUntil")
+                    } else {
+                        DevLog.error(LOG_TAG, "Failed to add pre-snoozed event $eventId")
+                    }
                 }
-            }
-            
-            // 3. Reschedule alarms
-            if (success) {
-                ApplicationController.afterCalendarEventFired(this)
+                
+                // 3. Reschedule alarms
+                if (storageSuccess) {
+                    ApplicationController.afterCalendarEventFired(this)
+                }
             }
             
             runOnUiThread {
-                if (success) {
+                if (monitorSuccess && storageSuccess) {
                     Toast.makeText(this, R.string.event_pre_snoozed, Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
@@ -337,7 +345,7 @@ class PreActionActivity : AppCompatActivity() {
             alertTime = alertTime,
             notificationId = 0,
             title = eventTitle,
-            desc = "",
+            desc = eventDesc,
             startTime = eventStartTime,
             endTime = eventEndTime,
             instanceStartTime = instanceStartTime,
@@ -387,31 +395,41 @@ class PreActionActivity : AppCompatActivity() {
     
     private fun executePreDismiss() {
         background {
-            // 1. Mark as handled in MonitorStorage
+            var success = false
+            
+            // 1. Mark as handled in MonitorStorage - must succeed before proceeding
             getMonitorStorage(this).use { storage ->
                 val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
                 if (alert != null) {
                     storage.updateAlert(alert.copy(wasHandled = true))
+                    success = true
                     DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event $eventId")
                 } else {
-                    DevLog.warn(LOG_TAG, "Could not find alert for event $eventId to mark as handled")
+                    DevLog.error(LOG_TAG, "Could not find alert for event $eventId - aborting pre-dismiss")
                 }
             }
             
-            // 2. Add to DismissedEventsStorage
-            val currentTime = getClock().currentTimeMillis()
-            val eventRecord = createEventRecord(0, currentTime)
-            getDismissedEventsStorage(this).use { dismissedDb ->
-                dismissedDb.addEvent(EventDismissType.ManuallyDismissedFromActivity, eventRecord)
-                DevLog.info(LOG_TAG, "Pre-dismissed event $eventId added to DismissedEventsStorage")
+            // Only proceed if MonitorStorage update succeeded
+            if (success) {
+                // 2. Add to DismissedEventsStorage
+                val currentTime = getClock().currentTimeMillis()
+                val eventRecord = createEventRecord(0, currentTime)
+                getDismissedEventsStorage(this).use { dismissedDb ->
+                    dismissedDb.addEvent(EventDismissType.ManuallyDismissedFromActivity, eventRecord)
+                    DevLog.info(LOG_TAG, "Pre-dismissed event $eventId added to DismissedEventsStorage")
+                }
+                
+                // 3. Dismiss native calendar alert
+                CalendarProvider.dismissNativeEventAlert(this, eventId)
             }
             
-            // 3. Dismiss native calendar alert
-            CalendarProvider.dismissNativeEventAlert(this, eventId)
-            
             runOnUiThread {
-                Toast.makeText(this, R.string.event_pre_dismissed, Toast.LENGTH_SHORT).show()
-                finish()
+                if (success) {
+                    Toast.makeText(this, R.string.event_pre_dismissed, Toast.LENGTH_SHORT).show()
+                    finish()
+                } else {
+                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

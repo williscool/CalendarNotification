@@ -43,7 +43,7 @@ class PreActionActivityTest {
         alertTime = 1700000000000L,
         notificationId = 0,
         title = "Test Meeting",
-        desc = "",
+        desc = "Meeting description with #mute tag",
         startTime = 1700003600000L,  // 1 hour after alert
         endTime = 1700007200000L,    // 2 hours after alert
         instanceStartTime = 1700003600000L,
@@ -156,6 +156,7 @@ class PreActionActivityTest {
         assertEquals(testEvent.isAllDay, intent.getBooleanExtra(Consts.INTENT_EVENT_ALL_DAY_KEY, true))
         assertEquals(testEvent.isRepeating, intent.getBooleanExtra(Consts.INTENT_EVENT_IS_REPEATING_KEY, true))
         assertEquals(testEvent.color, intent.getIntExtra(Consts.INTENT_EVENT_COLOR_KEY, -1))
+        assertEquals(testEvent.desc, intent.getStringExtra(Consts.INTENT_EVENT_DESC_KEY))
     }
 
     @Test
