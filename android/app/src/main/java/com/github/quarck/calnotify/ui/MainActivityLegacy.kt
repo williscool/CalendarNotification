@@ -98,10 +98,6 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
 
     private val dataUpdatedReceiver = DataUpdatedReceiverLegacy(this)
 
-    // Visible for testing
-    internal var searchView: SearchView? = null
-    internal var searchMenuItem: MenuItem? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setupUI()

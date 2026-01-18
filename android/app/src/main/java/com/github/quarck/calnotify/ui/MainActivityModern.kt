@@ -56,10 +56,6 @@ class MainActivityModern : MainActivityBase() {
 
     private lateinit var floatingAddEvent: FloatingActionButton
 
-    // Visible for testing
-    internal var searchView: SearchView? = null
-    internal var searchMenuItem: MenuItem? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setupUI()

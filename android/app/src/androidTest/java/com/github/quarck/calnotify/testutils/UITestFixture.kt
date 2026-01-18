@@ -9,10 +9,15 @@ import android.os.Build
 import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
+import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.isClickable
+import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.extensions.withTimeout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
@@ -32,6 +37,7 @@ import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
+import com.github.quarck.calnotify.ui.MainActivityBase
 import com.github.quarck.calnotify.ui.MainActivityLegacy
 import com.github.quarck.calnotify.ui.MainActivityModern
 import com.github.quarck.calnotify.ui.SettingsActivityX
@@ -350,6 +356,71 @@ class UITestFixture {
             // Always restore the original timeout, even if an exception occurred
             configurator.waitForIdleTimeout = originalIdleTimeout
         }
+    }
+    
+    /**
+     * Opens the SearchView reliably in a MainActivity.
+     * Uses multiple strategies to handle timing issues:
+     * 1. Ensure menu item is displayed and clickable
+     * 2. Click the menu item
+     * 3. Check if SearchView expanded (search_src_text visible) with short timeout
+     * 4. If not, fall back to programmatic expansion via activity
+     * 5. Retry the entire flow up to 3 times
+     */
+    fun <T : MainActivityBase> openSearchViewReliably(scenario: ActivityScenario<T>) {
+        val maxAttempts = 3
+        val shortTimeout = 2000L
+        
+        for (attempt in 1..maxAttempts) {
+            // Strategy 1: Ensure menu item is fully ready before clicking
+            withId(R.id.action_search).isDisplayed()
+            withId(R.id.action_search).isClickable()
+            
+            // Strategy 2: Try clicking the menu item
+            withId(R.id.action_search).click()
+            
+            // Check if SearchView expanded with a short timeout
+            val expanded = try {
+                withId(androidx.appcompat.R.id.search_src_text)
+                    .withTimeout(shortTimeout)
+                    .isDisplayed()
+                true
+            } catch (e: AssertionError) {
+                false
+            } catch (e: RuntimeException) {
+                false
+            }
+            
+            if (expanded) {
+                return // Success!
+            }
+            
+            // Strategy 3: Fall back to programmatic expansion
+            if (attempt < maxAttempts) {
+                scenario.onActivity { activity ->
+                    activity.searchMenuItem?.expandActionView()
+                }
+                
+                // Check again after programmatic expansion
+                val expandedProgrammatically = try {
+                    withId(androidx.appcompat.R.id.search_src_text)
+                        .withTimeout(shortTimeout)
+                        .isDisplayed()
+                    true
+                } catch (e: AssertionError) {
+                    false
+                } catch (e: RuntimeException) {
+                    false
+                }
+                
+                if (expandedProgrammatically) {
+                    return // Success via programmatic expansion!
+                }
+            }
+        }
+        
+        // Final attempt - use standard assertion which will throw with full error details
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
     }
     
     /**
