@@ -75,6 +75,7 @@ object Consts {
     // Pre-snooze (upcoming events) intent keys
     const val INTENT_ALERT_TIME_KEY = "alertTime"
     const val INTENT_EVENT_TITLE_KEY = "eventTitle"
+    const val INTENT_EVENT_DESC_KEY = "eventDesc"
     const val INTENT_EVENT_START_TIME_KEY = "eventStartTime"
     const val INTENT_EVENT_END_TIME_KEY = "eventEndTime"
     const val INTENT_EVENT_INSTANCE_END_TIME_KEY = "eventInstanceEndTime"
