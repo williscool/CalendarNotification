@@ -542,6 +542,12 @@ class ApplicationControllerCoreRobolectricTest {
         val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
         assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
         assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
+        
+        // Verify notification was dismissed (critical for proper notification cleanup)
+        verify { mockNotificationManager.onEventsDismissing(any(), match { it.any { e -> e.eventId == event.eventId } }) }
+        
+        // Verify alarms were rescheduled (critical for upcoming event to fire at correct time)
+        verify { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
     }
 
     @Test
