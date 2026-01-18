@@ -386,4 +386,73 @@ class PreDismissIntegrationTest {
             assertNull("Event should NOT be in DismissedEventsStorage after restore", dismissed)
         }
     }
+
+    // === Additional alarm/notification behavior tests ===
+
+    @Test
+    fun preDismiss_blocksAlertFromFiring() {
+        DevLog.info(LOG_TAG, "Running preDismiss_blocksAlertFromFiring")
+        
+        // When an event is pre-dismissed, the wasHandled flag should prevent
+        // the alert from being processed when EVENT_REMINDER fires
+        
+        val alertTime = baseTime + Consts.HOUR_IN_MILLISECONDS
+        val alert = createTestAlert(alertTime = alertTime, wasHandled = false)
+        val event = createTestEventRecord(alert, title = "PreDismiss Test - Block Alert")
+        
+        // Add alert to MonitorStorage
+        MonitorStorage(context).use { storage ->
+            storage.addAlert(alert)
+        }
+        
+        // Pre-dismiss the event
+        ApplicationController.preDismissEvent(context, event)
+        
+        // Verify wasHandled is true - this is what blocks the alert
+        MonitorStorage(context).use { storage ->
+            val retrieved = storage.getAlert(alert.eventId, alertTime, alert.instanceStartTime)
+            assertTrue("wasHandled=true should block alert from firing", retrieved!!.wasHandled)
+        }
+        
+        // Verify event is NOT in Active events (no notification fired)
+        EventsStorage(context).use { db ->
+            val active = db.getEvent(event.eventId, event.instanceStartTime)
+            assertNull("Pre-dismissed event should NOT appear in Active events", active)
+        }
+    }
+
+    @Test
+    fun restoreToUpcoming_allowsAlertToFire() {
+        DevLog.info(LOG_TAG, "Running restoreToUpcoming_allowsAlertToFire")
+        
+        // When restored to upcoming, wasHandled=false allows EVENT_REMINDER to be processed
+        
+        val alertTime = baseTime + Consts.HOUR_IN_MILLISECONDS
+        val alert = createTestAlert(alertTime = alertTime, wasHandled = true)
+        val event = createTestEventRecord(alert, title = "PreDismiss Test - Allow Alert")
+        
+        // Setup: Event was pre-dismissed
+        MonitorStorage(context).use { storage ->
+            storage.addAlert(alert)
+        }
+        DismissedEventsStorage(context).use { db ->
+            db.addEvent(com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType.ManuallyDismissedFromUpcoming, event)
+        }
+        
+        // Restore to Upcoming (alertTime still in future)
+        ApplicationController.restoreEvent(context, event)
+        
+        // Verify wasHandled is now false - this allows the alert to fire
+        MonitorStorage(context).use { storage ->
+            val retrieved = storage.getAlert(alert.eventId, alertTime, alert.instanceStartTime)
+            assertNotNull("Alert should still exist", retrieved)
+            assertFalse("wasHandled=false should allow alert to fire when time comes", retrieved!!.wasHandled)
+        }
+        
+        // Verify event is NOT in Active events yet (alert time hasn't passed)
+        EventsStorage(context).use { db ->
+            val active = db.getEvent(event.eventId, event.instanceStartTime)
+            assertNull("Event should not be in Active until alert time", active)
+        }
+    }
 }
