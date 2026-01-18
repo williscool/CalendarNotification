@@ -30,7 +30,7 @@ Milestone 1 delivered read-only upcoming events display. Milestone 2 adds the ab
 
 ---
 
-## Phase 6.1: Pre-Mute (EASIEST)
+## Phase 6.1: Pre-Mute (EASIEST) - ✅ IMPLEMENTED
 
 **Goal:** Allow users to mark an upcoming event to fire silently (no sound/vibration).
 
@@ -225,7 +225,7 @@ fun `un-pre-mute clears flag before event fires`()
 
 ---
 
-## Phase 6.2: Pre-Snooze (MEDIUM)
+## Phase 6.2: Pre-Snooze (MEDIUM) - ✅ IMPLEMENTED
 
 **Goal:** Allow users to snooze an upcoming event to a specific time before its notification fires.
 
@@ -236,64 +236,51 @@ fun `un-pre-mute clears flag before event fires`()
 - Must add to EventsStorage with `snoozedUntil` set
 - Must reschedule alarms
 
-### Implementation Steps
+### Implementation (Completed)
 
-#### 6.2.1 Add String Resources
+#### New Files Created
 
-```xml
-<string name="pre_snooze">Snooze until…</string>
-<string name="event_snoozed">Event snoozed</string>
-```
+1. **`PreActionActivity.kt`** - Dedicated activity for pre-actions on upcoming events
+   - Shows event details (title, time, when alert fires)
+   - Displays snooze presets from user settings
+   - Custom snooze time picker
+   - Mute toggle (also allows pre-mute from this screen)
+   - View in Calendar action
+   - Named "PreAction" (not "PreSnooze") to support future actions like dismiss
 
-#### 6.2.2 Add Snooze Option to Action Dialog
+2. **`activity_pre_action.xml`** - Layout for PreActionActivity
 
-```kotlin
-// Update showUpcomingEventActionDialog()
-.setItems(arrayOf(
-    getString(R.string.pre_snooze),  // NEW
-    getString(if (isMuted) R.string.pre_unmute else R.string.pre_mute),
-    getString(R.string.view_in_calendar)
-)) { _, which ->
-    when (which) {
-        0 -> showPreSnoozePicker(event)  // NEW
-        1 -> if (isMuted) handleUnPreMute(event) else handlePreMute(event)
-        2 -> CalendarIntents.viewCalendarEvent(ctx, event)
-    }
-}
-```
+#### Files Modified
 
-#### 6.2.3 Implement Snooze Time Picker
+- **`AndroidManifest.xml`** - Added PreActionActivity registration
+- **`Consts.kt`** - Added intent keys for passing event data
+- **`strings.xml`** - Added `alert_fires_at`, `error` strings
+- **`UpcomingEventsFragment.kt`** - Updated to launch PreActionActivity
 
-Option A: Reuse existing snooze presets from SnoozeActivity
-Option B: Simple time picker dialog
+#### How It Works
 
-```kotlin
-private fun showPreSnoozePicker(event: EventAlertRecord) {
-    val ctx = context ?: return
-    
-    // Use existing snooze preset values from settings
-    val presets = settings.snoozePresets
-    val labels = presets.map { formatSnoozeDuration(it) }.toTypedArray()
-    
-    AlertDialog.Builder(ctx)
-        .setTitle(R.string.pre_snooze)
-        .setItems(labels) { _, which ->
-            val snoozeUntil = clock.currentTimeMillis() + presets[which]
-            handlePreSnooze(event, snoozeUntil)
-        }
-        .show()
-}
-```
+1. User taps event in Upcoming tab → action dialog appears
+2. User selects "Snooze until…" → `PreActionActivity` launches
+3. User sees full snooze UI with:
+   - Event title and time info
+   - "Alert fires at X:XX" indicator
+   - Snooze presets (15m, 1h, 4h, etc.)
+   - Custom time option
+   - Mute toggle and View in Calendar
+4. User selects snooze duration:
+   - Alert marked as `wasHandled = true` in MonitorStorage
+   - Event added to EventsStorage with `snoozedUntil` set
+   - Alarms rescheduled
+   - Activity finishes with toast confirmation
 
-#### 6.2.4 Implement handlePreSnooze
+#### Code Flow in PreActionActivity
 
 ```kotlin
-private fun handlePreSnooze(event: EventAlertRecord, snoozeUntil: Long) {
-    val ctx = context ?: return
+private fun executePreSnooze(snoozeUntil: Long) {
     background {
-        // 1. Mark as handled in MonitorStorage (preserve existing flags)
-        getMonitorStorage(ctx).use { storage ->
-            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+        // 1. Mark as handled in MonitorStorage
+        MonitorStorage(this).use { storage ->
+            val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
             if (alert != null) {
                 storage.updateAlert(alert.copy(wasHandled = true))
             }
@@ -638,7 +625,7 @@ fun `unsnooze not available after alert time passes`()
 |------|-------|---------|
 | `MonitorStoragePreMutedRobolectricTest.kt` | 6.1 | Unit tests for preMuted flag |
 | `PreMuteIntegrationTest.kt` | 6.1 | Integration tests for pre-mute flow |
-| `PreSnoozeIntegrationTest.kt` | 6.2 | Integration tests for pre-snooze flow |
+| `PreSnoozeIntegrationTest.kt` | 6.2 | Integration tests for pre-snooze flow (TODO: rename to PreActionIntegrationTest) |
 | `PreDismissIntegrationTest.kt` | 6.3 | Integration tests for pre-dismiss flow |
 | `UnsnoozeToUpcomingIntegrationTest.kt` | 6.4 | Integration tests for unsnooze flow |
 
