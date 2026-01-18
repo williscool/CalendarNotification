@@ -409,6 +409,8 @@ class PreActionActivity : AppCompatActivity() {
                     updateMuteButton()
                     val msgRes = if (eventIsMuted) R.string.event_will_be_muted else R.string.event_unmuted
                     Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
                 }
             }
         }

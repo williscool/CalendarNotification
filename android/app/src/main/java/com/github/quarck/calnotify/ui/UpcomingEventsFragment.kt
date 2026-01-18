@@ -180,9 +180,15 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                         undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
                     )
                 )
-            }
-            activity?.runOnUiThread {
-                updateEmptyState()
+                activity?.runOnUiThread {
+                    updateEmptyState()
+                }
+            } else {
+                // Pre-dismiss failed - reload to restore the item that was optimistically removed
+                DevLog.error(LOG_TAG, "Pre-dismiss failed for event ${event.eventId}, reloading list")
+                activity?.runOnUiThread {
+                    loadEvents()
+                }
             }
         }
     }
