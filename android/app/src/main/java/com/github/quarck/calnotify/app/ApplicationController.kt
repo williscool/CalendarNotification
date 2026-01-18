@@ -107,6 +107,11 @@ interface ApplicationControllerInterface {
         event: EventAlertRecord,
         db: EventsStorageInterface? = null
     ): Boolean
+    fun preDismissEvent(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
+    ): Boolean
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
     fun forceRepostNotifications(context: Context)
@@ -1290,6 +1295,44 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
         
         DevLog.info(LOG_TAG, "Successfully unsnoozed event ${event.eventId} to Upcoming")
+        return true
+    }
+
+    override fun preDismissEvent(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorageInterface?
+    ): Boolean {
+        DevLog.info(LOG_TAG, "Pre-dismissing event ${event.eventId}")
+        
+        // 1. Mark as handled in MonitorStorage - must succeed before proceeding
+        val success = getMonitorStorage(context).use { storage ->
+            val alert = storage.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert != null) {
+                storage.updateAlert(alert.copy(wasHandled = true))
+                DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
+                true
+            } else {
+                DevLog.error(LOG_TAG, "Could not find alert for event ${event.eventId} - aborting pre-dismiss")
+                false
+            }
+        }
+        
+        if (!success) {
+            return false
+        }
+        
+        // 2. Add to DismissedEventsStorage
+        val dismissedDb = dismissedEventsStorage ?: DismissedEventsStorage(context)
+        dismissedDb.classCustomUse { dbInst ->
+            dbInst.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+            DevLog.info(LOG_TAG, "Pre-dismissed event ${event.eventId} added to DismissedEventsStorage")
+        }
+        
+        // 3. Dismiss native calendar alert
+        calendarProvider.dismissNativeEventAlert(context, event.eventId)
+        
+        DevLog.info(LOG_TAG, "Successfully pre-dismissed event ${event.eventId}")
         return true
     }
 

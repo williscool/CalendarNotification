@@ -46,6 +46,7 @@ import com.github.quarck.calnotify.upcoming.UpcomingEventsProvider
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.background
+import com.github.quarck.calnotify.app.ApplicationController
 
 /**
  * Fragment for displaying upcoming events (before their notification fires).
@@ -92,9 +93,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         
         emptyView.text = getString(R.string.empty_upcoming)
         
-        // Use EventListAdapter in read-only mode - disable swipe for Milestone 1
-        // Pre-actions (snooze, dismiss, mute) will be added in Milestone 2
-        adapter = EventListAdapter(requireContext(), this, swipeEnabled = false)
+        // Enable swipe to dismiss for pre-dismiss action
+        adapter = EventListAdapter(requireContext(), this, swipeEnabled = true)
         recyclerView.layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView.adapter = adapter
         adapter.recyclerView = recyclerView
@@ -164,24 +164,52 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        // Pre-dismiss will be implemented in Phase 6.3
-        DevLog.info(LOG_TAG, "onItemDismiss (not yet implemented), pos=$position, eventId=$eventId")
+        DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
+        
+        val ctx = context ?: return
+        val event = adapter.getEventAtPosition(position, eventId)
+        if (event != null) {
+            DevLog.info(LOG_TAG, "Pre-dismissing event id ${event.eventId}")
+            background {
+                val success = ApplicationController.preDismissEvent(ctx, event)
+                if (success) {
+                    // Add undo state - smart restore will handle returning to Upcoming
+                    val appContext = ctx.applicationContext
+                    UndoManager.addUndoState(
+                        UndoState(
+                            undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
+                        )
+                    )
+                }
+                activity?.runOnUiThread {
+                    updateEmptyState()
+                }
+            }
+        }
     }
 
     override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        // Pre-snooze will be implemented in Phase 6.2
-        DevLog.info(LOG_TAG, "onItemSnooze (not yet implemented), pos=$position, eventId=$eventId")
+        // Snooze from swipe not implemented - use PreActionActivity for snooze options
+        DevLog.info(LOG_TAG, "onItemSnooze - redirecting to PreActionActivity")
+        val event = adapter.getEventAtPosition(position, eventId)
+        if (event != null) {
+            launchPreActionActivity(event)
+        }
     }
 
     override fun onItemRemoved(event: EventAlertRecord) {
-        // Upcoming events are not removed via swipe-to-dismiss like Active events.
-        // Instead, pre-actions (dismiss/snooze) go through PreActionActivity which
-        // updates MonitorStorage directly. The list refreshes via broadcast receiver.
+        // Called by adapter after swipe animation completes
+        // Pre-dismiss already handled in onItemDismiss, just update UI
+        DevLog.info(LOG_TAG, "onItemRemoved: event ${event.eventId}")
+        updateEmptyState()
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
-        // Upcoming events don't support undo/restore from swipe because they use
-        // PreActionActivity for all actions. No swipe = no undo needed.
+        // Called when undo is triggered
+        val ctx = context ?: return
+        DevLog.info(LOG_TAG, "onItemRestored, eventId=${event.eventId}")
+        ApplicationController.restoreEvent(ctx, event)
+        loadEvents() // Refresh to show restored event
     }
 
     override fun onScrollPositionChange(newPos: Int) {

@@ -25,6 +25,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -218,10 +219,27 @@ class PreActionActivity : AppCompatActivity() {
             viewInCalendar()
         }
         
-        // Dismiss
-        findViewById<TextView>(R.id.pre_action_dismiss).setOnClickListener {
-            executePreDismiss()
+        // 3-dot menu
+        findViewById<View>(R.id.pre_action_menu).setOnClickListener { v ->
+            showMenu(v)
         }
+    }
+    
+    private fun showMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menuInflater.inflate(R.menu.pre_action, popup.menu)
+        
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_pre_dismiss -> {
+                    executePreDismiss()
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        popup.show()
     }
     
     private fun setupSnoozePresets() {
@@ -398,34 +416,11 @@ class PreActionActivity : AppCompatActivity() {
     }
     
     private fun executePreDismiss() {
+        val currentTime = getClock().currentTimeMillis()
+        val eventRecord = createEventRecord(0, currentTime)
+        
         background {
-            var success = false
-            
-            // 1. Mark as handled in MonitorStorage - must succeed before proceeding
-            getMonitorStorage(this).use { storage ->
-                val alert = storage.getAlert(eventId, alertTime, instanceStartTime)
-                if (alert != null) {
-                    storage.updateAlert(alert.copy(wasHandled = true))
-                    success = true
-                    DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event $eventId")
-                } else {
-                    DevLog.error(LOG_TAG, "Could not find alert for event $eventId - aborting pre-dismiss")
-                }
-            }
-            
-            // Only proceed if MonitorStorage update succeeded
-            if (success) {
-                // 2. Add to DismissedEventsStorage
-                val currentTime = getClock().currentTimeMillis()
-                val eventRecord = createEventRecord(0, currentTime)
-                getDismissedEventsStorage(this).use { dismissedDb ->
-                    dismissedDb.addEvent(EventDismissType.ManuallyDismissedFromActivity, eventRecord)
-                    DevLog.info(LOG_TAG, "Pre-dismissed event $eventId added to DismissedEventsStorage")
-                }
-                
-                // 3. Dismiss native calendar alert
-                CalendarProvider.dismissNativeEventAlert(this, eventId)
-            }
+            val success = ApplicationController.preDismissEvent(this, eventRecord)
             
             runOnUiThread {
                 if (success) {

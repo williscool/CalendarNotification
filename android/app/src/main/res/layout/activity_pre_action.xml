@@ -40,10 +40,24 @@
                     android:background="?android:attr/selectableItemBackground"
                     android:contentDescription="@string/content_desc_navigate_back" />
 
+                <ImageView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:id="@+id/pre_action_menu"
+                    android:layout_alignParentEnd="true"
+                    android:src="@drawable/ic_more_vert_white_24dp"
+                    android:paddingTop="@dimen/snooze_view_img_padding_start"
+                    android:paddingBottom="@dimen/snooze_view_img_padding_start"
+                    android:paddingStart="@dimen/snooze_view_img_padding_end"
+                    android:paddingEnd="@dimen/snooze_view_img_padding_start"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:contentDescription="@string/overflow_menu" />
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:id="@+id/pre_action_title"
+                    android:layout_toStartOf="@id/pre_action_menu"
                     android:text="Event Title"
                     android:textAppearance="?android:textAppearanceMedium"
                     android:textSize="19sp"
@@ -232,21 +246,6 @@
                     android:paddingStart="@dimen/snooze_view_img_padding_start"
                     android:paddingTop="@dimen/snooze_view_spacing"
                     android:text="@string/pre_mute"
-                    android:textAppearance="?android:textAppearanceMedium"
-                    android:textColor="@color/primary_text" />
-
-                <TextView
-                    android:id="@+id/pre_action_dismiss"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:paddingBottom="@dimen/snooze_view_spacing"
-                    android:paddingEnd="@dimen/snooze_view_padding_end"
-                    android:paddingStart="@dimen/snooze_view_padding_start"
-                    android:paddingTop="@dimen/snooze_view_spacing"
-                    android:text="@string/pre_dismiss"
                     android:textAppearance="?android:textAppearanceMedium"
                     android:textColor="@color/primary_text" />
 

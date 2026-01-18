@@ -1,0 +1,10 @@
+<menu
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".ui.PreActionActivity" >
+
+    <item
+        android:id="@+id/action_pre_dismiss"
+        android:title="@string/pre_dismiss" />
+
+</menu>
