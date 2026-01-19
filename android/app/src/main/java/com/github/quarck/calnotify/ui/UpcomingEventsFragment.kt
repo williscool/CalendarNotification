@@ -36,7 +36,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
-import com.github.quarck.calnotify.calendar.CalendarIntents
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -45,14 +44,20 @@ import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.upcoming.UpcomingEventsProvider
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.background
+import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.app.UndoManager
+import com.github.quarck.calnotify.app.UndoState
 
 /**
  * Fragment for displaying upcoming events (before their notification fires).
  * Shows events within the lookahead window that haven't been handled yet.
  * 
- * In Milestone 1, this is a read-only view. Pre-actions (snooze, mute, dismiss)
- * will be added in Milestone 2.
+ * Pre-actions available:
+ * - Pre-mute: Mark event to fire silently (Milestone 2, Phase 6.1)
+ * - Pre-snooze: Snooze before notification fires (Milestone 2, Phase 6.2)
+ * - Pre-dismiss: Dismiss without ever firing (Milestone 2, Phase 6.3)
  */
 class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
@@ -90,9 +95,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         
         emptyView.text = getString(R.string.empty_upcoming)
         
-        // Use EventListAdapter in read-only mode - disable swipe for Milestone 1
-        // Pre-actions (snooze, dismiss, mute) will be added in Milestone 2
-        adapter = EventListAdapter(requireContext(), this, swipeEnabled = false)
+        // Enable swipe to dismiss for pre-dismiss action
+        adapter = EventListAdapter(requireContext(), this, swipeEnabled = true)
         recyclerView.layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView.adapter = adapter
         adapter.recyclerView = recyclerView
@@ -151,42 +155,69 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
 
     // EventListCallback implementation
-    // In Milestone 1, clicking opens the event details (read-only)
-    // Dismiss/Snooze will be implemented in Milestone 2 as pre-actions
     
     override fun onItemClick(v: View, position: Int, eventId: Long) {
         DevLog.info(LOG_TAG, "onItemClick, pos=$position, eventId=$eventId")
         
-        val ctx = context ?: return
         val event = adapter.getEventAtPosition(position, eventId)
         if (event != null) {
-            // Open event directly in calendar app (upcoming events aren't in EventsStorage)
-            CalendarIntents.viewCalendarEvent(ctx, event)
+            launchPreActionActivity(event)
         }
     }
 
-    override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        // Pre-dismiss will be implemented in Milestone 2
-        DevLog.info(LOG_TAG, "onItemDismiss (not implemented in M1), pos=$position, eventId=$eventId")
-    }
-
-    override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        // Pre-snooze will be implemented in Milestone 2
-        DevLog.info(LOG_TAG, "onItemSnooze (not implemented in M1), pos=$position, eventId=$eventId")
-    }
-
     override fun onItemRemoved(event: EventAlertRecord) {
-        // Not used for upcoming events in Milestone 1
+        // Called by adapter after swipe - this is where we do the actual pre-dismiss
+        val ctx = context ?: return
+        DevLog.info(LOG_TAG, "onItemRemoved: Pre-dismissing event ${event.eventId}")
+        
+        background {
+            val success = ApplicationController.preDismissEvent(ctx, event)
+            if (success) {
+                // Add undo state - smart restore will handle returning to Upcoming
+                val appContext = ctx.applicationContext
+                UndoManager.addUndoState(
+                    UndoState(
+                        undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
+                    )
+                )
+                activity?.runOnUiThread {
+                    updateEmptyState()
+                }
+            } else {
+                // Pre-dismiss failed - reload to restore the item that was optimistically removed
+                DevLog.error(LOG_TAG, "Pre-dismiss failed for event ${event.eventId}, reloading list")
+                activity?.runOnUiThread {
+                    loadEvents()
+                }
+            }
+        }
     }
 
     override fun onItemRestored(event: EventAlertRecord) {
-        // Not used for upcoming events in Milestone 1
+        // Called when undo is triggered - run in background to avoid race with preDismissEvent
+        val ctx = context ?: return
+        DevLog.info(LOG_TAG, "onItemRestored, eventId=${event.eventId}")
+        background {
+            ApplicationController.restoreEvent(ctx, event)
+            activity?.runOnUiThread {
+                loadEvents() // Refresh to show restored event
+            }
+        }
     }
 
     override fun onScrollPositionChange(newPos: Int) {
         // Not needed
     }
-
+    
+    /**
+     * Launches PreActionActivity for the given event.
+     * Provides full pre-action UI with snooze presets, mute toggle, etc.
+     */
+    private fun launchPreActionActivity(event: EventAlertRecord) {
+        val ctx = context ?: return
+        startActivity(PreActionActivity.createIntent(ctx, event))
+    }
+    
     // SearchableFragment implementation
     
     override fun setSearchQuery(query: String?) {
@@ -207,6 +238,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         /** Provider for CalendarProvider - enables DI for testing */
         var calendarProviderProvider: (() -> CalendarProviderInterface)? = null
         
+        /** Provider for Clock - enables DI for testing */
+        var clockProvider: (() -> CNPlusClockInterface)? = null
+        
         /** Gets MonitorStorage - uses provider if set, otherwise creates real instance */
         fun getMonitorStorage(ctx: Context): MonitorStorageInterface =
             monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
@@ -215,10 +249,15 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         fun getCalendarProvider(): CalendarProviderInterface =
             calendarProviderProvider?.invoke() ?: CalendarProvider
         
+        /** Gets Clock - uses provider if set, otherwise returns real instance */
+        fun getClock(): CNPlusClockInterface =
+            clockProvider?.invoke() ?: CNPlusSystemClock()
+        
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             monitorStorageProvider = null
             calendarProviderProvider = null
+            clockProvider = null
         }
     }
 }

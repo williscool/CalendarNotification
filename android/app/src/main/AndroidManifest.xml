@@ -89,6 +89,12 @@
             android:noHistory="true"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
+            android:name=".ui.PreActionActivity"
+            android:excludeFromRecents="true"
+            android:label="@string/pre_snooze"
+            android:noHistory="true"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
             android:name=".ui.ViewEventActivity"
             android:label="@string/view_event"
             android:parentActivityName=".ui.MainActivity"

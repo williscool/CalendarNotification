@@ -5,13 +5,15 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventOrigin
-import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
+import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.persistentState
+import com.github.quarck.calnotify.testutils.MockDismissedEventsStorage
 import com.github.quarck.calnotify.testutils.MockEventsStorage
+import com.github.quarck.calnotify.testutils.MockMonitorStorage
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
 import org.junit.After
@@ -36,9 +38,10 @@ class ApplicationControllerCoreRobolectricTest {
     private lateinit var context: Context
     private lateinit var testClock: CNPlusUnitTestClock
     private lateinit var mockEventsStorage: MockEventsStorage
+    private lateinit var mockMonitorStorage: MockMonitorStorage
+    private lateinit var mockDismissedEventsStorage: MockDismissedEventsStorage
     private lateinit var mockNotificationManager: EventNotificationManagerInterface
     private lateinit var mockAlarmScheduler: AlarmSchedulerInterface
-    private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
     private lateinit var mockReminderState: ReminderStateInterface
 
     private val baseTime = 1635724800000L // 2021-11-01 00:00:00 UTC
@@ -48,10 +51,11 @@ class ApplicationControllerCoreRobolectricTest {
         context = ApplicationProvider.getApplicationContext()
         testClock = CNPlusUnitTestClock(baseTime)
         mockEventsStorage = MockEventsStorage()
+        mockMonitorStorage = MockMonitorStorage()
+        mockDismissedEventsStorage = MockDismissedEventsStorage()
 
         mockNotificationManager = mockk(relaxed = true)
         mockAlarmScheduler = mockk(relaxed = true)
-        mockDismissedEventsStorage = mockk(relaxed = true)
         mockReminderState = mockk(relaxed = true)
 
         mockkObject(ApplicationController)
@@ -62,12 +66,16 @@ class ApplicationControllerCoreRobolectricTest {
         // Inject mock storage and reminder state
         ApplicationController.eventsStorageProvider = { mockEventsStorage }
         ApplicationController.reminderStateProvider = { mockReminderState }
+        ApplicationController.monitorStorageProvider = { mockMonitorStorage }
+        ApplicationController.dismissedEventsStorageProvider = { mockDismissedEventsStorage }
     }
 
     @After
     fun cleanup() {
         ApplicationController.eventsStorageProvider = null
         ApplicationController.reminderStateProvider = null
+        ApplicationController.monitorStorageProvider = null
+        ApplicationController.dismissedEventsStorageProvider = null
         unmockkAll()
     }
 
@@ -407,6 +415,404 @@ class ApplicationControllerCoreRobolectricTest {
 
         // Verify late alarm was NOT reported
         verify(exactly = 0) { ApplicationController.onSnoozeAlarmLate(any(), any(), any()) }
+    }
+
+    // === restoreEvent tests ===
+
+    @Test
+    fun testRestoreEvent_alertTimeInFuture_restoresToUpcoming() {
+        // Event with alertTime in the future (hasn't fired yet)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = true (was pre-dismissed)
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Add event to dismissed storage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        
+        // Restore the event
+        ApplicationController.restoreEvent(context, event, null, mockDismissedEventsStorage)
+        
+        // Verify alert's wasHandled flag is cleared (restored to Upcoming)
+        val restoredAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", restoredAlert)
+        assertFalse("wasHandled should be cleared for restore to Upcoming", restoredAlert!!.wasHandled)
+        
+        // Verify event was removed from DismissedEventsStorage
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+        
+        // Verify event was NOT added to EventsStorage (Active)
+        assertEquals("Event should NOT be added to EventsStorage", 0, mockEventsStorage.events.size)
+    }
+
+    @Test
+    fun testRestoreEvent_alertTimePassed_restoresToActive() {
+        // Event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add event to dismissed storage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        
+        // Restore the event
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify event was added to EventsStorage (Active)
+        assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
+        val restoredEvent = mockEventsStorage.events.first()
+        assertEquals("Restored event should have correct eventId", event.eventId, restoredEvent.eventId)
+        
+        // Verify event was removed from DismissedEventsStorage
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testRestoreEvent_alertTimeExactlyNow_restoresToActive() {
+        // Event with alertTime exactly at current time (edge case - treat as fired)
+        val event = createTestEvent(
+            eventId = 3,
+            instanceStartTime = baseTime
+        ).copy(alertTime = baseTime)
+        
+        // Add event to dismissed storage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        
+        // Restore the event
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify event was added to EventsStorage (Active) - alertTime == currentTime means it's fired
+        assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
+    }
+
+    // === unsnoozeToUpcoming tests ===
+
+    @Test
+    fun testUnsnoozeToUpcoming_alertTimeInFuture_succeeds() {
+        // Snoozed event with alertTime in the future
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L,
+            snoozedUntil = baseTime + 1800000L // Snoozed for 30 mins
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add event to EventsStorage (it's snoozed/active)
+        mockEventsStorage.addEvent(event)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Unsnooze to upcoming
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertTrue("Unsnooze should succeed", result)
+        
+        // Verify event was removed from EventsStorage
+        assertEquals("Event should be removed from EventsStorage", 0, mockEventsStorage.events.size)
+        
+        // Verify wasHandled flag is cleared in MonitorStorage
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
+        assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
+        
+        // Verify notification was dismissed (critical for proper notification cleanup)
+        verify { mockNotificationManager.onEventsDismissing(any(), match { it.any { e -> e.eventId == event.eventId } }) }
+        
+        // Verify alarms were rescheduled (critical for upcoming event to fire at correct time)
+        verify { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+    }
+
+    @Test
+    fun testUnsnoozeToUpcoming_alertTimePassed_fails() {
+        // Snoozed event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L,
+            snoozedUntil = baseTime + 1800000L // Snoozed for later
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add event to EventsStorage
+        mockEventsStorage.addEvent(event)
+        
+        // Unsnooze to upcoming should fail
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertFalse("Unsnooze should fail for past alert time", result)
+        
+        // Verify event was NOT removed from EventsStorage
+        assertEquals("Event should still be in EventsStorage", 1, mockEventsStorage.events.size)
+    }
+
+    // === preDismissEvent tests ===
+
+    @Test
+    fun testPreDismissEvent_alertInFuture_succeeds() {
+        // Event with alertTime in the future (hasn't fired yet)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = false
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Pre-dismiss the event
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
+        
+        assertTrue("Pre-dismiss should succeed", result)
+        
+        // Verify alert's wasHandled flag is set
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
+        assertTrue("wasHandled should be set after pre-dismiss", updatedAlert!!.wasHandled)
+        
+        // Verify event was added to DismissedEventsStorage
+        assertEquals("Event should be in DismissedEventsStorage", 1, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testPreDismissEvent_alertNotFound_fails() {
+        // Event with alertTime in the future but no alert in MonitorStorage
+        val futureAlertTime = baseTime + 3600000L
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Don't add alert to MonitorStorage - simulates orphaned event
+        
+        // Pre-dismiss should fail
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
+        
+        assertFalse("Pre-dismiss should fail when alert not found", result)
+        
+        // Verify nothing was added to DismissedEventsStorage
+        assertEquals("Event should NOT be in DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testPreDismissEvent_alertAlreadyFired_dismissesFromActive() {
+        // Race condition: alert fired just before we set wasHandled
+        // Event is already in EventsStorage (Active) when preDismissEvent runs
+        
+        val alertTime = baseTime // Alert time is now (just fired)
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = alertTime)
+        
+        // Add alert to MonitorStorage
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Simulate race: event already in EventsStorage (alert fired just before)
+        mockEventsStorage.addEvent(event)
+        assertEquals("Event should be in Active", 1, mockEventsStorage.events.size)
+        
+        // Pre-dismiss - should detect event in Active and dismiss from there
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
+        
+        assertTrue("Pre-dismiss should succeed", result)
+        
+        // Verify event was removed from EventsStorage (dismissed from Active)
+        assertEquals("Event should be removed from Active", 0, mockEventsStorage.events.size)
+        
+        // Verify wasHandled was set (prevents future firing)
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)
+        assertTrue("wasHandled should be set", updatedAlert!!.wasHandled)
+        
+        // Verify notification was dismissed (singular dismiss for single event)
+        verify { mockNotificationManager.onEventDismissing(any(), any(), any()) }
+    }
+
+    // === Alarm/Notification scheduling tests for pre-actions ===
+
+    @Test
+    fun testRestoreToActive_postsNotification() {
+        // Event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = pastAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Add event to DismissedEventsStorage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        
+        // Restore the event (alertTime in past -> restores to Active)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify notification was posted via onEventRestored
+        verify { mockNotificationManager.onEventRestored(any(), any(), match { it.eventId == event.eventId }) }
+        
+        // Verify event was added to EventsStorage
+        assertEquals("Event should be in EventsStorage", 1, mockEventsStorage.events.size)
+    }
+
+    @Test
+    fun testRestoreToUpcoming_clearsWasHandledFlag() {
+        // Event with alertTime in the future (hasn't fired)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = futureAlertTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = true (was pre-dismissed)
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Add event to DismissedEventsStorage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        
+        // Restore the event (alertTime in future -> restores to Upcoming)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify wasHandled was cleared (event will fire when Android sends EVENT_REMINDER)
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist", updatedAlert)
+        assertFalse("wasHandled should be cleared for restored event", updatedAlert!!.wasHandled)
+        
+        // Verify NO notification was posted (event goes to Upcoming, not Active)
+        verify(exactly = 0) { mockNotificationManager.onEventRestored(any(), any(), any()) }
+        
+        // Verify event was NOT added to EventsStorage (it's in Upcoming, not Active)
+        assertEquals("Event should NOT be in EventsStorage", 0, mockEventsStorage.events.size)
+        
+        // Verify event was removed from DismissedEventsStorage
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testAfterCalendarEventFired_reschedulesAlarms() {
+        // This is called by PreActionActivity after pre-snooze to schedule the snooze alarm
+        
+        // Clear any previous mock interactions
+        clearMocks(mockAlarmScheduler, answers = false)
+        
+        // Call afterCalendarEventFired (this is what PreActionActivity calls after pre-snooze)
+        ApplicationController.afterCalendarEventFired(context)
+        
+        // Verify alarms were rescheduled (this schedules the snooze alarm)
+        verify(exactly = 1) { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+    }
+
+    @Test
+    fun testUnsnoozeToUpcoming_cancelsSnoozeAlarmAndReschedules() {
+        // Snoozed event with alertTime in the future
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val snoozeUntil = baseTime + 1800000L // 30 mins from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 7200000L,
+            snoozedUntil = snoozeUntil
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add event to EventsStorage (it's snoozed/active)
+        mockEventsStorage.addEvent(event)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Clear any previous mock interactions
+        clearMocks(mockNotificationManager, mockAlarmScheduler, answers = false)
+        
+        // Unsnooze to upcoming
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertTrue("Unsnooze should succeed", result)
+        
+        // Verify snooze notification was dismissed
+        verify(exactly = 1) { mockNotificationManager.onEventsDismissing(any(), match { events -> 
+            events.any { it.eventId == event.eventId }
+        }) }
+        
+        // Verify alarms were rescheduled (cancels snooze alarm since event is no longer snoozed)
+        verify(exactly = 1) { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+        
+        // Verify wasHandled was cleared
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
     }
 }
 

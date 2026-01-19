@@ -203,5 +203,15 @@ class TagsManagerRobolectricTest {
         tagsManager.parseEventTags(context, settings, event)
         assertTrue("Event should be muted when #mute is followed by punctuation", event.isMuted)
     }
+
+    // === Pre-mute preservation tests ===
+
+    @Test
+    fun testPreservesExistingMuteStatus() {
+        val event = createTestEvent(title = "Meeting without mute tag")
+        event.isMuted = true  // Pre-set from pre-mute
+        tagsManager.parseEventTags(context, settings, event)
+        assertTrue("Event should remain muted even without #mute tag", event.isMuted)
+    }
 }
 

@@ -202,54 +202,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         }
     }
 
-    override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
-        
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
-            ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
-            
-            // Use applicationContext for UndoManager since it persists across activity recreation
-            val appContext = ctx.applicationContext
-            UndoManager.addUndoState(
-                UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
-                )
-            )
-            
-            adapter.removeEvent(event)
-            updateEmptyState()
-            
-            view?.let { v ->
-                Snackbar.make(v, getString(R.string.event_dismissed), Snackbar.LENGTH_LONG)
-                    .setAction(getString(R.string.undo)) { 
-                        UndoManager.undo()
-                        loadEvents()
-                    }
-                    .show()
-            }
-        }
-    }
-
-    override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemSnooze, pos=$position, eventId=$eventId")
-        
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            startActivity(
-                Intent(ctx, ViewEventActivity::class.java)
-                    .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
-                    .putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
-                    .putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
-                    .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                    .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            )
-        }
-    }
-
     override fun onItemRemoved(event: EventAlertRecord) {
         val ctx = context ?: return
         DevLog.info(LOG_TAG, "onItemRemoved: Removing event id ${event.eventId}")

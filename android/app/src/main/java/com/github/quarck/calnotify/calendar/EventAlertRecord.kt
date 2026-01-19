@@ -158,6 +158,19 @@ data class EventAlertRecord(
         get() = EventAlertRecordKey(eventId, instanceStartTime)
 
     val titleAsOneLine: String by lazy { title.replace("\r\n", " ").replace("\n", " ")}
+    
+    /**
+     * Returns true if this event's alert time has already passed.
+     * Used to determine if an event should appear in "Upcoming" vs "Active" lists.
+     */
+    fun hasAlertFired(currentTime: Long): Boolean = alertTime <= currentTime
+    
+    /**
+     * Returns true if this event can be unsnoozed back to the Upcoming list.
+     * Requirements: must be snoozed AND alert time hasn't passed yet.
+     */
+    fun canUnsnoozeToUpcoming(currentTime: Long): Boolean = 
+        snoozedUntil != 0L && !hasAlertFired(currentTime)
 }
 
 fun EventAlertRecord.updateFrom(newEvent: EventAlertRecord): Boolean {
