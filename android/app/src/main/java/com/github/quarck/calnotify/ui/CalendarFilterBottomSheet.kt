@@ -183,11 +183,11 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
             }
         }
         
-        // Apply limit - when searching, show more results (up to 50) to help find calendars
+        // Apply limit - when searching, show more results to help find calendars
         // If maxItems is 0 (no limit), keep it as 0 (no limit)
         val effectiveMax = when {
             maxItems == 0 -> 0  // No limit setting - respect it
-            query.isNotEmpty() -> maxOf(maxItems, 50)  // When searching, show at least 50
+            query.isNotEmpty() -> maxOf(maxItems, MIN_SEARCH_RESULTS)
             else -> maxItems
         }
         val calendarsToDisplay = if (effectiveMax > 0 && matchingCalendars.size > effectiveMax) {
@@ -257,6 +257,9 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     companion object {
         private const val ARG_SELECTED_CALENDARS = "selected_calendars"
         private const val ARG_IS_ALL_CALENDARS = "is_all_calendars"
+        
+        /** Minimum calendars to show when searching (overrides maxItems setting) */
+        private const val MIN_SEARCH_RESULTS = 50
         
         /** Fragment Result API key for listening to calendar selection */
         const val REQUEST_KEY = "calendar_filter_request"
