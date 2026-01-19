@@ -33,6 +33,15 @@ import com.github.quarck.calnotify.logs.DevLog
  * - No data loss if migration has bugs
  * - Future app versions can retry migration
  * - Legacy database is preserved untouched
+ * 
+ * ## Note on close() and .use {} pattern
+ * 
+ * Callers use `.use {}` to ensure close() is called. However:
+ * - **RoomEventsStorage.close()** is a no-op (Room manages singleton lifecycle)
+ * - **LegacyEventsStorage.close()** actually closes the SQLiteOpenHelper
+ * 
+ * The `.use {}` pattern exists for legacy compatibility. Once legacy storage
+ * is removed, Closeable can be dropped from EventsStorageInterface.
  */
 class EventsStorage private constructor(
     context: Context,

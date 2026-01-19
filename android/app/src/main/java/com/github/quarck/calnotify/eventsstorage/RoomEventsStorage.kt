@@ -403,6 +403,16 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface {
         }
 
     /** Room manages connections via singleton; individual close is a no-op. */
+    /**
+     * No-op for Room storage.
+     * 
+     * Room databases are singletons managed by Room's lifecycle - we don't close them.
+     * The .use {} pattern in callers exists for LegacyEventsStorage compatibility,
+     * which uses SQLiteOpenHelper and DOES need closing.
+     * 
+     * TODO: When LegacyEventsStorage is removed, consider removing Closeable
+     * from EventsStorageInterface and dropping .use {} calls throughout the codebase.
+     */
     override fun close() {
     }
 

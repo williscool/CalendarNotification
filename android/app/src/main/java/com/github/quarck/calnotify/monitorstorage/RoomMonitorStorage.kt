@@ -98,9 +98,17 @@ class RoomMonitorStorage(context: Context) : MonitorStorageInterface {
         return dao.getByAlertTimeRange(scanFrom, scanTo).map { it.toAlertEntry() }
     }
 
+    /**
+     * No-op for Room storage.
+     * 
+     * Room databases are singletons managed by Room's lifecycle - we don't close them.
+     * The .use {} pattern in callers exists for LegacyMonitorStorage compatibility,
+     * which uses SQLiteOpenHelper and DOES need closing.
+     * 
+     * TODO: When legacy storage is removed, consider removing Closeable
+     * from MonitorStorageInterface and dropping .use {} calls.
+     */
     override fun close() {
-        // Room handles connection management via singleton pattern
-        // Individual close is not needed - database will be closed when app terminates
     }
 }
 
