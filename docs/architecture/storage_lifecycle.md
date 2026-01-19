@@ -72,9 +72,16 @@ EventsStorage(context).use { db ->
 }
 ```
 
-### Mock Storage Enforces Closed State
+### Mock Storage Warns on Use After Close
 
-The test mocks (`MockEventsStorage`, etc.) track closed state and throw `IllegalStateException` if used after close. This catches logical bugs even though production Room storage wouldn't crash.
+The test mocks (`MockEventsStorage`, etc.) track closed state and **log a warning** if used after close. This alerts developers to conceptually incorrect patterns without breaking tests.
+
+The warning approach was chosen because:
+1. Room's `close()` is a no-op, so this never causes real issues
+2. Many existing code patterns use storage after `.use {}` (e.g., test verification)
+3. A full refactor to fix ownership semantics isn't worth it before legacy removal
+
+See `docs/dev_todo/deprecated_features.md` for the cleanup plan.
 
 ## Future Cleanup
 

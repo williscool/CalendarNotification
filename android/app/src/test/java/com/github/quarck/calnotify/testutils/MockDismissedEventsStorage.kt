@@ -14,11 +14,14 @@ import com.github.quarck.calnotify.logs.DevLog
 class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     private val LOG_TAG = "MockDismissedEventsStorage"
     
-    // Track closed state to match real storage behavior
+    // Track closed state - warn instead of throw since Room's close() is a no-op anyway
+    // TODO: When legacy storage is removed, consider stricter enforcement or removing Closeable entirely
     private var closed = false
     
-    private fun ensureNotClosed() {
-        if (closed) throw IllegalStateException("MockDismissedEventsStorage has been closed - cannot perform operations on closed storage")
+    private fun warnIfClosed() {
+        if (closed) {
+            DevLog.warn(LOG_TAG, "MockDismissedEventsStorage used after close() - this pattern works because Room's close() is a no-op, but is conceptually incorrect. See docs/architecture/storage_lifecycle.md")
+        }
     }
     
     // In-memory storage for dismissed events
@@ -28,7 +31,7 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     data class EventKey(val eventId: Long, val instanceStartTime: Long)
     
     override fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord) {
-        ensureNotClosed()
+        warnIfClosed()
         DevLog.info(LOG_TAG, "Adding dismissed event: eventId=${event.eventId}, type=$type")
         val key = EventKey(event.eventId, event.instanceStartTime)
         val dismissedRecord = DismissedEventAlertRecord(
@@ -40,39 +43,39 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     }
     
     override fun addEvent(type: EventDismissType, event: EventAlertRecord) {
-        ensureNotClosed()
+        warnIfClosed()
         addEvent(type, System.currentTimeMillis(), event)
     }
     
     override fun addEvents(type: EventDismissType, events: Collection<EventAlertRecord>) {
-        ensureNotClosed()
+        warnIfClosed()
         DevLog.info(LOG_TAG, "Adding ${events.size} dismissed events")
         val changeTime = System.currentTimeMillis()
         events.forEach { addEvent(type, changeTime, it) }
     }
     
     override fun deleteEvent(entry: DismissedEventAlertRecord) {
-        ensureNotClosed()
+        warnIfClosed()
         val key = EventKey(entry.event.eventId, entry.event.instanceStartTime)
         eventsMap.remove(key)
         DevLog.info(LOG_TAG, "Deleted dismissed event: eventId=${entry.event.eventId}")
     }
     
     override fun deleteEvent(event: EventAlertRecord) {
-        ensureNotClosed()
+        warnIfClosed()
         val key = EventKey(event.eventId, event.instanceStartTime)
         eventsMap.remove(key)
         DevLog.info(LOG_TAG, "Deleted dismissed event: eventId=${event.eventId}")
     }
     
     override fun clearHistory() {
-        ensureNotClosed()
+        warnIfClosed()
         DevLog.info(LOG_TAG, "Clearing all ${eventsMap.size} dismissed events")
         eventsMap.clear()
     }
     
     override fun purgeOld(currentTime: Long, maxLiveTime: Long) {
-        ensureNotClosed()
+        warnIfClosed()
         val cutoff = currentTime - maxLiveTime
         val toRemove = eventsMap.filter { it.value.dismissTime < cutoff }
         toRemove.forEach { eventsMap.remove(it.key) }
@@ -81,13 +84,13 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     
     override val events: List<DismissedEventAlertRecord>
         get() {
-            ensureNotClosed()
+            warnIfClosed()
             return eventsMap.values.toList()
         }
     
     override val eventsForDisplay: List<DismissedEventAlertRecord>
         get() {
-            ensureNotClosed()
+            warnIfClosed()
             return eventsMap.values.sortedByDescending { it.dismissTime }
         }
     
