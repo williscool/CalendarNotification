@@ -733,6 +733,16 @@
     <string name="filter_status_active">Active</string>
     <string name="filter_status_muted">Muted</string>
     <string name="filter_status_recurring">Recurring</string>
+    
+    <!-- Time filter -->
+    <string name="filter_time">Time</string>
+    <string name="filter_time_title">Filter by Time</string>
+    <string name="filter_time_all">All</string>
+    <string name="filter_time_started_today">Started today</string>
+    <string name="filter_time_started_this_week">Started this week</string>
+    <string name="filter_time_past">Past (ended)</string>
+    <string name="filter_time_started_this_month">Started this month</string>
+    <string name="filter_apply">Apply</string>
 
     <!-- New UI banner -->
     <string name="new_ui_banner_text">Not a fan of the new look? <u>Switch back to classic view</u></string>

@@ -38,68 +38,85 @@ Horizontally scrollable chip row below the toolbar, collapses on scroll:
 | Tab | Filter Chips |
 |-----|--------------|
 | **Active** | Calendar ▼, Status ▼, Time ▼ |
-| **Upcoming** | Calendar ▼, Status ▼, Time ▼ |
-| **Dismissed** | Calendar ▼ |
+| **Upcoming** | Calendar ▼, Status ▼ |
+| **Dismissed** | Calendar ▼, Time ▼ |
 
 Chips change based on which tab is selected.
+
+> **Note:** Time filter for Upcoming is deferred - it needs thoughtful integration with the existing lookahead settings (fixed hours vs. day boundary). See Future Enhancements.
 
 ---
 
 ## Filter Definitions
 
-### Status Filter (Dropdown)
+### Status Filter (Dropdown - Multi-select)
 
-Single-select popup menu:
+**Multi-select** popup menu with checkboxes (OR logic - event matches if it matches ANY selected option):
 
 ```
 ┌─────────────────────────┐
-│  All                 ✓  │
-│  Snoozed                │
-│  Active                 │
-│  Muted                  │
-│  Recurring              │
+│  All                 ☑  │
+│  Snoozed             ☐  │
+│  Active              ☐  │
+│  Muted               ☐  │
+│  Recurring           ☐  │
 └─────────────────────────┘
 ```
 
 | Option | Logic |
 |--------|-------|
-| All | No filter (default) |
+| All | No filter (empty set = show all) |
 | Snoozed | `event.snoozedUntil > 0` |
 | Active | `event.snoozedUntil == 0` (not snoozed) |
 | Muted | `event.isMuted == true` |
 | Recurring | `event.isRepeating == true` |
 
-**Interaction:** `PopupMenu` anchored to chip, instant apply on selection.
+**Tab-specific options:**
+- **Active tab**: All options available
+- **Upcoming tab**: Only Muted, Recurring (Snoozed/Active don't apply to unfired events)
+- **Dismissed tab**: No Status filter
+
+**Interaction:** `PopupMenu` anchored to chip, instant apply on each toggle. Selecting "All" clears other selections.
+
+**Chip text:** Shows "Status" when no filter, single option name when one selected, "N selected" when multiple.
 
 ### Time Filter (Bottom Sheet)
 
-For Active/Upcoming - filter by alert time or event time:
+**Single-select** filter by event start time. Options differ by tab:
+
+**Active Tab:**
+| Option | Logic |
+|--------|-------|
+| All | No filter (default) |
+| Started today | `instanceStartTime` is today |
+| Started this week | `instanceStartTime` within current calendar week |
+| Past | `instanceEndTime < now` (event already ended) |
+
+**Dismissed Tab:**
+| Option | Logic |
+|--------|-------|
+| All | No filter (default) |
+| Started today | `instanceStartTime` is today |
+| Started this week | `instanceStartTime` within current calendar week |
+| Started this month | `instanceStartTime` within current calendar month |
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  Filter by Time                            ✕   │
 ├─────────────────────────────────────────────────┤
 │  ○  All                                         │
-│  ○  Today                                       │
-│  ○  Tomorrow                                    │
-│  ○  Next 7 days                                 │
-│  ○  This week                                   │
-│  ○  Next 30 days                                │
+│  ○  Started today                               │
+│  ○  Started this week                           │
+│  ○  Past (ended)           ← Active only        │
+│  ○  Started this month     ← Dismissed only     │
 ├─────────────────────────────────────────────────┤
 │              [ APPLY ]                          │
 └─────────────────────────────────────────────────┘
 ```
 
-| Option | Logic (Active/Upcoming) |
-|--------|-------------------------|
-| All | No filter (default) |
-| Today | `instanceStartTime` is today |
-| Tomorrow | `instanceStartTime` is tomorrow |
-| Next 7 days | `instanceStartTime` within 7 days |
-| This week | `instanceStartTime` within current calendar week |
-| Next 30 days | `instanceStartTime` within 30 days |
-
 **Interaction:** `BottomSheetDialogFragment` with radio buttons, Apply button to confirm.
+
+> **Note:** Time filter for Upcoming tab is deferred. See Future Enhancements.
 
 ### Calendar Filter (Bottom Sheet)
 
@@ -141,16 +158,30 @@ Filters are stored in the Activity (not Settings/SharedPreferences):
 // In MainActivityModern.kt
 data class FilterState(
     val selectedCalendarIds: Set<Long> = emptySet(),  // empty = all calendars
-    val statusFilter: StatusFilter = StatusFilter.ALL,
+    val statusFilters: Set<StatusOption> = emptySet(), // empty = show all (multi-select, OR logic)
     val timeFilter: TimeFilter = TimeFilter.ALL
-)
+) {
+    /** Check if an event matches current status filters (empty set = match all) */
+    fun matchesStatus(event: EventAlertRecord): Boolean {
+        if (statusFilters.isEmpty()) return true
+        return statusFilters.any { it.matches(event) }
+    }
+}
 
-enum class StatusFilter {
-    ALL, SNOOZED, ACTIVE, MUTED, RECURRING
+/** Individual status filter options. Multiple can be selected (OR logic). */
+enum class StatusOption {
+    SNOOZED, ACTIVE, MUTED, RECURRING;
+    
+    fun matches(event: EventAlertRecord): Boolean = when (this) {
+        SNOOZED -> event.snoozedUntil > 0
+        ACTIVE -> event.snoozedUntil == 0L
+        MUTED -> event.isMuted
+        RECURRING -> event.isRepeating
+    }
 }
 
 enum class TimeFilter {
-    ALL, TODAY, TOMORROW, NEXT_7_DAYS, THIS_WEEK, NEXT_30_DAYS
+    ALL, STARTED_TODAY, STARTED_THIS_WEEK, PAST, STARTED_THIS_MONTH
 }
 
 // Current filter state - cleared on Activity recreation
@@ -881,6 +912,7 @@ Each phase is independently testable and deliverable.
 
 ## Future Enhancements
 
+- **Time filter for Upcoming tab** - Needs thoughtful integration with existing lookahead settings (fixed hours vs. day boundary mode). Could filter within existing lookahead or override/extend it. Implement after Calendar filter to learn from those patterns.
 - **Save filter presets** - Remember commonly used filter combinations
 - **Filter badge counts** - Show "(3)" on chip when filtering
 - **Additional filters** - Event type, attendee, location

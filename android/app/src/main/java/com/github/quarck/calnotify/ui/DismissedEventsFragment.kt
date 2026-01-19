@@ -158,9 +158,13 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        
         background {
             val events = getDismissedEventsStorage(ctx).use { db ->
-                db.eventsForDisplay.toTypedArray()
+                db.eventsForDisplay
+                    .filter { filterState.matchesTime(it.event) }
+                    .toTypedArray()
             }
             
             activity?.runOnUiThread {
@@ -171,6 +175,12 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
                 activity?.invalidateOptionsMenu()
             }
         }
+    }
+    
+    private fun getFilterState(): FilterState {
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -218,12 +228,19 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun onFilterChanged() {
+        loadEvents()
+    }
 
     companion object {
         private const val LOG_TAG = "DismissedEventsFragment"
         
         /** Provider for DismissedEventsStorage - enables DI for testing */
         var dismissedEventsStorageProvider: ((Context) -> DismissedEventsStorageInterface)? = null
+        
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
         
         /** Gets DismissedEventsStorage - uses provider if set, otherwise creates real instance */
         fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface =
@@ -232,6 +249,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             dismissedEventsStorageProvider = null
+            filterStateProvider = null
         }
     }
 }

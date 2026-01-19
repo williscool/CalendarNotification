@@ -56,12 +56,18 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
  */
 data class FilterState(
     val selectedCalendarIds: Set<Long> = emptySet(),  // empty = all calendars
-    val statusFilters: Set<StatusOption> = emptySet()  // empty = show all (no filter)
+    val statusFilters: Set<StatusOption> = emptySet(),  // empty = show all (no filter)
+    val timeFilter: TimeFilter = TimeFilter.ALL
 ) {
     /** Check if an event matches current status filters (empty set = match all) */
     fun matchesStatus(event: EventAlertRecord): Boolean {
         if (statusFilters.isEmpty()) return true  // No filter = show all
         return statusFilters.any { it.matches(event) }
+    }
+    
+    /** Check if an event matches current time filter */
+    fun matchesTime(event: EventAlertRecord, now: Long = System.currentTimeMillis()): Boolean {
+        return timeFilter.matches(event, now)
     }
 }
 
@@ -77,6 +83,64 @@ enum class StatusOption {
         ACTIVE -> event.snoozedUntil == 0L
         MUTED -> event.isMuted
         RECURRING -> event.isRepeating
+    }
+}
+
+/**
+ * Time filter options. Single-select.
+ * Options available depend on tab (Active vs Dismissed).
+ */
+enum class TimeFilter {
+    ALL,              // No filter (default)
+    STARTED_TODAY,    // Event started today
+    STARTED_THIS_WEEK,// Event started within current calendar week
+    PAST,             // Event has already ended (Active tab only)
+    STARTED_THIS_MONTH;// Event started within current month (Dismissed tab only)
+    
+    /** Check if an event matches this time filter */
+    fun matches(event: EventAlertRecord, now: Long = System.currentTimeMillis()): Boolean {
+        return when (this) {
+            ALL -> true
+            STARTED_TODAY -> isToday(event.instanceStartTime, now)
+            STARTED_THIS_WEEK -> isThisWeek(event.instanceStartTime, now)
+            PAST -> event.instanceEndTime < now
+            STARTED_THIS_MONTH -> isThisMonth(event.instanceStartTime, now)
+        }
+    }
+    
+    companion object {
+        private fun isToday(timestamp: Long, now: Long): Boolean {
+            val cal = java.util.Calendar.getInstance()
+            cal.timeInMillis = now
+            val todayYear = cal.get(java.util.Calendar.YEAR)
+            val todayDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
+            
+            cal.timeInMillis = timestamp
+            return cal.get(java.util.Calendar.YEAR) == todayYear && 
+                   cal.get(java.util.Calendar.DAY_OF_YEAR) == todayDay
+        }
+        
+        private fun isThisWeek(timestamp: Long, now: Long): Boolean {
+            val cal = java.util.Calendar.getInstance()
+            cal.timeInMillis = now
+            val thisYear = cal.get(java.util.Calendar.YEAR)
+            val thisWeek = cal.get(java.util.Calendar.WEEK_OF_YEAR)
+            
+            cal.timeInMillis = timestamp
+            return cal.get(java.util.Calendar.YEAR) == thisYear && 
+                   cal.get(java.util.Calendar.WEEK_OF_YEAR) == thisWeek
+        }
+        
+        private fun isThisMonth(timestamp: Long, now: Long): Boolean {
+            val cal = java.util.Calendar.getInstance()
+            cal.timeInMillis = now
+            val thisYear = cal.get(java.util.Calendar.YEAR)
+            val thisMonth = cal.get(java.util.Calendar.MONTH)
+            
+            cal.timeInMillis = timestamp
+            return cal.get(java.util.Calendar.YEAR) == thisYear && 
+                   cal.get(java.util.Calendar.MONTH) == thisMonth
+        }
     }
 }
 
@@ -357,15 +421,17 @@ class MainActivityModern : MainActivityBase() {
         
         when (currentDestination) {
             R.id.activeEventsFragment -> {
-                // Active tab: Status filter (Calendar and Time coming later)
+                // Active tab: Status, Time (Calendar coming later)
                 addStatusChip()
+                addTimeChip(TimeFilterBottomSheet.TabType.ACTIVE)
             }
             R.id.upcomingEventsFragment -> {
-                // Upcoming tab: Status filter
+                // Upcoming tab: Status only (Time filter deferred - needs lookahead integration)
                 addStatusChip()
             }
             R.id.dismissedEventsFragment -> {
-                // Dismissed tab: No status filter (Calendar coming later)
+                // Dismissed tab: Time (Calendar coming later)
+                addTimeChip(TimeFilterBottomSheet.TabType.DISMISSED)
             }
         }
     }
@@ -444,6 +510,42 @@ class MainActivityModern : MainActivityBase() {
     
     private fun notifyCurrentFragmentFilterChanged() {
         getCurrentSearchableFragment()?.onFilterChanged()
+    }
+    
+    // === Time Filter Chip ===
+    
+    private fun addTimeChip(tabType: TimeFilterBottomSheet.TabType) {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getTimeChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showTimeFilterBottomSheet(tabType) }
+            setOnCloseIconClickListener { showTimeFilterBottomSheet(tabType) }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getTimeChipText(): String {
+        return when (filterState.timeFilter) {
+            TimeFilter.ALL -> getString(R.string.filter_time)
+            TimeFilter.STARTED_TODAY -> getString(R.string.filter_time_started_today)
+            TimeFilter.STARTED_THIS_WEEK -> getString(R.string.filter_time_started_this_week)
+            TimeFilter.PAST -> getString(R.string.filter_time_past)
+            TimeFilter.STARTED_THIS_MONTH -> getString(R.string.filter_time_started_this_month)
+        }
+    }
+    
+    private fun showTimeFilterBottomSheet(tabType: TimeFilterBottomSheet.TabType) {
+        val bottomSheet = TimeFilterBottomSheet.newInstance(filterState.timeFilter, tabType)
+        bottomSheet.onFilterSelected = { selectedFilter ->
+            filterState = filterState.copy(timeFilter = selectedFilter)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        bottomSheet.show(supportFragmentManager, "TimeFilterBottomSheet")
     }
 
     companion object {
