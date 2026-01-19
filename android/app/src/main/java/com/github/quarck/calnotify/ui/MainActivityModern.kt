@@ -338,6 +338,7 @@ class MainActivityModern : MainActivityBase() {
                 val isChange = fragment?.hasActiveEvents() != true
                 val searchQuery = fragment?.getSearchQuery()
                 val eventCount = fragment?.getDisplayedEventCount() ?: 0
+                val currentFilterState = getCurrentFilterState()
 
                 startActivity(
                     Intent(this, SnoozeAllActivity::class.java)
@@ -345,6 +346,7 @@ class MainActivityModern : MainActivityBase() {
                         .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
                         .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
                         .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
+                        .putExtra(Consts.INTENT_FILTER_STATE, currentFilterState.toBundle())
                         .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 )
             }

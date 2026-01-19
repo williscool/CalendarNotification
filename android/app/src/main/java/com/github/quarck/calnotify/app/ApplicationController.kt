@@ -57,6 +57,7 @@ import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissResult
+import com.github.quarck.calnotify.ui.FilterState
 import expo.modules.mymodule.JsRescheduleConfirmationObject
 import kotlinx.serialization.json.Json
 
@@ -922,12 +923,30 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return snoozeEvents(context, { it.displayStatus == EventDisplayStatus.DisplayedCollapsed }, snoozeDelay, isChange, onlySnoozeVisible)
     }
 
-    fun snoozeAllEvents(context: Context, snoozeDelay: Long, isChange: Boolean, onlySnoozeVisible: Boolean, searchQuery: String? = null): SnoozeResult? {
+    fun snoozeAllEvents(
+        context: Context, 
+        snoozeDelay: Long, 
+        isChange: Boolean, 
+        onlySnoozeVisible: Boolean, 
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ): SnoozeResult? {
+        val now = clock.currentTimeMillis()
         return snoozeEvents(context, { event ->
-            searchQuery?.let { query ->
+            // Search query filter (existing behavior)
+            val matchesSearch = searchQuery?.let { query ->
                 event.title.contains(query, ignoreCase = true) ||
                 event.desc.contains(query, ignoreCase = true)
             } ?: true
+            
+            // FilterState filters (new)
+            val matchesFilter = filterState?.let { filter ->
+                filter.matchesCalendar(event) &&
+                filter.matchesStatus(event) &&
+                filter.matchesTime(event, now)
+            } ?: true
+            
+            matchesSearch && matchesFilter
         }, snoozeDelay, isChange, onlySnoozeVisible)
     }
 

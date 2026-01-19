@@ -103,6 +103,25 @@
         <item quantity="one">%1$d event matching \""%2$s"\" will be snoozed</item>
         <item quantity="other">%1$d events matching \""%2$s"\" will be snoozed</item>
     </plurals>
+    
+    <!-- Filter description for snooze count (supports any filter combination) -->
+    <plurals name="snooze_count_text_filtered">
+        <item quantity="one">%1$d event matching %2$s will be snoozed</item>
+        <item quantity="other">%1$d events matching %2$s will be snoozed</item>
+    </plurals>
+    
+    <!-- Filter combination descriptions -->
+    <string name="filter_description_search_and_filters">\"%1$s\", %2$s</string>
+    
+    <!-- Calendar filter summary for snooze message -->
+    <plurals name="filter_calendar_summary">
+        <item quantity="one">%1$d calendar</item>
+        <item quantity="other">%1$d calendars</item>
+    </plurals>
+    
+    <!-- Confirmation dialogs with filters -->
+    <string name="snooze_filtered_with_filter_confirmation">Snooze all events matching %1$s?</string>
+    <string name="change_filtered_with_filter_confirmation">Change snooze time for all events matching %1$s?\nAlready snoozed would also change unless snoozed to longer period</string>
 
     <string name="change_snooze_to">Change snooze to:</string>
 
