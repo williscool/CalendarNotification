@@ -440,10 +440,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         DevLog.info(LOG_TAG, "registerNewEvent: Event fired: calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime ${event.alertTime}, muted: ${event.isMuted}, task: ${event.isTask}")
 
-        // 1st step - save event into DB (use injected or default to class instance)
+        // Save event into DB and verify it was stored correctly
         val eventsDb = db ?: EventsStorage(context)
-        eventsDb.use {
-            dbInst ->
+        eventsDb.use { dbInst ->
 
             if (event.isNotSpecial)
                 event.lastStatusChangeTime = clock.currentTimeMillis()
@@ -453,7 +452,6 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             if (event.isRepeating) {
                 // repeating event - always simply add
                 dbInst.addEvent(event) // ignoring result as we are using other way of validating
-                //notificationManager.onEventAdded(context, EventFormatter(context), event)
             }
             else {
                 // non-repeating event - make sure we don't create two records with the same eventId
@@ -477,24 +475,18 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
                 // add newly fired event
                 dbInst.addEvent(event)
-                //notificationManager.onEventAdded(context, EventFormatter(context), event)
             }
-        }
 
-        // 2nd step - re-open new DB instance and make sure that event:
-        // * is there
-        // * is not set as visible
-        // * is not snoozed
-        eventsDb.use {
-            dbInst ->
-
+            // Verify event was stored correctly:
+            // * is there
+            // * is not set as visible
+            // * is not snoozed
             if (event.isRepeating) {
                 // return true only if we can confirm, by reading event again from DB
                 // that it is there
                 // Caller is using our return value as "safeToRemoveOriginalReminder" flag
                 val dbEvent = dbInst.getEvent(event.eventId, event.instanceStartTime)
                 ret = dbEvent != null && dbEvent.snoozedUntil == 0L
-
             }
             else {
                 // return true only if we can confirm, by reading event again from DB
