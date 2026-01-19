@@ -44,6 +44,7 @@ import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.globalState
+import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
 import androidx.appcompat.view.ContextThemeWrapper
@@ -67,7 +68,7 @@ data class FilterState(
     }
     
     /** Check if an event matches current time filter */
-    fun matchesTime(event: EventAlertRecord, now: Long = System.currentTimeMillis()): Boolean {
+    fun matchesTime(event: EventAlertRecord, now: Long): Boolean {
         return timeFilter.matches(event, now)
     }
     
@@ -104,49 +105,18 @@ enum class TimeFilter {
     PAST,             // Event has already ended (Active tab only)
     STARTED_THIS_MONTH;// Event started within current month (Dismissed tab only)
     
-    /** Check if an event matches this time filter */
-    fun matches(event: EventAlertRecord, now: Long = System.currentTimeMillis()): Boolean {
+    /**
+     * Check if an event matches this time filter.
+     * @param event The event to check
+     * @param now Current time in milliseconds (required for testability)
+     */
+    fun matches(event: EventAlertRecord, now: Long): Boolean {
         return when (this) {
             ALL -> true
-            STARTED_TODAY -> isToday(event.instanceStartTime, now)
-            STARTED_THIS_WEEK -> isThisWeek(event.instanceStartTime, now)
+            STARTED_TODAY -> DateTimeUtils.isToday(event.instanceStartTime, now)
+            STARTED_THIS_WEEK -> DateTimeUtils.isThisWeek(event.instanceStartTime, now)
             PAST -> event.instanceEndTime < now
-            STARTED_THIS_MONTH -> isThisMonth(event.instanceStartTime, now)
-        }
-    }
-    
-    companion object {
-        private fun isToday(timestamp: Long, now: Long): Boolean {
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = now
-            val todayYear = cal.get(java.util.Calendar.YEAR)
-            val todayDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
-            
-            cal.timeInMillis = timestamp
-            return cal.get(java.util.Calendar.YEAR) == todayYear && 
-                   cal.get(java.util.Calendar.DAY_OF_YEAR) == todayDay
-        }
-        
-        private fun isThisWeek(timestamp: Long, now: Long): Boolean {
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = now
-            val thisYear = cal.get(java.util.Calendar.YEAR)
-            val thisWeek = cal.get(java.util.Calendar.WEEK_OF_YEAR)
-            
-            cal.timeInMillis = timestamp
-            return cal.get(java.util.Calendar.YEAR) == thisYear && 
-                   cal.get(java.util.Calendar.WEEK_OF_YEAR) == thisWeek
-        }
-        
-        private fun isThisMonth(timestamp: Long, now: Long): Boolean {
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = now
-            val thisYear = cal.get(java.util.Calendar.YEAR)
-            val thisMonth = cal.get(java.util.Calendar.MONTH)
-            
-            cal.timeInMillis = timestamp
-            return cal.get(java.util.Calendar.YEAR) == thisYear && 
-                   cal.get(java.util.Calendar.MONTH) == thisMonth
+            STARTED_THIS_MONTH -> DateTimeUtils.isThisMonth(event.instanceStartTime, now)
         }
     }
 }

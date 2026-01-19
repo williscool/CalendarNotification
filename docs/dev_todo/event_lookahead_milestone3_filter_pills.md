@@ -924,3 +924,4 @@ Each phase is independently testable and deliverable.
 - **Filter badge counts** - Show "(3)" on chip when filtering
 - **Additional filters** - Event type, attendee, location
 - **Quick clear** - "Clear all filters" chip or button
+- **Fix test activity calendar creation** - The test activity (`TestActivityCalendarEvents` or similar) creates a new calendar each time it runs instead of reusing an existing "Test Calendar". This leads to hundreds of duplicate calendars over time (observed 718 "Test Calendar" entries). Should check for existing test calendar by name before creating a new one.

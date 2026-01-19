@@ -47,6 +47,8 @@ import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRec
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
 
 /**
@@ -54,6 +56,8 @@ import com.github.quarck.calnotify.utils.background
  * Migrated from DismissedEventsActivity.
  */
 class DismissedEventsFragment : Fragment(), DismissedEventListCallback, SearchableFragment {
+    
+    private val clock: CNPlusClockInterface get() = getClock()
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
@@ -159,11 +163,12 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     private fun loadEvents() {
         val ctx = context ?: return
         val filterState = getFilterState()
+        val now = clock.currentTimeMillis()
         
         background {
             val events = getDismissedEventsStorage(ctx).use { db ->
                 db.eventsForDisplay
-                    .filter { filterState.matchesCalendar(it.event) && filterState.matchesTime(it.event) }
+                    .filter { filterState.matchesCalendar(it.event) && filterState.matchesTime(it.event, now) }
                     .toTypedArray()
             }
             
@@ -242,14 +247,22 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
         /** Provider for FilterState - enables DI for testing */
         var filterStateProvider: (() -> FilterState)? = null
         
+        /** Provider for Clock - enables DI for testing */
+        var clockProvider: (() -> CNPlusClockInterface)? = null
+        
         /** Gets DismissedEventsStorage - uses provider if set, otherwise creates real instance */
         fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface =
             dismissedEventsStorageProvider?.invoke(ctx) ?: DismissedEventsStorage(ctx)
+        
+        /** Gets Clock - uses provider if set, otherwise returns real instance */
+        fun getClock(): CNPlusClockInterface =
+            clockProvider?.invoke() ?: CNPlusSystemClock()
         
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             dismissedEventsStorageProvider = null
             filterStateProvider = null
+            clockProvider = null
         }
     }
 }
