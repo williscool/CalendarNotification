@@ -912,6 +912,13 @@ Each phase is independently testable and deliverable.
 
 ## Future Enhancements
 
+- **Snooze All / Dismiss All with filters** - Make bulk actions respect active filters (like they already do with search). When a filter is active, "Snooze All" should only snooze filtered events. Requires:
+  - Passing FilterState to SnoozeAllActivity via Intent extras
+  - Extending `ApplicationController.snoozeAllEvents()` to accept filter parameters
+  - Updating `snooze_count_text` strings to show active filters, e.g.:
+    - "5 events matching Snoozed, Muted filters will be snoozed"
+    - "3 events matching 'meeting', Snoozed filter will be snoozed" (search + filter)
+    - Pattern: `X event(s) matching [search], [filter1, filter2, ...] will be snoozed`
 - **Time filter for Upcoming tab** - Needs thoughtful integration with existing lookahead settings (fixed hours vs. day boundary mode). Could filter within existing lookahead or override/extend it. Implement after Calendar filter to learn from those patterns.
 - **Save filter presets** - Remember commonly used filter combinations
 - **Filter badge counts** - Show "(3)" on chip when filtering
