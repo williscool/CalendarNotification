@@ -120,6 +120,9 @@ class MainActivityModern : MainActivityBase() {
 
         // Setup filter chips
         chipGroup = find<ChipGroup>(R.id.filter_chips)
+        
+        // Setup Fragment Result listeners for bottom sheets (survives config changes)
+        setupFilterResultListeners()
 
         // Update toolbar title based on current destination
         navController?.addOnDestinationChangedListener { _, destination, _ ->
@@ -468,11 +471,6 @@ class MainActivityModern : MainActivityBase() {
     
     private fun showTimeFilterBottomSheet(tabType: TimeFilterBottomSheet.TabType) {
         val bottomSheet = TimeFilterBottomSheet.newInstance(filterState.timeFilter, tabType)
-        bottomSheet.onFilterSelected = { selectedFilter ->
-            filterState = filterState.copy(timeFilter = selectedFilter)
-            updateFilterChipsForCurrentTab()
-            notifyCurrentFragmentFilterChanged()
-        }
         bottomSheet.show(supportFragmentManager, "TimeFilterBottomSheet")
     }
     
@@ -539,12 +537,32 @@ class MainActivityModern : MainActivityBase() {
     
     private fun showCalendarFilterBottomSheet() {
         val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds ?: emptySet())
-        bottomSheet.onCalendarsSelected = { selectedCalendars ->
+        bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
+    }
+    
+    /** Setup Fragment Result listeners for bottom sheets (survives config changes) */
+    private fun setupFilterResultListeners() {
+        // Time filter result
+        supportFragmentManager.setFragmentResultListener(
+            TimeFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val filterOrdinal = bundle.getInt(TimeFilterBottomSheet.RESULT_FILTER, 0)
+            val selectedFilter = TimeFilter.entries.getOrNull(filterOrdinal) ?: TimeFilter.ALL
+            filterState = filterState.copy(timeFilter = selectedFilter)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Calendar filter result
+        supportFragmentManager.setFragmentResultListener(
+            CalendarFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val calendarArray = bundle.getLongArray(CalendarFilterBottomSheet.RESULT_CALENDARS)
+            val selectedCalendars: Set<Long>? = calendarArray?.toSet()
             filterState = filterState.copy(selectedCalendarIds = selectedCalendars)
             updateFilterChipsForCurrentTab()
             notifyCurrentFragmentFilterChanged()
         }
-        bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
     }
 
     companion object {

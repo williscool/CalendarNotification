@@ -26,6 +26,8 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import androidx.core.os.bundleOf
+import androidx.fragment.app.setFragmentResult
 import com.github.quarck.calnotify.R
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -34,9 +36,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
  * Options differ based on which tab is active (Active vs Dismissed).
  */
 class TimeFilterBottomSheet : BottomSheetDialogFragment() {
-    
-    /** Callback when a filter is selected */
-    var onFilterSelected: ((TimeFilter) -> Unit)? = null
     
     /** Current selected filter - restored from arguments */
     private val currentFilter: TimeFilter
@@ -88,7 +87,8 @@ class TimeFilterBottomSheet : BottomSheetDialogFragment() {
                 R.id.radio_started_this_month -> TimeFilter.STARTED_THIS_MONTH
                 else -> TimeFilter.ALL
             }
-            onFilterSelected?.invoke(selectedFilter)
+            // Use Fragment Result API (survives config changes)
+            setFragmentResult(REQUEST_KEY, bundleOf(RESULT_FILTER to selectedFilter.ordinal))
             dismiss()
         }
     }
@@ -114,6 +114,11 @@ class TimeFilterBottomSheet : BottomSheetDialogFragment() {
     companion object {
         private const val ARG_CURRENT_FILTER = "current_filter"
         private const val ARG_TAB_TYPE = "tab_type"
+        
+        /** Fragment Result API key for listening to time filter selection */
+        const val REQUEST_KEY = "time_filter_request"
+        /** Bundle key for the result (Int - TimeFilter ordinal) */
+        const val RESULT_FILTER = "result_filter"
         
         fun newInstance(currentFilter: TimeFilter, tabType: TabType): TimeFilterBottomSheet {
             return TimeFilterBottomSheet().apply {

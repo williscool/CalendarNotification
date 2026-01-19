@@ -31,6 +31,8 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.os.bundleOf
+import androidx.fragment.app.setFragmentResult
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendar.CalendarProvider
@@ -45,9 +47,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
  * Performance: Only creates views for displayed calendars, not all calendars.
  */
 class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
-    
-    /** Callback when calendars are selected (null = all calendars, empty = none) */
-    var onCalendarsSelected: ((Set<Long>?) -> Unit)? = null
     
     /** Currently selected calendar IDs - restored from arguments */
     private val selectedCalendarIds: MutableSet<Long> = mutableSetOf()
@@ -150,7 +149,8 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
             } else {
                 selectedCalendarIds.toSet()  // Could be empty = show nothing
             }
-            onCalendarsSelected?.invoke(result)
+            // Use Fragment Result API (survives config changes)
+            setFragmentResult(REQUEST_KEY, bundleOf(RESULT_CALENDARS to result?.toLongArray()))
             dismiss()
         }
     }
@@ -250,6 +250,11 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     
     companion object {
         private const val ARG_SELECTED_CALENDARS = "selected_calendars"
+        
+        /** Fragment Result API key for listening to calendar selection */
+        const val REQUEST_KEY = "calendar_filter_request"
+        /** Bundle key for the result (LongArray? - null means all calendars) */
+        const val RESULT_CALENDARS = "result_calendars"
         
         fun newInstance(selectedCalendarIds: Set<Long>): CalendarFilterBottomSheet {
             return CalendarFilterBottomSheet().apply {
