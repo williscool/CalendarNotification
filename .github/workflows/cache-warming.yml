@@ -22,6 +22,11 @@ on:
 env:
   # Reuse settings from main workflow
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+  # ccache settings must match main workflow for cache hits
+  CCACHE_DEBUG: 1
+  CCACHE_VERBOSE: 1
+  CCACHE_MAXSIZE: 5G
+  CCACHE_BASEDIR: ${{ github.workspace }}
 
 jobs:
   warm-build-caches:
