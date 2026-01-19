@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.testutils
 
 import android.content.Context
+import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
@@ -32,23 +33,29 @@ object TestStorageFactory {
     
     /**
      * Gets or creates the singleton MockMonitorStorage instance.
+     * Also injects it into ApplicationController.monitorStorageProvider.
      */
     fun getMonitorStorage(): MockMonitorStorage {
         if (_monitorStorage == null) {
             DevLog.info(LOG_TAG, "Creating new MockMonitorStorage instance")
             _monitorStorage = MockMonitorStorage()
         }
+        // Ensure ApplicationController uses this mock
+        ApplicationController.monitorStorageProvider = { _monitorStorage!! }
         return _monitorStorage!!
     }
     
     /**
      * Gets or creates the singleton MockEventsStorage instance.
+     * Also injects it into ApplicationController.eventsStorageProvider.
      */
     fun getEventsStorage(): MockEventsStorage {
         if (_eventsStorage == null) {
             DevLog.info(LOG_TAG, "Creating new MockEventsStorage instance")
             _eventsStorage = MockEventsStorage()
         }
+        // Ensure ApplicationController uses this mock
+        ApplicationController.eventsStorageProvider = { _eventsStorage!! }
         return _eventsStorage!!
     }
     
@@ -72,6 +79,9 @@ object TestStorageFactory {
         _eventsStorage?.clear()
         _monitorStorage = null
         _eventsStorage = null
+        // Clear ApplicationController providers
+        ApplicationController.monitorStorageProvider = null
+        ApplicationController.eventsStorageProvider = null
     }
     
     /**
