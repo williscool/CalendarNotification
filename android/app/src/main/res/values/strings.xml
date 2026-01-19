@@ -741,6 +741,10 @@
     <string name="nav_upcoming">Upcoming</string>
     <string name="nav_dismissed">Dismissed</string>
     
+    <!-- Item type words for empty states -->
+    <string name="notifications_lowercase">notifications</string>
+    <string name="events_lowercase">events</string>
+    
     <!-- Toolbar titles for new navigation UI -->
     <string name="title_active">Calendar Notifications - Active</string>
     <string name="title_upcoming">Upcoming Events</string>
@@ -751,18 +755,10 @@
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
     
-    <!-- Empty states with filters/search -->
-    <string name="empty_active_with_search">No active notifications matching \"%1$s\"</string>
-    <string name="empty_active_with_filters">No active notifications matching %1$s</string>
-    <string name="empty_active_with_search_and_filters">No active notifications matching \"%1$s\" and %2$s</string>
-    
-    <string name="empty_upcoming_with_search">No upcoming events matching \"%1$s\"</string>
-    <string name="empty_upcoming_with_filters">No upcoming events matching %1$s</string>
-    <string name="empty_upcoming_with_search_and_filters">No upcoming events matching \"%1$s\" and %2$s</string>
-    
-    <string name="empty_dismissed_with_search">No dismissed events matching \"%1$s\"</string>
-    <string name="empty_dismissed_with_filters">No dismissed events matching %1$s</string>
-    <string name="empty_dismissed_with_search_and_filters">No dismissed events matching \"%1$s\" and %2$s</string>
+    <!-- Empty state modifiers (combined with base messages) -->
+    <string name="empty_state_with_search">No %1$s %2$s matching \"%3$s\"</string>
+    <string name="empty_state_with_filters">No %1$s %2$s matching %3$s</string>
+    <string name="empty_state_with_search_and_filters">No %1$s %2$s matching \"%3$s\" and %4$s</string>
 
     <!-- Filter chips -->
     <string name="filter_status">Status</string>

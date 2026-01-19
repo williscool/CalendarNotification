@@ -196,16 +196,18 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
             val hasSearch = !searchQuery.isNullOrEmpty()
             val hasFilter = filterState.hasActiveFilters()
             
+            val tabName = getString(R.string.nav_dismissed)
+            val itemType = getString(R.string.events_lowercase)
             val baseMessage = getString(R.string.empty_dismissed)
             val message = when {
                 hasSearch && hasFilter -> {
-                    val filterDesc = filterState.toDisplayString(requireContext())
-                    getString(R.string.empty_dismissed_with_search_and_filters, searchQuery, filterDesc)
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_search_and_filters, tabName, itemType, searchQuery, filterDesc)
                 }
-                hasSearch -> getString(R.string.empty_dismissed_with_search, searchQuery)
+                hasSearch -> getString(R.string.empty_state_with_search, tabName, itemType, searchQuery)
                 hasFilter -> {
                     val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
-                    getString(R.string.empty_dismissed_with_filters, filterDesc)
+                    getString(R.string.empty_state_with_filters, tabName, itemType, filterDesc)
                 }
                 else -> baseMessage
             }
