@@ -921,10 +921,10 @@ Each phase is independently testable and deliverable.
     - "3 events matching 'meeting', Snoozed filter will be snoozed" (search + filter)
     - Pattern: `X event(s) matching [search], [filter1, filter2, ...] will be snoozed`
 - **Time filter for Upcoming tab** - Needs thoughtful integration with existing lookahead settings (fixed hours vs. day boundary mode). Could filter within existing lookahead or override/extend it. Implement after Calendar filter to learn from those patterns.
+- **Fix test activity calendar creation** - The test activity (`TestActivityCalendarEvents` or similar) creates a new calendar each time it runs instead of reusing an existing "Test Calendar". This leads to hundreds of duplicate calendars over time (observed 718 "Test Calendar" entries). Should check for existing test calendar by name before creating a new one.
 
 ### potential
-- **Save filter presets** - Remember commonly used filter combinations
 - **Event match counts on chips** - Show how many events match the current filter combination on each chip (e.g., "Status (47)"). Requires fragment-to-activity communication pattern (callback, LiveData, or SharedFlow) since fragments own the filtered event list.
+- **Save filter presets** - Remember commonly used filter combinations
 - **Additional filters** - Event type, attendee, location
 - **Quick clear** - "Clear all filters" chip or button
-- **Fix test activity calendar creation** - The test activity (`TestActivityCalendarEvents` or similar) creates a new calendar each time it runs instead of reusing an existing "Test Calendar". This leads to hundreds of duplicate calendars over time (observed 718 "Test Calendar" entries). Should check for existing test calendar by name before creating a new one.
