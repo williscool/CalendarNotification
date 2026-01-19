@@ -20,7 +20,15 @@
 package com.github.quarck.calnotify.ui
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.utils.DateTimeUtils
+
+/**
+ * Which filters to apply when filtering events.
+ */
+enum class FilterType {
+    CALENDAR, STATUS, TIME
+}
 
 /**
  * Filter state for event lists. In-memory only - clears on tab switch and app restart.
@@ -45,6 +53,45 @@ data class FilterState(
     fun matchesCalendar(event: EventAlertRecord): Boolean {
         if (selectedCalendarIds.isEmpty()) return true  // No filter = show all
         return event.calendarId in selectedCalendarIds
+    }
+    
+    /**
+     * Filter events by specified filter types.
+     * @param events List of events to filter
+     * @param now Current time (required if TIME filter is applied)
+     * @param apply Which filters to apply (defaults to all)
+     */
+    fun <T> filterEvents(
+        events: List<T>,
+        now: Long,
+        apply: Set<FilterType>,
+        eventExtractor: (T) -> EventAlertRecord
+    ): Array<T> {
+        @Suppress("UNCHECKED_CAST")
+        return events.filter { item ->
+            val event = eventExtractor(item)
+            (FilterType.CALENDAR !in apply || matchesCalendar(event)) &&
+            (FilterType.STATUS !in apply || matchesStatus(event)) &&
+            (FilterType.TIME !in apply || matchesTime(event, now))
+        }.toTypedArray() as Array<T>
+    }
+    
+    /** Filter EventAlertRecord list with specified filters (defaults to all) */
+    fun filterEvents(
+        events: List<EventAlertRecord>,
+        now: Long,
+        apply: Set<FilterType> = setOf(FilterType.CALENDAR, FilterType.STATUS, FilterType.TIME)
+    ): Array<EventAlertRecord> {
+        return filterEvents(events, now, apply) { it }
+    }
+    
+    /** Filter DismissedEventAlertRecord list with specified filters (defaults to CALENDAR + TIME) */
+    fun filterDismissedEvents(
+        events: List<DismissedEventAlertRecord>,
+        now: Long,
+        apply: Set<FilterType> = setOf(FilterType.CALENDAR, FilterType.TIME)
+    ): Array<DismissedEventAlertRecord> {
+        return filterEvents(events, now, apply) { it.event }
     }
 }
 

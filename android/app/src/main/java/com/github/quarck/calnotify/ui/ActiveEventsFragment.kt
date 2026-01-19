@@ -171,7 +171,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         
         background {
             val events = getEventsStorage(ctx).use { db ->
-                db.eventsForDisplay.eventsForFilters(filterState, now)
+                filterState.filterEvents(db.eventsForDisplay, now)
             }
             
             activity?.runOnUiThread {
@@ -182,15 +182,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
                 activity?.invalidateOptionsMenu()
             }
         }
-    }
-    
-    /** Apply filter state to event list */
-    private fun List<EventAlertRecord>.eventsForFilters(filterState: FilterState, now: Long): Array<EventAlertRecord> {
-        return filter { 
-            filterState.matchesCalendar(it) && 
-            filterState.matchesStatus(it) && 
-            filterState.matchesTime(it, now) 
-        }.toTypedArray()
     }
     
     private fun getFilterState(): FilterState {
