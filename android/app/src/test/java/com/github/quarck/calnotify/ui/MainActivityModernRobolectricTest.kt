@@ -466,9 +466,10 @@ class MainActivityModernRobolectricTest {
             val searchView = activity.searchView
             assertNotNull("SearchView should be initialized", searchView)
             
-            // Query hint should contain the event count (3 events)
+            // Query hint should contain the event count (3 events) and tab name (Active)
             val hint = searchView!!.queryHint?.toString() ?: ""
             assertTrue("Search hint should contain event count", hint.contains("3"))
+            assertTrue("Search hint should contain tab name", hint.contains("Active"))
         }
         
         scenario.close()
