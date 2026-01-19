@@ -87,20 +87,8 @@
     <string name="change_all">Change All</string>
     <string name="search">Search</string>
     <plurals name="search_placeholder">
-      <item quantity="one">Search %d event...</item>
-      <item quantity="other">Search %d events...</item>
-    </plurals>
-    <plurals name="search_placeholder_active">
-      <item quantity="one">Search %d Active event...</item>
-      <item quantity="other">Search %d Active events...</item>
-    </plurals>
-    <plurals name="search_placeholder_upcoming">
-      <item quantity="one">Search %d Upcoming event...</item>
-      <item quantity="other">Search %d Upcoming events...</item>
-    </plurals>
-    <plurals name="search_placeholder_dismissed">
-      <item quantity="one">Search %d Dismissed event...</item>
-      <item quantity="other">Search %d Dismissed events...</item>
+      <item quantity="one">Search %1$d %2$s event...</item>
+      <item quantity="other">Search %1$d %2$s events...</item>
     </plurals>
 
     <string name="snooze_all_confirmation">Snooze ALL events?\nAlready snoozed would also change snooze time unless snoozed to longer period</string>
