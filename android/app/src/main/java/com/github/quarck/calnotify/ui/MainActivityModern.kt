@@ -40,6 +40,7 @@ import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.globalState
@@ -581,7 +582,8 @@ class MainActivityModern : MainActivityBase() {
                 // Try to get calendar name
                 val calendarId = filterState.selectedCalendarIds.first()
                 val calendar = CalendarProvider.getCalendarById(this, calendarId)
-                calendar?.displayName?.ifEmpty { calendar.name } ?: getString(R.string.filter_calendar)
+                val name = calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
+                name ?: getString(R.string.filter_calendar)
             }
             else -> getString(R.string.filter_calendar_count, selectedCount)
         }
