@@ -450,4 +450,219 @@ class FilterStateTest {
             color = 0
         )
     }
+    
+    // === Bundle Serialization Tests ===
+    
+    @Test
+    fun `toBundle and fromBundle round-trip preserves all fields`() {
+        val original = FilterState(
+            selectedCalendarIds = setOf(1L, 2L, 3L),
+            statusFilters = setOf(StatusOption.SNOOZED, StatusOption.MUTED),
+            timeFilter = TimeFilter.STARTED_TODAY
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertEquals(original.selectedCalendarIds, restored.selectedCalendarIds)
+        assertEquals(original.statusFilters, restored.statusFilters)
+        assertEquals(original.timeFilter, restored.timeFilter)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle preserves null calendar filter`() {
+        val original = FilterState(
+            selectedCalendarIds = null,  // null = no filter (all)
+            statusFilters = setOf(StatusOption.ACTIVE),
+            timeFilter = TimeFilter.ALL
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertNull(restored.selectedCalendarIds)
+        assertEquals(original.statusFilters, restored.statusFilters)
+        assertEquals(original.timeFilter, restored.timeFilter)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle preserves empty calendar filter`() {
+        val original = FilterState(
+            selectedCalendarIds = emptySet(),  // empty = none selected
+            statusFilters = emptySet(),
+            timeFilter = TimeFilter.ALL
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertEquals(emptySet<Long>(), restored.selectedCalendarIds)
+        assertTrue(restored.statusFilters.isEmpty())
+    }
+    
+    @Test
+    fun `toBundle and fromBundle preserves empty status filters`() {
+        val original = FilterState(
+            selectedCalendarIds = setOf(1L),
+            statusFilters = emptySet(),
+            timeFilter = TimeFilter.PAST
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertTrue(restored.statusFilters.isEmpty())
+        assertEquals(TimeFilter.PAST, restored.timeFilter)
+    }
+    
+    @Test
+    fun `fromBundle with null returns default FilterState`() {
+        val restored = FilterState.fromBundle(null)
+        
+        assertNull(restored.selectedCalendarIds)
+        assertTrue(restored.statusFilters.isEmpty())
+        assertEquals(TimeFilter.ALL, restored.timeFilter)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip all time filter values`() {
+        TimeFilter.entries.forEach { timeFilter ->
+            val original = FilterState(timeFilter = timeFilter)
+            val restored = FilterState.fromBundle(original.toBundle())
+            assertEquals(timeFilter, restored.timeFilter)
+        }
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip all status options`() {
+        StatusOption.entries.forEach { option ->
+            val original = FilterState(statusFilters = setOf(option))
+            val restored = FilterState.fromBundle(original.toBundle())
+            assertEquals(setOf(option), restored.statusFilters)
+        }
+    }
+    
+    // === hasActiveFilters() Tests ===
+    
+    @Test
+    fun `hasActiveFilters returns false for default FilterState`() {
+        val filter = FilterState()
+        assertFalse(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when calendar filter is set`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L))
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when calendar filter is empty set`() {
+        // Empty set means "none selected" which IS an active filter (shows 0 events)
+        val filter = FilterState(selectedCalendarIds = emptySet())
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when status filter is set`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when time filter is not ALL`() {
+        val filter = FilterState(timeFilter = TimeFilter.STARTED_TODAY)
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns false when all filters are default`() {
+        val filter = FilterState(
+            selectedCalendarIds = null,  // null = no filter
+            statusFilters = emptySet(),  // empty = no filter
+            timeFilter = TimeFilter.ALL  // ALL = no filter
+        )
+        assertFalse(filter.hasActiveFilters())
+    }
+    
+    // === toDisplayString() Tests ===
+    
+    @Test
+    fun `toDisplayString returns null when no filters active`() {
+        val filter = FilterState()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        assertNull(filter.toDisplayString(context))
+    }
+    
+    @Test
+    fun `toDisplayString shows calendar count when calendars filtered`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L, 2L))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        assertTrue(result!!.contains("2"))  // Should show count
+    }
+    
+    @Test
+    fun `toDisplayString shows 0 calendars when empty set`() {
+        val filter = FilterState(selectedCalendarIds = emptySet())
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        assertTrue(result!!.contains("0"))  // Should show "0 calendars"
+    }
+    
+    @Test
+    fun `toDisplayString shows status filter names`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        // The exact string depends on resources, but it shouldn't be null
+    }
+    
+    @Test
+    fun `toDisplayString combines multiple status filters`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED, StatusOption.MUTED))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        assertTrue(result!!.contains(","))  // Should have comma between filters
+    }
+    
+    @Test
+    fun `toDisplayString shows time filter when not ALL`() {
+        val filter = FilterState(timeFilter = TimeFilter.STARTED_TODAY)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+    }
+    
+    @Test
+    fun `toDisplayString combines all filter types`() {
+        val filter = FilterState(
+            selectedCalendarIds = setOf(1L),
+            statusFilters = setOf(StatusOption.SNOOZED),
+            timeFilter = TimeFilter.STARTED_TODAY
+        )
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        // Should contain comma separators for multiple parts
+        val commaCount = result!!.count { it == ',' }
+        assertTrue(commaCount >= 2)  // At least 2 commas for 3 parts
+    }
 }

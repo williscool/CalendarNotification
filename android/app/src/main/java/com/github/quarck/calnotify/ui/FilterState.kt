@@ -98,14 +98,13 @@ data class FilterState(
     fun toDisplayString(context: Context): String? {
         val parts = mutableListOf<String>()
         
-        // Calendar filter
+        // Calendar filter (null = no filter, non-null = specific calendars selected)
+        // Empty set means "none selected" which is a valid filter state (shows 0 events)
         if (selectedCalendarIds != null) {
             val count = selectedCalendarIds.size
-            if (count > 0) {
-                parts.add(context.resources.getQuantityString(
-                    R.plurals.filter_calendar_summary, count, count
-                ))
-            }
+            parts.add(context.resources.getQuantityString(
+                R.plurals.filter_calendar_summary, count, count
+            ))
         }
         
         // Status filters (show individual names)
@@ -121,16 +120,13 @@ data class FilterState(
             parts.add(names.joinToString(", "))
         }
         
-        // Time filter
-        if (timeFilter != TimeFilter.ALL) {
-            val timeStr = when (timeFilter) {
-                TimeFilter.STARTED_TODAY -> context.getString(R.string.filter_time_started_today)
-                TimeFilter.STARTED_THIS_WEEK -> context.getString(R.string.filter_time_started_this_week)
-                TimeFilter.PAST -> context.getString(R.string.filter_time_past)
-                TimeFilter.STARTED_THIS_MONTH -> context.getString(R.string.filter_time_started_this_month)
-                else -> null
-            }
-            timeStr?.let { parts.add(it) }
+        // Time filter (exhaustive when to catch future enum additions at compile time)
+        when (timeFilter) {
+            TimeFilter.ALL -> { /* No display for "all" */ }
+            TimeFilter.STARTED_TODAY -> parts.add(context.getString(R.string.filter_time_started_today))
+            TimeFilter.STARTED_THIS_WEEK -> parts.add(context.getString(R.string.filter_time_started_this_week))
+            TimeFilter.PAST -> parts.add(context.getString(R.string.filter_time_past))
+            TimeFilter.STARTED_THIS_MONTH -> parts.add(context.getString(R.string.filter_time_started_this_month))
         }
         
         return if (parts.isEmpty()) null else parts.joinToString(", ")
