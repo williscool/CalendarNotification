@@ -144,7 +144,7 @@ class MainActivityModern : MainActivityBase() {
 
         // Setup filter chips
         chipGroup = find<ChipGroup>(R.id.filter_chips)
-        
+
         // Update toolbar title based on current destination
         navController?.addOnDestinationChangedListener { _, destination, _ ->
             supportActionBar?.title = when (destination.id) {

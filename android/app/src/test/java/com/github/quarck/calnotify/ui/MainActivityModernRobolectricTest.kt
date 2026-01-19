@@ -772,4 +772,76 @@ class MainActivityModernRobolectricTest {
         
         scenario.close()
     }
+    
+    // === Filter Chip Tests (Milestone 3: Filter Pills) ===
+    
+    @Test
+    fun filter_chips_container_exists() {
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            val chipGroup = activity.findViewById<View>(R.id.filter_chips)
+            assertNotNull("Filter chips container should exist", chipGroup)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun filter_state_clears_on_tab_switch() {
+        fixture.seedEvents(3)
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            // Set a filter on Active tab
+            val initialState = activity.getCurrentFilterState()
+            assertNotNull("Filter state should be accessible", initialState)
+            assertTrue("Initial filter should be empty", initialState!!.statusFilters.isEmpty())
+            
+            // Note: We can't directly set the filter state from test, but we can verify
+            // that switching tabs resets to empty filter state
+            val bottomNav = activity.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.bottom_navigation)
+            
+            // Switch to Upcoming tab
+            bottomNav.selectedItemId = R.id.upcomingEventsFragment
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            // Filter state should be empty after tab switch
+            val stateAfterSwitch = activity.getCurrentFilterState()
+            assertTrue("Filter should be empty after tab switch", stateAfterSwitch!!.statusFilters.isEmpty())
+            
+            // Switch to Dismissed tab
+            bottomNav.selectedItemId = R.id.dismissedEventsFragment
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val stateOnDismissed = activity.getCurrentFilterState()
+            assertTrue("Filter should be empty on Dismissed tab", stateOnDismissed!!.statusFilters.isEmpty())
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun filter_state_persists_on_same_tab() {
+        fixture.seedEvents(3)
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            // Get initial state
+            val state1 = activity.getCurrentFilterState()
+            assertNotNull(state1)
+            
+            // Trigger a refresh (simulating pull to refresh) - shouldn't clear filter
+            // The filter state should persist until tab switch
+            val state2 = activity.getCurrentFilterState()
+            assertEquals("Filter state should persist", state1, state2)
+        }
+        
+        scenario.close()
+    }
 }

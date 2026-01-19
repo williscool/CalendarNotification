@@ -155,7 +155,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
     
     private fun getFilterState(): FilterState {
-        return (activity as? MainActivityModern)?.getCurrentFilterState() ?: FilterState()
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -253,6 +255,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         /** Provider for Clock - enables DI for testing */
         var clockProvider: (() -> CNPlusClockInterface)? = null
         
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
+        
         /** Gets MonitorStorage - uses provider if set, otherwise creates real instance */
         fun getMonitorStorage(ctx: Context): MonitorStorageInterface =
             monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
@@ -270,6 +275,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
             monitorStorageProvider = null
             calendarProviderProvider = null
             clockProvider = null
+            filterStateProvider = null
         }
     }
 }

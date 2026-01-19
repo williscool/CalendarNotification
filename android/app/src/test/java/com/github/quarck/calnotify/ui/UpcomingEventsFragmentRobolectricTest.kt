@@ -25,6 +25,8 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixtureRobolectric
+import com.github.quarck.calnotify.ui.FilterState
+import com.github.quarck.calnotify.ui.StatusOption
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -342,5 +344,54 @@ class UpcomingEventsFragmentRobolectricTest {
         assertFalse("Event 1 should NOT be pre-muted", retrieved1!!.preMuted)
         assertTrue("Event 2 should be pre-muted", retrieved2!!.preMuted)
         assertFalse("Event 3 should NOT be pre-muted", retrieved3!!.preMuted)
+    }
+    
+    // === Filter Tests (Milestone 3: Filter Pills) ===
+    
+    @Test
+    fun upcomingEventsFragment_filter_MUTED_shows_only_preMuted_events() {
+        // Create upcoming events - one pre-muted, one not
+        val alert1 = fixture.createUpcomingEvent(title = "Normal Event")
+        val alert2 = fixture.createUpcomingEvent(title = "Pre-muted Event")
+        fixture.monitorStorage.updateAlert(alert2.withPreMuted(true))
+        
+        // Set filter to MUTED only
+        UpcomingEventsFragment.filterStateProvider = { FilterState(statusFilters = setOf(StatusOption.MUTED)) }
+        
+        val scenario = fixture.launchUpcomingEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("Only pre-muted event should be shown", 1, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun upcomingEventsFragment_empty_filter_shows_all_events() {
+        // Create multiple upcoming events
+        fixture.createUpcomingEvent(title = "Event 1")
+        fixture.createUpcomingEvent(title = "Event 2")
+        val alert3 = fixture.createUpcomingEvent(title = "Pre-muted Event")
+        fixture.monitorStorage.updateAlert(alert3.withPreMuted(true))
+        
+        // Empty filter = show all
+        UpcomingEventsFragment.filterStateProvider = { FilterState(statusFilters = emptySet()) }
+        
+        val scenario = fixture.launchUpcomingEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("All events should be shown", 3, adapter?.itemCount)
+        }
+        
+        scenario.close()
     }
 }

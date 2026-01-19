@@ -725,7 +725,7 @@
     <string name="empty_active">No active notifications</string>
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
-    
+
     <!-- Filter chips -->
     <string name="filter_status">Status</string>
     <string name="filter_status_all">All</string>

@@ -183,7 +183,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     }
     
     private fun getFilterState(): FilterState {
-        return (activity as? MainActivityModern)?.getCurrentFilterState() ?: FilterState()
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -270,6 +272,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         /** Provider for EventsStorage - enables DI for testing */
         var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
         
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
+        
         /** Gets EventsStorage - uses provider if set, otherwise creates real instance */
         fun getEventsStorage(ctx: Context): EventsStorageInterface =
             eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
@@ -277,6 +282,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             eventsStorageProvider = null
+            filterStateProvider = null
         }
     }
 }
