@@ -29,6 +29,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.PopupMenu
+import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
@@ -227,9 +228,7 @@ class MainActivityModern : MainActivityBase() {
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
         val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
-        val hasEvents = (currentFragment?.getDisplayedEventCount() ?: 0) > 0
         snoozeAllMenuItem?.isVisible = supportsSnoozeAll
-        snoozeAllMenuItem?.isEnabled = hasEvents
         if (supportsSnoozeAll) {
             snoozeAllMenuItem?.title = resources.getString(
                 if (currentFragment?.hasActiveEvents() == true) R.string.snooze_all else R.string.change_all
@@ -310,6 +309,20 @@ class MainActivityModern : MainActivityBase() {
                 val searchQuery = fragment?.getSearchQuery()
                 val eventCount = fragment?.getDisplayedEventCount() ?: 0
                 val currentFilterState = getCurrentFilterState()
+
+                if (eventCount == 0) {
+                    // Show feedback when no events match filters/search
+                    val hasSearch = !searchQuery.isNullOrEmpty()
+                    val hasFilter = currentFilterState.hasActiveFilters()
+                    val message = when {
+                        hasSearch && hasFilter -> getString(R.string.snooze_all_no_events_search_and_filters)
+                        hasSearch -> getString(R.string.snooze_all_no_events_search)
+                        hasFilter -> getString(R.string.snooze_all_no_events_filters)
+                        else -> getString(R.string.snooze_all_no_events)
+                    }
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    return true
+                }
 
                 startActivity(
                     Intent(this, SnoozeAllActivity::class.java)

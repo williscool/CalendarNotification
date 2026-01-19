@@ -122,6 +122,12 @@
     <!-- Confirmation dialogs with filters -->
     <string name="snooze_filtered_with_filter_confirmation">Snooze all events matching %1$s?</string>
     <string name="change_filtered_with_filter_confirmation">Change snooze time for all events matching %1$s?\nAlready snoozed would also change unless snoozed to longer period</string>
+    
+    <!-- No events feedback messages -->
+    <string name="snooze_all_no_events">No events to snooze</string>
+    <string name="snooze_all_no_events_filters">No events match your current filters</string>
+    <string name="snooze_all_no_events_search">No events match your search</string>
+    <string name="snooze_all_no_events_search_and_filters">No events match your search and filters</string>
 
     <string name="change_snooze_to">Change snooze to:</string>
 
@@ -744,6 +750,19 @@
     <string name="empty_active">No active notifications</string>
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
+    
+    <!-- Empty states with filters/search -->
+    <string name="empty_active_with_search">No active notifications matching \"%1$s\"</string>
+    <string name="empty_active_with_filters">No active notifications matching %1$s</string>
+    <string name="empty_active_with_search_and_filters">No active notifications matching \"%1$s\" and %2$s</string>
+    
+    <string name="empty_upcoming_with_search">No upcoming events matching \"%1$s\"</string>
+    <string name="empty_upcoming_with_filters">No upcoming events matching %1$s</string>
+    <string name="empty_upcoming_with_search_and_filters">No upcoming events matching \"%1$s\" and %2$s</string>
+    
+    <string name="empty_dismissed_with_search">No dismissed events matching \"%1$s\"</string>
+    <string name="empty_dismissed_with_filters">No dismissed events matching %1$s</string>
+    <string name="empty_dismissed_with_search_and_filters">No dismissed events matching \"%1$s\" and %2$s</string>
 
     <!-- Filter chips -->
     <string name="filter_status">Status</string>

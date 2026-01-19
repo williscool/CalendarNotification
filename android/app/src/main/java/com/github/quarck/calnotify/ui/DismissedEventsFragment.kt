@@ -187,7 +187,30 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     }
 
     private fun updateEmptyState() {
-        emptyView.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+        val isEmpty = adapter.itemCount == 0
+        emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        
+        if (isEmpty) {
+            val filterState = getFilterState()
+            val searchQuery = getSearchQuery()
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState.hasActiveFilters()
+            
+            val baseMessage = getString(R.string.empty_dismissed)
+            val message = when {
+                hasSearch && hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext())
+                    getString(R.string.empty_dismissed_with_search_and_filters, searchQuery, filterDesc)
+                }
+                hasSearch -> getString(R.string.empty_dismissed_with_search, searchQuery)
+                hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_dismissed_with_filters, filterDesc)
+                }
+                else -> baseMessage
+            }
+            emptyView.text = message
+        }
     }
 
     // DismissedEventListCallback implementation
