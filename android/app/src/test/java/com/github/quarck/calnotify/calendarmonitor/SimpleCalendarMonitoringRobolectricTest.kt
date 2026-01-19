@@ -92,6 +92,10 @@ class SimpleCalendarMonitoringRobolectricTest {
             "test@example.com"
         )
         assertTrue("Test calendar should be created", testCalendarId > 0)
+        
+        // Initialize both storages to set up ApplicationController providers
+        TestStorageFactory.getMonitorStorage()
+        TestStorageFactory.getEventsStorage()
     }
     
     @After
