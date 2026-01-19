@@ -57,6 +57,9 @@ Historical decisions and completed work, kept for reference:
 
 Features and changes under consideration:
 
+- [Events View Lookahead](dev_todo/events_view_lookahead.md) - Upcoming events tab, pre-actions, filter pills ⭐ *Active*
+  - [Milestone 2: Pre-Actions](dev_todo/event_lookahead_milestone2_pre_actions.md) - Pre-mute, pre-snooze, pre-dismiss ✅
+  - [Milestone 3: Filter Pills](dev_todo/event_lookahead_milestone3_filter_pills.md) - Status, Time, Calendar filters 🚧
 - [Deprecated Features Removal](dev_todo/deprecated_features.md) - QuietHours, CalendarEditor
 - [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt DI opportunities
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations
