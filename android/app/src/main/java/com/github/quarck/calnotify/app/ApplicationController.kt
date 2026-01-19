@@ -438,6 +438,16 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         tagsManager.parseEventTags(context, settings, event)
 
+        // Apply pre-mute flag if set in MonitorStorage (user marked event to be muted before it fired)
+        // This handles the EVENT_REMINDER broadcast path which doesn't go through registerNewEvents
+        getMonitorStorage(context).use { monitorDb ->
+            val alert = monitorDb.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert?.preMuted == true && !event.isMuted) {
+                event.isMuted = true
+                DevLog.info(LOG_TAG, "Event ${event.eventId} was pre-muted, applying mute flag")
+            }
+        }
+
         DevLog.info(LOG_TAG, "registerNewEvent: Event fired: calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime ${event.alertTime}, muted: ${event.isMuted}, task: ${event.isTask}")
 
         // Save event into DB and verify it was stored correctly
