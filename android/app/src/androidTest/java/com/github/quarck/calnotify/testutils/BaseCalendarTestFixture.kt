@@ -9,7 +9,6 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmBroadcastReceiver
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
@@ -214,7 +213,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
     ) {
         DevLog.info(LOG_TAG, "Adding alert to monitor storage: eventId=$eventId, alertTime=$alertTime")
         
-        MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(contextProvider.fakeContext).use { db ->
             val alert = MonitorEventAlertEntry(
                 eventId = eventId,
                 isAllDay = false,
@@ -239,7 +238,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
     ): Boolean {
         var result = true
         
-        MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(contextProvider.fakeContext).use { db ->
             val alerts = db.alerts
             DevLog.info(LOG_TAG, "Found ${alerts.size} alerts in storage")
             
@@ -289,7 +288,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         
         // First verify alert exists but isn't handled yet
         var existingAlert: MonitorEventAlertEntry? = null
-        MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(contextProvider.fakeContext).use { db ->
             val alerts = db.alerts.filter { it.eventId == eventId && it.alertTime == alertTime }
             existingAlert = alerts.firstOrNull()
             
@@ -327,7 +326,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         
         // Verify alert was marked as handled
         var alertWasHandled = false
-        MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(contextProvider.fakeContext).use { db ->
             val alerts = db.alerts.filter { it.eventId == eventId && it.alertTime == alertTime }
             val alert = alerts.firstOrNull()
             
@@ -342,7 +341,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
                     db.updateAlert(alert)
                     
                     // Also manually create an event record if it doesn't exist
-                    EventsStorage(contextProvider.fakeContext).classCustomUse { eventsDb ->
+                    EventsStorage(contextProvider.fakeContext).use { eventsDb ->
                         val events = eventsDb.events.filter { it.eventId == eventId }
                         if (events.isEmpty()) {
                             DevLog.warn(LOG_TAG, "No event record exists, creating one manually")
@@ -490,7 +489,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         )
         
         if (event != null) {
-            EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+            EventsStorage(contextProvider.fakeContext).use { db ->
                 db.addEvent(event)
                 DevLog.info(LOG_TAG, "Added event to storage: id=${event.eventId}, title=${event.title}")
             }
@@ -513,7 +512,7 @@ class BaseCalendarTestFixture private constructor(builder: Builder) {
         
         var eventExists = false
         
-        EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+        EventsStorage(contextProvider.fakeContext).use { db ->
             val events = db.events.filter { it.eventId == eventId }
             
             if (events.isEmpty()) {

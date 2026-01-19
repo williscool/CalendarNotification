@@ -27,7 +27,6 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import org.junit.After
 import org.junit.Assert.*
@@ -54,13 +53,13 @@ class EventsStorageTest {
     fun setup() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         storage = EventsStorage(context)
-        storage.classCustomUse { it.deleteAllEvents() }
+        storage.use { it.deleteAllEvents() }
         DevLog.info(LOG_TAG, "Test setup complete, isUsingRoom=${storage.isUsingRoom}")
     }
     
     @After
     fun cleanup() {
-        storage.classCustomUse { it.deleteAllEvents() }
+        storage.use { it.deleteAllEvents() }
         DevLog.info(LOG_TAG, "Test cleanup complete")
     }
     
@@ -99,12 +98,12 @@ class EventsStorageTest {
     fun test_eventsForDisplay_sorts_nonSnoozed_before_snoozed() {
         DevLog.info(LOG_TAG, "=== test_eventsForDisplay_sorts_nonSnoozed_before_snoozed ===")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(createTestEvent(1, snoozedUntil = 5000, lastStatusChangeTime = 100))
             db.addEvent(createTestEvent(2, snoozedUntil = 0, lastStatusChangeTime = 100))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         
         assertEquals(2, sorted.size)
         assertEquals("Non-snoozed should be first", 2L, sorted[0].eventId)
@@ -115,13 +114,13 @@ class EventsStorageTest {
     fun test_eventsForDisplay_sorts_snoozed_by_snoozeTime_ascending() {
         DevLog.info(LOG_TAG, "=== test_eventsForDisplay_sorts_snoozed_by_snoozeTime_ascending ===")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(createTestEvent(1, snoozedUntil = 3000, lastStatusChangeTime = 100))
             db.addEvent(createTestEvent(2, snoozedUntil = 1000, lastStatusChangeTime = 100))
             db.addEvent(createTestEvent(3, snoozedUntil = 2000, lastStatusChangeTime = 100))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         
         assertEquals(3, sorted.size)
         assertEquals("Earliest snooze first", 2L, sorted[0].eventId)
@@ -133,13 +132,13 @@ class EventsStorageTest {
     fun test_eventsForDisplay_sorts_same_snooze_by_lastStatusChangeTime_descending() {
         DevLog.info(LOG_TAG, "=== test_eventsForDisplay_sorts_same_snooze_by_lastStatusChangeTime_descending ===")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(createTestEvent(1, snoozedUntil = 0, lastStatusChangeTime = 100))
             db.addEvent(createTestEvent(2, snoozedUntil = 0, lastStatusChangeTime = 300))
             db.addEvent(createTestEvent(3, snoozedUntil = 0, lastStatusChangeTime = 200))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         
         assertEquals(3, sorted.size)
         assertEquals("Most recent change first", 2L, sorted[0].eventId)
@@ -151,7 +150,7 @@ class EventsStorageTest {
     fun test_eventsForDisplay_complex_sort() {
         DevLog.info(LOG_TAG, "=== test_eventsForDisplay_complex_sort ===")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             // Non-snoozed events with different lastStatusChangeTime
             db.addEvent(createTestEvent(1, snoozedUntil = 0, lastStatusChangeTime = 300))
             db.addEvent(createTestEvent(2, snoozedUntil = 0, lastStatusChangeTime = 500))
@@ -161,7 +160,7 @@ class EventsStorageTest {
             db.addEvent(createTestEvent(5, snoozedUntil = 1000, lastStatusChangeTime = 200))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         
         assertEquals(5, sorted.size)
         // Non-snoozed first, sorted by lastStatusChangeTime desc
@@ -175,17 +174,17 @@ class EventsStorageTest {
     
     @Test
     fun test_eventsForDisplay_empty_returns_emptyList() {
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         assertTrue("Empty storage should return empty list", sorted.isEmpty())
     }
     
     @Test
     fun test_eventsForDisplay_single_event() {
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(createTestEvent(1, snoozedUntil = 0, lastStatusChangeTime = 100))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         assertEquals(1, sorted.size)
         assertEquals(1L, sorted[0].eventId)
     }

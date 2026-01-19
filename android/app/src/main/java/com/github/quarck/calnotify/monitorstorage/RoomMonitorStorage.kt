@@ -21,15 +21,13 @@ package com.github.quarck.calnotify.monitorstorage
 
 import android.content.Context
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
-import java.io.Closeable
-
 /**
  * Room-based implementation of MonitorStorageInterface.
  * 
  * Replaces the legacy SQLiteOpenHelper-based MonitorStorage.
  * Uses MonitorDatabase with cr-sqlite support via CrSqliteRoomFactory.
  */
-class RoomMonitorStorage(context: Context) : MonitorStorageInterface, Closeable {
+class RoomMonitorStorage(context: Context) : MonitorStorageInterface {
 
     private val database = MonitorDatabase.getInstance(context)
     private val dao = database.monitorAlertDao()
@@ -100,9 +98,17 @@ class RoomMonitorStorage(context: Context) : MonitorStorageInterface, Closeable 
         return dao.getByAlertTimeRange(scanFrom, scanTo).map { it.toAlertEntry() }
     }
 
+    /**
+     * No-op for Room storage.
+     * 
+     * Room databases are singletons managed by Room's lifecycle - we don't close them.
+     * The .use {} pattern in callers exists for LegacyMonitorStorage compatibility,
+     * which uses SQLiteOpenHelper and DOES need closing.
+     * 
+     * TODO: When legacy storage is removed, consider removing Closeable
+     * from MonitorStorageInterface and dropping .use {} calls.
+     */
     override fun close() {
-        // Room handles connection management via singleton pattern
-        // Individual close is not needed - database will be closed when app terminates
     }
 }
 

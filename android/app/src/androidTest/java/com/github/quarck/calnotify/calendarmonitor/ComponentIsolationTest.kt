@@ -25,7 +25,6 @@ import io.mockk.unmockkObject
 import io.mockk.just
 import io.mockk.Runs
 import android.content.Context
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 
 /**
@@ -187,7 +186,7 @@ class ComponentIsolationTest {
             
             // Clear any existing events from storage
             DevLog.info(LOG_TAG, "Clearing event storage")
-            EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+            EventsStorage(contextProvider.fakeContext).use { db ->
                 db.deleteAllEvents()
             }
             
@@ -218,7 +217,7 @@ class ComponentIsolationTest {
             assertNotNull("AlarmScheduler should be initialized", applicationComponents.mockAlarmScheduler)
             
             // Verify event storage is empty
-            EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+            EventsStorage(contextProvider.fakeContext).use { db ->
                 val events = db.events
                 if (events.isNotEmpty()) {
                     DevLog.error(LOG_TAG, "Found unexpected events in storage:")

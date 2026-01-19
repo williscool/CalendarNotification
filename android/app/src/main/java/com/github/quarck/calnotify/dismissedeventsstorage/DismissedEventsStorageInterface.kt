@@ -20,8 +20,9 @@
 package com.github.quarck.calnotify.dismissedeventsstorage
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import java.io.Closeable
 
-interface DismissedEventsStorageInterface {
+interface DismissedEventsStorageInterface : Closeable {
 
     fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord)
 

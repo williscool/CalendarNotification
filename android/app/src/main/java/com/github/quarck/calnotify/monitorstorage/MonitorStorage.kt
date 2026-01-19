@@ -22,7 +22,6 @@ package com.github.quarck.calnotify.monitorstorage
 
 import android.content.Context
 import com.github.quarck.calnotify.logs.DevLog
-import java.io.Closeable
 
 /**
  * MonitorStorage - tracks calendar alerts being monitored.
@@ -37,7 +36,7 @@ import java.io.Closeable
  */
 class MonitorStorage private constructor(
     result: Pair<MonitorStorageInterface, Boolean>
-) : MonitorStorageInterface by result.first, Closeable {
+) : MonitorStorageInterface by result.first {
     
     private val delegate: MonitorStorageInterface = result.first
     val isUsingRoom: Boolean = result.second
@@ -45,7 +44,7 @@ class MonitorStorage private constructor(
     constructor(context: Context) : this(createStorage(context))
     
     override fun close() {
-        (delegate as? Closeable)?.close()
+        delegate.close()
     }
 
     companion object {

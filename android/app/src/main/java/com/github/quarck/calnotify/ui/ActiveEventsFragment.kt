@@ -43,7 +43,6 @@ import com.github.quarck.calnotify.app.UndoManager
 import com.github.quarck.calnotify.app.UndoState
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.isSpecial
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
@@ -165,7 +164,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     private fun loadEvents() {
         val ctx = context ?: return
         background {
-            val events = getEventsStorage(ctx).classCustomUse { db ->
+            val events = getEventsStorage(ctx).use { db ->
                 db.eventsForDisplay.toTypedArray()
             }
             

@@ -8,7 +8,6 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmBroadcastReceiver
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 
@@ -144,7 +143,7 @@ class CalendarMonitorTestFixture {
             var foundAlerts = false
             var foundAlertTime: Long? = null
             
-            MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+            MonitorStorage(contextProvider.fakeContext).use { db ->
                 val alerts = db.alerts.filter { it.eventId == targetEventId }
                 if (alerts.isNotEmpty()) {
                     foundAlerts = true
@@ -235,7 +234,7 @@ class CalendarMonitorTestFixture {
         DevLog.info(LOG_TAG, "Verifying no alerts in storage")
         
         var noAlerts = true
-        MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(contextProvider.fakeContext).use { db ->
             noAlerts = db.alerts.isEmpty()
             
             if (!noAlerts) {
@@ -330,7 +329,7 @@ class CalendarMonitorTestFixture {
         )
         
         // Get the actual event ID from the created event
-        val actualEventId = MonitorStorage(contextProvider.fakeContext).classCustomUse { db ->
+        val actualEventId = MonitorStorage(contextProvider.fakeContext).use { db ->
             db.alerts.firstOrNull()?.eventId ?: 0L
         }
         
@@ -377,7 +376,7 @@ class CalendarMonitorTestFixture {
         val context = contextProvider.fakeContext
         
         // Clear monitoring state
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
             db.deleteAlertsMatching { true }
             DevLog.info(LOG_TAG, "Cleared all alerts from monitor storage")
         }

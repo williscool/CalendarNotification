@@ -4,7 +4,6 @@ import android.Manifest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import com.github.quarck.calnotify.Settings
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.testutils.CalendarMonitorTestFixture
@@ -241,7 +240,7 @@ class FixturedCalendarMonitorServiceTest {
         DevLog.info(LOG_TAG, "Running testFixturedCalendarReload")
         
         // Clear any existing alerts before starting the test
-        MonitorStorage(fixture.contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(fixture.contextProvider.fakeContext).use { db ->
             val count = db.alerts.size
             if (count > 0) {
                 DevLog.info(LOG_TAG, "Clearing $count existing alerts before test")
@@ -301,7 +300,7 @@ class FixturedCalendarMonitorServiceTest {
         }
         
         // Verify all alerts exist but are not handled - only check our specific test alerts
-        MonitorStorage(fixture.contextProvider.fakeContext).classCustomUse { db ->
+        MonitorStorage(fixture.contextProvider.fakeContext).use { db ->
             val testAlerts = db.alerts.filter { it.eventId in eventIds }
             DevLog.info(LOG_TAG, "Found ${testAlerts.size} test alerts, expecting $eventCount")
             assertEquals("Should have correct number of test alerts", eventCount, testAlerts.size)
@@ -321,7 +320,7 @@ class FixturedCalendarMonitorServiceTest {
             
             // Reset alert handling state for current event
             if (i > 0) {
-                MonitorStorage(fixture.contextProvider.fakeContext).classCustomUse { db ->
+                MonitorStorage(fixture.contextProvider.fakeContext).use { db ->
                     // Only reset the test alerts we're concerned with
                     val alerts = db.alerts.filter { it.eventId in eventIds }
                     alerts.forEach { alert -> 
@@ -347,7 +346,7 @@ class FixturedCalendarMonitorServiceTest {
             fixture.baseFixture.processEventAlert(alertTime)
             
             // Verify the alert was marked as handled
-            MonitorStorage(fixture.contextProvider.fakeContext).classCustomUse { db ->
+            MonitorStorage(fixture.contextProvider.fakeContext).use { db ->
                 val alerts = db.alerts.filter { it.eventId == eventId }
                 if (alerts.isNotEmpty()) {
                     val alert = alerts.first()

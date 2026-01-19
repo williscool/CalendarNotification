@@ -23,8 +23,6 @@ import android.content.Context
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import java.io.Closeable
-
 /**
  * Room-based implementation of DismissedEventsStorageInterface.
  * 
@@ -34,7 +32,7 @@ import java.io.Closeable
 class RoomDismissedEventsStorage(
     context: Context,
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
-) : DismissedEventsStorageInterface, Closeable {
+) : DismissedEventsStorageInterface {
 
     private val database = DismissedEventsDatabase.getInstance(context)
     private val dao = database.dismissedEventDao()
@@ -77,9 +75,17 @@ class RoomDismissedEventsStorage(
             .map { it.toRecord() }
             .sortedByDescending { it.dismissTime }
 
+    /**
+     * No-op for Room storage.
+     * 
+     * Room databases are singletons managed by Room's lifecycle - we don't close them.
+     * The .use {} pattern in callers exists for LegacyDismissedEventsStorage compatibility,
+     * which uses SQLiteOpenHelper and DOES need closing.
+     * 
+     * TODO: When legacy storage is removed, consider removing Closeable
+     * from DismissedEventsStorageInterface and dropping .use {} calls.
+     */
     override fun close() {
-        // Room handles connection management via singleton pattern
-        // Individual close is not needed - database will be closed when app terminates
     }
 }
 

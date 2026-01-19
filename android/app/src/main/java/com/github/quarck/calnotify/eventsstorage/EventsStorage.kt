@@ -22,7 +22,6 @@ package com.github.quarck.calnotify.eventsstorage
 
 import android.content.Context
 import com.github.quarck.calnotify.logs.DevLog
-import java.io.Closeable
 
 /**
  * EventsStorage - stores active calendar event notifications.
@@ -34,11 +33,20 @@ import java.io.Closeable
  * - No data loss if migration has bugs
  * - Future app versions can retry migration
  * - Legacy database is preserved untouched
+ * 
+ * ## Note on close() and .use {} pattern
+ * 
+ * Callers use `.use {}` to ensure close() is called. However:
+ * - **RoomEventsStorage.close()** is a no-op (Room manages singleton lifecycle)
+ * - **LegacyEventsStorage.close()** actually closes the SQLiteOpenHelper
+ * 
+ * The `.use {}` pattern exists for legacy compatibility. Once legacy storage
+ * is removed, Closeable can be dropped from EventsStorageInterface.
  */
 class EventsStorage private constructor(
     context: Context,
     result: Pair<EventsStorageInterface, Boolean>
-) : EventsStorageInterface by result.first, Closeable {
+) : EventsStorageInterface by result.first {
     
     private val delegate: EventsStorageInterface = result.first
     val isUsingRoom: Boolean = result.second
@@ -59,7 +67,7 @@ class EventsStorage private constructor(
     constructor(context: Context) : this(context, createStorage(context))
 
     override fun close() {
-        (delegate as? Closeable)?.close()
+        delegate.close()
     }
 
     companion object {

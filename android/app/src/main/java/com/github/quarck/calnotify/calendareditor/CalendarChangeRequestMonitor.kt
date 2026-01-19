@@ -25,14 +25,11 @@ import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.calendareditor.storage.CalendarChangeRequestsStorage
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
-
 @Deprecated("Calendar Editor feature is deprecated. Use native calendar app for rescheduling.")
 class CalendarChangeRequestMonitor(
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
@@ -59,7 +56,7 @@ class CalendarChangeRequestMonitor(
         val currentTime = clock.currentTimeMillis()
         val cleanupEventsTo = currentTime - Consts.NEW_EVENT_MONITOR_KEEP_DAYS * Consts.DAY_IN_MILLISECONDS
 
-        CalendarChangeRequestsStorage(context).classCustomUse {
+        CalendarChangeRequestsStorage(context).use {
             db ->
 
             val eventsToDelete = mutableListOf<CalendarChangeRequest>()

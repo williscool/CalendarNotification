@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import android.Manifest
 import java.util.concurrent.TimeUnit
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
@@ -377,7 +376,7 @@ class CalendarMonitorServiceTestFirstScanEver {
       if (isFirstScanEver) {
         // After the original call, state.firstScanEver should be false, but the alerts might not be properly marked
         val currentTime = testClock.currentTimeMillis()
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
           // Get all alerts in the storage
           val alerts = db.alerts
           DevLog.info(LOG_TAG, "First scan ever: found ${alerts.size} alerts in storage")
@@ -424,7 +423,7 @@ class CalendarMonitorServiceTestFirstScanEver {
           
           // Mark all alerts as handled directly
           if (alerts.isNotEmpty()) {
-            MonitorStorage(context).classCustomUse { db ->
+            MonitorStorage(context).use { db ->
               alerts.forEach { alert -> 
                 alert.wasHandled = true
                 DevLog.info(LOG_TAG, "firstScanEver: marking alert as handled via manualFireAlertList: eventId=${alert.eventId}")
@@ -453,7 +452,7 @@ class CalendarMonitorServiceTestFirstScanEver {
         val monitorState = CalendarMonitorState(context)
         val isFirstScanEver = monitorState.firstScanEver
         
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
           DevLog.info(LOG_TAG, "marking ${alerts.size} alerts as handled in the manual alerts DB")
           
           // During firstScanEver, also mark all due alerts as handled
@@ -496,7 +495,7 @@ class CalendarMonitorServiceTestFirstScanEver {
       
       DevLog.info(LOG_TAG, "Mock markAlertsAsHandledInDB called with ${alerts.size} alerts")
       
-      MonitorStorage(context).classCustomUse { db ->
+      MonitorStorage(context).use { db ->
         DevLog.info(LOG_TAG, "marking ${alerts.size} alerts as handled in the manual alerts DB")
         
         for (alert in alerts) {
@@ -540,7 +539,7 @@ class CalendarMonitorServiceTestFirstScanEver {
         assertFalse("firstScanEver should be set to false after scan", monitorState.firstScanEver)
         
         // Check if alerts were marked as handled
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
           val allAlerts = db.alerts
           val currentTime = testClock.currentTimeMillis()
           val dueAlerts = allAlerts.filter { !it.wasHandled && it.alertTime <= currentTime + Consts.ALARM_THRESHOLD }
@@ -563,7 +562,7 @@ class CalendarMonitorServiceTestFirstScanEver {
 
       if (alertTime > 0) {
         // Simulate firing the events at this alert time
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
           val alerts = db.getAlertsAt(alertTime).filter { !it.wasHandled }
           if (alerts.isNotEmpty()) {
             DevLog.info(LOG_TAG, "Found ${alerts.size} alerts to process for alertTime=$alertTime")
@@ -665,7 +664,7 @@ class CalendarMonitorServiceTestFirstScanEver {
 
         // Only mark alerts as handled if this is triggered as part of alarm handling
         if (primaryEventId != null || lastTimerBroadcastReceived != null) {
-          MonitorStorage(ctx).classCustomUse { db ->
+          MonitorStorage(ctx).use { db ->
             val alertsToHandle = if (primaryEventId != null) {
               db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
             } else {
@@ -889,12 +888,12 @@ class CalendarMonitorServiceTestFirstScanEver {
   }
 
   private fun clearStorages() {
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val count = db.events.size
       db.deleteAllEvents()
       DevLog.info(LOG_TAG, "Cleared $count events from storage")
     }
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val count = db.alerts.size
       db.deleteAlertsMatching { true }
       DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
@@ -1373,7 +1372,7 @@ class CalendarMonitorServiceTestFirstScanEver {
    * Fails the test if any events are found.
    */
   private fun verifyNoEvents() {
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Verifying no events in storage, found ${events.size}")
       events.forEach { event ->
@@ -1400,7 +1399,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
 
     // First verify event storage
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
       events.forEach { event ->
@@ -1724,7 +1723,7 @@ class CalendarMonitorServiceTestFirstScanEver {
         val currentTime = testClock.currentTimeMillis()
         
         // Add our test alerts to the storage
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
           // Add the due alert for our test event (already in the past)
           val dueAlert = MonitorEventAlertEntry(
             eventId = testEventId,
@@ -1818,7 +1817,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
 
     // First verify no alerts exist
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts
       assertEquals("Should start with no alerts", 0, alerts.size)
     }
@@ -1844,7 +1843,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     DevLog.info(LOG_TAG, "Calendar monitor state after scan: firstScanEver=${stateAfterScan.firstScanEver}")
 
     // Verify alerts were added and only DUE alerts MARKED as handled due to firstScanEver=true
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after scan")
       alerts.forEach { alert ->
@@ -1935,7 +1934,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     notifyCalendarChangeAndWait()
 
     // Verify that alerts for second event were added but NOT handled (firstScanEver=false)
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts.filter { it.eventId == testEventId }
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts for second event after scan")
       assertTrue("Should have alerts for second event", alerts.isNotEmpty())
@@ -2014,7 +2013,7 @@ class CalendarMonitorServiceTestFirstScanEver {
     advanceTimer(1000)
 
     // Verify alerts for second event were marked as handled after alarm processing
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts.filter { it.eventId == testEventId }
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts for second event after processing")
       

@@ -8,6 +8,7 @@
 - [Domain Model](architecture/domain_model.md) - Storage classes, Room databases, SharedPreferences
 - [Notification Architecture](architecture/notification_architecture.md) - Channels, sound logic, muting system
 - [Next Alert Indicator](architecture/next_alert_architecture.md) - 📅/🔔 next notification display
+- [Storage Lifecycle](architecture/storage_lifecycle.md) - `.use {}` pattern, Room vs Legacy close behavior ⭐ *Key Reference*
 
 ## Build & Development
 

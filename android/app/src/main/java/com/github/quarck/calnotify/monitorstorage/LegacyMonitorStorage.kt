@@ -26,8 +26,6 @@ import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
-import java.io.Closeable
-
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 
@@ -37,7 +35,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
  * Used as fallback when Room migration fails.
  */
 class LegacyMonitorStorage(val context: Context)
-    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, MonitorStorageInterface {
+    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), MonitorStorageInterface {
 
     private var impl: MonitorStorageImplInterface
 

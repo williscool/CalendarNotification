@@ -43,7 +43,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
@@ -130,7 +129,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     
     private fun removeAllDismissedEvents() {
         val ctx = context ?: return
-        getDismissedEventsStorage(ctx).classCustomUse { db ->
+        getDismissedEventsStorage(ctx).use { db ->
             db.clearHistory()
         }
         adapter.removeAll()
@@ -160,7 +159,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     private fun loadEvents() {
         val ctx = context ?: return
         background {
-            val events = getDismissedEventsStorage(ctx).classCustomUse { db ->
+            val events = getDismissedEventsStorage(ctx).use { db ->
                 db.eventsForDisplay.toTypedArray()
             }
             
@@ -203,7 +202,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
 
     override fun onItemRemoved(entry: DismissedEventAlertRecord) {
         val ctx = context ?: return
-        getDismissedEventsStorage(ctx).classCustomUse { db ->
+        getDismissedEventsStorage(ctx).use { db ->
             db.deleteEvent(entry)
         }
         updateEmptyState()

@@ -28,7 +28,6 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.detailed
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import java.io.Closeable
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 /**
@@ -40,7 +39,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 class LegacyDismissedEventsStorage(
     val context: Context,
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
-) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, DismissedEventsStorageInterface {
+) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), DismissedEventsStorageInterface {
 
     private var impl: DismissedEventsStorageImplInterface
 

@@ -24,7 +24,6 @@ import android.content.Context
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import java.io.Closeable
 
 /**
  * DismissedEventsStorage - tracks dismissed calendar event alerts.
@@ -39,7 +38,7 @@ import java.io.Closeable
  */
 class DismissedEventsStorage private constructor(
     result: Pair<DismissedEventsStorageInterface, Boolean>
-) : DismissedEventsStorageInterface by result.first, Closeable {
+) : DismissedEventsStorageInterface by result.first {
     
     private val delegate: DismissedEventsStorageInterface = result.first
     val isUsingRoom: Boolean = result.second
@@ -47,7 +46,7 @@ class DismissedEventsStorage private constructor(
     constructor(context: Context, clock: CNPlusClockInterface = CNPlusSystemClock()) : this(createStorage(context, clock))
 
     override fun close() {
-        (delegate as? Closeable)?.close()
+        delegate.close()
     }
 
     companion object {
