@@ -494,9 +494,12 @@ class MainActivityModern : MainActivityBase() {
     
     private fun getCalendarChipText(): String {
         val selectedIds = filterState.selectedCalendarIds
+        // null = no filter (all calendars), empty = none selected
+        if (selectedIds == null) return getString(R.string.filter_calendar)
+        
         val selectedCount = selectedIds.size
         return when {
-            selectedCount == 0 -> getString(R.string.filter_calendar)
+            selectedCount == 0 -> getString(R.string.filter_calendar_none)
             selectedCount == 1 -> {
                 // Single calendar - show name (already truncated by getCalendarName)
                 val calendarId = selectedIds.first()
@@ -535,7 +538,7 @@ class MainActivityModern : MainActivityBase() {
     }
     
     private fun showCalendarFilterBottomSheet() {
-        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds)
+        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds ?: emptySet())
         bottomSheet.onCalendarsSelected = { selectedCalendars ->
             filterState = filterState.copy(selectedCalendarIds = selectedCalendars)
             updateFilterChipsForCurrentTab()

@@ -749,6 +749,8 @@
     <string name="filter_calendar_title">Filter by Calendar</string>
     <string name="filter_calendar_all">All Calendars</string>
     <string name="filter_calendar_count">%d calendars</string>
+    <string name="filter_calendar_none">None</string>
+    <string name="filter_calendar_name_with_id">%1$s - %2$d</string>
     <string name="filter_name_plus_count">%1$s, +%2$d</string>
 
     <!-- New UI banner -->

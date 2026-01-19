@@ -229,7 +229,7 @@ class FilterStateTest {
         val filter = FilterState()
         
         assertTrue(filter.statusFilters.isEmpty())
-        assertTrue(filter.selectedCalendarIds.isEmpty())
+        assertNull(filter.selectedCalendarIds)  // null = no filter (all calendars)
     }
     
     @Test
@@ -375,8 +375,8 @@ class FilterStateTest {
     // === CalendarFilter Tests ===
     
     @Test
-    fun `empty calendar filter matches all events`() {
-        val filter = FilterState(selectedCalendarIds = emptySet())
+    fun `null calendar filter matches all events`() {
+        val filter = FilterState(selectedCalendarIds = null)  // null = no filter (all)
         
         val event1 = createEventWithCalendar(calendarId = 1L)
         val event2 = createEventWithCalendar(calendarId = 2L)
@@ -385,6 +385,17 @@ class FilterStateTest {
         assertTrue(filter.matchesCalendar(event1))
         assertTrue(filter.matchesCalendar(event2))
         assertTrue(filter.matchesCalendar(event3))
+    }
+    
+    @Test
+    fun `empty calendar filter matches no events`() {
+        val filter = FilterState(selectedCalendarIds = emptySet())  // empty = none
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        
+        assertFalse(filter.matchesCalendar(event1))
+        assertFalse(filter.matchesCalendar(event2))
     }
     
     @Test
@@ -412,9 +423,9 @@ class FilterStateTest {
     }
     
     @Test
-    fun `FilterState default has empty calendar filter`() {
+    fun `FilterState default has null calendar filter`() {
         val filter = FilterState()
-        assertTrue(filter.selectedCalendarIds.isEmpty())
+        assertNull(filter.selectedCalendarIds)  // null = no filter (all)
     }
     
     private fun createEventWithCalendar(calendarId: Long): EventAlertRecord {

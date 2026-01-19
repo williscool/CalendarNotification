@@ -34,7 +34,7 @@ enum class FilterType {
  * Filter state for event lists. In-memory only - clears on tab switch and app restart.
  */
 data class FilterState(
-    val selectedCalendarIds: Set<Long> = emptySet(),  // empty = all calendars
+    val selectedCalendarIds: Set<Long>? = null,  // null = no filter (all), empty = none, set = specific
     val statusFilters: Set<StatusOption> = emptySet(),  // empty = show all (no filter)
     val timeFilter: TimeFilter = TimeFilter.ALL
 ) {
@@ -49,10 +49,10 @@ data class FilterState(
         return timeFilter.matches(event, now)
     }
     
-    /** Check if an event matches current calendar filter (empty set = match all) */
+    /** Check if an event matches current calendar filter (null = all, empty = none) */
     fun matchesCalendar(event: EventAlertRecord): Boolean {
-        if (selectedCalendarIds.isEmpty()) return true  // No filter = show all
-        return event.calendarId in selectedCalendarIds
+        if (selectedCalendarIds == null) return true  // No filter = show all
+        return event.calendarId in selectedCalendarIds  // Empty set = show none
     }
     
     /**
@@ -61,19 +61,18 @@ data class FilterState(
      * @param now Current time (required if TIME filter is applied)
      * @param apply Which filters to apply (defaults to all)
      */
-    fun <T> filterEvents(
+    inline fun <reified T> filterEvents(
         events: List<T>,
         now: Long,
         apply: Set<FilterType>,
         eventExtractor: (T) -> EventAlertRecord
     ): Array<T> {
-        @Suppress("UNCHECKED_CAST")
         return events.filter { item ->
             val event = eventExtractor(item)
             (FilterType.CALENDAR !in apply || matchesCalendar(event)) &&
             (FilterType.STATUS !in apply || matchesStatus(event)) &&
             (FilterType.TIME !in apply || matchesTime(event, now))
-        }.toTypedArray() as Array<T>
+        }.toTypedArray()
     }
     
     /** Filter EventAlertRecord list with specified filters (defaults to all) */

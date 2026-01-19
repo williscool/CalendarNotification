@@ -46,8 +46,8 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
  */
 class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     
-    /** Callback when calendars are selected */
-    var onCalendarsSelected: ((Set<Long>) -> Unit)? = null
+    /** Callback when calendars are selected (null = all calendars, empty = none) */
+    var onCalendarsSelected: ((Set<Long>?) -> Unit)? = null
     
     /** Currently selected calendar IDs - restored from arguments */
     private val selectedCalendarIds: MutableSet<Long> = mutableSetOf()
@@ -134,11 +134,12 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         }
         
         applyButton.setOnClickListener {
-            // If all calendars are selected, return empty set (means "all")
-            val result = if (selectedCalendarIds.size == allHandledCalendars.size) {
-                emptySet()
+            // If all calendars are selected, return null (means "no filter")
+            // Otherwise return exactly what's selected (empty = none)
+            val result: Set<Long>? = if (selectedCalendarIds.containsAll(allHandledCalendars.map { it.calendarId })) {
+                null  // All selected = no filter
             } else {
-                selectedCalendarIds.toSet()
+                selectedCalendarIds.toSet()  // Could be empty = show nothing
             }
             onCalendarsSelected?.invoke(result)
             dismiss()
@@ -156,13 +157,14 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         
         val lowerQuery = query.lowercase()
         
-        // Filter by search query
+        // Filter by search query (searches name and ID)
         val matchingCalendars = if (query.isEmpty()) {
             allHandledCalendars
         } else {
             allHandledCalendars.filter { calendar ->
                 val name = calendar.displayName.ifEmpty { calendar.name }
-                name.lowercase().contains(lowerQuery)
+                name.lowercase().contains(lowerQuery) || 
+                    calendar.calendarId.toString().contains(lowerQuery)
             }
         }
         
@@ -186,7 +188,8 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
             val checkbox = itemView.findViewById<CheckBox>(R.id.checkbox_calendar)
             
             colorView.background = ColorDrawable(calendar.color)
-            checkbox.text = calendar.displayName.ifEmpty { calendar.name }
+            val calendarName = calendar.displayName.ifEmpty { calendar.name }
+            checkbox.text = getString(R.string.filter_calendar_name_with_id, calendarName, calendar.calendarId)
             checkbox.isChecked = calendar.calendarId in selectedCalendarIds
             
             checkbox.setOnCheckedChangeListener { _, isChecked ->
