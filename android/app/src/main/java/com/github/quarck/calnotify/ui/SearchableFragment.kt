@@ -58,4 +58,7 @@ interface SearchableFragment {
     
     /** Called when dismiss all action is triggered - fragment should reload data */
     fun onDismissAllComplete() {}
+    
+    /** Called when filter state changes - fragment should reload data with new filter */
+    fun onFilterChanged() {}
 }

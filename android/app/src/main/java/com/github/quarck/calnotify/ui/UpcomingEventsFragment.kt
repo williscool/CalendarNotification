@@ -128,6 +128,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        
         background {
             val events = getMonitorStorage(ctx).use { storage ->
                 val provider = UpcomingEventsProvider(
@@ -137,7 +139,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                     monitorStorage = storage,
                     calendarProvider = getCalendarProvider()
                 )
-                provider.getUpcomingEvents().toTypedArray()
+                provider.getUpcomingEvents()
+                    .filter { filterState.statusFilter.matches(it) }
+                    .toTypedArray()
             }
             
             activity?.runOnUiThread {
@@ -148,6 +152,10 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                 activity?.invalidateOptionsMenu()
             }
         }
+    }
+    
+    private fun getFilterState(): FilterState {
+        return (activity as? MainActivityModern)?.getCurrentFilterState() ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -228,6 +236,10 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun onFilterChanged() {
+        loadEvents()
+    }
 
     companion object {
         private const val LOG_TAG = "UpcomingEventsFragment"

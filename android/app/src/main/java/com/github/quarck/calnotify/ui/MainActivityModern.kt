@@ -28,6 +28,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.PopupMenu
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
@@ -39,12 +40,40 @@ import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import androidx.appcompat.view.ContextThemeWrapper
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+
+/**
+ * Filter state for event lists. In-memory only - clears on tab switch and app restart.
+ */
+data class FilterState(
+    val selectedCalendarIds: Set<Long> = emptySet(),  // empty = all calendars
+    val statusFilter: StatusFilter = StatusFilter.ALL
+)
+
+/**
+ * Status filter options for event lists.
+ */
+enum class StatusFilter {
+    ALL, SNOOZED, ACTIVE, MUTED, RECURRING;
+    
+    /** Check if an event matches this filter */
+    fun matches(event: EventAlertRecord): Boolean = when (this) {
+        ALL -> true
+        SNOOZED -> event.snoozedUntil > 0
+        ACTIVE -> event.snoozedUntil == 0L
+        MUTED -> event.isMuted
+        RECURRING -> event.isRepeating
+    }
+}
 
 /**
  * Modern MainActivity implementation with fragment-based navigation.
@@ -55,11 +84,18 @@ class MainActivityModern : MainActivityBase() {
     private var navController: NavController? = null
 
     private lateinit var floatingAddEvent: FloatingActionButton
+    
+    // Filter state - in-memory only, clears on tab switch and app restart
+    private var filterState = FilterState()
+    private var chipGroup: ChipGroup? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setupUI()
     }
+    
+    /** Get current filter state for fragments to use */
+    fun getCurrentFilterState(): FilterState = filterState
 
     private fun setupUI() {
         setContentView(R.layout.activity_main)
@@ -101,6 +137,9 @@ class MainActivityModern : MainActivityBase() {
             ViewCompat.requestApplyInsets(nav)
         }
 
+        // Setup filter chips
+        chipGroup = find<ChipGroup>(R.id.filter_chips)
+        
         // Update toolbar title based on current destination
         navController?.addOnDestinationChangedListener { _, destination, _ ->
             supportActionBar?.title = when (destination.id) {
@@ -112,6 +151,9 @@ class MainActivityModern : MainActivityBase() {
             // Clear search when switching tabs
             searchView?.setQuery("", false)
             searchMenuItem?.collapseActionView()
+            // Clear filters when switching tabs (same behavior as search)
+            filterState = FilterState()
+            updateFilterChipsForCurrentTab()
             // Update menu items based on current tab (e.g., hide snooze/dismiss all on non-active tabs)
             invalidateOptionsMenu()
         }
@@ -299,6 +341,79 @@ class MainActivityModern : MainActivityBase() {
         ApplicationController.muteAllVisibleEvents(this)
         getCurrentSearchableFragment()?.onMuteAllComplete()
         invalidateOptionsMenu()
+    }
+    
+    // === Filter Chips ===
+    
+    private fun updateFilterChipsForCurrentTab() {
+        chipGroup?.removeAllViews()
+        
+        val currentDestination = navController?.currentDestination?.id ?: return
+        
+        when (currentDestination) {
+            R.id.activeEventsFragment -> {
+                // Active tab: Status filter (Calendar and Time coming later)
+                addStatusChip()
+            }
+            R.id.upcomingEventsFragment -> {
+                // Upcoming tab: Status filter
+                addStatusChip()
+            }
+            R.id.dismissedEventsFragment -> {
+                // Dismissed tab: No status filter (Calendar coming later)
+            }
+        }
+    }
+    
+    private fun addStatusChip() {
+        // Chip requires MaterialComponents theme - wrap context
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getStatusChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showStatusFilterPopup(it) }
+            setOnCloseIconClickListener { showStatusFilterPopup(it) }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getStatusChipText(): String {
+        return when (filterState.statusFilter) {
+            StatusFilter.ALL -> getString(R.string.filter_status)
+            StatusFilter.SNOOZED -> getString(R.string.filter_status_snoozed)
+            StatusFilter.ACTIVE -> getString(R.string.filter_status_active)
+            StatusFilter.MUTED -> getString(R.string.filter_status_muted)
+            StatusFilter.RECURRING -> getString(R.string.filter_status_recurring)
+        }
+    }
+    
+    private fun showStatusFilterPopup(anchor: View) {
+        PopupMenu(this, anchor).apply {
+            menu.add(0, StatusFilter.ALL.ordinal, 0, R.string.filter_status_all)
+            menu.add(0, StatusFilter.SNOOZED.ordinal, 1, R.string.filter_status_snoozed)
+            menu.add(0, StatusFilter.ACTIVE.ordinal, 2, R.string.filter_status_active)
+            menu.add(0, StatusFilter.MUTED.ordinal, 3, R.string.filter_status_muted)
+            menu.add(0, StatusFilter.RECURRING.ordinal, 4, R.string.filter_status_recurring)
+            
+            // Check current selection
+            menu.findItem(filterState.statusFilter.ordinal)?.isChecked = true
+            menu.setGroupCheckable(0, true, true)
+            
+            setOnMenuItemClickListener { item ->
+                filterState = filterState.copy(statusFilter = StatusFilter.entries[item.itemId])
+                updateFilterChipsForCurrentTab()
+                notifyCurrentFragmentFilterChanged()
+                true
+            }
+            show()
+        }
+    }
+    
+    private fun notifyCurrentFragmentFilterChanged() {
+        getCurrentSearchableFragment()?.onFilterChanged()
     }
 
     companion object {

@@ -163,9 +163,13 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        
         background {
-            val events = getEventsStorage(ctx).use { db ->
-                db.eventsForDisplay.toTypedArray()
+            val events = getEventsStorage(ctx).classCustomUse { db ->
+                db.eventsForDisplay
+                    .filter { filterState.statusFilter.matches(it) }
+                    .toTypedArray()
             }
             
             activity?.runOnUiThread {
@@ -176,6 +180,10 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
                 activity?.invalidateOptionsMenu()
             }
         }
+    }
+    
+    private fun getFilterState(): FilterState {
+        return (activity as? MainActivityModern)?.getCurrentFilterState() ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -249,6 +257,10 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     }
     
     override fun onDismissAllComplete() {
+        loadEvents()
+    }
+    
+    override fun onFilterChanged() {
         loadEvents()
     }
 

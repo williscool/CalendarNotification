@@ -725,6 +725,14 @@
     <string name="empty_active">No active notifications</string>
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
+    
+    <!-- Filter chips -->
+    <string name="filter_status">Status</string>
+    <string name="filter_status_all">All</string>
+    <string name="filter_status_snoozed">Snoozed</string>
+    <string name="filter_status_active">Active</string>
+    <string name="filter_status_muted">Muted</string>
+    <string name="filter_status_recurring">Recurring</string>
 
     <!-- New UI banner -->
     <string name="new_ui_banner_text">Not a fan of the new look? <u>Switch back to classic view</u></string>
