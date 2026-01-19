@@ -287,7 +287,13 @@ class MainActivityModern : MainActivityBase() {
         val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
 
         val count = currentFragment?.getEventCount() ?: 0
-        searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, count, count)
+        val tabName = when (navController?.currentDestination?.id) {
+            R.id.activeEventsFragment -> getString(R.string.nav_active)
+            R.id.upcomingEventsFragment -> getString(R.string.nav_upcoming)
+            R.id.dismissedEventsFragment -> getString(R.string.nav_dismissed)
+            else -> ""
+        }
+        searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, count, count, tabName)
         searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
 
         searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
