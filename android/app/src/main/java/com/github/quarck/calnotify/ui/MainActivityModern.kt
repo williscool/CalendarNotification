@@ -436,7 +436,12 @@ class MainActivityModern : MainActivityBase() {
         return when {
             filters.isEmpty() -> getString(R.string.filter_status)
             filters.size == 1 -> filters.first().toDisplayString()
-            else -> "${filters.size} selected"
+            filters.size == 2 -> filters.joinToString(", ") { it.toDisplayString() }
+            else -> {
+                // Show first filter + count of remaining
+                val first = filters.first().toDisplayString()
+                "$first, +${filters.size - 1}"
+            }
         }
     }
     
@@ -545,18 +550,31 @@ class MainActivityModern : MainActivityBase() {
     }
     
     private fun getCalendarChipText(): String {
-        val selectedCount = filterState.selectedCalendarIds.size
+        val selectedIds = filterState.selectedCalendarIds
+        val selectedCount = selectedIds.size
         return when {
             selectedCount == 0 -> getString(R.string.filter_calendar)
             selectedCount == 1 -> {
-                // Try to get calendar name
-                val calendarId = filterState.selectedCalendarIds.first()
-                val calendar = CalendarProvider.getCalendarById(this, calendarId)
-                val name = calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
-                name ?: getString(R.string.filter_calendar)
+                // Single calendar - show name
+                val calendarId = selectedIds.first()
+                getCalendarName(calendarId) ?: getString(R.string.filter_calendar)
             }
-            else -> getString(R.string.filter_calendar_count, selectedCount)
+            selectedCount == 2 -> {
+                // Two calendars - show both names
+                val names = selectedIds.mapNotNull { getCalendarName(it) }
+                if (names.size == 2) names.joinToString(", ") else getString(R.string.filter_calendar_count, selectedCount)
+            }
+            else -> {
+                // 3+ calendars - show first name + count
+                val firstName = getCalendarName(selectedIds.first())
+                if (firstName != null) "$firstName, +${selectedCount - 1}" else getString(R.string.filter_calendar_count, selectedCount)
+            }
         }
+    }
+    
+    private fun getCalendarName(calendarId: Long): String? {
+        val calendar = CalendarProvider.getCalendarById(this, calendarId)
+        return calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
     }
     
     private fun showCalendarFilterBottomSheet() {
