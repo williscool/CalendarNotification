@@ -21,11 +21,14 @@ package com.github.quarck.calnotify.ui
 
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.github.quarck.calnotify.R
@@ -37,6 +40,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 /**
  * Bottom sheet for selecting calendar filter options.
  * Shows only handled (enabled) calendars with their colors.
+ * Supports search and configurable max items limit.
  */
 class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     
@@ -45,6 +49,17 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     
     /** Currently selected calendar IDs - restored from arguments */
     private val selectedCalendarIds: MutableSet<Long> = mutableSetOf()
+    
+    /** All handled calendars (full list) */
+    private var allHandledCalendars: List<CalendarRecord> = emptyList()
+    
+    /** Currently displayed calendar items (after search/limit) */
+    private data class CalendarItem(
+        val calendar: CalendarRecord,
+        val itemView: View,
+        val checkbox: CheckBox
+    )
+    private val calendarItems = mutableListOf<CalendarItem>()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,19 +82,20 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         
         val ctx = requireContext()
         val settings = Settings(ctx)
+        val maxItems = settings.calendarFilterMaxItems
+        
         val calendarContainer = view.findViewById<LinearLayout>(R.id.calendar_list_container)
         val allCalendarsCheckbox = view.findViewById<CheckBox>(R.id.checkbox_all_calendars)
         val applyButton = view.findViewById<Button>(R.id.btn_apply)
+        val searchEditText = view.findViewById<EditText>(R.id.search_calendars)
+        val showingCountText = view.findViewById<TextView>(R.id.showing_count)
         
         // Get handled calendars
         val allCalendars = CalendarProvider.getCalendars(ctx)
-        val handledCalendars = allCalendars.filter { settings.getCalendarIsHandled(it.calendarId) }
+        allHandledCalendars = allCalendars.filter { settings.getCalendarIsHandled(it.calendarId) }
         
-        // Track checkboxes for updating "All" state
-        val calendarCheckboxes = mutableListOf<Pair<Long, CheckBox>>()
-        
-        // Create checkbox for each handled calendar
-        handledCalendars.forEach { calendar ->
+        // Create views for all calendars (hidden initially, shown based on search/limit)
+        allHandledCalendars.forEach { calendar ->
             val itemView = layoutInflater.inflate(R.layout.item_calendar_filter, calendarContainer, false)
             val colorView = itemView.findViewById<View>(R.id.calendar_color)
             val checkbox = itemView.findViewById<CheckBox>(R.id.checkbox_calendar)
@@ -94,29 +110,43 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
                 } else {
                     selectedCalendarIds.remove(calendar.calendarId)
                 }
-                updateAllCalendarsCheckbox(allCalendarsCheckbox, calendarCheckboxes, handledCalendars.size)
+                updateAllCalendarsCheckbox(allCalendarsCheckbox)
             }
             
-            calendarCheckboxes.add(calendar.calendarId to checkbox)
+            calendarItems.add(CalendarItem(calendar, itemView, checkbox))
             calendarContainer.addView(itemView)
         }
         
+        // Initial display with limit applied
+        updateDisplayedCalendars("", maxItems, showingCountText)
+        
+        // Set up search
+        searchEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val query = s?.toString() ?: ""
+                // When searching, show all matches (no limit) so user can find what they need
+                updateDisplayedCalendars(query, if (query.isNotEmpty()) 0 else maxItems, showingCountText)
+            }
+        })
+        
         // Set up "All Calendars" checkbox
         allCalendarsCheckbox.isChecked = selectedCalendarIds.isEmpty() || 
-            selectedCalendarIds.size == handledCalendars.size
+            selectedCalendarIds.size == allHandledCalendars.size
         
         allCalendarsCheckbox.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 // Select all calendars (which means empty set = no filter)
                 selectedCalendarIds.clear()
-                calendarCheckboxes.forEach { (_, cb) -> cb.isChecked = true }
+                calendarItems.forEach { it.checkbox.isChecked = true }
             }
             // Don't deselect all when unchecking - user should manually deselect
         }
         
         applyButton.setOnClickListener {
             // If all calendars are selected, return empty set (means "all")
-            val result = if (selectedCalendarIds.size == handledCalendars.size) {
+            val result = if (selectedCalendarIds.size == allHandledCalendars.size) {
                 emptySet()
             } else {
                 selectedCalendarIds.toSet()
@@ -126,13 +156,50 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         }
     }
     
-    private fun updateAllCalendarsCheckbox(
-        allCheckbox: CheckBox,
-        calendarCheckboxes: List<Pair<Long, CheckBox>>,
-        totalCount: Int
-    ) {
-        val checkedCount = calendarCheckboxes.count { it.second.isChecked }
-        allCheckbox.isChecked = checkedCount == totalCount
+    /**
+     * Update which calendars are displayed based on search query and max limit.
+     * @param query Search query (empty = show all)
+     * @param maxItems Max items to show (0 = no limit)
+     */
+    private fun updateDisplayedCalendars(query: String, maxItems: Int, showingCountText: TextView) {
+        val lowerQuery = query.lowercase()
+        
+        // Filter by search query
+        val matchingItems = if (query.isEmpty()) {
+            calendarItems
+        } else {
+            calendarItems.filter { item ->
+                val name = item.calendar.displayName.ifEmpty { item.calendar.name }
+                name.lowercase().contains(lowerQuery)
+            }
+        }
+        
+        // Apply limit
+        val displayedItems = if (maxItems > 0 && matchingItems.size > maxItems) {
+            matchingItems.take(maxItems)
+        } else {
+            matchingItems
+        }
+        
+        // Update visibility
+        calendarItems.forEach { item ->
+            item.itemView.visibility = if (item in displayedItems) View.VISIBLE else View.GONE
+        }
+        
+        // Update count text
+        val totalMatching = matchingItems.size
+        val displayed = displayedItems.size
+        if (displayed < totalMatching) {
+            showingCountText.text = getString(R.string.calendar_filter_showing_count, displayed, totalMatching)
+            showingCountText.visibility = View.VISIBLE
+        } else {
+            showingCountText.visibility = View.GONE
+        }
+    }
+    
+    private fun updateAllCalendarsCheckbox(allCheckbox: CheckBox) {
+        val checkedCount = calendarItems.count { it.checkbox.isChecked }
+        allCheckbox.isChecked = checkedCount == allHandledCalendars.size
     }
     
     companion object {

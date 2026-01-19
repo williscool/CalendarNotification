@@ -11,7 +11,29 @@
         android:text="@string/filter_calendar_title"
         android:textSize="18sp"
         android:textStyle="bold"
-        android:paddingBottom="16dp" />
+        android:paddingBottom="8dp" />
+
+    <EditText
+        android:id="@+id/search_calendars"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/calendar_filter_search_hint"
+        android:inputType="text"
+        android:imeOptions="actionSearch"
+        android:drawableStart="@android:drawable/ic_menu_search"
+        android:drawablePadding="8dp"
+        android:padding="12dp"
+        android:background="@android:drawable/editbox_background"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/showing_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:paddingBottom="8dp"
+        android:visibility="gone" />
 
     <CheckBox
         android:id="@+id/checkbox_all_calendars"

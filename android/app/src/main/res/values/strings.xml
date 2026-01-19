@@ -773,4 +773,29 @@
     <string name="switch_to_new_view_summary">Enable new UI and restart with the tabbed navigation view</string>
     <string name="switch_to_new_view_confirm">Switch to new view? The app will restart.</string>
     <string name="restarting">Restarting…</string>
+    
+    <!-- Filter settings -->
+    <string name="filter_settings_category">Filters</string>
+    <string name="calendar_filter_max_items_title">Max calendars in filter</string>
+    <string name="calendar_filter_max_items_summary">Limit calendars shown (use search to find more)</string>
+    <string name="calendar_filter_showing_count">Showing %1$d of %2$d</string>
+    <string name="calendar_filter_search_hint">Search calendars…</string>
+    
+    <string-array name="calendar_filter_max_items_entries">
+        <item>No limit</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>50</item>
+    </string-array>
+    
+    <string-array name="calendar_filter_max_items_values">
+        <item>0</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>50</item>
+    </string-array>
 </resources>

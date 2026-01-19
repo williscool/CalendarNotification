@@ -474,6 +474,11 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
             .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
             .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)
         set(value) = setString(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS).toString())
+    
+    /** Max calendars to show in calendar filter. 0 = no limit (show all). */
+    val calendarFilterMaxItems: Int
+        get() = getString(CALENDAR_FILTER_MAX_ITEMS_KEY, DEFAULT_CALENDAR_FILTER_MAX_ITEMS.toString())
+            .toIntOrNull() ?: DEFAULT_CALENDAR_FILTER_MAX_ITEMS
 
     /** Number of days to keep dismissed events in the bin. 0 means forever. */
     val keepHistoryDays: Int
@@ -572,6 +577,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
         private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
+        private const val CALENDAR_FILTER_MAX_ITEMS_KEY = "calendar_filter_max_items"
 
         // Default values
         /** Default theme mode: follow system (-1 = MODE_NIGHT_FOLLOW_SYSTEM) */
@@ -590,6 +596,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val MAX_DAY_BOUNDARY_HOUR = 10  // 10am (max slack for night owls)
         internal const val MIN_FIXED_HOURS = 1
         internal const val MAX_FIXED_HOURS = 48
+        /** Default max calendars in filter (0 = no limit) */
+        internal const val DEFAULT_CALENDAR_FILTER_MAX_ITEMS = 20
     }
 }
 

@@ -45,6 +45,22 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:title="@string/filter_settings_category"
+        android:key="_filter_settings"
+        android:dependency="use_new_navigation_ui">
+
+        <ListPreference
+            android:key="calendar_filter_max_items"
+            android:title="@string/calendar_filter_max_items_title"
+            android:summary="@string/calendar_filter_max_items_summary"
+            android:dialogTitle="@string/calendar_filter_max_items_title"
+            android:entries="@array/calendar_filter_max_items_entries"
+            android:entryValues="@array/calendar_filter_max_items_values"
+            android:defaultValue="20" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/switch_view_category"
         android:key="_switch_view">
 
