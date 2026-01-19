@@ -69,6 +69,7 @@ class MainActivityModern : MainActivityBase() {
     // Filter state - in-memory only, clears on tab switch and app restart
     private var filterState = FilterState()
     private var chipGroup: ChipGroup? = null
+    private var currentDestinationId: Int? = null  // Track to detect actual tab switches
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,6 +96,9 @@ class MainActivityModern : MainActivityBase() {
         
         // Save time filter
         outState.putInt(STATE_TIME_FILTER, filterState.timeFilter.ordinal)
+        
+        // Save current destination to detect recreation vs tab switch
+        currentDestinationId?.let { outState.putInt(STATE_DESTINATION_ID, it) }
     }
     
     private fun restoreFilterState(savedState: Bundle) {
@@ -121,6 +125,11 @@ class MainActivityModern : MainActivityBase() {
             statusFilters = statusFilters,
             timeFilter = timeFilter
         )
+        
+        // Restore destination ID to detect recreation vs tab switch
+        if (savedState.containsKey(STATE_DESTINATION_ID)) {
+            currentDestinationId = savedState.getInt(STATE_DESTINATION_ID)
+        }
     }
     
     /** Get current filter state for fragments to use */
@@ -180,11 +189,18 @@ class MainActivityModern : MainActivityBase() {
                 R.id.dismissedEventsFragment -> getString(R.string.title_dismissed)
                 else -> getString(R.string.app_name)
             }
-            // Clear search when switching tabs
-            searchView?.setQuery("", false)
-            searchMenuItem?.collapseActionView()
-            // Clear filters when switching tabs (same behavior as search)
-            filterState = FilterState()
+            
+            // Only clear filters/search on actual tab switches, not on initial setup or recreation
+            val isActualTabSwitch = currentDestinationId != null && currentDestinationId != destination.id
+            if (isActualTabSwitch) {
+                // Clear search when switching tabs
+                searchView?.setQuery("", false)
+                searchMenuItem?.collapseActionView()
+                // Clear filters when switching tabs (same behavior as search)
+                filterState = FilterState()
+            }
+            
+            currentDestinationId = destination.id
             updateFilterChipsForCurrentTab()
             // Update menu items based on current tab (e.g., hide snooze/dismiss all on non-active tabs)
             invalidateOptionsMenu()
@@ -627,5 +643,6 @@ class MainActivityModern : MainActivityBase() {
         private const val STATE_CALENDAR_NULL = "filter_calendar_null"
         private const val STATE_STATUS_FILTERS = "filter_status"
         private const val STATE_TIME_FILTER = "filter_time"
+        private const val STATE_DESTINATION_ID = "filter_destination_id"
     }
 }
