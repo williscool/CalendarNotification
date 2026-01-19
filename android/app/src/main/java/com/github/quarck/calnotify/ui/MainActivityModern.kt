@@ -600,7 +600,7 @@ class MainActivityModern : MainActivityBase() {
     }
     
     private fun showCalendarFilterBottomSheet() {
-        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds ?: emptySet())
+        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds)
         bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
     }
     

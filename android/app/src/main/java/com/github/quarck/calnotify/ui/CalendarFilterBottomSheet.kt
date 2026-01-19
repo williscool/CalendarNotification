@@ -68,11 +68,17 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     private var allCalendarsCheckbox: CheckBox? = null
     private var showingCountText: TextView? = null
     
+    /** Whether initial state was "all calendars" (null) vs specific selection */
+    private var startedAsAllCalendars: Boolean = true
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Restore selected calendars from arguments
-        arguments?.getLongArray(ARG_SELECTED_CALENDARS)?.let {
-            selectedCalendarIds.addAll(it.toSet())
+        // Restore selected calendars from arguments, preserving null vs empty distinction
+        startedAsAllCalendars = arguments?.getBoolean(ARG_IS_ALL_CALENDARS, true) ?: true
+        if (!startedAsAllCalendars) {
+            arguments?.getLongArray(ARG_SELECTED_CALENDARS)?.let {
+                selectedCalendarIds.addAll(it.toSet())
+            }
         }
     }
     
@@ -107,9 +113,9 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         val allCalendars = CalendarProvider.getCalendars(ctx)
         allHandledCalendars = allCalendars.filter { settings.getCalendarIsHandled(it.calendarId) }
         
-        // If selectedCalendarIds is empty (from FilterState meaning "all"), populate with all IDs
-        // This way empty set always means "none selected" internally
-        if (selectedCalendarIds.isEmpty()) {
+        // If started with "all calendars" (null from FilterState), populate with all IDs
+        // Empty set means "none selected" (user explicitly deselected all)
+        if (startedAsAllCalendars) {
             selectedCalendarIds.addAll(allHandledCalendars.map { it.calendarId })
         }
         
@@ -250,16 +256,23 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     
     companion object {
         private const val ARG_SELECTED_CALENDARS = "selected_calendars"
+        private const val ARG_IS_ALL_CALENDARS = "is_all_calendars"
         
         /** Fragment Result API key for listening to calendar selection */
         const val REQUEST_KEY = "calendar_filter_request"
         /** Bundle key for the result (LongArray? - null means all calendars) */
         const val RESULT_CALENDARS = "result_calendars"
         
-        fun newInstance(selectedCalendarIds: Set<Long>): CalendarFilterBottomSheet {
+        /** Create with explicit null/empty distinction */
+        fun newInstance(selectedCalendarIds: Set<Long>?): CalendarFilterBottomSheet {
             return CalendarFilterBottomSheet().apply {
                 arguments = Bundle().apply {
-                    putLongArray(ARG_SELECTED_CALENDARS, selectedCalendarIds.toLongArray())
+                    if (selectedCalendarIds == null) {
+                        putBoolean(ARG_IS_ALL_CALENDARS, true)
+                    } else {
+                        putBoolean(ARG_IS_ALL_CALENDARS, false)
+                        putLongArray(ARG_SELECTED_CALENDARS, selectedCalendarIds.toLongArray())
+                    }
                 }
             }
         }
