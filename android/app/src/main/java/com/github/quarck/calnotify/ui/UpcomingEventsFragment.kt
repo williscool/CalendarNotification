@@ -140,7 +140,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                     calendarProvider = getCalendarProvider()
                 )
                 provider.getUpcomingEvents()
-                    .filter { filterState.statusFilter.matches(it) }
+                    .filter { filterState.matchesStatus(it) }
                     .toTypedArray()
             }
             

@@ -56,18 +56,23 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
  */
 data class FilterState(
     val selectedCalendarIds: Set<Long> = emptySet(),  // empty = all calendars
-    val statusFilter: StatusFilter = StatusFilter.ALL
-)
+    val statusFilters: Set<StatusOption> = emptySet()  // empty = show all (no filter)
+) {
+    /** Check if an event matches current status filters (empty set = match all) */
+    fun matchesStatus(event: EventAlertRecord): Boolean {
+        if (statusFilters.isEmpty()) return true  // No filter = show all
+        return statusFilters.any { it.matches(event) }
+    }
+}
 
 /**
- * Status filter options for event lists.
+ * Individual status filter options. Multiple can be selected (OR logic).
  */
-enum class StatusFilter {
-    ALL, SNOOZED, ACTIVE, MUTED, RECURRING;
+enum class StatusOption {
+    SNOOZED, ACTIVE, MUTED, RECURRING;
     
-    /** Check if an event matches this filter */
+    /** Check if an event matches this specific option */
     fun matches(event: EventAlertRecord): Boolean = when (this) {
-        ALL -> true
         SNOOZED -> event.snoozedUntil > 0
         ACTIVE -> event.snoozedUntil == 0L
         MUTED -> event.isMuted
@@ -381,29 +386,54 @@ class MainActivityModern : MainActivityBase() {
     }
     
     private fun getStatusChipText(): String {
-        return when (filterState.statusFilter) {
-            StatusFilter.ALL -> getString(R.string.filter_status)
-            StatusFilter.SNOOZED -> getString(R.string.filter_status_snoozed)
-            StatusFilter.ACTIVE -> getString(R.string.filter_status_active)
-            StatusFilter.MUTED -> getString(R.string.filter_status_muted)
-            StatusFilter.RECURRING -> getString(R.string.filter_status_recurring)
+        val filters = filterState.statusFilters
+        return when {
+            filters.isEmpty() -> getString(R.string.filter_status)
+            filters.size == 1 -> filters.first().toDisplayString()
+            else -> "${filters.size} selected"
         }
     }
     
+    private fun StatusOption.toDisplayString(): String = when (this) {
+        StatusOption.SNOOZED -> getString(R.string.filter_status_snoozed)
+        StatusOption.ACTIVE -> getString(R.string.filter_status_active)
+        StatusOption.MUTED -> getString(R.string.filter_status_muted)
+        StatusOption.RECURRING -> getString(R.string.filter_status_recurring)
+    }
+    
     private fun showStatusFilterPopup(anchor: View) {
+        val isUpcoming = navController?.currentDestination?.id == R.id.upcomingEventsFragment
+        
         PopupMenu(this, anchor).apply {
-            menu.add(0, StatusFilter.ALL.ordinal, 0, R.string.filter_status_all)
-            menu.add(0, StatusFilter.SNOOZED.ordinal, 1, R.string.filter_status_snoozed)
-            menu.add(0, StatusFilter.ACTIVE.ordinal, 2, R.string.filter_status_active)
-            menu.add(0, StatusFilter.MUTED.ordinal, 3, R.string.filter_status_muted)
-            menu.add(0, StatusFilter.RECURRING.ordinal, 4, R.string.filter_status_recurring)
+            // Add "All" option with special ID
+            menu.add(Menu.NONE, -1, 0, R.string.filter_status_all).isCheckable = true
             
-            // Check current selection
-            menu.findItem(filterState.statusFilter.ordinal)?.isChecked = true
-            menu.setGroupCheckable(0, true, true)
+            // Add status options - exclude SNOOZED and ACTIVE for Upcoming tab (not applicable)
+            StatusOption.entries.forEachIndexed { index, option ->
+                if (isUpcoming && option in listOf(StatusOption.SNOOZED, StatusOption.ACTIVE)) return@forEachIndexed
+                menu.add(Menu.NONE, option.ordinal, index + 1, option.toDisplayString()).isCheckable = true
+            }
+            
+            // Set current checked states
+            val currentFilters = filterState.statusFilters
+            menu.findItem(-1)?.isChecked = currentFilters.isEmpty()
+            StatusOption.entries.forEach { option ->
+                menu.findItem(option.ordinal)?.isChecked = option in currentFilters
+            }
             
             setOnMenuItemClickListener { item ->
-                filterState = filterState.copy(statusFilter = StatusFilter.entries[item.itemId])
+                if (item.itemId == -1) {
+                    // "All" selected - clear all filters
+                    filterState = filterState.copy(statusFilters = emptySet())
+                } else {
+                    val option = StatusOption.entries[item.itemId]
+                    val newFilters = if (option in filterState.statusFilters) {
+                        filterState.statusFilters - option
+                    } else {
+                        filterState.statusFilters + option
+                    }
+                    filterState = filterState.copy(statusFilters = newFilters)
+                }
                 updateFilterChipsForCurrentTab()
                 notifyCurrentFragmentFilterChanged()
                 true
