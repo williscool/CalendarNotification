@@ -749,4 +749,12 @@
     <string name="switch_to_new_view_summary">Enable new UI and restart with the tabbed navigation view</string>
     <string name="switch_to_new_view_confirm">Switch to new view? The app will restart.</string>
     <string name="restarting">Restarting…</string>
+
+    <!-- Upcoming Events Help -->
+    <string name="upcoming_events_help_title">About Upcoming Events</string>
+    <string name="upcoming_events_help_summary">Learn how the Upcoming tab works</string>
+    <string name="upcoming_events_help_dialog_title">Upcoming Events</string>
+    <string name="upcoming_events_help_dialog_message">The Upcoming tab shows calendar events that are scheduled to fire reminders within your configured lookahead window.\n\n• Events appear based on when their reminder fires, not the event start time\n• Once a reminder fires, the event moves to the Active tab\n• Configure how far ahead to look in the settings below\n\nLookahead Modes:\n• Fixed hours: Show events X hours ahead (default: 8 hours)\n• Day boundary: Show events until a configurable \"new day\" time (for night owls)</string>
+    <string name="upcoming_events_help_view_full_docs">View Full Documentation</string>
+    <string name="upcoming_events_docs_url" translatable="false">https://github.com/williscool/CalendarNotification/blob/master/docs/features/UPCOMING_EVENTS_README.md</string>
 </resources>
