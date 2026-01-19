@@ -166,7 +166,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         val filterState = getFilterState()
         
         background {
-            val events = getEventsStorage(ctx).classCustomUse { db ->
+            val events = getEventsStorage(ctx).use { db ->
                 db.eventsForDisplay
                     .filter { filterState.matchesStatus(it) && filterState.matchesTime(it) }
                     .toTypedArray()
