@@ -743,6 +743,12 @@
     <string name="filter_time_past">Past (ended)</string>
     <string name="filter_time_started_this_month">Started this month</string>
     <string name="filter_apply">Apply</string>
+    
+    <!-- Calendar filter -->
+    <string name="filter_calendar">Calendar</string>
+    <string name="filter_calendar_title">Filter by Calendar</string>
+    <string name="filter_calendar_all">All Calendars</string>
+    <string name="filter_calendar_count">%d calendars</string>
 
     <!-- New UI banner -->
     <string name="new_ui_banner_text">Not a fan of the new look? <u>Switch back to classic view</u></string>

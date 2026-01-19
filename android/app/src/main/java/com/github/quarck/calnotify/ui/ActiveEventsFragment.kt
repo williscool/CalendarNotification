@@ -168,7 +168,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         background {
             val events = getEventsStorage(ctx).use { db ->
                 db.eventsForDisplay
-                    .filter { filterState.matchesStatus(it) && filterState.matchesTime(it) }
+                    .filter { filterState.matchesCalendar(it) && filterState.matchesStatus(it) && filterState.matchesTime(it) }
                     .toTypedArray()
             }
             

@@ -69,6 +69,12 @@ data class FilterState(
     fun matchesTime(event: EventAlertRecord, now: Long = System.currentTimeMillis()): Boolean {
         return timeFilter.matches(event, now)
     }
+    
+    /** Check if an event matches current calendar filter (empty set = match all) */
+    fun matchesCalendar(event: EventAlertRecord): Boolean {
+        if (selectedCalendarIds.isEmpty()) return true  // No filter = show all
+        return event.calendarId in selectedCalendarIds
+    }
 }
 
 /**
@@ -421,16 +427,19 @@ class MainActivityModern : MainActivityBase() {
         
         when (currentDestination) {
             R.id.activeEventsFragment -> {
-                // Active tab: Status, Time (Calendar coming later)
+                // Active tab: Calendar, Status, Time
+                addCalendarChip()
                 addStatusChip()
                 addTimeChip(TimeFilterBottomSheet.TabType.ACTIVE)
             }
             R.id.upcomingEventsFragment -> {
-                // Upcoming tab: Status only (Time filter deferred - needs lookahead integration)
+                // Upcoming tab: Calendar, Status (Time filter deferred - needs lookahead integration)
+                addCalendarChip()
                 addStatusChip()
             }
             R.id.dismissedEventsFragment -> {
-                // Dismissed tab: Time (Calendar coming later)
+                // Dismissed tab: Calendar, Time
+                addCalendarChip()
                 addTimeChip(TimeFilterBottomSheet.TabType.DISMISSED)
             }
         }
@@ -546,6 +555,46 @@ class MainActivityModern : MainActivityBase() {
             notifyCurrentFragmentFilterChanged()
         }
         bottomSheet.show(supportFragmentManager, "TimeFilterBottomSheet")
+    }
+    
+    // === Calendar Filter Chip ===
+    
+    private fun addCalendarChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getCalendarChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showCalendarFilterBottomSheet() }
+            setOnCloseIconClickListener { showCalendarFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getCalendarChipText(): String {
+        val selectedCount = filterState.selectedCalendarIds.size
+        return when {
+            selectedCount == 0 -> getString(R.string.filter_calendar)
+            selectedCount == 1 -> {
+                // Try to get calendar name
+                val calendarId = filterState.selectedCalendarIds.first()
+                val calendar = CalendarProvider.getCalendarById(this, calendarId)
+                calendar?.displayName?.ifEmpty { calendar.name } ?: getString(R.string.filter_calendar)
+            }
+            else -> getString(R.string.filter_calendar_count, selectedCount)
+        }
+    }
+    
+    private fun showCalendarFilterBottomSheet() {
+        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds)
+        bottomSheet.onCalendarsSelected = { selectedCalendars ->
+            filterState = filterState.copy(selectedCalendarIds = selectedCalendars)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
     }
 
     companion object {

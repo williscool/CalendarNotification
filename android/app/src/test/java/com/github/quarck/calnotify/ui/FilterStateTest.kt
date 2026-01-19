@@ -371,4 +371,72 @@ class FilterStateTest {
         val filter = FilterState()
         assertEquals(TimeFilter.ALL, filter.timeFilter)
     }
+    
+    // === CalendarFilter Tests ===
+    
+    @Test
+    fun `empty calendar filter matches all events`() {
+        val filter = FilterState(selectedCalendarIds = emptySet())
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        val event3 = createEventWithCalendar(calendarId = 999L)
+        
+        assertTrue(filter.matchesCalendar(event1))
+        assertTrue(filter.matchesCalendar(event2))
+        assertTrue(filter.matchesCalendar(event3))
+    }
+    
+    @Test
+    fun `single calendar filter matches only that calendar`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L))
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        
+        assertTrue(filter.matchesCalendar(event1))
+        assertFalse(filter.matchesCalendar(event2))
+    }
+    
+    @Test
+    fun `multi-calendar filter matches any selected calendar`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L, 3L))
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        val event3 = createEventWithCalendar(calendarId = 3L)
+        
+        assertTrue(filter.matchesCalendar(event1))
+        assertFalse(filter.matchesCalendar(event2))
+        assertTrue(filter.matchesCalendar(event3))
+    }
+    
+    @Test
+    fun `FilterState default has empty calendar filter`() {
+        val filter = FilterState()
+        assertTrue(filter.selectedCalendarIds.isEmpty())
+    }
+    
+    private fun createEventWithCalendar(calendarId: Long): EventAlertRecord {
+        val now = System.currentTimeMillis()
+        return EventAlertRecord(
+            calendarId = calendarId,
+            eventId = 1L,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = now,
+            notificationId = 0,
+            title = "Test Event",
+            desc = "",
+            startTime = now + 3600000,
+            endTime = now + 7200000,
+            instanceStartTime = now + 3600000,
+            instanceEndTime = now + 7200000,
+            location = "",
+            lastStatusChangeTime = now,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0
+        )
+    }
 }

@@ -163,7 +163,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
         background {
             val events = getDismissedEventsStorage(ctx).use { db ->
                 db.eventsForDisplay
-                    .filter { filterState.matchesTime(it.event) }
+                    .filter { filterState.matchesCalendar(it.event) && filterState.matchesTime(it.event) }
                     .toTypedArray()
             }
             
