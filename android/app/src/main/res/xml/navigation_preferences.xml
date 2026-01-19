@@ -58,6 +58,18 @@
             android:entryValues="@array/calendar_filter_max_items_values"
             android:defaultValue="20" />
 
+        <CheckBoxPreference
+            android:key="calendar_filter_show_search"
+            android:title="@string/calendar_filter_show_search_title"
+            android:summary="@string/calendar_filter_show_search_summary"
+            android:defaultValue="true" />
+
+        <CheckBoxPreference
+            android:key="calendar_filter_show_ids"
+            android:title="@string/calendar_filter_show_ids_title"
+            android:summary="@string/calendar_filter_show_ids_summary"
+            android:defaultValue="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

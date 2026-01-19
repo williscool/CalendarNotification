@@ -58,6 +58,9 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     /** Max items setting */
     private var maxItems: Int = 20
     
+    /** Whether to show calendar IDs */
+    private var showIds: Boolean = false
+    
     /** Current search query for rebuilding list */
     private var currentSearchQuery: String = ""
     
@@ -88,12 +91,18 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         val ctx = requireContext()
         val settings = Settings(ctx)
         maxItems = settings.calendarFilterMaxItems
+        showIds = settings.calendarFilterShowIds
         
         calendarContainer = view.findViewById(R.id.calendar_list_container)
         allCalendarsCheckbox = view.findViewById(R.id.checkbox_all_calendars)
         showingCountText = view.findViewById(R.id.showing_count)
         val applyButton = view.findViewById<Button>(R.id.btn_apply)
         val searchEditText = view.findViewById<EditText>(R.id.search_calendars)
+        
+        // Hide search box if disabled in settings
+        if (!settings.calendarFilterShowSearch) {
+            searchEditText.visibility = View.GONE
+        }
         
         // Get handled calendars (data only - no views created yet)
         val allCalendars = CalendarProvider.getCalendars(ctx)
@@ -108,7 +117,7 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         // Initial display with limit applied - only creates views for displayed items
         rebuildCalendarList("")
         
-        // Set up search
+        // Set up search (even if hidden, in case setting changes mid-session)
         searchEditText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -189,7 +198,11 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
             
             colorView.background = ColorDrawable(calendar.color)
             val calendarName = calendar.displayName.ifEmpty { calendar.name }
-            checkbox.text = getString(R.string.filter_calendar_name_with_id, calendarName, calendar.calendarId)
+            checkbox.text = if (showIds) {
+                getString(R.string.filter_calendar_name_with_id, calendarName, calendar.calendarId)
+            } else {
+                calendarName
+            }
             checkbox.isChecked = calendar.calendarId in selectedCalendarIds
             
             checkbox.setOnCheckedChangeListener { _, isChecked ->

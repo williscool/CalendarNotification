@@ -781,6 +781,10 @@
     <string name="filter_settings_category">Filters</string>
     <string name="calendar_filter_max_items_title">Max calendars in filter</string>
     <string name="calendar_filter_max_items_summary">Limit calendars shown (use search to find more)</string>
+    <string name="calendar_filter_show_search_title">Show search in calendar filter</string>
+    <string name="calendar_filter_show_search_summary">Enable search box to find calendars</string>
+    <string name="calendar_filter_show_ids_title">Show calendar IDs</string>
+    <string name="calendar_filter_show_ids_summary">Display calendar IDs for debugging</string>
     <string name="calendar_filter_showing_count">Showing %1$d of %2$d</string>
     <string name="calendar_filter_search_hint">Search calendars…</string>
     

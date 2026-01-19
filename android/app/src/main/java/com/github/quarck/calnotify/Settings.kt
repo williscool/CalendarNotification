@@ -23,6 +23,7 @@ import android.content.Context
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.prefs.PreferenceUtils
 import com.github.quarck.calnotify.utils.PersistentStorageBase
@@ -479,6 +480,14 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     val calendarFilterMaxItems: Int
         get() = getString(CALENDAR_FILTER_MAX_ITEMS_KEY, DEFAULT_CALENDAR_FILTER_MAX_ITEMS.toString())
             .toIntOrNull() ?: DEFAULT_CALENDAR_FILTER_MAX_ITEMS
+    
+    /** Show search box in calendar filter. Default: true */
+    val calendarFilterShowSearch: Boolean
+        get() = getBoolean(CALENDAR_FILTER_SHOW_SEARCH_KEY, true)
+    
+    /** Show calendar IDs in calendar filter. Default: true if dev mode, false otherwise */
+    val calendarFilterShowIds: Boolean
+        get() = getBoolean(CALENDAR_FILTER_SHOW_IDS_KEY, BuildConfig.DEV_PAGE_ENABLED || devModeEnabled)
 
     /** Number of days to keep dismissed events in the bin. 0 means forever. */
     val keepHistoryDays: Int
@@ -578,6 +587,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
         private const val CALENDAR_FILTER_MAX_ITEMS_KEY = "calendar_filter_max_items"
+        private const val CALENDAR_FILTER_SHOW_SEARCH_KEY = "calendar_filter_show_search"
+        private const val CALENDAR_FILTER_SHOW_IDS_KEY = "calendar_filter_show_ids"
 
         // Default values
         /** Default theme mode: follow system (-1 = MODE_NIGHT_FOLLOW_SYSTEM) */
