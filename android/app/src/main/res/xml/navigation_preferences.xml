@@ -14,6 +14,28 @@
         android:defaultValue="true" />
 
     <PreferenceCategory
+        android:title="@string/switch_view_category"
+        android:key="_switch_view">
+
+        <CheckBoxPreference
+            android:key="show_new_ui_banner"
+            android:title="@string/show_new_ui_banner_title"
+            android:summary="@string/show_new_ui_banner_summary"
+            android:defaultValue="true" />
+
+        <Preference
+            android:key="switch_to_classic_view"
+            android:title="@string/switch_to_classic_view_title"
+            android:summary="@string/switch_to_classic_view_summary" />
+
+        <Preference
+            android:key="switch_to_new_view"
+            android:title="@string/switch_to_new_view_title"
+            android:summary="@string/switch_to_new_view_summary" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/upcoming_events_category"
         android:key="_upcoming_events"
         android:dependency="use_new_navigation_ui">
@@ -45,24 +67,30 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/switch_view_category"
-        android:key="_switch_view">
+        android:title="@string/filter_settings_category"
+        android:key="_filter_settings"
+        android:dependency="use_new_navigation_ui">
+
+        <ListPreference
+            android:key="calendar_filter_max_items"
+            android:title="@string/calendar_filter_max_items_title"
+            android:summary="@string/calendar_filter_max_items_summary"
+            android:dialogTitle="@string/calendar_filter_max_items_title"
+            android:entries="@array/calendar_filter_max_items_entries"
+            android:entryValues="@array/calendar_filter_max_items_values"
+            android:defaultValue="20" />
 
         <CheckBoxPreference
-            android:key="show_new_ui_banner"
-            android:title="@string/show_new_ui_banner_title"
-            android:summary="@string/show_new_ui_banner_summary"
+            android:key="calendar_filter_show_search"
+            android:title="@string/calendar_filter_show_search_title"
+            android:summary="@string/calendar_filter_show_search_summary"
             android:defaultValue="true" />
 
-        <Preference
-            android:key="switch_to_classic_view"
-            android:title="@string/switch_to_classic_view_title"
-            android:summary="@string/switch_to_classic_view_summary" />
-
-        <Preference
-            android:key="switch_to_new_view"
-            android:title="@string/switch_to_new_view_title"
-            android:summary="@string/switch_to_new_view_summary" />
+        <CheckBoxPreference
+            android:key="calendar_filter_show_ids"
+            android:title="@string/calendar_filter_show_ids_title"
+            android:summary="@string/calendar_filter_show_ids_summary"
+            android:defaultValue="false" />
 
     </PreferenceCategory>
 

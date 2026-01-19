@@ -726,6 +726,33 @@
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
 
+    <!-- Filter chips -->
+    <string name="filter_status">Status</string>
+    <string name="filter_status_all">All</string>
+    <string name="filter_status_snoozed">Snoozed</string>
+    <string name="filter_status_active">Active</string>
+    <string name="filter_status_muted">Muted</string>
+    <string name="filter_status_recurring">Recurring</string>
+    
+    <!-- Time filter -->
+    <string name="filter_time">Time</string>
+    <string name="filter_time_title">Filter by Time</string>
+    <string name="filter_time_all">All</string>
+    <string name="filter_time_started_today">Started today</string>
+    <string name="filter_time_started_this_week">Started this week</string>
+    <string name="filter_time_past">Past (ended)</string>
+    <string name="filter_time_started_this_month">Started this month</string>
+    <string name="filter_apply">Apply</string>
+    
+    <!-- Calendar filter -->
+    <string name="filter_calendar">Calendar</string>
+    <string name="filter_calendar_title">Filter by Calendar</string>
+    <string name="filter_calendar_all">All Calendars</string>
+    <string name="filter_calendar_count">%d calendars</string>
+    <string name="filter_calendar_none">None</string>
+    <string name="filter_calendar_name_with_id">%1$s - %2$d</string>
+    <string name="filter_name_plus_count">%1$s, +%2$d</string>
+
     <!-- New UI banner -->
     <string name="new_ui_banner_text">Not a fan of the new look? <u>Switch back to classic view</u></string>
 
@@ -749,4 +776,33 @@
     <string name="switch_to_new_view_summary">Enable new UI and restart with the tabbed navigation view</string>
     <string name="switch_to_new_view_confirm">Switch to new view? The app will restart.</string>
     <string name="restarting">Restarting…</string>
+    
+    <!-- Filter settings -->
+    <string name="filter_settings_category">Filters</string>
+    <string name="calendar_filter_max_items_title">Max calendars in filter</string>
+    <string name="calendar_filter_max_items_summary">Limit calendars shown (use search to find more)</string>
+    <string name="calendar_filter_show_search_title">Show search in calendar filter</string>
+    <string name="calendar_filter_show_search_summary">Enable search box to find calendars</string>
+    <string name="calendar_filter_show_ids_title">Show calendar IDs</string>
+    <string name="calendar_filter_show_ids_summary">Display calendar IDs for debugging</string>
+    <string name="calendar_filter_showing_count">Showing %1$d of %2$d</string>
+    <string name="calendar_filter_search_hint">Search calendars…</string>
+    
+    <string-array name="calendar_filter_max_items_entries">
+        <item>No limit</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>50</item>
+    </string-array>
+    
+    <string-array name="calendar_filter_max_items_values">
+        <item>0</item>
+        <item>10</item>
+        <item>15</item>
+        <item>20</item>
+        <item>30</item>
+        <item>50</item>
+    </string-array>
 </resources>

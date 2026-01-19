@@ -28,6 +28,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.PopupMenu
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
@@ -39,12 +40,21 @@ import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.globalState
+import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.truncateForChip
+import androidx.appcompat.view.ContextThemeWrapper
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+
+// FilterState, StatusOption, TimeFilter are defined in FilterState.kt
 
 /**
  * Modern MainActivity implementation with fragment-based navigation.
@@ -55,11 +65,75 @@ class MainActivityModern : MainActivityBase() {
     private var navController: NavController? = null
 
     private lateinit var floatingAddEvent: FloatingActionButton
+    
+    // Filter state - in-memory only, clears on tab switch and app restart
+    private var filterState = FilterState()
+    private var chipGroup: ChipGroup? = null
+    private var currentDestinationId: Int? = null  // Track to detect actual tab switches
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Restore filter state if available (survives rotation)
+        savedInstanceState?.let { restoreFilterState(it) }
+        
         setupUI()
     }
+    
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        saveFilterState(outState)
+    }
+    
+    private fun saveFilterState(outState: Bundle) {
+        // Save calendar filter (null = all, empty = none, set = specific)
+        filterState.selectedCalendarIds?.let { 
+            outState.putLongArray(STATE_CALENDAR_IDS, it.toLongArray())
+        } ?: outState.putBoolean(STATE_CALENDAR_NULL, true)
+        
+        // Save status filters as ordinal array
+        outState.putIntArray(STATE_STATUS_FILTERS, filterState.statusFilters.map { it.ordinal }.toIntArray())
+        
+        // Save time filter
+        outState.putInt(STATE_TIME_FILTER, filterState.timeFilter.ordinal)
+        
+        // Save current destination to detect recreation vs tab switch
+        currentDestinationId?.let { outState.putInt(STATE_DESTINATION_ID, it) }
+    }
+    
+    private fun restoreFilterState(savedState: Bundle) {
+        // Restore calendar filter
+        val calendarIds: Set<Long>? = if (savedState.getBoolean(STATE_CALENDAR_NULL, false)) {
+            null
+        } else {
+            savedState.getLongArray(STATE_CALENDAR_IDS)?.toSet()
+        }
+        
+        // Restore status filters
+        val statusFilters = savedState.getIntArray(STATE_STATUS_FILTERS)
+            ?.toList()
+            ?.mapNotNull { ordinal -> StatusOption.entries.getOrNull(ordinal) }
+            ?.toSet() ?: emptySet()
+        
+        // Restore time filter
+        val timeFilter = TimeFilter.entries.getOrNull(
+            savedState.getInt(STATE_TIME_FILTER, 0)
+        ) ?: TimeFilter.ALL
+        
+        filterState = FilterState(
+            selectedCalendarIds = calendarIds,
+            statusFilters = statusFilters,
+            timeFilter = timeFilter
+        )
+        
+        // Restore destination ID to detect recreation vs tab switch
+        if (savedState.containsKey(STATE_DESTINATION_ID)) {
+            currentDestinationId = savedState.getInt(STATE_DESTINATION_ID)
+        }
+    }
+    
+    /** Get current filter state for fragments to use */
+    fun getCurrentFilterState(): FilterState = filterState
 
     private fun setupUI() {
         setContentView(R.layout.activity_main)
@@ -101,6 +175,12 @@ class MainActivityModern : MainActivityBase() {
             ViewCompat.requestApplyInsets(nav)
         }
 
+        // Setup filter chips
+        chipGroup = find<ChipGroup>(R.id.filter_chips)
+        
+        // Setup Fragment Result listeners for bottom sheets (survives config changes)
+        setupFilterResultListeners()
+
         // Update toolbar title based on current destination
         navController?.addOnDestinationChangedListener { _, destination, _ ->
             supportActionBar?.title = when (destination.id) {
@@ -109,9 +189,19 @@ class MainActivityModern : MainActivityBase() {
                 R.id.dismissedEventsFragment -> getString(R.string.title_dismissed)
                 else -> getString(R.string.app_name)
             }
-            // Clear search when switching tabs
-            searchView?.setQuery("", false)
-            searchMenuItem?.collapseActionView()
+            
+            // Only clear filters/search on actual tab switches, not on initial setup or recreation
+            val isActualTabSwitch = currentDestinationId != null && currentDestinationId != destination.id
+            if (isActualTabSwitch) {
+                // Clear search when switching tabs
+                searchView?.setQuery("", false)
+                searchMenuItem?.collapseActionView()
+                // Clear filters when switching tabs (same behavior as search)
+                filterState = FilterState()
+            }
+            
+            currentDestinationId = destination.id
+            updateFilterChipsForCurrentTab()
             // Update menu items based on current tab (e.g., hide snooze/dismiss all on non-active tabs)
             invalidateOptionsMenu()
         }
@@ -300,8 +390,259 @@ class MainActivityModern : MainActivityBase() {
         getCurrentSearchableFragment()?.onMuteAllComplete()
         invalidateOptionsMenu()
     }
+    
+    // === Filter Chips ===
+    
+    private fun updateFilterChipsForCurrentTab() {
+        chipGroup?.removeAllViews()
+        
+        val currentDestination = navController?.currentDestination?.id ?: return
+        
+        when (currentDestination) {
+            R.id.activeEventsFragment -> {
+                // Active tab: Calendar, Status, Time
+                addCalendarChip()
+                addStatusChip()
+                addTimeChip(TimeFilterBottomSheet.TabType.ACTIVE)
+            }
+            R.id.upcomingEventsFragment -> {
+                // Upcoming tab: Calendar, Status (Time filter deferred - needs lookahead integration)
+                addCalendarChip()
+                addStatusChip()
+            }
+            R.id.dismissedEventsFragment -> {
+                // Dismissed tab: Calendar, Time
+                addCalendarChip()
+                addTimeChip(TimeFilterBottomSheet.TabType.DISMISSED)
+            }
+        }
+    }
+    
+    private fun addStatusChip() {
+        // Chip requires MaterialComponents theme - wrap context
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getStatusChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showStatusFilterPopup(it) }
+            setOnCloseIconClickListener { showStatusFilterPopup(it) }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getStatusChipText(): String {
+        val filters = filterState.statusFilters
+        return when {
+            filters.isEmpty() -> getString(R.string.filter_status)
+            filters.size == 1 -> filters.first().toDisplayString()
+            filters.size == 2 -> {
+                // Two filters - show both, but truncate if combined too long
+                val combined = filters.joinToString(", ") { it.toDisplayString() }
+                if (combined.length <= MAX_COMBINED_STATUS_CHIP_LENGTH) {
+                    combined
+                } else {
+                    getString(R.string.filter_name_plus_count, filters.first().toDisplayString(), 1)
+                }
+            }
+            else -> {
+                // Show first filter + count of remaining
+                val first = filters.first().toDisplayString()
+                getString(R.string.filter_name_plus_count, first, filters.size - 1)
+            }
+        }
+    }
+    
+    private fun StatusOption.toDisplayString(): String = when (this) {
+        StatusOption.SNOOZED -> getString(R.string.filter_status_snoozed)
+        StatusOption.ACTIVE -> getString(R.string.filter_status_active)
+        StatusOption.MUTED -> getString(R.string.filter_status_muted)
+        StatusOption.RECURRING -> getString(R.string.filter_status_recurring)
+    }
+    
+    private fun showStatusFilterPopup(anchor: View) {
+        val isUpcoming = navController?.currentDestination?.id == R.id.upcomingEventsFragment
+        
+        PopupMenu(this, anchor).apply {
+            // Add "All" option with special ID
+            menu.add(Menu.NONE, -1, 0, R.string.filter_status_all).isCheckable = true
+            
+            // Add status options - exclude SNOOZED and ACTIVE for Upcoming tab (not applicable)
+            StatusOption.entries.forEachIndexed { index, option ->
+                if (isUpcoming && option in listOf(StatusOption.SNOOZED, StatusOption.ACTIVE)) return@forEachIndexed
+                menu.add(Menu.NONE, option.ordinal, index + 1, option.toDisplayString()).isCheckable = true
+            }
+            
+            // Set current checked states
+            val currentFilters = filterState.statusFilters
+            menu.findItem(-1)?.isChecked = currentFilters.isEmpty()
+            StatusOption.entries.forEach { option ->
+                menu.findItem(option.ordinal)?.isChecked = option in currentFilters
+            }
+            
+            setOnMenuItemClickListener { item ->
+                if (item.itemId == -1) {
+                    // "All" selected - clear all filters
+                    filterState = filterState.copy(statusFilters = emptySet())
+                } else {
+                    val option = StatusOption.entries[item.itemId]
+                    val newFilters = if (option in filterState.statusFilters) {
+                        filterState.statusFilters - option
+                    } else {
+                        filterState.statusFilters + option
+                    }
+                    filterState = filterState.copy(statusFilters = newFilters)
+                }
+                updateFilterChipsForCurrentTab()
+                notifyCurrentFragmentFilterChanged()
+                true
+            }
+            show()
+        }
+    }
+    
+    private fun notifyCurrentFragmentFilterChanged() {
+        getCurrentSearchableFragment()?.onFilterChanged()
+    }
+    
+    // === Time Filter Chip ===
+    
+    private fun addTimeChip(tabType: TimeFilterBottomSheet.TabType) {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getTimeChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showTimeFilterBottomSheet(tabType) }
+            setOnCloseIconClickListener { showTimeFilterBottomSheet(tabType) }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getTimeChipText(): String {
+        return when (filterState.timeFilter) {
+            TimeFilter.ALL -> getString(R.string.filter_time)
+            TimeFilter.STARTED_TODAY -> getString(R.string.filter_time_started_today)
+            TimeFilter.STARTED_THIS_WEEK -> getString(R.string.filter_time_started_this_week)
+            TimeFilter.PAST -> getString(R.string.filter_time_past)
+            TimeFilter.STARTED_THIS_MONTH -> getString(R.string.filter_time_started_this_month)
+        }
+    }
+    
+    private fun showTimeFilterBottomSheet(tabType: TimeFilterBottomSheet.TabType) {
+        val bottomSheet = TimeFilterBottomSheet.newInstance(filterState.timeFilter, tabType)
+        bottomSheet.show(supportFragmentManager, "TimeFilterBottomSheet")
+    }
+    
+    // === Calendar Filter Chip ===
+    
+    private fun addCalendarChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getCalendarChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showCalendarFilterBottomSheet() }
+            setOnCloseIconClickListener { showCalendarFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getCalendarChipText(): String {
+        val selectedIds = filterState.selectedCalendarIds
+        // null = no filter (all calendars), empty = none selected
+        if (selectedIds == null) return getString(R.string.filter_calendar)
+        
+        val selectedCount = selectedIds.size
+        return when {
+            selectedCount == 0 -> getString(R.string.filter_calendar_none)
+            selectedCount == 1 -> {
+                // Single calendar - show name (already truncated by getCalendarName)
+                val calendarId = selectedIds.first()
+                getCalendarName(calendarId) ?: getString(R.string.filter_calendar)
+            }
+            selectedCount == 2 -> {
+                // Two calendars - show both names if combined fits, else first + count
+                val names = selectedIds.mapNotNull { getCalendarName(it) }
+                if (names.size == 2) {
+                    val combined = names.joinToString(", ")
+                    if (combined.length <= MAX_COMBINED_CALENDAR_CHIP_LENGTH) {
+                        combined
+                    } else {
+                        getString(R.string.filter_name_plus_count, names.first(), 1)
+                    }
+                } else {
+                    getString(R.string.filter_calendar_count, selectedCount)
+                }
+            }
+            else -> {
+                // 3+ calendars - show first name + count
+                val firstName = getCalendarName(selectedIds.first())
+                if (firstName != null) {
+                    getString(R.string.filter_name_plus_count, firstName, selectedCount - 1)
+                } else {
+                    getString(R.string.filter_calendar_count, selectedCount)
+                }
+            }
+        }
+    }
+    
+    private fun getCalendarName(calendarId: Long): String? {
+        val calendar = CalendarProvider.getCalendarById(this, calendarId)
+        val name = calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
+        return name?.truncateForChip()
+    }
+    
+    private fun showCalendarFilterBottomSheet() {
+        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds ?: emptySet())
+        bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
+    }
+    
+    /** Setup Fragment Result listeners for bottom sheets (survives config changes) */
+    private fun setupFilterResultListeners() {
+        // Time filter result
+        supportFragmentManager.setFragmentResultListener(
+            TimeFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val filterOrdinal = bundle.getInt(TimeFilterBottomSheet.RESULT_FILTER, 0)
+            val selectedFilter = TimeFilter.entries.getOrNull(filterOrdinal) ?: TimeFilter.ALL
+            filterState = filterState.copy(timeFilter = selectedFilter)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Calendar filter result
+        supportFragmentManager.setFragmentResultListener(
+            CalendarFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val calendarArray = bundle.getLongArray(CalendarFilterBottomSheet.RESULT_CALENDARS)
+            val selectedCalendars: Set<Long>? = calendarArray?.toSet()
+            filterState = filterState.copy(selectedCalendarIds = selectedCalendars)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+    }
 
     companion object {
         private const val LOG_TAG = "MainActivityModern"
+        
+        /** Max length for combined status filter names before showing "+N" */
+        private const val MAX_COMBINED_STATUS_CHIP_LENGTH = 20
+        
+        /** Max length for combined calendar names before showing "+N" */
+        private const val MAX_COMBINED_CALENDAR_CHIP_LENGTH = 25
+        
+        // SavedInstanceState keys for filter persistence across rotation
+        private const val STATE_CALENDAR_IDS = "filter_calendar_ids"
+        private const val STATE_CALENDAR_NULL = "filter_calendar_null"
+        private const val STATE_STATUS_FILTERS = "filter_status"
+        private const val STATE_TIME_FILTER = "filter_time"
+        private const val STATE_DESTINATION_ID = "filter_destination_id"
     }
 }

@@ -25,6 +25,9 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixtureRobolectric
+import com.github.quarck.calnotify.ui.FilterState
+import com.github.quarck.calnotify.ui.StatusOption
+import com.github.quarck.calnotify.ui.TimeFilter
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -250,6 +253,177 @@ class ActiveEventsFragmentRobolectricTest {
             val emptyView = fragment.requireView().findViewById<TextView>(R.id.empty_view)
             assertNotNull(emptyView)
             assertEquals(fragment.getString(R.string.empty_active), emptyView.text)
+        }
+        
+        scenario.close()
+    }
+    
+    // === Filter Tests (Milestone 3: Filter Pills) ===
+    
+    @Test
+    fun activeEventsFragment_filter_SNOOZED_shows_only_snoozed_events() {
+        // Create mixed events
+        fixture.createEvent(title = "Active Event")
+        fixture.createSnoozedEvent(title = "Snoozed Event")
+        fixture.createMutedEvent(title = "Muted Event")
+        
+        // Set filter to SNOOZED only
+        ActiveEventsFragment.filterStateProvider = { FilterState(statusFilters = setOf(StatusOption.SNOOZED)) }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("Only snoozed event should be shown", 1, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_filter_ACTIVE_shows_only_active_events() {
+        // Create mixed events
+        fixture.createEvent(title = "Active Event")
+        fixture.createSnoozedEvent(title = "Snoozed Event")
+        
+        // Set filter to ACTIVE only
+        ActiveEventsFragment.filterStateProvider = { FilterState(statusFilters = setOf(StatusOption.ACTIVE)) }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("Only active (not snoozed) event should be shown", 1, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_filter_MUTED_shows_only_muted_events() {
+        // Create mixed events
+        fixture.createEvent(title = "Normal Event")
+        fixture.createMutedEvent(title = "Muted Event")
+        
+        // Set filter to MUTED only
+        ActiveEventsFragment.filterStateProvider = { FilterState(statusFilters = setOf(StatusOption.MUTED)) }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("Only muted event should be shown", 1, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_multi_filter_uses_OR_logic() {
+        // Create mixed events
+        fixture.createEvent(title = "Normal Event")
+        fixture.createSnoozedEvent(title = "Snoozed Event")
+        fixture.createMutedEvent(title = "Muted Event")
+        
+        // Set filter to SNOOZED OR MUTED
+        ActiveEventsFragment.filterStateProvider = { 
+            FilterState(statusFilters = setOf(StatusOption.SNOOZED, StatusOption.MUTED)) 
+        }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("Snoozed and muted events should be shown", 2, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_empty_filter_shows_all_events() {
+        // Create mixed events
+        fixture.createEvent(title = "Normal Event")
+        fixture.createSnoozedEvent(title = "Snoozed Event")
+        fixture.createMutedEvent(title = "Muted Event")
+        
+        // Empty filter = show all
+        ActiveEventsFragment.filterStateProvider = { FilterState(statusFilters = emptySet()) }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("All events should be shown", 3, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    // === Time Filter Tests ===
+    
+    @Test
+    fun activeEventsFragment_time_filter_PAST_shows_only_ended_events() {
+        // Create an event that has already ended
+        fixture.createEvent(
+            title = "Past Event",
+            startTimeOffset = -2 * 3600 * 1000L,  // 2 hours ago
+            durationMillis = 30 * 60 * 1000L     // 30 min duration (ended 1.5 hours ago)
+        )
+        // Create an ongoing event
+        fixture.createEvent(
+            title = "Ongoing Event",
+            startTimeOffset = -30 * 60 * 1000L,  // 30 min ago
+            durationMillis = 2 * 3600 * 1000L   // 2 hour duration (still ongoing)
+        )
+        
+        // Set filter to PAST only
+        ActiveEventsFragment.filterStateProvider = { FilterState(timeFilter = TimeFilter.PAST) }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("Only past (ended) event should be shown", 1, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_time_filter_ALL_shows_all_events() {
+        fixture.createEvent(title = "Event 1")
+        fixture.createEvent(title = "Event 2")
+        
+        // Set filter to ALL
+        ActiveEventsFragment.filterStateProvider = { FilterState(timeFilter = TimeFilter.ALL) }
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("All events should be shown with ALL filter", 2, adapter?.itemCount)
         }
         
         scenario.close()

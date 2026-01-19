@@ -128,6 +128,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        
         background {
             val events = getMonitorStorage(ctx).use { storage ->
                 val provider = UpcomingEventsProvider(
@@ -137,7 +139,11 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                     monitorStorage = storage,
                     calendarProvider = getCalendarProvider()
                 )
-                provider.getUpcomingEvents().toTypedArray()
+                filterState.filterEvents(
+                    provider.getUpcomingEvents(),
+                    clock.currentTimeMillis(),
+                    apply = setOf(FilterType.CALENDAR, FilterType.STATUS)
+                )
             }
             
             activity?.runOnUiThread {
@@ -148,6 +154,12 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                 activity?.invalidateOptionsMenu()
             }
         }
+    }
+    
+    private fun getFilterState(): FilterState {
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -228,6 +240,10 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun onFilterChanged() {
+        loadEvents()
+    }
 
     companion object {
         private const val LOG_TAG = "UpcomingEventsFragment"
@@ -240,6 +256,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         
         /** Provider for Clock - enables DI for testing */
         var clockProvider: (() -> CNPlusClockInterface)? = null
+        
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
         
         /** Gets MonitorStorage - uses provider if set, otherwise creates real instance */
         fun getMonitorStorage(ctx: Context): MonitorStorageInterface =
@@ -258,6 +277,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
             monitorStorageProvider = null
             calendarProviderProvider = null
             clockProvider = null
+            filterStateProvider = null
         }
     }
 }

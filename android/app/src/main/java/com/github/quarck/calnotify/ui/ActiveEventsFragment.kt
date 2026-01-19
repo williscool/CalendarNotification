@@ -47,6 +47,8 @@ import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
 import com.google.android.material.snackbar.Snackbar
 
@@ -57,6 +59,7 @@ import com.google.android.material.snackbar.Snackbar
 class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private lateinit var settings: Settings
+    private val clock: CNPlusClockInterface get() = getClock()
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
@@ -163,9 +166,12 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        val now = clock.currentTimeMillis()
+        
         background {
             val events = getEventsStorage(ctx).use { db ->
-                db.eventsForDisplay.toTypedArray()
+                filterState.filterEvents(db.eventsForDisplay, now)
             }
             
             activity?.runOnUiThread {
@@ -176,6 +182,12 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
                 activity?.invalidateOptionsMenu()
             }
         }
+    }
+    
+    private fun getFilterState(): FilterState {
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
     }
 
     private fun updateEmptyState() {
@@ -251,6 +263,10 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     override fun onDismissAllComplete() {
         loadEvents()
     }
+    
+    override fun onFilterChanged() {
+        loadEvents()
+    }
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"
@@ -258,13 +274,25 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         /** Provider for EventsStorage - enables DI for testing */
         var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
         
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
+        
+        /** Provider for Clock - enables DI for testing */
+        var clockProvider: (() -> CNPlusClockInterface)? = null
+        
         /** Gets EventsStorage - uses provider if set, otherwise creates real instance */
         fun getEventsStorage(ctx: Context): EventsStorageInterface =
             eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
         
+        /** Gets Clock - uses provider if set, otherwise returns real instance */
+        fun getClock(): CNPlusClockInterface =
+            clockProvider?.invoke() ?: CNPlusSystemClock()
+        
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             eventsStorageProvider = null
+            filterStateProvider = null
+            clockProvider = null
         }
     }
 }
