@@ -33,6 +33,13 @@ import com.github.quarck.calnotify.logs.DevLog
 class MockEventsStorage : EventsStorageInterface {
     private val LOG_TAG = "MockEventsStorage"
     
+    // Track closed state to match real storage behavior
+    private var closed = false
+    
+    private fun ensureNotClosed() {
+        if (closed) throw IllegalStateException("MockEventsStorage has been closed - cannot perform operations on closed storage")
+    }
+    
     // In-memory storage for events
     // Key: (eventId, instanceStartTime)
     private val eventsMap = mutableMapOf<EventKey, EventAlertRecord>()
@@ -40,6 +47,7 @@ class MockEventsStorage : EventsStorageInterface {
     data class EventKey(val eventId: Long, val instanceStartTime: Long)
     
     override fun addEvent(event: EventAlertRecord): Boolean {
+        ensureNotClosed()
         DevLog.info(LOG_TAG, "Adding event: eventId=${event.eventId}")
         val key = EventKey(event.eventId, event.instanceStartTime)
         eventsMap[key] = event
@@ -47,6 +55,7 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun addEvents(events: List<EventAlertRecord>): Boolean {
+        ensureNotClosed()
         DevLog.info(LOG_TAG, "Adding ${events.size} events")
         events.forEach { addEvent(it) }
         return true
@@ -66,6 +75,7 @@ class MockEventsStorage : EventsStorageInterface {
         isRepeating: Boolean?,
         isMuted: Boolean?
     ): Pair<Boolean, EventAlertRecord> {
+        ensureNotClosed()
         val key = EventKey(event.eventId, event.instanceStartTime)
         val existing = eventsMap[key] ?: return Pair(false, event)
         
@@ -103,6 +113,7 @@ class MockEventsStorage : EventsStorageInterface {
         color: Int?,
         isRepeating: Boolean?
     ): Boolean {
+        ensureNotClosed()
         events.forEach { event ->
             updateEvent(event, alertTime, title, snoozedUntil, startTime, endTime, 
                 location, lastStatusChangeTime, displayStatus, color, isRepeating)
@@ -111,6 +122,7 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun updateEventAndInstanceTimes(event: EventAlertRecord, instanceStart: Long, instanceEnd: Long): Boolean {
+        ensureNotClosed()
         val oldKey = EventKey(event.eventId, event.instanceStartTime)
         eventsMap.remove(oldKey)
         
@@ -124,6 +136,7 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun updateEventsAndInstanceTimes(events: Collection<EventWithNewInstanceTime>): Boolean {
+        ensureNotClosed()
         events.forEach { 
             updateEventAndInstanceTimes(it.event, it.newInstanceStartTime, it.newInstanceEndTime)
         }
@@ -131,6 +144,7 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun updateEvent(event: EventAlertRecord): Boolean {
+        ensureNotClosed()
         val key = EventKey(event.eventId, event.instanceStartTime)
         eventsMap[key] = event
         DevLog.info(LOG_TAG, "Updated event: eventId=${event.eventId}")
@@ -138,20 +152,24 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun updateEvents(events: List<EventAlertRecord>): Boolean {
+        ensureNotClosed()
         events.forEach { updateEvent(it) }
         return true
     }
     
     override fun getEvent(eventId: Long, instanceStartTime: Long): EventAlertRecord? {
+        ensureNotClosed()
         val key = EventKey(eventId, instanceStartTime)
         return eventsMap[key]
     }
     
     override fun getEventInstances(eventId: Long): List<EventAlertRecord> {
+        ensureNotClosed()
         return eventsMap.values.filter { it.eventId == eventId }
     }
     
     override fun deleteEvent(eventId: Long, instanceStartTime: Long): Boolean {
+        ensureNotClosed()
         val key = EventKey(eventId, instanceStartTime)
         val removed = eventsMap.remove(key)
         DevLog.info(LOG_TAG, "Deleted event: eventId=$eventId, found=${removed != null}")
@@ -159,10 +177,12 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun deleteEvent(ev: EventAlertRecord): Boolean {
+        ensureNotClosed()
         return deleteEvent(ev.eventId, ev.instanceStartTime)
     }
     
     override fun deleteEvents(events: Collection<EventAlertRecord>): Int {
+        ensureNotClosed()
         var count = 0
         events.forEach { 
             if (deleteEvent(it)) count++
@@ -172,22 +192,29 @@ class MockEventsStorage : EventsStorageInterface {
     }
     
     override fun deleteAllEvents(): Boolean {
+        ensureNotClosed()
         DevLog.info(LOG_TAG, "Deleting all ${eventsMap.size} events")
         eventsMap.clear()
         return true
     }
     
     override val events: List<EventAlertRecord>
-        get() = eventsMap.values.toList()
+        get() {
+            ensureNotClosed()
+            return eventsMap.values.toList()
+        }
     
     override val eventsForDisplay: List<EventAlertRecord>
-        get() = eventsMap.values.sortedWith(
-            compareBy<EventAlertRecord> { it.snoozedUntil }
-                .thenByDescending { it.lastStatusChangeTime }
-        )
+        get() {
+            ensureNotClosed()
+            return eventsMap.values.sortedWith(
+                compareBy<EventAlertRecord> { it.snoozedUntil }
+                    .thenByDescending { it.lastStatusChangeTime }
+            )
+        }
     
     override fun close() {
-        // No-op for in-memory mock
+        closed = true
     }
     
     /**
