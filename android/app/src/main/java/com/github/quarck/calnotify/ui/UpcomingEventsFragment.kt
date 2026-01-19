@@ -159,9 +159,9 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     }
     
     /** Apply filter state to upcoming event list */
-    private fun List<UpcomingEventDisplayRecord>.eventsForFilters(
+    private fun List<EventAlertRecord>.eventsForFilters(
         filterState: FilterState
-    ): Array<UpcomingEventDisplayRecord> {
+    ): Array<EventAlertRecord> {
         return filter { 
             filterState.matchesCalendar(it) && 
             filterState.matchesStatus(it) 
