@@ -72,7 +72,55 @@ class MainActivityModern : MainActivityBase() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Restore filter state if available (survives rotation)
+        savedInstanceState?.let { restoreFilterState(it) }
+        
         setupUI()
+    }
+    
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        saveFilterState(outState)
+    }
+    
+    private fun saveFilterState(outState: Bundle) {
+        // Save calendar filter (null = all, empty = none, set = specific)
+        filterState.selectedCalendarIds?.let { 
+            outState.putLongArray(STATE_CALENDAR_IDS, it.toLongArray())
+        } ?: outState.putBoolean(STATE_CALENDAR_NULL, true)
+        
+        // Save status filters as ordinal array
+        outState.putIntArray(STATE_STATUS_FILTERS, filterState.statusFilters.map { it.ordinal }.toIntArray())
+        
+        // Save time filter
+        outState.putInt(STATE_TIME_FILTER, filterState.timeFilter.ordinal)
+    }
+    
+    private fun restoreFilterState(savedState: Bundle) {
+        // Restore calendar filter
+        val calendarIds: Set<Long>? = if (savedState.getBoolean(STATE_CALENDAR_NULL, false)) {
+            null
+        } else {
+            savedState.getLongArray(STATE_CALENDAR_IDS)?.toSet()
+        }
+        
+        // Restore status filters
+        val statusFilters = savedState.getIntArray(STATE_STATUS_FILTERS)
+            ?.toList()
+            ?.mapNotNull { ordinal -> StatusOption.entries.getOrNull(ordinal) }
+            ?.toSet() ?: emptySet()
+        
+        // Restore time filter
+        val timeFilter = TimeFilter.entries.getOrNull(
+            savedState.getInt(STATE_TIME_FILTER, 0)
+        ) ?: TimeFilter.ALL
+        
+        filterState = FilterState(
+            selectedCalendarIds = calendarIds,
+            statusFilters = statusFilters,
+            timeFilter = timeFilter
+        )
     }
     
     /** Get current filter state for fragments to use */
@@ -573,5 +621,11 @@ class MainActivityModern : MainActivityBase() {
         
         /** Max length for combined calendar names before showing "+N" */
         private const val MAX_COMBINED_CALENDAR_CHIP_LENGTH = 25
+        
+        // SavedInstanceState keys for filter persistence across rotation
+        private const val STATE_CALENDAR_IDS = "filter_calendar_ids"
+        private const val STATE_CALENDAR_NULL = "filter_calendar_null"
+        private const val STATE_STATUS_FILTERS = "filter_status"
+        private const val STATE_TIME_FILTER = "filter_time"
     }
 }
