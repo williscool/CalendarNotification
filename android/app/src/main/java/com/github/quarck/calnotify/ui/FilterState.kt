@@ -59,6 +59,7 @@ data class FilterState(
             }
             
             val statusFilters = bundle.getIntArray(BUNDLE_STATUS_FILTERS)
+                ?.toList()
                 ?.mapNotNull { StatusOption.entries.getOrNull(it) }
                 ?.toSet() ?: emptySet()
             
