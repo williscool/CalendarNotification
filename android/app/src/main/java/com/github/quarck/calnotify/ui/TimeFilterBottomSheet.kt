@@ -26,7 +26,6 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.RadioButton
 import android.widget.RadioGroup
-import android.widget.TextView
 import com.github.quarck.calnotify.R
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -39,11 +38,17 @@ class TimeFilterBottomSheet : BottomSheetDialogFragment() {
     /** Callback when a filter is selected */
     var onFilterSelected: ((TimeFilter) -> Unit)? = null
     
-    /** Current selected filter */
-    private var currentFilter: TimeFilter = TimeFilter.ALL
+    /** Current selected filter - restored from arguments */
+    private val currentFilter: TimeFilter
+        get() = TimeFilter.entries.getOrNull(
+            arguments?.getInt(ARG_CURRENT_FILTER, 0) ?: 0
+        ) ?: TimeFilter.ALL
     
-    /** Which tab this is shown for (affects available options) */
-    private var tabType: TabType = TabType.ACTIVE
+    /** Which tab this is shown for (affects available options) - restored from arguments */
+    private val tabType: TabType
+        get() = TabType.entries.getOrNull(
+            arguments?.getInt(ARG_TAB_TYPE, 0) ?: 0
+        ) ?: TabType.ACTIVE
     
     enum class TabType { ACTIVE, DISMISSED }
     
@@ -62,7 +67,7 @@ class TimeFilterBottomSheet : BottomSheetDialogFragment() {
         val applyButton = view.findViewById<Button>(R.id.btn_apply)
         
         // Set up radio buttons based on tab type
-        setupRadioButtons(view, radioGroup)
+        setupRadioButtons(view)
         
         // Set current selection
         val selectedId = when (currentFilter) {
@@ -88,7 +93,7 @@ class TimeFilterBottomSheet : BottomSheetDialogFragment() {
         }
     }
     
-    private fun setupRadioButtons(view: View, radioGroup: RadioGroup) {
+    private fun setupRadioButtons(view: View) {
         val radioPast = view.findViewById<RadioButton>(R.id.radio_past)
         val radioThisMonth = view.findViewById<RadioButton>(R.id.radio_started_this_month)
         
@@ -107,10 +112,15 @@ class TimeFilterBottomSheet : BottomSheetDialogFragment() {
     }
     
     companion object {
+        private const val ARG_CURRENT_FILTER = "current_filter"
+        private const val ARG_TAB_TYPE = "tab_type"
+        
         fun newInstance(currentFilter: TimeFilter, tabType: TabType): TimeFilterBottomSheet {
             return TimeFilterBottomSheet().apply {
-                this.currentFilter = currentFilter
-                this.tabType = tabType
+                arguments = Bundle().apply {
+                    putInt(ARG_CURRENT_FILTER, currentFilter.ordinal)
+                    putInt(ARG_TAB_TYPE, tabType.ordinal)
+                }
             }
         }
     }
