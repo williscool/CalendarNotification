@@ -27,7 +27,6 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -65,16 +64,16 @@ class StorageConsistencyTest {
         dismissedStorage = DismissedEventsStorage(context)
         
         // Clear storages
-        eventsStorage.classCustomUse { it.deleteAllEvents() }
-        dismissedStorage.classCustomUse { it.clearHistory() }
+        eventsStorage.use { it.deleteAllEvents() }
+        dismissedStorage.use { it.clearHistory() }
         
         DevLog.info(LOG_TAG, "Test setup complete")
     }
     
     @After
     fun cleanup() {
-        eventsStorage.classCustomUse { it.deleteAllEvents() }
-        dismissedStorage.classCustomUse { it.clearHistory() }
+        eventsStorage.use { it.deleteAllEvents() }
+        dismissedStorage.use { it.clearHistory() }
         DevLog.info(LOG_TAG, "Test cleanup complete")
     }
     
@@ -120,20 +119,20 @@ class StorageConsistencyTest {
         DevLog.info(LOG_TAG, "Running testNoOrphanedEvents")
         
         // Add events only to active storage
-        eventsStorage.classCustomUse { it.addEvent(createTestEvent(1, baseTime)) }
-        eventsStorage.classCustomUse { it.addEvent(createTestEvent(2, baseTime + 3600000)) }
+        eventsStorage.use { it.addEvent(createTestEvent(1, baseTime)) }
+        eventsStorage.use { it.addEvent(createTestEvent(2, baseTime + 3600000)) }
         
         // Add different event to dismissed storage
-        dismissedStorage.classCustomUse { 
+        dismissedStorage.use { 
             it.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, createTestEvent(3, baseTime + 7200000))
         }
         
-        val activeCountBefore = eventsStorage.classCustomUse { it.events.size }
+        val activeCountBefore = eventsStorage.use { it.events.size }
         assertEquals("Active storage should have 2 events", 2, activeCountBefore)
         
         cleanupOrphanedEvents()
         
-        val activeCountAfter = eventsStorage.classCustomUse { it.events.size }
+        val activeCountAfter = eventsStorage.use { it.events.size }
         assertEquals("Active storage should still have 2 events", 2, activeCountAfter)
     }
     
@@ -144,23 +143,23 @@ class StorageConsistencyTest {
         val orphanedEvent = createTestEvent(1, baseTime)
         
         // Add event to both storages (simulating failed deletion)
-        eventsStorage.classCustomUse { it.addEvent(orphanedEvent) }
-        dismissedStorage.classCustomUse { 
+        eventsStorage.use { it.addEvent(orphanedEvent) }
+        dismissedStorage.use { 
             it.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, orphanedEvent)
         }
         
         // Add normal event only to active storage
-        eventsStorage.classCustomUse { it.addEvent(createTestEvent(2, baseTime + 3600000)) }
+        eventsStorage.use { it.addEvent(createTestEvent(2, baseTime + 3600000)) }
         
-        val activeCountBefore = eventsStorage.classCustomUse { it.events.size }
+        val activeCountBefore = eventsStorage.use { it.events.size }
         assertEquals("Active storage should have 2 events", 2, activeCountBefore)
         
         cleanupOrphanedEvents()
         
-        val activeCountAfter = eventsStorage.classCustomUse { it.events.size }
+        val activeCountAfter = eventsStorage.use { it.events.size }
         assertEquals("Active storage should have 1 event after cleanup", 1, activeCountAfter)
         
-        val remainingEvent = eventsStorage.classCustomUse { it.events[0] }
+        val remainingEvent = eventsStorage.use { it.events[0] }
         assertEquals("Remaining event should be event 2", 2L, remainingEvent.eventId)
     }
     
@@ -172,18 +171,18 @@ class StorageConsistencyTest {
         val activeEvent = createTestEvent(1, baseTime)
         val dismissedEvent = createTestEvent(1, baseTime + Consts.DAY_IN_MILLISECONDS)
         
-        eventsStorage.classCustomUse { it.addEvent(activeEvent) }
-        dismissedStorage.classCustomUse { 
+        eventsStorage.use { it.addEvent(activeEvent) }
+        dismissedStorage.use { 
             it.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, dismissedEvent)
         }
         
-        val activeCountBefore = eventsStorage.classCustomUse { it.events.size }
+        val activeCountBefore = eventsStorage.use { it.events.size }
         assertEquals("Active storage should have 1 event", 1, activeCountBefore)
         
         cleanupOrphanedEvents()
         
         // Active event should NOT be removed because instanceStartTime differs
-        val activeCountAfter = eventsStorage.classCustomUse { it.events.size }
+        val activeCountAfter = eventsStorage.use { it.events.size }
         assertEquals("Active storage should still have 1 event", 1, activeCountAfter)
     }
     
@@ -194,18 +193,18 @@ class StorageConsistencyTest {
         // Same eventId AND same instanceStartTime IS considered orphaned
         val event = createTestEvent(1, baseTime)
         
-        eventsStorage.classCustomUse { it.addEvent(event) }
-        dismissedStorage.classCustomUse { 
+        eventsStorage.use { it.addEvent(event) }
+        dismissedStorage.use { 
             it.addEvent(EventDismissType.ManuallyDismissedFromNotification, baseTime, event)
         }
         
-        val activeCountBefore = eventsStorage.classCustomUse { it.events.size }
+        val activeCountBefore = eventsStorage.use { it.events.size }
         assertEquals("Active storage should have 1 event", 1, activeCountBefore)
         
         cleanupOrphanedEvents()
         
         // Active event SHOULD be removed because both eventId and instanceStartTime match
-        val activeCountAfter = eventsStorage.classCustomUse { it.events.size }
+        val activeCountAfter = eventsStorage.use { it.events.size }
         assertEquals("Active storage should be empty after cleanup", 0, activeCountAfter)
     }
     
@@ -214,8 +213,8 @@ class StorageConsistencyTest {
         DevLog.info(LOG_TAG, "Running testEmptyStorages")
         
         // Both storages are already empty from setup
-        val activeCount = eventsStorage.classCustomUse { it.events.size }
-        val dismissedCount = dismissedStorage.classCustomUse { it.events.size }
+        val activeCount = eventsStorage.use { it.events.size }
+        val dismissedCount = dismissedStorage.use { it.events.size }
         
         assertEquals("Active storage should be empty", 0, activeCount)
         assertEquals("Dismissed storage should be empty", 0, dismissedCount)
@@ -223,7 +222,7 @@ class StorageConsistencyTest {
         // Should not throw on empty storages
         cleanupOrphanedEvents()
         
-        val activeCountAfter = eventsStorage.classCustomUse { it.events.size }
+        val activeCountAfter = eventsStorage.use { it.events.size }
         assertEquals("Active storage should still be empty", 0, activeCountAfter)
     }
 }

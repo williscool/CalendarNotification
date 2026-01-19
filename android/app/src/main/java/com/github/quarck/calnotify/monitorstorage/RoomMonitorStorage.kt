@@ -21,15 +21,13 @@ package com.github.quarck.calnotify.monitorstorage
 
 import android.content.Context
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
-import java.io.Closeable
-
 /**
  * Room-based implementation of MonitorStorageInterface.
  * 
  * Replaces the legacy SQLiteOpenHelper-based MonitorStorage.
  * Uses MonitorDatabase with cr-sqlite support via CrSqliteRoomFactory.
  */
-class RoomMonitorStorage(context: Context) : MonitorStorageInterface, Closeable {
+class RoomMonitorStorage(context: Context) : MonitorStorageInterface {
 
     private val database = MonitorDatabase.getInstance(context)
     private val dao = database.monitorAlertDao()

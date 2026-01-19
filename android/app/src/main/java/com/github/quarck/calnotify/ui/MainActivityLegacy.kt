@@ -50,7 +50,6 @@ import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.app.UndoState
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.isSpecial
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.logs.DevLog
@@ -213,7 +212,7 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
             // Purge old dismissed events based on user setting (skip if "forever")
             val keepHistoryMillis = settings.keepHistoryMillis
             if (keepHistoryMillis < Long.MAX_VALUE) {
-                getDismissedEventsStorage(this).classCustomUse {
+                getDismissedEventsStorage(this).use {
                     it.purgeOld(clock.currentTimeMillis(), keepHistoryMillis)
                 }
             }
@@ -221,7 +220,7 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
             // Clean up any orphaned events (events in both storages due to failed deletions)
             cleanupOrphanedEvents(this)
 
-            val events = getEventsStorage(this).classCustomUse { db ->
+            val events = getEventsStorage(this).use { db ->
                 db.eventsForDisplay.toTypedArray()
             }
 

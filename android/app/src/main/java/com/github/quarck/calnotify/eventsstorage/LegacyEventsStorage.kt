@@ -28,7 +28,6 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.setFlag
 import com.github.quarck.calnotify.logs.DevLog
-import java.io.Closeable
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 /**
@@ -38,7 +37,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
  * Uses the original "Events" database file.
  */
 class LegacyEventsStorage(val context: Context)
-    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, EventsStorageInterface {
+    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), EventsStorageInterface {
 
     private var impl: EventsStorageImplInterface
 

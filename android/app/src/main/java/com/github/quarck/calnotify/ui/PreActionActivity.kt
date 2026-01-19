@@ -40,7 +40,6 @@ import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.AttendanceStatus
 import com.github.quarck.calnotify.calendar.CalendarProvider
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -323,7 +322,7 @@ class PreActionActivity : AppCompatActivity() {
                 val currentTime = getClock().currentTimeMillis()
                 val snoozedEvent = createEventRecord(snoozeUntil, currentTime)
                 
-                getEventsStorage(this).classCustomUse { db ->
+                getEventsStorage(this).use { db ->
                     storageSuccess = db.addEvent(snoozedEvent)
                     if (storageSuccess) {
                         DevLog.info(LOG_TAG, "Pre-snoozed event $eventId until $snoozeUntil")

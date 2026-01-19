@@ -16,7 +16,6 @@ import org.junit.runner.RunWith
 import android.Manifest
 import android.net.Uri
 import android.content.ContentUris
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
@@ -248,7 +247,7 @@ class CalendarBackupRestoreTest {
         advanceTimer(1000)
         
         // Get the restored event from our local storage
-        val restoredEvent = EventsStorage(context).classCustomUse { db ->
+        val restoredEvent = EventsStorage(context).use { db ->
             db.getEvent(eventId, originalEvent.instanceStartTime)
         }
         

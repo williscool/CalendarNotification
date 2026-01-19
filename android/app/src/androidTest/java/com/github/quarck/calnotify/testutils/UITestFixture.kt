@@ -26,7 +26,6 @@ import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventRecord
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -497,7 +496,7 @@ class UITestFixture {
         event.isMuted = isMuted
         event.isTask = isTask
         
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             db.addEvent(event)
         }
         
@@ -560,12 +559,12 @@ class UITestFixture {
         val event = createEvent(title = title)
         
         // Remove from active storage
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             db.deleteEvent(event.eventId, event.instanceStartTime)
         }
         
         // Add to dismissed storage
-        DismissedEventsStorage(context).classCustomUse { db ->
+        DismissedEventsStorage(context).use { db ->
             db.addEvent(dismissType, event)
         }
         
@@ -577,13 +576,13 @@ class UITestFixture {
      * Clears all events from storage.
      */
     fun clearAllEvents() {
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             db.events.forEach { event ->
                 db.deleteEvent(event.eventId, event.instanceStartTime)
             }
         }
         
-        DismissedEventsStorage(context).classCustomUse { db ->
+        DismissedEventsStorage(context).use { db ->
             db.events.forEach { entry ->
                 db.deleteEvent(entry)
             }
@@ -647,7 +646,7 @@ class UITestFixture {
      */
     fun getActiveEvents(): List<EventAlertRecord> {
         var events: List<EventAlertRecord> = emptyList()
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             events = db.events.toList()
         }
         return events
@@ -658,7 +657,7 @@ class UITestFixture {
      */
     fun getEventCount(): Int {
         var count = 0
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             count = db.events.size
         }
         return count

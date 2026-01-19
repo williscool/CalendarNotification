@@ -22,7 +22,6 @@ package com.github.quarck.calnotify.eventsstorage
 
 import android.content.Context
 import com.github.quarck.calnotify.logs.DevLog
-import java.io.Closeable
 
 /**
  * EventsStorage - stores active calendar event notifications.
@@ -38,7 +37,7 @@ import java.io.Closeable
 class EventsStorage private constructor(
     context: Context,
     result: Pair<EventsStorageInterface, Boolean>
-) : EventsStorageInterface by result.first, Closeable {
+) : EventsStorageInterface by result.first {
     
     private val delegate: EventsStorageInterface = result.first
     val isUsingRoom: Boolean = result.second
@@ -59,7 +58,7 @@ class EventsStorage private constructor(
     constructor(context: Context) : this(context, createStorage(context))
 
     override fun close() {
-        (delegate as? Closeable)?.close()
+        delegate.close()
     }
 
     companion object {

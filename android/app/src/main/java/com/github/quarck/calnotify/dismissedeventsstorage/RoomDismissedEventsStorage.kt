@@ -23,8 +23,6 @@ import android.content.Context
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
-import java.io.Closeable
-
 /**
  * Room-based implementation of DismissedEventsStorageInterface.
  * 
@@ -34,7 +32,7 @@ import java.io.Closeable
 class RoomDismissedEventsStorage(
     context: Context,
     private val clock: CNPlusClockInterface = CNPlusSystemClock()
-) : DismissedEventsStorageInterface, Closeable {
+) : DismissedEventsStorageInterface {
 
     private val database = DismissedEventsDatabase.getInstance(context)
     private val dao = database.dismissedEventDao()

@@ -36,7 +36,6 @@ import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.app.UndoManager
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -303,13 +302,13 @@ abstract class MainActivityBase : AppCompatActivity() {
          */
         fun cleanupOrphanedEvents(context: android.content.Context) {
             try {
-                getDismissedEventsStorage(context).classCustomUse { dismissedStorage ->
-                    getEventsStorage(context).classCustomUse { eventsStorage ->
+                getDismissedEventsStorage(context).use { dismissedStorage ->
+                    getEventsStorage(context).use { eventsStorage ->
                         val dismissedKeys = dismissedStorage.events.map {
                             Pair(it.event.eventId, it.event.instanceStartTime)
                         }.toSet()
 
-                        if (dismissedKeys.isEmpty()) return@classCustomUse
+                        if (dismissedKeys.isEmpty()) return@use
 
                         val orphaned = eventsStorage.events.filter { event ->
                             dismissedKeys.contains(Pair(event.eventId, event.instanceStartTime))
