@@ -71,6 +71,10 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     override val eventsForDisplay: List<DismissedEventAlertRecord>
         get() = eventsMap.values.sortedByDescending { it.dismissTime }
     
+    override fun close() {
+        // No-op for in-memory mock
+    }
+    
     /**
      * Clears all events - useful for test cleanup
      */

@@ -186,6 +186,10 @@ class MockEventsStorage : EventsStorageInterface {
                 .thenByDescending { it.lastStatusChangeTime }
         )
     
+    override fun close() {
+        // No-op for in-memory mock
+    }
+    
     /**
      * Clears all events - useful for test cleanup
      */
