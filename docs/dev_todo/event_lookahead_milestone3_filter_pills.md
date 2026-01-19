@@ -924,6 +924,7 @@ Each phase is independently testable and deliverable.
 - **Fix test activity calendar creation** - The test activity (`TestActivityCalendarEvents` or similar) creates a new calendar each time it runs instead of reusing an existing "Test Calendar". This leads to hundreds of duplicate calendars over time (observed 718 "Test Calendar" entries). Should check for existing test calendar by name before creating a new one.
 
 ### potential
+- ***Configurable Time Filter** - the same way snooze presets work could allow configure these
 - **Event match counts on chips** - Show how many events match the current filter combination on each chip (e.g., "Status (47)"). Requires fragment-to-activity communication pattern (callback, LiveData, or SharedFlow) since fragments own the filtered event list.
 - **Save filter presets** - Remember commonly used filter combinations
 - **Additional filters** - Event type, attendee, location
