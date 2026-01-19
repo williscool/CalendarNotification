@@ -167,9 +167,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
         
         background {
             val events = getDismissedEventsStorage(ctx).use { db ->
-                db.eventsForDisplay
-                    .filter { filterState.matchesCalendar(it.event) && filterState.matchesTime(it.event, now) }
-                    .toTypedArray()
+                db.eventsForDisplay.eventsForFilters(filterState, now)
             }
             
             activity?.runOnUiThread {
@@ -180,6 +178,17 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
                 activity?.invalidateOptionsMenu()
             }
         }
+    }
+    
+    /** Apply filter state to dismissed event list */
+    private fun List<DismissedEventAlertRecord>.eventsForFilters(
+        filterState: FilterState, 
+        now: Long
+    ): Array<DismissedEventAlertRecord> {
+        return filter { 
+            filterState.matchesCalendar(it.event) && 
+            filterState.matchesTime(it.event, now) 
+        }.toTypedArray()
     }
     
     private fun getFilterState(): FilterState {

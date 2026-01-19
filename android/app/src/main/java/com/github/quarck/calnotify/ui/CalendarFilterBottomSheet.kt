@@ -155,7 +155,12 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         }
         
         // Apply limit - when searching, show more results (up to 50) to help find calendars
-        val effectiveMax = if (query.isNotEmpty()) maxOf(maxItems, 50) else maxItems
+        // If maxItems is 0 (no limit), keep it as 0 (no limit)
+        val effectiveMax = when {
+            maxItems == 0 -> 0  // No limit setting - respect it
+            query.isNotEmpty() -> maxOf(maxItems, 50)  // When searching, show at least 50
+            else -> maxItems
+        }
         val calendarsToDisplay = if (effectiveMax > 0 && matchingCalendars.size > effectiveMax) {
             matchingCalendars.take(effectiveMax)
         } else {
@@ -176,6 +181,10 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
                 if (isChecked) {
                     selectedCalendarIds.add(calendar.calendarId)
                 } else {
+                    // If currently "all selected" (empty set), initialize with all IDs first
+                    if (selectedCalendarIds.isEmpty()) {
+                        selectedCalendarIds.addAll(allHandledCalendars.map { it.calendarId })
+                    }
                     selectedCalendarIds.remove(calendar.calendarId)
                 }
                 updateAllCalendarsCheckboxState()

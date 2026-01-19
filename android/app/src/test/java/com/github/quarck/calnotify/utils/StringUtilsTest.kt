@@ -49,9 +49,10 @@ class StringUtilsTest {
     
     @Test
     fun `truncateForChip handles custom max length`() {
-        val text = "Hello World"
+        val text = "Hello World" // 11 chars
         assertEquals("Hello…", text.truncateForChip(6))
-        assertEquals("Hello Worl…", text.truncateForChip(11))
+        assertEquals("Hello World", text.truncateForChip(11)) // equal to max, no truncation
+        assertEquals("Hello Wor…", text.truncateForChip(10)) // longer than max, truncates
     }
     
     @Test

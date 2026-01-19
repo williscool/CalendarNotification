@@ -139,9 +139,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                     monitorStorage = storage,
                     calendarProvider = getCalendarProvider()
                 )
-                provider.getUpcomingEvents()
-                    .filter { filterState.matchesCalendar(it) && filterState.matchesStatus(it) }
-                    .toTypedArray()
+                provider.getUpcomingEvents().eventsForFilters(filterState)
             }
             
             activity?.runOnUiThread {
@@ -158,6 +156,16 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         return filterStateProvider?.invoke() 
             ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
             ?: FilterState()
+    }
+    
+    /** Apply filter state to upcoming event list */
+    private fun List<UpcomingEventDisplayRecord>.eventsForFilters(
+        filterState: FilterState
+    ): Array<UpcomingEventDisplayRecord> {
+        return filter { 
+            filterState.matchesCalendar(it) && 
+            filterState.matchesStatus(it) 
+        }.toTypedArray()
     }
 
     private fun updateEmptyState() {

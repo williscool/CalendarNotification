@@ -54,73 +54,7 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
-/**
- * Filter state for event lists. In-memory only - clears on tab switch and app restart.
- */
-data class FilterState(
-    val selectedCalendarIds: Set<Long> = emptySet(),  // empty = all calendars
-    val statusFilters: Set<StatusOption> = emptySet(),  // empty = show all (no filter)
-    val timeFilter: TimeFilter = TimeFilter.ALL
-) {
-    /** Check if an event matches current status filters (empty set = match all) */
-    fun matchesStatus(event: EventAlertRecord): Boolean {
-        if (statusFilters.isEmpty()) return true  // No filter = show all
-        return statusFilters.any { it.matches(event) }
-    }
-    
-    /** Check if an event matches current time filter */
-    fun matchesTime(event: EventAlertRecord, now: Long): Boolean {
-        return timeFilter.matches(event, now)
-    }
-    
-    /** Check if an event matches current calendar filter (empty set = match all) */
-    fun matchesCalendar(event: EventAlertRecord): Boolean {
-        if (selectedCalendarIds.isEmpty()) return true  // No filter = show all
-        return event.calendarId in selectedCalendarIds
-    }
-}
-
-/**
- * Individual status filter options. Multiple can be selected (OR logic).
- */
-enum class StatusOption {
-    SNOOZED, ACTIVE, MUTED, RECURRING;
-    
-    /** Check if an event matches this specific option */
-    fun matches(event: EventAlertRecord): Boolean = when (this) {
-        SNOOZED -> event.snoozedUntil > 0
-        ACTIVE -> event.snoozedUntil == 0L
-        MUTED -> event.isMuted
-        RECURRING -> event.isRepeating
-    }
-}
-
-/**
- * Time filter options. Single-select.
- * Options available depend on tab (Active vs Dismissed).
- */
-enum class TimeFilter {
-    ALL,              // No filter (default)
-    STARTED_TODAY,    // Event started today
-    STARTED_THIS_WEEK,// Event started within current calendar week
-    PAST,             // Event has already ended (Active tab only)
-    STARTED_THIS_MONTH;// Event started within current month (Dismissed tab only)
-    
-    /**
-     * Check if an event matches this time filter.
-     * @param event The event to check
-     * @param now Current time in milliseconds (required for testability)
-     */
-    fun matches(event: EventAlertRecord, now: Long): Boolean {
-        return when (this) {
-            ALL -> true
-            STARTED_TODAY -> DateTimeUtils.isToday(event.instanceStartTime, now)
-            STARTED_THIS_WEEK -> DateTimeUtils.isThisWeek(event.instanceStartTime, now)
-            PAST -> event.instanceEndTime < now
-            STARTED_THIS_MONTH -> DateTimeUtils.isThisMonth(event.instanceStartTime, now)
-        }
-    }
-}
+// FilterState, StatusOption, TimeFilter are defined in FilterState.kt
 
 /**
  * Modern MainActivity implementation with fragment-based navigation.
@@ -440,12 +374,16 @@ class MainActivityModern : MainActivityBase() {
             filters.size == 2 -> {
                 // Two filters - show both, but truncate if combined too long
                 val combined = filters.joinToString(", ") { it.toDisplayString() }
-                if (combined.length <= 20) combined else "${filters.first().toDisplayString()}, +1"
+                if (combined.length <= MAX_COMBINED_STATUS_CHIP_LENGTH) {
+                    combined
+                } else {
+                    getString(R.string.filter_name_plus_count, filters.first().toDisplayString(), 1)
+                }
             }
             else -> {
                 // Show first filter + count of remaining
                 val first = filters.first().toDisplayString()
-                "$first, +${filters.size - 1}"
+                getString(R.string.filter_name_plus_count, first, filters.size - 1)
             }
         }
     }
@@ -569,7 +507,11 @@ class MainActivityModern : MainActivityBase() {
                 val names = selectedIds.mapNotNull { getCalendarName(it) }
                 if (names.size == 2) {
                     val combined = names.joinToString(", ")
-                    if (combined.length <= 25) combined else "${names.first()}, +1"
+                    if (combined.length <= MAX_COMBINED_CALENDAR_CHIP_LENGTH) {
+                        combined
+                    } else {
+                        getString(R.string.filter_name_plus_count, names.first(), 1)
+                    }
                 } else {
                     getString(R.string.filter_calendar_count, selectedCount)
                 }
@@ -577,7 +519,11 @@ class MainActivityModern : MainActivityBase() {
             else -> {
                 // 3+ calendars - show first name + count
                 val firstName = getCalendarName(selectedIds.first())
-                if (firstName != null) "$firstName, +${selectedCount - 1}" else getString(R.string.filter_calendar_count, selectedCount)
+                if (firstName != null) {
+                    getString(R.string.filter_name_plus_count, firstName, selectedCount - 1)
+                } else {
+                    getString(R.string.filter_calendar_count, selectedCount)
+                }
             }
         }
     }
@@ -600,5 +546,11 @@ class MainActivityModern : MainActivityBase() {
 
     companion object {
         private const val LOG_TAG = "MainActivityModern"
+        
+        /** Max length for combined status filter names before showing "+N" */
+        private const val MAX_COMBINED_STATUS_CHIP_LENGTH = 20
+        
+        /** Max length for combined calendar names before showing "+N" */
+        private const val MAX_COMBINED_CALENDAR_CHIP_LENGTH = 25
     }
 }
