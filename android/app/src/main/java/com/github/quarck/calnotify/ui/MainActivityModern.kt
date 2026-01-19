@@ -47,6 +47,7 @@ import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.truncateForChip
 import androidx.appcompat.view.ContextThemeWrapper
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.chip.Chip
@@ -436,7 +437,11 @@ class MainActivityModern : MainActivityBase() {
         return when {
             filters.isEmpty() -> getString(R.string.filter_status)
             filters.size == 1 -> filters.first().toDisplayString()
-            filters.size == 2 -> filters.joinToString(", ") { it.toDisplayString() }
+            filters.size == 2 -> {
+                // Two filters - show both, but truncate if combined too long
+                val combined = filters.joinToString(", ") { it.toDisplayString() }
+                if (combined.length <= 20) combined else "${filters.first().toDisplayString()}, +1"
+            }
             else -> {
                 // Show first filter + count of remaining
                 val first = filters.first().toDisplayString()
@@ -555,14 +560,19 @@ class MainActivityModern : MainActivityBase() {
         return when {
             selectedCount == 0 -> getString(R.string.filter_calendar)
             selectedCount == 1 -> {
-                // Single calendar - show name
+                // Single calendar - show name (already truncated by getCalendarName)
                 val calendarId = selectedIds.first()
                 getCalendarName(calendarId) ?: getString(R.string.filter_calendar)
             }
             selectedCount == 2 -> {
-                // Two calendars - show both names
+                // Two calendars - show both names if combined fits, else first + count
                 val names = selectedIds.mapNotNull { getCalendarName(it) }
-                if (names.size == 2) names.joinToString(", ") else getString(R.string.filter_calendar_count, selectedCount)
+                if (names.size == 2) {
+                    val combined = names.joinToString(", ")
+                    if (combined.length <= 25) combined else "${names.first()}, +1"
+                } else {
+                    getString(R.string.filter_calendar_count, selectedCount)
+                }
             }
             else -> {
                 // 3+ calendars - show first name + count
@@ -574,7 +584,8 @@ class MainActivityModern : MainActivityBase() {
     
     private fun getCalendarName(calendarId: Long): String? {
         val calendar = CalendarProvider.getCalendarById(this, calendarId)
-        return calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
+        val name = calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
+        return name?.truncateForChip()
     }
     
     private fun showCalendarFilterBottomSheet() {

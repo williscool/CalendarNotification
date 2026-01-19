@@ -46,3 +46,14 @@ fun String.toIntOrNull(): Int? {
 
     return ret;
 }
+
+/**
+ * Truncates a string to a maximum length, appending ellipsis if truncated.
+ * Useful for chip/label display where space is limited.
+ * 
+ * @param maxLength Maximum length including ellipsis (default 15)
+ * @return Original string if <= maxLength, otherwise truncated with "…"
+ */
+fun String.truncateForChip(maxLength: Int = 15): String {
+    return if (length <= maxLength) this else "${take(maxLength - 1)}…"
+}
