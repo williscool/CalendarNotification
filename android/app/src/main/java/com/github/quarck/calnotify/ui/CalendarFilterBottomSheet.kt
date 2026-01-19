@@ -58,6 +58,9 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     /** Max items setting */
     private var maxItems: Int = 20
     
+    /** Current search query for rebuilding list */
+    private var currentSearchQuery: String = ""
+    
     /** UI references */
     private var calendarContainer: LinearLayout? = null
     private var allCalendarsCheckbox: CheckBox? = null
@@ -96,6 +99,12 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         val allCalendars = CalendarProvider.getCalendars(ctx)
         allHandledCalendars = allCalendars.filter { settings.getCalendarIsHandled(it.calendarId) }
         
+        // If selectedCalendarIds is empty (from FilterState meaning "all"), populate with all IDs
+        // This way empty set always means "none selected" internally
+        if (selectedCalendarIds.isEmpty()) {
+            selectedCalendarIds.addAll(allHandledCalendars.map { it.calendarId })
+        }
+        
         // Initial display with limit applied - only creates views for displayed items
         rebuildCalendarList("")
         
@@ -113,13 +122,15 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
         
         allCalendarsCheckbox?.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                // Select all calendars (which means empty set = no filter)
+                // Select all handled calendars
                 selectedCalendarIds.clear()
                 selectedCalendarIds.addAll(allHandledCalendars.map { it.calendarId })
-                // Rebuild to update checkboxes
-                rebuildCalendarList(searchEditText.text?.toString() ?: "")
+            } else {
+                // Deselect all - makes it easy to start fresh and pick specific ones
+                selectedCalendarIds.clear()
             }
-            // Don't deselect all when unchecking - user should manually deselect
+            // Rebuild to update individual checkboxes (preserve search)
+            rebuildCalendarList(currentSearchQuery)
         }
         
         applyButton.setOnClickListener {
@@ -139,6 +150,7 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
      * Only creates views for calendars that will actually be displayed.
      */
     private fun rebuildCalendarList(query: String) {
+        currentSearchQuery = query
         val container = calendarContainer ?: return
         container.removeAllViews()
         
@@ -175,16 +187,12 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
             
             colorView.background = ColorDrawable(calendar.color)
             checkbox.text = calendar.displayName.ifEmpty { calendar.name }
-            checkbox.isChecked = selectedCalendarIds.isEmpty() || calendar.calendarId in selectedCalendarIds
+            checkbox.isChecked = calendar.calendarId in selectedCalendarIds
             
             checkbox.setOnCheckedChangeListener { _, isChecked ->
                 if (isChecked) {
                     selectedCalendarIds.add(calendar.calendarId)
                 } else {
-                    // If currently "all selected" (empty set), initialize with all IDs first
-                    if (selectedCalendarIds.isEmpty()) {
-                        selectedCalendarIds.addAll(allHandledCalendars.map { it.calendarId })
-                    }
                     selectedCalendarIds.remove(calendar.calendarId)
                 }
                 updateAllCalendarsCheckboxState()
@@ -207,17 +215,20 @@ class CalendarFilterBottomSheet : BottomSheetDialogFragment() {
     }
     
     private fun updateAllCalendarsCheckboxState() {
-        val allSelected = selectedCalendarIds.isEmpty() || 
-            selectedCalendarIds.size == allHandledCalendars.size
-        // Temporarily remove listener to avoid recursion
+        // All selected when the set contains all handled calendars
+        val allSelected = selectedCalendarIds.containsAll(allHandledCalendars.map { it.calendarId })
+        // Temporarily remove listener to avoid recursion, then restore
         allCalendarsCheckbox?.setOnCheckedChangeListener(null)
         allCalendarsCheckbox?.isChecked = allSelected
+        // Re-attach the same listener behavior as in onViewCreated
         allCalendarsCheckbox?.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 selectedCalendarIds.clear()
                 selectedCalendarIds.addAll(allHandledCalendars.map { it.calendarId })
-                rebuildCalendarList("")
+            } else {
+                selectedCalendarIds.clear()
             }
+            rebuildCalendarList(currentSearchQuery)
         }
     }
     
