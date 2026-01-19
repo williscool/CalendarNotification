@@ -814,5 +814,82 @@ class ApplicationControllerCoreRobolectricTest {
         val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
         assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
     }
+
+    // === registerNewEvent (singular) pre-mute tests ===
+    // This tests the EVENT_REMINDER broadcast path which uses registerNewEvent directly
+    
+    @Test
+    fun testRegisterNewEvent_appliesPreMutedFlagFromMonitorStorage() {
+        // This tests the bug where registerNewEvent (singular, used by EVENT_REMINDER broadcast)
+        // didn't look up the preMuted flag from MonitorStorage, causing pre-muted events
+        // to still make sound when they fired via the broadcast path.
+        
+        val alertTime = baseTime
+        val event = createTestEvent(eventId = 42, instanceStartTime = baseTime + 3600000L, isMuted = false)
+            .copy(alertTime = alertTime)
+        
+        // Pre-mute the alert in MonitorStorage (user did this from Upcoming view)
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry.PRE_MUTED_FLAG // preMuted = true
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Verify alert is pre-muted
+        assertTrue("Alert should be pre-muted", mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)!!.preMuted)
+        
+        // Verify event starts unmuted
+        assertFalse("Event should start unmuted", event.isMuted)
+        
+        // Call registerNewEvent (singular) - this is what EVENT_REMINDER broadcast calls
+        val result = ApplicationController.registerNewEvent(context, event, mockEventsStorage)
+        
+        assertTrue("Event should be registered successfully", result)
+        
+        // THE BUG: Event in storage should have isMuted = true (from preMuted flag)
+        // Before the fix, this would be false
+        val storedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
+        assertNotNull("Event should be in storage", storedEvent)
+        assertTrue("Event in storage should be muted (from preMuted flag in MonitorStorage)", storedEvent!!.isMuted)
+    }
+
+    @Test
+    fun testRegisterNewEvent_doesNotMuteWhenNotPreMuted() {
+        val alertTime = baseTime
+        val event = createTestEvent(eventId = 43, instanceStartTime = baseTime + 3600000L, isMuted = false)
+            .copy(alertTime = alertTime)
+        
+        // Alert in MonitorStorage WITHOUT preMuted flag
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0 // preMuted = false
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Verify alert is NOT pre-muted
+        assertFalse("Alert should NOT be pre-muted", mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)!!.preMuted)
+        
+        // Call registerNewEvent
+        val result = ApplicationController.registerNewEvent(context, event, mockEventsStorage)
+        
+        assertTrue("Event should be registered successfully", result)
+        
+        // Event in storage should NOT be muted
+        val storedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
+        assertNotNull("Event should be in storage", storedEvent)
+        assertFalse("Event in storage should NOT be muted", storedEvent!!.isMuted)
+    }
 }
 

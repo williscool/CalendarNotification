@@ -69,6 +69,9 @@ class CalendarTestFixtureExampleRobolectricTest {
         mockContextProvider.setCalendarHandlingStatusDirectly(testCalendarId, true)
         
         TestStorageFactory.reset()
+        // Initialize both storages to set up ApplicationController providers
+        TestStorageFactory.getMonitorStorage()
+        TestStorageFactory.getEventsStorage()
     }
     
     @After
