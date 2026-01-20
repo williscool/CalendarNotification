@@ -44,13 +44,13 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     
     override fun addEvent(type: EventDismissType, event: EventAlertRecord) {
         warnIfClosed()
-        addEvent(type, System.currentTimeMillis(), event)
+        addEvent(type, TestTimeConstants.STANDARD_TEST_TIME, event)
     }
     
     override fun addEvents(type: EventDismissType, events: Collection<EventAlertRecord>) {
         warnIfClosed()
         DevLog.info(LOG_TAG, "Adding ${events.size} dismissed events")
-        val changeTime = System.currentTimeMillis()
+        val changeTime = TestTimeConstants.STANDARD_TEST_TIME
         events.forEach { addEvent(type, changeTime, it) }
     }
     

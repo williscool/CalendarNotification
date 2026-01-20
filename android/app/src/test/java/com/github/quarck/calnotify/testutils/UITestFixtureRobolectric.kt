@@ -127,7 +127,7 @@ class UITestFixtureRobolectric {
         // Mock CalendarProvider.getEvent for UpcomingEventsProvider enrichment
         every { CalendarProvider.getEvent(any(), any()) } answers {
             val eventId = arg<Long>(1)
-            val now = System.currentTimeMillis()
+            val now = TestTimeConstants.STANDARD_TEST_TIME
             EventRecord(
                 calendarId = 1L,
                 eventId = eventId,
@@ -207,7 +207,7 @@ class UITestFixtureRobolectric {
         isTask: Boolean = false,
         snoozedUntil: Long = 0L
     ): EventAlertRecord {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val startTime = currentTime + startTimeOffset
         val endTime = startTime + durationMillis
         val eventId = eventIdCounter++
@@ -264,7 +264,7 @@ class UITestFixtureRobolectric {
         title: String = "Snoozed Event",
         snoozeMinutes: Int = 30
     ): EventAlertRecord {
-        val snoozedUntil = System.currentTimeMillis() + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
         return createEvent(title = title, snoozedUntil = snoozedUntil)
     }
     
@@ -315,7 +315,7 @@ class UITestFixtureRobolectric {
         durationMinutes: Int = 60,
         isAllDay: Boolean = false
     ): MonitorEventAlertEntry {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)

@@ -468,7 +468,7 @@ class UITestFixture {
         isTask: Boolean = false,
         snoozedUntil: Long = 0L
     ): EventAlertRecord {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val startTime = currentTime + startTimeOffset
         val endTime = startTime + durationMillis
         val eventId = eventIdCounter++
@@ -528,7 +528,7 @@ class UITestFixture {
         title: String = "Snoozed Event",
         snoozeMinutes: Int = 30
     ): EventAlertRecord {
-        val snoozedUntil = System.currentTimeMillis() + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
         return createEvent(
             title = title,
             snoozedUntil = snoozedUntil
@@ -895,7 +895,7 @@ class UITestFixture {
         override fun getEventReminders(context: Context, eventId: Long) = listOf<com.github.quarck.calnotify.calendar.EventReminderRecord>()
         override fun getEvent(context: Context, eventId: Long): EventRecord? {
             // Return a mock EventRecord for any eventId
-            val now = System.currentTimeMillis()
+            val now = TestTimeConstants.STANDARD_TEST_TIME
             val details = com.github.quarck.calnotify.calendar.CalendarEventDetails(
                 title = "Mock Event $eventId",
                 desc = "",
@@ -944,7 +944,7 @@ class UITestFixture {
         durationMinutes: Int = 60,
         isAllDay: Boolean = false
     ): MonitorEventAlertEntry {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)
