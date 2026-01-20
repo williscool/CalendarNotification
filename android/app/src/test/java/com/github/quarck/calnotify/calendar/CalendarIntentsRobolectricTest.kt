@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.calendar
 
 import android.app.Activity
 import android.content.Intent
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.*
@@ -221,17 +222,18 @@ class CalendarIntentsRobolectricTest {
         eventId: Long = 1L,
         calendarId: Long = 1L,
         title: String = "Test Event",
-        startTime: Long = System.currentTimeMillis() + 3600000,
-        endTime: Long = System.currentTimeMillis() + 7200000,
+        startTime: Long = TestTimeConstants.STANDARD_TEST_TIME + 3600000,
+        endTime: Long = TestTimeConstants.STANDARD_TEST_TIME + 7200000,
         instanceStartTime: Long = startTime,
         instanceEndTime: Long = endTime
     ): EventAlertRecord {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         return EventAlertRecord(
             calendarId = calendarId,
             eventId = eventId,
             isAllDay = false,
             isRepeating = false,
-            alertTime = System.currentTimeMillis(),
+            alertTime = now,
             notificationId = 0,
             title = title,
             desc = "",
@@ -240,7 +242,7 @@ class CalendarIntentsRobolectricTest {
             instanceStartTime = instanceStartTime,
             instanceEndTime = instanceEndTime,
             location = "",
-            lastStatusChangeTime = System.currentTimeMillis(),
+            lastStatusChangeTime = now,
             snoozedUntil = 0L,
             displayStatus = EventDisplayStatus.Hidden,
             color = 0xFF6200EE.toInt()

@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.calendar
 
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -34,9 +35,9 @@ class MonitorEventAlertEntryPreMutedTest {
 
     private fun createTestAlert(
         eventId: Long = 1L,
-        alertTime: Long = System.currentTimeMillis(),
-        instanceStartTime: Long = System.currentTimeMillis() + 3600000L,
-        instanceEndTime: Long = System.currentTimeMillis() + 7200000L,
+        alertTime: Long = TestTimeConstants.STANDARD_TEST_TIME,
+        instanceStartTime: Long = TestTimeConstants.STANDARD_TEST_TIME + 3600000L,
+        instanceEndTime: Long = TestTimeConstants.STANDARD_TEST_TIME + 7200000L,
         isAllDay: Boolean = false,
         alertCreatedByUs: Boolean = false,
         wasHandled: Boolean = false,

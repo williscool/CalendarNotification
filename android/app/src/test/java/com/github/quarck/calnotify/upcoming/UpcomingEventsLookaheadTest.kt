@@ -23,6 +23,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import org.junit.Assert.*
 import org.junit.Before
@@ -58,7 +59,7 @@ class UpcomingEventsLookaheadTest {
         settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_FIXED
         settings.upcomingEventsFixedHours = 8
         
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
@@ -90,7 +91,7 @@ class UpcomingEventsLookaheadTest {
         settings.upcomingEventsMode = "some_unknown_mode"
         settings.upcomingEventsFixedHours = 8
         
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)

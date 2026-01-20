@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.utils
 
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.Calendar
@@ -42,7 +43,7 @@ class DateTimeUtilsTest {
     
     @Test
     fun `isToday returns false for different day`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val yesterday = now - 24 * 3600_000L
         val tomorrow = now + 24 * 3600_000L
         
@@ -71,13 +72,13 @@ class DateTimeUtilsTest {
     
     @Test
     fun `isThisWeek returns true for same week`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         assertTrue(DateTimeUtils.isThisWeek(now, now))
     }
     
     @Test
     fun `isThisWeek returns false for previous week`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val lastWeek = now - 7 * 24 * 3600_000L
         
         assertFalse(DateTimeUtils.isThisWeek(lastWeek, now))
@@ -85,7 +86,7 @@ class DateTimeUtilsTest {
     
     @Test
     fun `isThisWeek returns false for next week`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val nextWeek = now + 7 * 24 * 3600_000L
         
         assertFalse(DateTimeUtils.isThisWeek(nextWeek, now))
@@ -129,7 +130,7 @@ class DateTimeUtilsTest {
     
     @Test
     fun `isThisMonth returns true for same month`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         assertTrue(DateTimeUtils.isThisMonth(now, now))
     }
     
