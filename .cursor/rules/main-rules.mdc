@@ -61,3 +61,12 @@ Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
 # Never Catch the broad Exception class
 
 no catching Exception e. it can lead to hiding important bugs to catch. always do something more specific
+
+# Never use System.currentTimeMillis() directly
+
+Use `CNPlusClockInterface` instead - it enables testable time-dependent code.
+
+**Production code:** Inject `CNPlusSystemClock()` or access via interface property
+**Test code:** Use `TestTimeConstants.STANDARD_TEST_TIME` or `CNPlusTestClock`
+
+See `docs/architecture/clock_implementation.md` and `docs/dev_todo/system_current_time_millis_removal.md` for details.
