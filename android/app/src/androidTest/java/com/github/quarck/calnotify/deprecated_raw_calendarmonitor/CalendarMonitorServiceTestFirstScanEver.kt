@@ -354,7 +354,8 @@ class CalendarMonitorServiceTestFirstScanEver {
   private fun setupMockCalendarMonitor() {
 
     // Mock the key method in CalendarMonitorManual that handles due alerts during firstScanEver
-    val realManualScanner = CalendarMonitorManual(CalendarProvider)
+    // NOTE: Must pass testClock so scan ranges are calculated using test time, not real time
+    val realManualScanner = CalendarMonitorManual(CalendarProvider, testClock)
 
     spyManualScanner = spyk(realManualScanner)
 
