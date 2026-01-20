@@ -103,6 +103,31 @@
         <item quantity="one">%1$d event matching \""%2$s"\" will be snoozed</item>
         <item quantity="other">%1$d events matching \""%2$s"\" will be snoozed</item>
     </plurals>
+    
+    <!-- Filter description for snooze count (supports any filter combination) -->
+    <plurals name="snooze_count_text_filtered">
+        <item quantity="one">%1$d event matching %2$s will be snoozed</item>
+        <item quantity="other">%1$d events matching %2$s will be snoozed</item>
+    </plurals>
+    
+    <!-- Filter combination descriptions -->
+    <string name="filter_description_search_and_filters">\"%1$s\", %2$s</string>
+    
+    <!-- Calendar filter summary for snooze message -->
+    <plurals name="filter_calendar_summary">
+        <item quantity="one">%1$d calendar</item>
+        <item quantity="other">%1$d calendars</item>
+    </plurals>
+    
+    <!-- Confirmation dialogs with filters -->
+    <string name="snooze_filtered_with_filter_confirmation">Snooze all events matching %1$s?</string>
+    <string name="change_filtered_with_filter_confirmation">Change snooze time for all events matching %1$s?\nAlready snoozed would also change unless snoozed to longer period</string>
+    
+    <!-- No events feedback messages -->
+    <string name="snooze_all_no_events">No events to snooze</string>
+    <string name="snooze_all_no_events_filters">No events match your current filters</string>
+    <string name="snooze_all_no_events_search">No events match your search</string>
+    <string name="snooze_all_no_events_search_and_filters">No events match your search and filters</string>
 
     <string name="change_snooze_to">Change snooze to:</string>
 
@@ -716,6 +741,10 @@
     <string name="nav_upcoming">Upcoming</string>
     <string name="nav_dismissed">Dismissed</string>
     
+    <!-- Item type words for empty states -->
+    <string name="notifications_lowercase">notifications</string>
+    <string name="events_lowercase">events</string>
+    
     <!-- Toolbar titles for new navigation UI -->
     <string name="title_active">Calendar Notifications - Active</string>
     <string name="title_upcoming">Upcoming Events</string>
@@ -725,6 +754,11 @@
     <string name="empty_active">No active notifications</string>
     <string name="empty_upcoming">No upcoming events</string>
     <string name="empty_dismissed">No dismissed events</string>
+    
+    <!-- Empty state modifiers (combined with base messages) -->
+    <string name="empty_state_with_search">No %1$s %2$s matching \"%3$s\"</string>
+    <string name="empty_state_with_filters">No %1$s %2$s matching %3$s</string>
+    <string name="empty_state_with_search_and_filters">No %1$s %2$s matching \"%3$s\" and %4$s</string>
 
     <!-- Filter chips -->
     <string name="filter_status">Status</string>

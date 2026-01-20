@@ -101,6 +101,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
     var snoozeUntil_DatePicker: DatePicker? = null
     var snoozeUntil_TimePicker: TimePicker? = null
     private var searchQuery: String? = null
+    private var filterState: FilterState? = null
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
@@ -122,6 +123,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
         snoozeFromMainActivity = intent.getBooleanExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, false)
 
       searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
+      filterState = FilterState.fromBundle(intent.getBundleExtra(Consts.INTENT_FILTER_STATE))
 
       val toolbar = find<Toolbar?>(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -184,18 +186,41 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 else
                     resources.getString(R.string.change_all_title)
 
-        var count = intent.getIntExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT,  0)
+        val count = intent.getIntExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT,  0)
 
-        var snoozeCountTextView = findViewById<TextView>(R.id.snooze_count_text)
-
-            if (searchQuery.isNullOrEmpty()) {
-                snoozeCountTextView.visibility = View.GONE
-            } else {
+        val snoozeCountTextView = findViewById<TextView>(R.id.snooze_count_text)
+        
+        val filterDescription = filterState?.toDisplayString(this)
+        val hasSearch = !searchQuery.isNullOrEmpty()
+        val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
+        
+        when {
+            hasSearch && hasFilter -> {
+                // Both search and filters: "3 events matching 'query', Filter1, Filter2 will be snoozed"
+                val combined = getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
+                snoozeCountTextView.visibility = View.VISIBLE
+                snoozeCountTextView.text = resources.getQuantityString(
+                    R.plurals.snooze_count_text_filtered, count, count, combined
+                )
+            }
+            hasSearch -> {
+                // Search only (existing behavior)
                 snoozeCountTextView.visibility = View.VISIBLE
                 snoozeCountTextView.text = resources.getQuantityString(
                     R.plurals.snooze_count_text, count, count, searchQuery
                 )
             }
+            hasFilter -> {
+                // Filters only
+                snoozeCountTextView.visibility = View.VISIBLE
+                snoozeCountTextView.text = resources.getQuantityString(
+                    R.plurals.snooze_count_text_filtered, count, count, filterDescription
+                )
+            }
+            else -> {
+                snoozeCountTextView.visibility = View.GONE
+            }
+        }
 
         restoreState(state)
     }
@@ -247,25 +272,21 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
     private fun snoozeEvent(snoozeDelay: Long) {
         AlertDialog.Builder(this)
-                .setMessage(
-                        when {
-                            !searchQuery.isNullOrEmpty() -> {
-                                if (snoozeAllIsChange)
-                                    getString(R.string.change_filtered_notification, searchQuery)
-                                else
-                                    getString(R.string.snooze_filtered_confirmation, searchQuery)
-                            }
-                            snoozeAllIsChange -> getString(R.string.change_all_notification)
-                            else -> getString(R.string.snooze_all_confirmation)
-                        }
-                )
+                .setMessage(getConfirmationMessage())
                 .setCancelable(false)
                 .setPositiveButton(android.R.string.yes) {
                     _, _ ->
 
                     DevLog.debug(LOG_TAG, "Snoozing (change=$snoozeAllIsChange) all requests, snoozeDelay=${snoozeDelay / 1000L}")
 
-                    val result = ApplicationController.snoozeAllEvents(this, snoozeDelay, snoozeAllIsChange, false, searchQuery);
+                    val result = ApplicationController.snoozeAllEvents(
+                        this, 
+                        snoozeDelay, 
+                        snoozeAllIsChange, 
+                        false, 
+                        searchQuery,
+                        filterState
+                    )
                     if (result != null) {
                         result.toast(this)
                     }
@@ -276,6 +297,28 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 }
                 .create()
                 .show()
+    }
+    
+    private fun getConfirmationMessage(): String {
+        val filterDescription = filterState?.toDisplayString(this)
+        val hasSearch = !searchQuery.isNullOrEmpty()
+        val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
+        
+        return when {
+            hasSearch || hasFilter -> {
+                val combined = when {
+                    hasSearch && hasFilter -> getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
+                    hasSearch -> "\"$searchQuery\""
+                    else -> filterDescription!!
+                }
+                if (snoozeAllIsChange)
+                    getString(R.string.change_filtered_with_filter_confirmation, combined)
+                else
+                    getString(R.string.snooze_filtered_with_filter_confirmation, combined)
+            }
+            snoozeAllIsChange -> getString(R.string.change_all_notification)
+            else -> getString(R.string.snooze_all_confirmation)
+        }
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")

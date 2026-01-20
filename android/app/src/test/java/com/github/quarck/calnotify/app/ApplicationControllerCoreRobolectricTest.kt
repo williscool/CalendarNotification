@@ -14,6 +14,9 @@ import com.github.quarck.calnotify.persistentState
 import com.github.quarck.calnotify.testutils.MockDismissedEventsStorage
 import com.github.quarck.calnotify.testutils.MockEventsStorage
 import com.github.quarck.calnotify.testutils.MockMonitorStorage
+import com.github.quarck.calnotify.ui.FilterState
+import com.github.quarck.calnotify.ui.StatusOption
+import com.github.quarck.calnotify.ui.TimeFilter
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
 import org.junit.After
@@ -890,6 +893,181 @@ class ApplicationControllerCoreRobolectricTest {
         val storedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
         assertNotNull("Event should be in storage", storedEvent)
         assertFalse("Event in storage should NOT be muted", storedEvent!!.isMuted)
+    }
+    
+    // === snoozeAllEvents with FilterState tests ===
+    
+    @Test
+    fun testSnoozeAllEvents_withNoFilter_snoozesAllEvents() {
+        // Add multiple events
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 3))
+        
+        val snoozeDelay = 3600000L // 1 hour
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, null
+        )
+        
+        // All events should be snoozed
+        val events = mockEventsStorage.events
+        assertEquals(3, events.size)
+        assertTrue("All events should be snoozed", events.all { it.snoozedUntil > 0 })
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withStatusFilter_onlySnoozesMatchingEvents() {
+        // Add active and snoozed events
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, snoozedUntil = 0L)) // Active
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, snoozedUntil = baseTime + 1000L)) // Snoozed
+        mockEventsStorage.addEvent(createTestEvent(eventId = 3, snoozedUntil = 0L)) // Active
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        // Only active events (1 and 3) should be newly snoozed
+        val events = mockEventsStorage.events
+        val event1 = events.find { it.eventId == 1L }
+        val event2 = events.find { it.eventId == 2L }
+        val event3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 should be snoozed", event1!!.snoozedUntil > baseTime)
+        // Event 2 was already snoozed and doesn't match ACTIVE filter
+        assertEquals("Event 2 should keep original snooze time", baseTime + 1000L, event2!!.snoozedUntil)
+        assertTrue("Event 3 should be snoozed", event3!!.snoozedUntil > baseTime)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withCalendarFilter_onlySnoozesMatchingCalendars() {
+        // Add events from different calendars
+        val event1 = createTestEvent(eventId = 1).copy(calendarId = 1L)
+        val event2 = createTestEvent(eventId = 2).copy(calendarId = 2L)
+        val event3 = createTestEvent(eventId = 3).copy(calendarId = 1L)
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
+        mockEventsStorage.addEvent(event3)
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(selectedCalendarIds = setOf(1L)) // Only calendar 1
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        // Only events from calendar 1 should be snoozed
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        val e3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 (cal 1) should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Event 2 (cal 2) should NOT be snoozed", 0L, e2!!.snoozedUntil)
+        assertTrue("Event 3 (cal 1) should be snoozed", e3!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withSearchAndFilter_combinesBothPredicates() {
+        // Add events with different titles and calendars
+        val event1 = createTestEvent(eventId = 1).copy(calendarId = 1L, title = "Meeting with Bob")
+        val event2 = createTestEvent(eventId = 2).copy(calendarId = 1L, title = "Lunch break")
+        val event3 = createTestEvent(eventId = 3).copy(calendarId = 2L, title = "Meeting with Alice")
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
+        mockEventsStorage.addEvent(event3)
+        
+        val snoozeDelay = 3600000L
+        val searchQuery = "Meeting" // Match events 1 and 3
+        val filterState = FilterState(selectedCalendarIds = setOf(1L)) // Only calendar 1
+        
+        // Should only snooze event 1 (matches "Meeting" AND calendar 1)
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, searchQuery, filterState
+        )
+        
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        val e3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 (Meeting, cal 1) should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Event 2 (Lunch, cal 1) should NOT be snoozed (no match)", 0L, e2!!.snoozedUntil)
+        assertEquals("Event 3 (Meeting, cal 2) should NOT be snoozed (wrong cal)", 0L, e3!!.snoozedUntil)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withEmptyCalendarFilter_snoozesNoEvents() {
+        // Empty calendar set means "none selected" - should match no events
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(selectedCalendarIds = emptySet()) // None selected
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        // No events should be snoozed
+        val events = mockEventsStorage.events
+        assertTrue("No events should be snoozed with empty calendar filter", events.all { it.snoozedUntil == 0L })
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withNullFilterState_behavesAsNoFilter() {
+        // null filterState should behave same as no filter (all events)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        val snoozeDelay = 3600000L
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, null
+        )
+        
+        // All events should be snoozed
+        val events = mockEventsStorage.events
+        assertTrue("All events should be snoozed with null filter", events.all { it.snoozedUntil > 0 })
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withTimeFilter_onlySnoozesEventsMatchingTime() {
+        // Event that ended in the past
+        val pastEvent = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime - 7200000L // 2 hours ago
+        ).copy(
+            instanceEndTime = baseTime - 3600000L // 1 hour ago (ended)
+        )
+        
+        // Event still ongoing
+        val ongoingEvent = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L // 1 hour ago
+        ).copy(
+            instanceEndTime = baseTime + 3600000L // 1 hour from now
+        )
+        
+        mockEventsStorage.addEvent(pastEvent)
+        mockEventsStorage.addEvent(ongoingEvent)
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(timeFilter = TimeFilter.PAST) // Only ended events
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        
+        assertTrue("Past event should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Ongoing event should NOT be snoozed", 0L, e2!!.snoozedUntil)
     }
 }
 

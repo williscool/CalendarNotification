@@ -19,6 +19,9 @@
 
 package com.github.quarck.calnotify.ui
 
+import android.content.Context
+import android.os.Bundle
+import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.utils.DateTimeUtils
@@ -38,6 +41,97 @@ data class FilterState(
     val statusFilters: Set<StatusOption> = emptySet(),  // empty = show all (no filter)
     val timeFilter: TimeFilter = TimeFilter.ALL
 ) {
+    
+    companion object {
+        private const val BUNDLE_CALENDAR_IDS = "filter_calendar_ids"
+        private const val BUNDLE_CALENDAR_NULL = "filter_calendar_null"
+        private const val BUNDLE_STATUS_FILTERS = "filter_status"
+        private const val BUNDLE_TIME_FILTER = "filter_time"
+        
+        /** Deserialize FilterState from a Bundle */
+        fun fromBundle(bundle: Bundle?): FilterState {
+            if (bundle == null) return FilterState()
+            
+            val calendarIds: Set<Long>? = if (bundle.getBoolean(BUNDLE_CALENDAR_NULL, false)) {
+                null
+            } else {
+                bundle.getLongArray(BUNDLE_CALENDAR_IDS)?.toSet()
+            }
+            
+            val statusFilters = bundle.getIntArray(BUNDLE_STATUS_FILTERS)
+                ?.toList()
+                ?.mapNotNull { StatusOption.entries.getOrNull(it) }
+                ?.toSet() ?: emptySet()
+            
+            val timeFilter = TimeFilter.entries.getOrNull(
+                bundle.getInt(BUNDLE_TIME_FILTER, 0)
+            ) ?: TimeFilter.ALL
+            
+            return FilterState(
+                selectedCalendarIds = calendarIds,
+                statusFilters = statusFilters,
+                timeFilter = timeFilter
+            )
+        }
+    }
+    
+    /** Serialize FilterState to a Bundle for Intent passing */
+    fun toBundle(): Bundle = Bundle().apply {
+        selectedCalendarIds?.let { 
+            putLongArray(BUNDLE_CALENDAR_IDS, it.toLongArray())
+        } ?: putBoolean(BUNDLE_CALENDAR_NULL, true)
+        
+        putIntArray(BUNDLE_STATUS_FILTERS, statusFilters.map { it.ordinal }.toIntArray())
+        putInt(BUNDLE_TIME_FILTER, timeFilter.ordinal)
+    }
+    
+    /** Check if any filters are active */
+    fun hasActiveFilters(): Boolean {
+        return selectedCalendarIds != null || 
+               statusFilters.isNotEmpty() || 
+               timeFilter != TimeFilter.ALL
+    }
+    
+    /**
+     * Generate human-readable description of active filters for UI display.
+     * Returns null if no filters are active.
+     */
+    fun toDisplayString(context: Context): String? {
+        val parts = mutableListOf<String>()
+        
+        // Calendar filter (null = no filter, non-null = specific calendars selected)
+        // Empty set means "none selected" which is a valid filter state (shows 0 events)
+        if (selectedCalendarIds != null) {
+            val count = selectedCalendarIds.size
+            parts.add(context.resources.getQuantityString(
+                R.plurals.filter_calendar_summary, count, count
+            ))
+        }
+        
+        // Status filters (show individual names)
+        if (statusFilters.isNotEmpty()) {
+            val names = statusFilters.map { option ->
+                when (option) {
+                    StatusOption.SNOOZED -> context.getString(R.string.filter_status_snoozed)
+                    StatusOption.ACTIVE -> context.getString(R.string.filter_status_active)
+                    StatusOption.MUTED -> context.getString(R.string.filter_status_muted)
+                    StatusOption.RECURRING -> context.getString(R.string.filter_status_recurring)
+                }
+            }
+            parts.add(names.joinToString(", "))
+        }
+        
+        // Time filter (exhaustive when to catch future enum additions at compile time)
+        when (timeFilter) {
+            TimeFilter.ALL -> { /* No display for "all" */ }
+            TimeFilter.STARTED_TODAY -> parts.add(context.getString(R.string.filter_time_started_today))
+            TimeFilter.STARTED_THIS_WEEK -> parts.add(context.getString(R.string.filter_time_started_this_week))
+            TimeFilter.PAST -> parts.add(context.getString(R.string.filter_time_past))
+            TimeFilter.STARTED_THIS_MONTH -> parts.add(context.getString(R.string.filter_time_started_this_month))
+        }
+        
+        return if (parts.isEmpty()) null else parts.joinToString(", ")
+    }
     /** Check if an event matches current status filters (empty set = match all) */
     fun matchesStatus(event: EventAlertRecord): Boolean {
         if (statusFilters.isEmpty()) return true  // No filter = show all

@@ -148,7 +148,7 @@ class SnoozeAllActivityTest : BaseUltronTest() {
     @Test
     fun clicking_preset_button_triggers_snooze() {
         fixture.mockApplicationController()
-        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
+        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
         
         val event = fixture.createEvent(title = "Snooze Me")
         val scenario = fixture.launchSnoozeActivityForEvent(event)
@@ -161,7 +161,7 @@ class SnoozeAllActivityTest : BaseUltronTest() {
         
         // Verify snoozeAllEvents was called (SnoozeAllActivity always uses snoozeAllEvents)
         verify(timeout = 2000) { 
-            ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) 
+            ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any(), any()) 
         }
         
         scenario.close()
@@ -170,7 +170,7 @@ class SnoozeAllActivityTest : BaseUltronTest() {
     @Test
     fun clicking_preset_in_snooze_all_mode_triggers_snooze_all() {
         fixture.mockApplicationController()
-        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
+        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
         
         fixture.seedEvents(3)
         val scenario = fixture.launchSnoozeAllActivity()
@@ -183,7 +183,7 @@ class SnoozeAllActivityTest : BaseUltronTest() {
         
         // Verify snoozeAllEvents was called
         verify(timeout = 2000) { 
-            ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) 
+            ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any(), any()) 
         }
         
         scenario.close()
@@ -260,7 +260,7 @@ class SnoozeAllActivityTest : BaseUltronTest() {
     @Test
     fun snooze_finishes_activity() {
         fixture.mockApplicationController()
-        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
+        every { ApplicationController.snoozeAllEvents(any(), any(), any(), any(), any(), any()) } returns mockk(relaxed = true)
         
         val event = fixture.createEvent()
         val scenario = fixture.launchSnoozeActivityForEvent(event)

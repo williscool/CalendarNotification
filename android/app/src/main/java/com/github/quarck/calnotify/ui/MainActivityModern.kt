@@ -29,6 +29,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.PopupMenu
+import android.widget.Toast
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
@@ -86,45 +87,16 @@ class MainActivityModern : MainActivityBase() {
     }
     
     private fun saveFilterState(outState: Bundle) {
-        // Save calendar filter (null = all, empty = none, set = specific)
-        filterState.selectedCalendarIds?.let { 
-            outState.putLongArray(STATE_CALENDAR_IDS, it.toLongArray())
-        } ?: outState.putBoolean(STATE_CALENDAR_NULL, true)
-        
-        // Save status filters as ordinal array
-        outState.putIntArray(STATE_STATUS_FILTERS, filterState.statusFilters.map { it.ordinal }.toIntArray())
-        
-        // Save time filter
-        outState.putInt(STATE_TIME_FILTER, filterState.timeFilter.ordinal)
+        // Use FilterState's serialization (stored under INTENT_FILTER_STATE key to avoid conflicts)
+        outState.putBundle(Consts.INTENT_FILTER_STATE, filterState.toBundle())
         
         // Save current destination to detect recreation vs tab switch
         currentDestinationId?.let { outState.putInt(STATE_DESTINATION_ID, it) }
     }
     
     private fun restoreFilterState(savedState: Bundle) {
-        // Restore calendar filter
-        val calendarIds: Set<Long>? = if (savedState.getBoolean(STATE_CALENDAR_NULL, false)) {
-            null
-        } else {
-            savedState.getLongArray(STATE_CALENDAR_IDS)?.toSet()
-        }
-        
-        // Restore status filters
-        val statusFilters = savedState.getIntArray(STATE_STATUS_FILTERS)
-            ?.toList()
-            ?.mapNotNull { ordinal -> StatusOption.entries.getOrNull(ordinal) }
-            ?.toSet() ?: emptySet()
-        
-        // Restore time filter
-        val timeFilter = TimeFilter.entries.getOrNull(
-            savedState.getInt(STATE_TIME_FILTER, 0)
-        ) ?: TimeFilter.ALL
-        
-        filterState = FilterState(
-            selectedCalendarIds = calendarIds,
-            statusFilters = statusFilters,
-            timeFilter = timeFilter
-        )
+        // Use FilterState's deserialization
+        filterState = FilterState.fromBundle(savedState.getBundle(Consts.INTENT_FILTER_STATE))
         
         // Restore destination ID to detect recreation vs tab switch
         if (savedState.containsKey(STATE_DESTINATION_ID)) {
@@ -256,9 +228,7 @@ class MainActivityModern : MainActivityBase() {
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
         val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
-        val hasEvents = (currentFragment?.getDisplayedEventCount() ?: 0) > 0
         snoozeAllMenuItem?.isVisible = supportsSnoozeAll
-        snoozeAllMenuItem?.isEnabled = hasEvents
         if (supportsSnoozeAll) {
             snoozeAllMenuItem?.title = resources.getString(
                 if (currentFragment?.hasActiveEvents() == true) R.string.snooze_all else R.string.change_all
@@ -338,6 +308,21 @@ class MainActivityModern : MainActivityBase() {
                 val isChange = fragment?.hasActiveEvents() != true
                 val searchQuery = fragment?.getSearchQuery()
                 val eventCount = fragment?.getDisplayedEventCount() ?: 0
+                val currentFilterState = getCurrentFilterState()
+
+                if (eventCount == 0) {
+                    // Show feedback when no events match filters/search
+                    val hasSearch = !searchQuery.isNullOrEmpty()
+                    val hasFilter = currentFilterState.hasActiveFilters()
+                    val message = when {
+                        hasSearch && hasFilter -> getString(R.string.snooze_all_no_events_search_and_filters)
+                        hasSearch -> getString(R.string.snooze_all_no_events_search)
+                        hasFilter -> getString(R.string.snooze_all_no_events_filters)
+                        else -> getString(R.string.snooze_all_no_events)
+                    }
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    return true
+                }
 
                 startActivity(
                     Intent(this, SnoozeAllActivity::class.java)
@@ -345,6 +330,7 @@ class MainActivityModern : MainActivityBase() {
                         .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
                         .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
                         .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
+                        .putExtra(Consts.INTENT_FILTER_STATE, currentFilterState.toBundle())
                         .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 )
             }
@@ -644,11 +630,7 @@ class MainActivityModern : MainActivityBase() {
         /** Max length for combined calendar names before showing "+N" */
         private const val MAX_COMBINED_CALENDAR_CHIP_LENGTH = 25
         
-        // SavedInstanceState keys for filter persistence across rotation
-        private const val STATE_CALENDAR_IDS = "filter_calendar_ids"
-        private const val STATE_CALENDAR_NULL = "filter_calendar_null"
-        private const val STATE_STATUS_FILTERS = "filter_status"
-        private const val STATE_TIME_FILTER = "filter_time"
+        // SavedInstanceState key for destination (filter state uses FilterState.toBundle())
         private const val STATE_DESTINATION_ID = "filter_destination_id"
     }
 }

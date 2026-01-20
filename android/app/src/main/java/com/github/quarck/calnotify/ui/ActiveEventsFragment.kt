@@ -191,7 +191,34 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     }
 
     private fun updateEmptyState() {
-        emptyView.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+        if (!isAdded) return  // Fragment detached, skip update
+        
+        val isEmpty = adapter.itemCount == 0
+        emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        
+        if (isEmpty) {
+            val filterState = getFilterState()
+            val searchQuery = getSearchQuery()
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState.hasActiveFilters()
+            
+            val tabName = getString(R.string.nav_active)
+            val itemType = getString(R.string.notifications_lowercase)
+            val baseMessage = getString(R.string.empty_active)
+            val message = when {
+                hasSearch && hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_search_and_filters, tabName, itemType, searchQuery, filterDesc)
+                }
+                hasSearch -> getString(R.string.empty_state_with_search, tabName, itemType, searchQuery)
+                hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_filters, tabName, itemType, filterDesc)
+                }
+                else -> baseMessage
+            }
+            emptyView.text = message
+        }
     }
 
     // EventListCallback implementation
