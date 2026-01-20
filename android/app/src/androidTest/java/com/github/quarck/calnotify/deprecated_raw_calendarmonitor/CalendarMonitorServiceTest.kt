@@ -342,6 +342,9 @@ class CalendarMonitorServiceTest {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
     testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
     
+    // Inject testClock into ApplicationController so time-dependent operations use the same clock
+    ApplicationController.clockProvider = { testClock }
+    
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block
   }
@@ -776,6 +779,10 @@ class CalendarMonitorServiceTest {
   @After
   fun cleanup() {
     DevLog.info(LOG_TAG, "Cleaning up test environment")
+    
+    // Reset the clock provider before unmocking to avoid test pollution
+    ApplicationController.resetClockProvider()
+    
     unmockkAll()
 
     // Delete test events and calendar

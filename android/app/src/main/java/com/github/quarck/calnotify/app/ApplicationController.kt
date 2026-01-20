@@ -217,8 +217,17 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     val AddEventMonitorInstance: CalendarChangeRequestMonitorInterface
         get() = addEventMonitor
 
-    // Clock interface for time-related operations
-    override val clock: CNPlusClockInterface = CNPlusSystemClock()
+    // Clock interface for time-related operations - uses clockProvider if set, otherwise real clock
+    /** Provider for Clock - enables DI for testing */
+    var clockProvider: (() -> CNPlusClockInterface)? = null
+    
+    override val clock: CNPlusClockInterface
+        get() = clockProvider?.invoke() ?: CNPlusSystemClock()
+    
+    /** Reset clock provider - call in @After to prevent test pollution */
+    fun resetClockProvider() {
+        clockProvider = null
+    }
 
 //    fun hasActiveEvents(context: Context) =
 //            EventsStorage(context).use {

@@ -13,6 +13,7 @@ import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.testutils.TestTimeConstants
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -32,11 +33,16 @@ class ApplicationControllerCoreTest {
     private val LOG_TAG = "ApplicationControllerCoreTest"
     private lateinit var context: Context
     private val baseTime = TestTimeConstants.STANDARD_TEST_TIME
+    private lateinit var testClock: CNPlusTestClock
 
     @Before
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up test")
         context = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Set up test clock to use the same time as our test events
+        testClock = CNPlusTestClock(baseTime)
+        ApplicationController.clockProvider = { testClock }
         
         // Clear any existing test events
         EventsStorage(context).use { db ->
@@ -49,6 +55,9 @@ class ApplicationControllerCoreTest {
     @After
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up test")
+        // Reset the clock provider to avoid test pollution
+        ApplicationController.resetClockProvider()
+        
         // Clean up test events
         EventsStorage(context).use { db ->
             db.events.filter { it.title.startsWith("Test Event") }.forEach {
