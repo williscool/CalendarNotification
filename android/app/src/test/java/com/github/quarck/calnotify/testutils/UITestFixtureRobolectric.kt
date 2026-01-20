@@ -34,6 +34,7 @@ import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.AsyncTaskCallback
+import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import io.mockk.every
 import io.mockk.mockkObject
@@ -63,6 +64,9 @@ class UITestFixtureRobolectric {
     val eventsStorage = MockEventsStorage()
     val dismissedEventsStorage = MockDismissedEventsStorage()
     val monitorStorage = MockMonitorStorage()
+    
+    // Test clock for deterministic time
+    val testClock = CNPlusUnitTestClock(TestTimeConstants.STANDARD_TEST_TIME)
     
     /**
      * Sets up the fixture. Call in @Before.
@@ -101,6 +105,10 @@ class UITestFixtureRobolectric {
         ActiveEventsFragment.eventsStorageProvider = { eventsStorage }
         DismissedEventsFragment.dismissedEventsStorageProvider = { dismissedEventsStorage }
         UpcomingEventsFragment.monitorStorageProvider = { monitorStorage }
+        
+        // Inject test clock into fragments for deterministic time behavior
+        ActiveEventsFragment.clockProvider = { testClock }
+        UpcomingEventsFragment.clockProvider = { testClock }
         
         // Mock PermissionsManager to return true for calendar permissions
         mockkObject(PermissionsManager)

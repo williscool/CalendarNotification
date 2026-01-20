@@ -62,7 +62,7 @@ import com.github.quarck.calnotify.app.UndoState
 class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private lateinit var settings: Settings
-    private val clock = CNPlusSystemClock()
+    private val clock: CNPlusClockInterface get() = getClock()
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
