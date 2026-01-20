@@ -29,11 +29,15 @@ class DateTimeUtilsTest {
     
     @Test
     fun `isToday returns true for same day`() {
-        val now = System.currentTimeMillis()
-        assertTrue(DateTimeUtils.isToday(now, now))
+        // Use a fixed time at noon to avoid midnight boundary issues
+        val cal = Calendar.getInstance()
+        cal.set(2026, Calendar.JUNE, 15, 12, 0, 0)
+        val noon = cal.timeInMillis
+        
+        assertTrue(DateTimeUtils.isToday(noon, noon))
         
         // 1 hour later same day
-        assertTrue(DateTimeUtils.isToday(now, now + 3600_000))
+        assertTrue(DateTimeUtils.isToday(noon, noon + 3600_000))
     }
     
     @Test
