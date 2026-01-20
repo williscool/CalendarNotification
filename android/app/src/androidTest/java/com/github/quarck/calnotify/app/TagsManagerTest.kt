@@ -9,6 +9,7 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -36,26 +37,27 @@ class TagsManagerTest {
         title: String = "Test Event",
         desc: String = "Test Description"
     ): EventAlertRecord {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         return EventAlertRecord(
             calendarId = 1L,
             eventId = 1L,
             isAllDay = false,
             isRepeating = false,
-            alertTime = System.currentTimeMillis(),
+            alertTime = now,
             notificationId = 0,
             title = title,
             desc = desc,
-            startTime = System.currentTimeMillis(),
-            endTime = System.currentTimeMillis() + 3600000,
-            instanceStartTime = System.currentTimeMillis(),
-            instanceEndTime = System.currentTimeMillis() + 3600000,
+            startTime = now,
+            endTime = now + 3600000,
+            instanceStartTime = now,
+            instanceEndTime = now + 3600000,
             location = "",
-            lastStatusChangeTime = System.currentTimeMillis(),
+            lastStatusChangeTime = now,
             snoozedUntil = 0L,
             displayStatus = EventDisplayStatus.Hidden,
             color = 0,
             origin = EventOrigin.ProviderBroadcast,
-            timeFirstSeen = System.currentTimeMillis(),
+            timeFirstSeen = now,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None,
             flags = 0

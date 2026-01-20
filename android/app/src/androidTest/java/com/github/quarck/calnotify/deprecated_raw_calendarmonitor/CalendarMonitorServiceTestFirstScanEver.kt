@@ -45,6 +45,7 @@ import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
 import org.junit.Ignore
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 
@@ -341,7 +342,7 @@ class CalendarMonitorServiceTestFirstScanEver {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
     
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block

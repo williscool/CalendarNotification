@@ -41,6 +41,7 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import java.util.Locale
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.ui.UINotifier
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 import org.junit.Ignore
@@ -622,7 +623,7 @@ class CalendarMonitorServiceEventReminderTest {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
     currentTime.set(testClock.currentTimeMillis())
     
     // No need to manually configure mockTimer's schedule behavior anymore

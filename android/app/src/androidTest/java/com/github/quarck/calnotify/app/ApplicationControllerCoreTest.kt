@@ -12,6 +12,7 @@ import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -30,7 +31,7 @@ class ApplicationControllerCoreTest {
 
     private val LOG_TAG = "ApplicationControllerCoreTest"
     private lateinit var context: Context
-    private val baseTime = System.currentTimeMillis()
+    private val baseTime = TestTimeConstants.STANDARD_TEST_TIME
 
     @Before
     fun setup() {
@@ -235,7 +236,7 @@ class ApplicationControllerCoreTest {
         // Recent event
         val recentEvent = createTestEvent(
             eventId = eventId,
-            lastStatusChangeTime = System.currentTimeMillis() // Just now
+            lastStatusChangeTime = baseTime // Just now (relative to baseTime)
         )
         EventsStorage(context).use { db ->
             db.addEvent(recentEvent)
@@ -258,7 +259,7 @@ class ApplicationControllerCoreTest {
         val snoozedEvent = createTestEvent(
             eventId = eventId,
             lastStatusChangeTime = baseTime - Consts.DISMISS_ALL_THRESHOLD - 60000L,
-            snoozedUntil = System.currentTimeMillis() + 3600000L
+            snoozedUntil = baseTime + 3600000L
         )
         EventsStorage(context).use { db ->
             db.addEvent(snoozedEvent)
@@ -299,7 +300,7 @@ class ApplicationControllerCoreTest {
         val eventId = 100031L
         val event = createTestEvent(
             eventId = eventId,
-            snoozedUntil = System.currentTimeMillis() + 3600000L,
+            snoozedUntil = baseTime + 3600000L,
             isMuted = false
         )
         EventsStorage(context).use { db ->

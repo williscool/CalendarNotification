@@ -32,6 +32,7 @@ import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -51,7 +52,7 @@ class PreMuteIntegrationTest {
 
     private val LOG_TAG = "PreMuteIntegrationTest"
     private lateinit var context: Context
-    private val baseTime = System.currentTimeMillis()
+    private val baseTime = TestTimeConstants.STANDARD_TEST_TIME
     private var testEventId = 900000L  // Use high IDs to avoid conflicts
 
     @Before

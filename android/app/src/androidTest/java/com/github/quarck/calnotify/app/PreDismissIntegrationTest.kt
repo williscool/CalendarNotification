@@ -33,6 +33,7 @@ import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 import io.mockk.every
 import io.mockk.mockkObject
@@ -58,7 +59,7 @@ class PreDismissIntegrationTest {
 
     private val LOG_TAG = "PreDismissIntegrationTest"
     private lateinit var context: Context
-    private val baseTime = System.currentTimeMillis()
+    private val baseTime = TestTimeConstants.STANDARD_TEST_TIME
     private var testEventId = 920000L  // Use high IDs to avoid conflicts
     private lateinit var testClock: CNPlusTestClock
 
