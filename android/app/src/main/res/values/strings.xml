@@ -457,8 +457,12 @@
     <!-- Notification permission (Android 13+) -->
     <string name="notification_permission_title">Notification Permission</string>
     <string name="notification_permission_explanation">This app needs permission to show notifications for your calendar events. Without this permission, you won\'t receive any calendar reminders.</string>
+    <string name="notification_permission_denied_toast">Notifications disabled - you won\'t receive calendar reminders</string>
     <string name="you_can_do_it_later">LATER</string>
     <string name="you_cannot_do_it">DISMISS</string>
+    
+    <!-- Battery optimization feedback -->
+    <string name="battery_optimization_later_toast">Reminders may be delayed by battery optimization</string>
 
     <string name="always_collapse">Always collapse</string>
     <string name="always_collapse_detail">Always collapse multiple notifications into large summary one</string>
