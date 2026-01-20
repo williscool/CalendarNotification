@@ -187,6 +187,8 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     }
 
     private fun updateEmptyState() {
+        if (!isAdded) return  // Fragment detached, skip update
+        
         val isEmpty = adapter.itemCount == 0
         emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
         
