@@ -64,8 +64,9 @@ runs:
   using: "composite"
   steps:
     # JS Bundle and Assets Cache - Save only if not already cached
+    # Only save from x86_64 builds to avoid race condition between arch builds
     - name: Save JS Bundle and Assets Cache
-      if: always() && inputs.test_runner_only != 'true' && inputs.js-bundle-cache-hit != 'true'
+      if: always() && inputs.test_runner_only != 'true' && inputs.js-bundle-cache-hit != 'true' && inputs.arch == 'x86_64'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -129,9 +130,22 @@ runs:
         path: .yarn/ci-cache/
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
 
-    # React Native cache - Save only if not already cached
-    - name: Save React Native cache
+    # React Native cache - Save only if not already cached AND directories exist
+    # These dirs are only created by Metro during development, not CI builds
+    - name: Check React Native cache directories exist
+      id: check-rn-cache
       if: always() && inputs.test_runner_only != 'true' && inputs.react-native-cache-hit != 'true'
+      shell: bash
+      run: |
+        if [ -d "node_modules/.cache/react-native" ] || [ -d "node_modules/.cache/metro" ] || [ -d "node_modules/.cache/@react-native-community/cli" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "React Native cache directories don't exist, skipping save"
+        fi
+
+    - name: Save React Native cache
+      if: always() && steps.check-rn-cache.outputs.exists == 'true'
       uses: actions/cache/save@v4
       with:
         path: |
