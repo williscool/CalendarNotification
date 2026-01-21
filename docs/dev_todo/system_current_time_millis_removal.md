@@ -33,8 +33,8 @@ Create a standard test time constant and replace all `System.currentTimeMillis()
 Create `TestTimeConstants.kt` with:
 ```kotlin
 object TestTimeConstants {
-    // December 23, 2023 at noon UTC - safely in middle of day, avoids all boundary issues
-    val STANDARD_TEST_TIME: Long = 1703332800000L  // Pre-calculated for consistency
+    // December 25, 2023 (Christmas Day) at noon UTC - safely in middle of day, avoids all boundary issues
+    val STANDARD_TEST_TIME: Long = 1703505600000L  // Pre-calculated for consistency
 }
 ```
 
