@@ -95,7 +95,7 @@ android {
     minSdkVersion rootProject.ext.minSdkVersion
     minSdk rootProject.ext.minSdk
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 4000070
+    versionCode 4000071
     versionName "9.15.1"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
