@@ -13,7 +13,13 @@ Add the ability to select multiple events from the **Active events tab** in the 
 **In Scope (This Plan):**
 - Multi-select in the **Active** events tab only
 - Modern UI (`MainActivityModern`) only
-- Batch snooze and batch dismiss operations
+- Batch snooze and batch dismiss operations on selected events
+- Works alongside existing search and filter chips (selection is independent of filters)
+
+**Relationship to Existing Features:**
+- **Snooze All / Change All:** Already supports search and filter chips - snoozes all *visible* events matching current filters
+- **Dismiss All:** Does NOT support filtering - always dismisses all non-recent, non-snoozed events
+- **Multi-Select (this feature):** Allows selecting *specific* events for batch snooze OR dismiss, giving users fine-grained control
 
 **Out of Scope (See Future Enhancements):**
 - Upcoming events tab (pre-actions)
@@ -24,14 +30,17 @@ Add the ability to select multiple events from the **Active events tab** in the 
 
 Currently, users can either:
 - Snooze/dismiss events one at a time
-- Use "Snooze All" to affect all events
-- Use search/filters to narrow down events and then snooze matching events
+- Use "Snooze All" / "Change All" to affect all events
+- Use search/filters to narrow down events and then snooze matching events via "Snooze All"
+
+**Note:** The existing search/filter integration only works with **Snooze All / Change All**. The "Dismiss All" menu action does **not** support filtering - it always dismisses all non-recent, non-snoozed events regardless of active filters.
 
 This feature adds a middle ground: selecting an arbitrary subset of events for batch operations. For example:
 - Select 4 of 10 events and snooze them for 10 minutes
 - Select the remaining 6 and snooze for 30 minutes
+- Select specific events to dismiss (regardless of recency)
 
-This avoids the tedious workflow of snoozing all for one time, then individually re-snoozing the others.
+This avoids the tedious workflow of snoozing all for one time, then individually re-snoozing the others. It also provides the first way to batch dismiss a filtered/specific set of events.
 
 ## Requirements
 
@@ -117,6 +126,8 @@ This avoids the tedious workflow of snoozing all for one time, then individually
 3. All selected events are dismissed
 4. Selection mode exits
 5. Snackbar with undo option appears
+
+> **Note:** Unlike the existing "Dismiss All" menu action (which only dismisses non-recent events), multi-select dismiss will dismiss any selected event regardless of recency. This gives users more control over exactly which events to dismiss.
 
 #### Filter Interaction Details
 
