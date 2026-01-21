@@ -109,6 +109,7 @@ class UITestFixtureRobolectric {
         // Inject test clock into fragments for deterministic time behavior
         ActiveEventsFragment.clockProvider = { testClock }
         UpcomingEventsFragment.clockProvider = { testClock }
+        DismissedEventsFragment.clockProvider = { testClock }
         
         // Mock PermissionsManager to return true for calendar permissions
         mockkObject(PermissionsManager)

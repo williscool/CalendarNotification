@@ -115,6 +115,7 @@ class UITestFixture {
         // are correctly filtered by fragments using the same time reference
         UpcomingEventsFragment.clockProvider = { testClock }
         ActiveEventsFragment.clockProvider = { testClock }
+        DismissedEventsFragment.clockProvider = { testClock }
         ApplicationController.clockProvider = { testClock }
         
         // Suppress battery optimization dialog if requested

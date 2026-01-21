@@ -33,17 +33,16 @@ import java.util.TimeZone
  */
 object TestTimeConstants {
     /**
-     * Standard test time: June 15, 2026 at 12:00:00 UTC
+     * Standard test time: December 23, 2023 at 12:00:00 UTC
      * 
      * This time was chosen because:
      * - Noon avoids midnight boundary issues
-     * - Mid-month avoids month boundary issues
-     * - Mid-year avoids year boundary issues
-     * - Future date makes it clear this is a test value
+     * - December 23rd is a meaningful date (day before Christmas Eve)
+     * - 2023 is a past date, making it clear this is a fixed test value
      */
     val STANDARD_TEST_TIME: Long = run {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-        cal.set(2026, Calendar.JUNE, 15, 12, 0, 0)
+        cal.set(2023, Calendar.DECEMBER, 23, 12, 0, 0)
         cal.set(Calendar.MILLISECOND, 0)
         cal.timeInMillis
     }
