@@ -853,13 +853,13 @@
     <string name="selection_count_with_hidden">%1$d selected (%2$d hidden by filters)</string>
     
     <plurals name="snooze_selected_title">
-        <item quantity="one">Snooze %d event</item>
-        <item quantity="other">Snooze %d events</item>
+        <item quantity="one">Snooze %d selected event</item>
+        <item quantity="other">Snooze %d selected events</item>
     </plurals>
     
     <plurals name="change_selected_title">
-        <item quantity="one">Change snooze for %d event</item>
-        <item quantity="other">Change snooze for %d events</item>
+        <item quantity="one">Change snooze for %d selected event</item>
+        <item quantity="other">Change snooze for %d selected events</item>
     </plurals>
     
     <plurals name="snooze_selected_confirmation">
