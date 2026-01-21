@@ -428,4 +428,85 @@ class ActiveEventsFragmentRobolectricTest {
         
         scenario.close()
     }
+    
+    // === Multi-Select Mode Tests ===
+    
+    @Test
+    fun activeEventsFragment_has_selection_action_bar_initially_hidden() {
+        fixture.createEvent(title = "Test Event")
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val selectionBar = fragment.requireView().findViewById<View>(R.id.selection_action_bar)
+            assertNotNull(selectionBar)
+            assertEquals("Selection bar should be hidden initially", View.GONE, selectionBar.visibility)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_has_selection_bottom_bar_initially_hidden() {
+        fixture.createEvent(title = "Test Event")
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val bottomBar = fragment.requireView().findViewById<View>(R.id.selection_bottom_bar)
+            assertNotNull(bottomBar)
+            assertEquals("Bottom bar should be hidden initially", View.GONE, bottomBar.visibility)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_adapter_not_in_selection_mode_initially() {
+        fixture.createEvent(title = "Test Event")
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter as? EventListAdapter
+            assertNotNull(adapter)
+            assertFalse("Adapter should not be in selection mode initially", adapter!!.selectionMode)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_isInSelectionMode_returns_false_initially() {
+        fixture.createEvent(title = "Test Event")
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            assertFalse("Fragment should not be in selection mode initially", fragment.isInSelectionMode())
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun activeEventsFragment_exitSelectionMode_does_nothing_when_not_in_selection() {
+        fixture.createEvent(title = "Test Event")
+        
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            // Should not crash when called while not in selection mode
+            fragment.exitSelectionMode()
+            assertFalse("Fragment should still not be in selection mode", fragment.isInSelectionMode())
+        }
+        
+        scenario.close()
+    }
 }

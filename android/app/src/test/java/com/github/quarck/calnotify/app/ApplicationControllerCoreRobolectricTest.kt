@@ -1069,5 +1069,119 @@ class ApplicationControllerCoreRobolectricTest {
         assertTrue("Past event should be snoozed", e1!!.snoozedUntil > 0)
         assertEquals("Ongoing event should NOT be snoozed", 0L, e2!!.snoozedUntil)
     }
+    
+    // === snoozeSelectedEvents tests (Multi-Select) ===
+    
+    @Test
+    fun testSnoozeSelectedEvents_snoozesOnlySelectedEvents() {
+        val event1 = createTestEvent(eventId = 1, instanceStartTime = baseTime)
+        val event2 = createTestEvent(eventId = 2, instanceStartTime = baseTime + 1000)
+        val event3 = createTestEvent(eventId = 3, instanceStartTime = baseTime + 2000)
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
+        mockEventsStorage.addEvent(event3)
+        
+        val snoozeDelay = 3600000L
+        // Only select events 1 and 3
+        val selectedKeys = setOf(
+            "${event1.eventId}:${event1.instanceStartTime}",
+            "${event3.eventId}:${event3.instanceStartTime}"
+        )
+        
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, false)
+        
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        val e3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Event 2 should NOT be snoozed", 0L, e2!!.snoozedUntil)
+        assertTrue("Event 3 should be snoozed", e3!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_withEmptySet_returnsNull() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        
+        val result = ApplicationController.snoozeSelectedEvents(
+            context, emptySet(), 3600000L, false
+        )
+        
+        assertNull("Should return null for empty selection", result)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_withInvalidKeys_handlesGracefully() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, instanceStartTime = baseTime))
+        
+        val invalidKeys = setOf(
+            "invalid",
+            "not:a:valid:key",
+            "abc:def"
+        )
+        
+        val result = ApplicationController.snoozeSelectedEvents(
+            context, invalidKeys, 3600000L, false
+        )
+        
+        // Should not snooze anything since no valid keys
+        val events = mockEventsStorage.events
+        assertTrue("No events should be snoozed with invalid keys", events.all { it.snoozedUntil == 0L })
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_returnsSnoozeResult() {
+        val event = createTestEvent(eventId = 1, instanceStartTime = baseTime)
+        mockEventsStorage.addEvent(event)
+        
+        val snoozeDelay = 3600000L
+        val selectedKeys = setOf("${event.eventId}:${event.instanceStartTime}")
+        
+        val result = ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, false)
+        
+        assertNotNull("Should return SnoozeResult", result)
+        assertEquals(SnoozeType.Snoozed, result!!.type)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_isChange_snoozesAlreadySnoozedEvents() {
+        val event = createTestEvent(
+            eventId = 1, 
+            instanceStartTime = baseTime,
+            snoozedUntil = baseTime + 1800000L // Already snoozed 30 min
+        )
+        mockEventsStorage.addEvent(event)
+        
+        val snoozeDelay = 3600000L // 1 hour
+        val selectedKeys = setOf("${event.eventId}:${event.instanceStartTime}")
+        
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, true)
+        
+        val updatedEvent = mockEventsStorage.events.first()
+        // New snooze should be ~1 hour from now
+        assertTrue("Snoozed until should be updated to new time", 
+            updatedEvent.snoozedUntil > baseTime + 3500000L)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_notChange_doesNotShortenExistingSnooze() {
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime,
+            snoozedUntil = baseTime + 7200000L // Already snoozed 2 hours
+        )
+        mockEventsStorage.addEvent(event)
+        
+        val snoozeDelay = 1800000L // 30 minutes (shorter than existing)
+        val selectedKeys = setOf("${event.eventId}:${event.instanceStartTime}")
+        
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, false)
+        
+        val updatedEvent = mockEventsStorage.events.first()
+        // Original snooze should remain since it's longer
+        assertEquals("Should not shorten existing snooze", 
+            baseTime + 7200000L, updatedEvent.snoozedUntil)
+    }
 }
 
