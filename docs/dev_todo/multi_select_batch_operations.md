@@ -13,15 +13,15 @@ Add the ability to select multiple events from the **Active events tab** in the 
 **In Scope (This Plan):**
 - Multi-select in the **Active** events tab only
 - Modern UI (`MainActivityModern`) only
-- Batch snooze and batch dismiss operations on selected events
+- **Batch snooze / change snooze** operations on selected events
 - Works alongside existing search and filter chips (selection is independent of filters)
 
 **Relationship to Existing Features:**
 - **Snooze All / Change All:** Already supports search and filter chips - snoozes all *visible* events matching current filters
-- **Dismiss All:** Does NOT support filtering - always dismisses all non-recent, non-snoozed events
-- **Multi-Select (this feature):** Allows selecting *specific* events for batch snooze OR dismiss, giving users fine-grained control
+- **Multi-Select (this feature):** Allows selecting *specific* events for batch snooze, giving users fine-grained control
 
 **Out of Scope (See Future Enhancements):**
+- Batch dismiss (should be paired with batch restore on Dismissed tab)
 - Upcoming events tab (pre-actions)
 - Dismissed events tab (batch restore)
 - Legacy UI (`MainActivityLegacy`)
@@ -29,18 +29,15 @@ Add the ability to select multiple events from the **Active events tab** in the 
 ## Motivation
 
 Currently, users can either:
-- Snooze/dismiss events one at a time
+- Snooze events one at a time
 - Use "Snooze All" / "Change All" to affect all events
 - Use search/filters to narrow down events and then snooze matching events via "Snooze All"
 
-**Note:** The existing search/filter integration only works with **Snooze All / Change All**. The "Dismiss All" menu action does **not** support filtering - it always dismisses all non-recent, non-snoozed events regardless of active filters.
-
-This feature adds a middle ground: selecting an arbitrary subset of events for batch operations. For example:
+This feature adds a middle ground: selecting an arbitrary subset of events for batch snooze. For example:
 - Select 4 of 10 events and snooze them for 10 minutes
 - Select the remaining 6 and snooze for 30 minutes
-- Select specific events to dismiss (regardless of recency)
 
-This avoids the tedious workflow of snoozing all for one time, then individually re-snoozing the others. It also provides the first way to batch dismiss a filtered/specific set of events.
+This avoids the tedious workflow of snoozing all for one time, then individually re-snoozing the others.
 
 ## Requirements
 
@@ -56,7 +53,7 @@ This avoids the tedious workflow of snoozing all for one time, then individually
    - Selected events that become hidden by a filter remain selected (but not visible)
    - "Select All" only selects currently visible events
    - Selection count shows "X of Y selected" where Y is visible count
-4. **Batch Actions:** Snooze and dismiss operations on selected events
+4. **Batch Snooze:** Snooze or change snooze time for all selected events
 5. **Clear Exit:** Selection mode exits cleanly after batch action or cancel
 
 ### Non-Functional Requirements
@@ -76,7 +73,7 @@ This avoids the tedious workflow of snoozing all for one time, then individually
 3. UI transitions to selection mode:
    - Checkboxes appear on all visible event cards
    - Contextual action bar (CAB) appears at top
-   - Bottom action bar appears with Snooze/Dismiss buttons
+   - Bottom action bar appears with Snooze button
    - FAB (add event) hides
    - Swipe-to-dismiss is disabled
 
@@ -99,7 +96,7 @@ This avoids the tedious workflow of snoozing all for one time, then individually
 ├─────────────────────────────────────────┤
 │         (more events...)                │
 ├─────────────────────────────────────────┤
-│    [SNOOZE SELECTED]  [DISMISS]        │  ← Bottom Action Bar
+│           [SNOOZE SELECTED]            │  ← Bottom Action Bar
 └─────────────────────────────────────────┘
 ```
 
@@ -119,15 +116,6 @@ This avoids the tedious workflow of snoozing all for one time, then individually
 4. All selected events are snoozed
 5. Selection mode exits
 6. Toast confirms: "Snoozed X events until [time]"
-
-**Dismiss Selected:**
-1. Shows confirmation dialog: "Dismiss X events?"
-2. User confirms
-3. All selected events are dismissed
-4. Selection mode exits
-5. Snackbar with undo option appears
-
-> **Note:** Unlike the existing "Dismiss All" menu action (which only dismisses non-recent events), multi-select dismiss will dismiss any selected event regardless of recency. This gives users more control over exactly which events to dismiss.
 
 #### Filter Interaction Details
 
@@ -264,25 +252,15 @@ class EventListAdapter(...) {
     android:background="@color/cardview_light_background"
     android:elevation="8dp"
     android:visibility="gone"
-    android:orientation="horizontal"
+    android:gravity="center"
     android:padding="8dp">
     
     <Button
         android:id="@+id/btn_snooze_selected"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
         android:text="@string/snooze_selected"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
-    
-    <Button
-        android:id="@+id/btn_dismiss_selected"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="@string/dismiss"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:layout_marginStart="8dp"/>
+        style="@style/Widget.MaterialComponents.Button"/>
 </LinearLayout>
 ```
 
@@ -302,7 +280,7 @@ class EventListAdapter(...) {
 
 #### ApplicationController Changes
 
-Add methods for batch operations on specific events:
+Add method for batch snooze on specific events:
 
 ```kotlin
 // In ApplicationController.kt
@@ -351,17 +329,6 @@ fun snoozeSelectedEvents(
     
     return null
 }
-
-fun dismissSelectedEvents(
-    context: Context,
-    events: Collection<EventAlertRecord>,
-    dismissType: EventDismissType
-) {
-    getEventsStorage(context).use { db ->
-        val validEvents = events.filter { !it.isSpecial }
-        dismissEvents(context, db, validEvents, dismissType, true)
-    }
-}
 ```
 
 #### Fragment Changes
@@ -404,10 +371,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
         
         view.findViewById<View>(R.id.btn_snooze_selected)?.setOnClickListener {
             showSnoozeSelectedDialog()
-        }
-        
-        view.findViewById<View>(R.id.btn_dismiss_selected)?.setOnClickListener {
-            showDismissSelectedConfirmation()
         }
     }
     
@@ -453,29 +416,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
         // Option 1: Bottom sheet with snooze presets
         // Option 2: Reuse SnoozeAllActivity with event IDs passed via intent
     }
-    
-    private fun showDismissSelectedConfirmation() {
-        val selectedEvents = adapter.getSelectedEvents()
-        if (selectedEvents.isEmpty()) return
-        
-        AlertDialog.Builder(requireContext())
-            .setMessage(resources.getQuantityString(
-                R.plurals.dismiss_selected_confirmation, 
-                selectedEvents.size, 
-                selectedEvents.size
-            ))
-            .setPositiveButton(android.R.string.yes) { _, _ ->
-                ApplicationController.dismissSelectedEvents(
-                    requireContext(),
-                    selectedEvents,
-                    EventDismissType.ManuallyDismissedFromActivity
-                )
-                adapter.exitSelectionMode()
-                loadEvents()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
 }
 ```
 
@@ -500,12 +440,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
 - [ ] Update selection count to show hidden count
 - [ ] Test "Select All" with various filter combinations
 
-#### Phase 4: Batch Actions
+#### Phase 4: Batch Snooze Action
 - [ ] Add `snoozeSelectedEvents` to `ApplicationController`
-- [ ] Add `dismissSelectedEvents` to `ApplicationController`
-- [ ] Create snooze dialog for selected events (bottom sheet or activity)
-- [ ] Implement dismiss confirmation and action
-- [ ] Add undo support for batch dismiss
+- [ ] Create snooze dialog for selected events (bottom sheet or reuse SnoozeAllActivity)
 
 #### Phase 5: Polish & Testing
 - [ ] Add accessibility announcements for selection state
@@ -528,11 +465,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
 
 <string name="selection_count_with_hidden">%1$d selected (%2$d hidden by filters)</string>
 
-<plurals name="dismiss_selected_confirmation">
-    <item quantity="one">Dismiss %d event?</item>
-    <item quantity="other">Dismiss %d events?</item>
-</plurals>
-
 <plurals name="snooze_selected_title">
     <item quantity="one">Snooze %d event</item>
     <item quantity="other">Snooze %d events</item>
@@ -541,11 +473,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
 <plurals name="events_snoozed">
     <item quantity="one">%d event snoozed</item>
     <item quantity="other">%d events snoozed</item>
-</plurals>
-
-<plurals name="events_dismissed">
-    <item quantity="one">%d event dismissed</item>
-    <item quantity="other">%d events dismissed</item>
 </plurals>
 ```
 
@@ -566,7 +493,6 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
 
 #### Instrumentation Tests (if needed)
 - End-to-end batch snooze flow
-- End-to-end batch dismiss flow
 - Selection + filter interaction
 
 ### Open Questions
@@ -612,9 +538,26 @@ Extend multi-select to the **Upcoming** events tab to allow batch pre-actions on
 - Bottom action bar would show: [PRE-SNOOZE] [PRE-DISMISS] [PRE-MUTE]
 - Pre-actioned events should have a visual indicator in the list
 
+### Active Events Tab - Batch Dismiss
+
+Add batch dismiss to multi-select on the Active tab. This should be implemented alongside batch restore on the Dismissed tab to provide a complete workflow.
+
+**Potential Actions:**
+- **Dismiss Selected:** Dismiss all selected events from Active tab
+
+**Implementation Notes:**
+- Add `dismissSelectedEvents()` to `ApplicationController`
+- Unlike "Dismiss All", this would dismiss any selected event regardless of recency
+- Add Dismiss button to bottom action bar (alongside Snooze)
+
+**UI Considerations:**
+- Bottom action bar would show: [SNOOZE SELECTED] [DISMISS]
+- Show confirmation dialog before batch dismiss
+- Provide undo via Snackbar
+
 ### Dismissed Events Tab - Multi-Select Restore
 
-Extend multi-select to the **Dismissed** events tab to allow batch restore of dismissed events.
+Extend multi-select to the **Dismissed** events tab to allow batch restore of dismissed events. This pairs naturally with batch dismiss on the Active tab.
 
 **Potential Actions:**
 - **Restore Selected:** Restore selected dismissed events back to the Active tab
