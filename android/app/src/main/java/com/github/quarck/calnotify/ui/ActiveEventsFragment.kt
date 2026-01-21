@@ -202,7 +202,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
             intent.putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
         }
         if (filterState.hasActiveFilters()) {
-            intent.putExtra(Consts.INTENT_FILTER_STATE, filterState.toIntentString())
+            intent.putExtra(Consts.INTENT_FILTER_STATE, filterState.toBundle())
         }
         
         startActivity(intent)
