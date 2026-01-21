@@ -41,9 +41,22 @@ object CalendarProvider : CalendarProviderInterface {
     private const val LOG_TAG = "CalendarProvider"
 
     /**
-     * Clock implementation for time operations
+     * Provider for Clock - enables DI for testing
      */
-    override val clock: CNPlusClockInterface = CNPlusSystemClock()
+    var clockProvider: (() -> CNPlusClockInterface)? = null
+    
+    /**
+     * Clock implementation for time operations - uses clockProvider if set, otherwise real clock
+     */
+    override val clock: CNPlusClockInterface
+        get() = clockProvider?.invoke() ?: CNPlusSystemClock()
+    
+    /**
+     * Reset clock provider - call in @After to prevent test pollution
+     */
+    fun resetClockProvider() {
+        clockProvider = null
+    }
 
     private val alertFields =
             arrayOf(
