@@ -2,11 +2,23 @@
 
 ## Overview
 
-Add the ability to select multiple events from the Active events list and perform batch operations (snooze, dismiss) on an arbitrary subset of events.
+Add the ability to select multiple events from the **Active events tab** in the **Modern UI** (`MainActivityModern`) and perform batch operations (snooze, dismiss) on an arbitrary subset of events.
 
 **GitHub Issue:** [#182](https://github.com/williscool/CalendarNotification/issues/182)
 
 **Prior Art:** [quarck/CalendarNotification#350](https://github.com/quarck/CalendarNotification/issues/350)
+
+## Scope
+
+**In Scope (This Plan):**
+- Multi-select in the **Active** events tab only
+- Modern UI (`MainActivityModern`) only
+- Batch snooze and batch dismiss operations
+
+**Out of Scope (See Future Enhancements):**
+- Upcoming events tab (pre-actions)
+- Dismissed events tab (batch restore)
+- Legacy UI (`MainActivityLegacy`)
 
 ## Motivation
 
@@ -550,14 +562,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
 
 1. **Snooze UI:** Should we reuse `SnoozeAllActivity` with selected event IDs, or create a new bottom sheet? Bottom sheet might be cleaner UX.
 
-2. **Upcoming/Dismissed tabs:** Should multi-select work on those tabs too? 
-   - Upcoming: Could allow pre-snooze or pre-dismiss
-   - Dismissed: Could allow batch restore
-   - Recommendation: Start with Active only, extend later if needed
+2. **Maximum selection:** Should there be a limit? Probably not needed given typical event counts.
 
-3. **Maximum selection:** Should there be a limit? Probably not needed given typical event counts.
-
-4. **Selection indicator:** Checkbox vs. circle/check overlay? Checkbox is more standard for Android.
+3. **Selection indicator:** Checkbox vs. circle/check overlay? Checkbox is more standard for Android.
 
 ### Related Files
 
@@ -568,3 +575,74 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment,
 - `event_card_compact.xml` - Checkbox addition
 - `fragment_event_list.xml` - Action bars
 - `strings.xml` - New string resources
+
+---
+
+## Future Enhancements
+
+These features are out of scope for the initial implementation but could be added later.
+
+### Upcoming Events Tab - Multi-Select Pre-Actions
+
+Extend multi-select to the **Upcoming** events tab to allow batch pre-actions on events that haven't fired yet.
+
+**Potential Actions:**
+- **Pre-Snooze Selected:** Set a snooze time for selected events before they fire. When the alert fires, it will immediately be snoozed to the specified time.
+- **Pre-Dismiss Selected:** Mark selected events to be auto-dismissed when they fire. Useful for declining meetings in bulk.
+- **Pre-Mute Selected:** Mark selected events to be muted when they fire. Notifications will still appear but won't make sound.
+
+**Implementation Notes:**
+- Reuses `UpcomingEventsFragment` and potentially a shared selection adapter component
+- Pre-actions are stored in `MonitorStorage` (existing `preMuted` flag pattern)
+- Would need new fields: `preSnoozeUntil`, `preDismiss` in `MonitorEventAlertEntry`
+- See `docs/dev_todo/event_lookahead_milestone2_pre_actions.md` for related pre-action architecture
+
+**UI Considerations:**
+- Bottom action bar would show: [PRE-SNOOZE] [PRE-DISMISS] [PRE-MUTE]
+- Pre-actioned events should have a visual indicator in the list
+
+### Dismissed Events Tab - Multi-Select Restore
+
+Extend multi-select to the **Dismissed** events tab to allow batch restore of dismissed events.
+
+**Potential Actions:**
+- **Restore Selected:** Restore selected dismissed events back to the Active tab
+- **Delete Selected:** Permanently remove selected events from dismissed history (if we ever add this capability)
+
+**Implementation Notes:**
+- Reuses `DismissedEventsFragment` and `DismissedEventListAdapter`
+- Restore logic already exists in `ApplicationController.restoreEvent()`
+- Would need batch version: `restoreSelectedEvents()`
+
+**UI Considerations:**
+- Bottom action bar would show: [RESTORE SELECTED]
+- Consider whether to show confirmation dialog for batch restore
+
+### Shared Selection Infrastructure
+
+When implementing multi-select for additional tabs, consider extracting shared components:
+
+```kotlin
+// Potential shared interface for selection-capable adapters
+interface SelectableAdapter<T> {
+    val selectionMode: Boolean
+    val selectedItems: Set<T>
+    
+    fun enterSelectionMode(firstItem: T)
+    fun exitSelectionMode()
+    fun toggleSelection(item: T)
+    fun selectAllVisible()
+    fun getSelectedItems(): List<T>
+}
+
+// Potential shared selection UI controller
+class SelectionModeController(
+    private val fragment: Fragment,
+    private val adapter: SelectableAdapter<*>
+) {
+    fun setupUI(actionBar: View, bottomBar: View) { ... }
+    fun handleBackPress(): Boolean { ... }
+}
+```
+
+This would reduce code duplication across `ActiveEventsFragment`, `UpcomingEventsFragment`, and `DismissedEventsFragment`.
