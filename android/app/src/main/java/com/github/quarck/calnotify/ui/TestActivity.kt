@@ -351,7 +351,7 @@ class TestActivity : Activity() {
         )
         
         val details = CalendarEventDetails(
-            title = "Test Reminder In Feature - ${System.currentTimeMillis() % 10000}",
+            title = "Test Reminder In Feature - ${clock.currentTimeMillis() % 10000}",
             desc = "This event tests the next notification indicator feature",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,
@@ -445,7 +445,7 @@ class TestActivity : Activity() {
             val eventEnd = eventStart + Consts.HOUR_IN_MILLISECONDS
             
             val details = CalendarEventDetails(
-                title = "$title - ${System.currentTimeMillis() % 10000}",
+                title = "$title - ${clock.currentTimeMillis() % 10000}",
                 desc = "Collapsed notification test",
                 location = "",
                 timezone = java.util.TimeZone.getDefault().id,
@@ -516,7 +516,7 @@ class TestActivity : Activity() {
         val reminders = listOf(EventReminderRecord.minutes(60))  // fires in 1h
         
         val details = CalendarEventDetails(
-            title = "Muted Test Event - ${System.currentTimeMillis() % 10000}",
+            title = "Muted Test Event - ${clock.currentTimeMillis() % 10000}",
             desc = "This event is muted - should show 🔇 📅 in X",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,
@@ -602,7 +602,7 @@ class TestActivity : Activity() {
         val reminders = listOf<EventReminderRecord>()
         
         val details = CalendarEventDetails(
-            title = "App Alert Test - ${System.currentTimeMillis() % 10000}",
+            title = "App Alert Test - ${clock.currentTimeMillis() % 10000}",
             desc = "This event shows the app alert indicator (🔔). Reminders must be enabled!",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,

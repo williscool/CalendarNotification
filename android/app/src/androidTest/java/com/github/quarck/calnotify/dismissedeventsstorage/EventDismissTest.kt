@@ -18,6 +18,7 @@ import com.github.quarck.calnotify.testutils.MockApplicationComponents
 import com.github.quarck.calnotify.testutils.MockCalendarProvider
 import com.github.quarck.calnotify.testutils.MockContextProvider
 import com.github.quarck.calnotify.testutils.MockTimeProvider
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import expo.modules.mymodule.JsRescheduleConfirmationObject
 import io.mockk.*
 import org.junit.Before
@@ -707,26 +708,27 @@ class EventDismissTest {
     }
 
     private fun createTestEvent(id: Long = 1L, isRepeating: Boolean = false): EventAlertRecord {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         return EventAlertRecord(
             calendarId = 1L,
             eventId = id,
             isAllDay = false,
             isRepeating = isRepeating, // Use parameter
-            alertTime = System.currentTimeMillis(),
+            alertTime = now,
             notificationId = 0,
             title = "Test Event $id",
             desc = "Test Description",
-            startTime = System.currentTimeMillis(),
-            endTime = System.currentTimeMillis() + 3600000,
-            instanceStartTime = System.currentTimeMillis(),
-            instanceEndTime = System.currentTimeMillis() + 3600000,
+            startTime = now,
+            endTime = now + 3600000,
+            instanceStartTime = now,
+            instanceEndTime = now + 3600000,
             location = "",
-            lastStatusChangeTime = System.currentTimeMillis(),
+            lastStatusChangeTime = now,
             snoozedUntil = 0L,
             displayStatus = EventDisplayStatus.Hidden,
             color = 0xffff0000.toInt(),
             origin = EventOrigin.ProviderBroadcast,
-            timeFirstSeen = System.currentTimeMillis(),
+            timeFirstSeen = now,
             eventStatus = EventStatus.Confirmed,
             attendanceStatus = AttendanceStatus.None,
             flags = 0

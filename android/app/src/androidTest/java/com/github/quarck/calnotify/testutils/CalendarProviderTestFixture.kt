@@ -342,7 +342,7 @@ class CalendarProviderTestFixture {
         clearStorages(contextProvider.fakeContext)
         
         // Reset test clock to a known state
-        timeProvider.testClock.setCurrentTime(System.currentTimeMillis())
+        timeProvider.testClock.setCurrentTime(TestTimeConstants.STANDARD_TEST_TIME)
         
         // Clear any mock overrides
         unmockkAll()

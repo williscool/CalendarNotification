@@ -41,6 +41,7 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import java.util.Locale
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.ui.UINotifier
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 import org.junit.Ignore
@@ -134,6 +135,10 @@ class CalendarMonitorServiceEventReminderTest {
   @After
   fun cleanup() {
     DevLog.info(LOG_TAG, "Cleaning up test environment")
+    
+    // Reset the clock provider before unmocking to avoid test pollution
+    ApplicationController.resetClockProvider()
+    
     unmockkAll()
 
     // Delete test events and calendar
@@ -622,8 +627,11 @@ class CalendarMonitorServiceEventReminderTest {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
     currentTime.set(testClock.currentTimeMillis())
+    
+    // Inject testClock into ApplicationController so time-dependent operations use the same clock
+    ApplicationController.clockProvider = { testClock }
     
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block

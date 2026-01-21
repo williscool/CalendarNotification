@@ -45,6 +45,7 @@ import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
 import org.junit.Ignore
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 
@@ -341,7 +342,10 @@ class CalendarMonitorServiceTestFirstScanEver {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
+    
+    // Inject testClock into ApplicationController so time-dependent operations use the same clock
+    ApplicationController.clockProvider = { testClock }
     
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block
@@ -350,7 +354,8 @@ class CalendarMonitorServiceTestFirstScanEver {
   private fun setupMockCalendarMonitor() {
 
     // Mock the key method in CalendarMonitorManual that handles due alerts during firstScanEver
-    val realManualScanner = CalendarMonitorManual(CalendarProvider)
+    // NOTE: Must pass testClock so scan ranges are calculated using test time, not real time
+    val realManualScanner = CalendarMonitorManual(CalendarProvider, testClock)
 
     spyManualScanner = spyk(realManualScanner)
 
@@ -969,6 +974,10 @@ class CalendarMonitorServiceTestFirstScanEver {
   @After
   fun cleanup() {
     DevLog.info(LOG_TAG, "Cleaning up test environment")
+    
+    // Reset the clock provider before unmocking to avoid test pollution
+    ApplicationController.resetClockProvider()
+    
     unmockkAll()
 
     // Delete test events and calendar

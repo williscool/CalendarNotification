@@ -43,6 +43,7 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import androidx.test.espresso.Espresso.pressBackUnconditionally
 import io.mockk.every
@@ -64,6 +65,9 @@ class UITestFixture {
     
     private var eventIdCounter = 100000L
     private val seededEvents = mutableListOf<EventAlertRecord>()
+    
+    // Test clock for consistent time across test events and fragment filtering
+    private val testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME)
     
     // Track if calendar reload prevention is active
     private var calendarReloadPrevented = false
@@ -105,6 +109,14 @@ class UITestFixture {
         navigationDepth = 0
         
         clearAllEvents()
+        
+        // Inject test clock into components that use time-dependent logic
+        // This ensures events created with TestTimeConstants.STANDARD_TEST_TIME
+        // are correctly filtered by fragments using the same time reference
+        UpcomingEventsFragment.clockProvider = { testClock }
+        ActiveEventsFragment.clockProvider = { testClock }
+        DismissedEventsFragment.clockProvider = { testClock }
+        ApplicationController.clockProvider = { testClock }
         
         // Suppress battery optimization dialog if requested
         // This must be done BEFORE launching activity
@@ -442,10 +454,11 @@ class UITestFixture {
             DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
         }
         
-        // Reset fragment providers to prevent test pollution
+        // Reset fragment providers and ApplicationController clock to prevent test pollution
         UpcomingEventsFragment.resetProviders()
         ActiveEventsFragment.resetProviders()
         DismissedEventsFragment.resetProviders()
+        ApplicationController.resetClockProvider()
         
         // Clear IdlingResources to ensure clean state for next test
         clearIdlingResources()
@@ -468,7 +481,7 @@ class UITestFixture {
         isTask: Boolean = false,
         snoozedUntil: Long = 0L
     ): EventAlertRecord {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val startTime = currentTime + startTimeOffset
         val endTime = startTime + durationMillis
         val eventId = eventIdCounter++
@@ -528,7 +541,7 @@ class UITestFixture {
         title: String = "Snoozed Event",
         snoozeMinutes: Int = 30
     ): EventAlertRecord {
-        val snoozedUntil = System.currentTimeMillis() + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
         return createEvent(
             title = title,
             snoozedUntil = snoozedUntil
@@ -870,7 +883,7 @@ class UITestFixture {
      * Used for testing UpcomingEventsFragment without real calendar data.
      */
     private val mockCalendarProvider = object : CalendarProviderInterface {
-        override val clock = com.github.quarck.calnotify.utils.CNPlusSystemClock()
+        override val clock get() = testClock
         
         override fun getCalendars(context: Context) = listOf<com.github.quarck.calnotify.calendar.CalendarRecord>()
         override fun getHandledCalendarsIds(context: Context, settings: Settings) = setOf<Long>()
@@ -895,7 +908,7 @@ class UITestFixture {
         override fun getEventReminders(context: Context, eventId: Long) = listOf<com.github.quarck.calnotify.calendar.EventReminderRecord>()
         override fun getEvent(context: Context, eventId: Long): EventRecord? {
             // Return a mock EventRecord for any eventId
-            val now = System.currentTimeMillis()
+            val now = TestTimeConstants.STANDARD_TEST_TIME
             val details = com.github.quarck.calnotify.calendar.CalendarEventDetails(
                 title = "Mock Event $eventId",
                 desc = "",
@@ -944,7 +957,7 @@ class UITestFixture {
         durationMinutes: Int = 60,
         isAllDay: Boolean = false
     ): MonitorEventAlertEntry {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)

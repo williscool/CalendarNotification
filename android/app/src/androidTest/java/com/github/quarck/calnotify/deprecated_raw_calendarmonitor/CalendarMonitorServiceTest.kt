@@ -45,6 +45,7 @@ import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
 import org.junit.Ignore
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 
@@ -339,7 +340,10 @@ class CalendarMonitorServiceTest {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
+    
+    // Inject testClock into ApplicationController so time-dependent operations use the same clock
+    ApplicationController.clockProvider = { testClock }
     
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block
@@ -775,6 +779,10 @@ class CalendarMonitorServiceTest {
   @After
   fun cleanup() {
     DevLog.info(LOG_TAG, "Cleaning up test environment")
+    
+    // Reset the clock provider before unmocking to avoid test pollution
+    ApplicationController.resetClockProvider()
+    
     unmockkAll()
 
     // Delete test events and calendar
@@ -819,7 +827,7 @@ class CalendarMonitorServiceTest {
     monitorState.firstScanEver = false
     
     // Use consistent time method
-    testClock.setCurrentTime(System.currentTimeMillis())
+    testClock.setCurrentTime(TestTimeConstants.STANDARD_TEST_TIME)
     val startTime = testClock.currentTimeMillis() // Capture initial time
 
     // Calculate event times first

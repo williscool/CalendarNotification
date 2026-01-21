@@ -34,6 +34,7 @@ import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.AsyncTaskCallback
+import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import io.mockk.every
 import io.mockk.mockkObject
@@ -63,6 +64,9 @@ class UITestFixtureRobolectric {
     val eventsStorage = MockEventsStorage()
     val dismissedEventsStorage = MockDismissedEventsStorage()
     val monitorStorage = MockMonitorStorage()
+    
+    // Test clock for deterministic time
+    val testClock = CNPlusUnitTestClock(TestTimeConstants.STANDARD_TEST_TIME)
     
     /**
      * Sets up the fixture. Call in @Before.
@@ -102,6 +106,12 @@ class UITestFixtureRobolectric {
         DismissedEventsFragment.dismissedEventsStorageProvider = { dismissedEventsStorage }
         UpcomingEventsFragment.monitorStorageProvider = { monitorStorage }
         
+        // Inject test clock into fragments and ApplicationController for deterministic time behavior
+        ActiveEventsFragment.clockProvider = { testClock }
+        UpcomingEventsFragment.clockProvider = { testClock }
+        DismissedEventsFragment.clockProvider = { testClock }
+        ApplicationController.clockProvider = { testClock }
+        
         // Mock PermissionsManager to return true for calendar permissions
         mockkObject(PermissionsManager)
         every { PermissionsManager.hasAllCalendarPermissions(any()) } returns true
@@ -127,7 +137,7 @@ class UITestFixtureRobolectric {
         // Mock CalendarProvider.getEvent for UpcomingEventsProvider enrichment
         every { CalendarProvider.getEvent(any(), any()) } answers {
             val eventId = arg<Long>(1)
-            val now = System.currentTimeMillis()
+            val now = TestTimeConstants.STANDARD_TEST_TIME
             EventRecord(
                 calendarId = 1L,
                 eventId = eventId,
@@ -184,10 +194,11 @@ class UITestFixtureRobolectric {
         DismissedEventsActivity.dismissedEventsStorageProvider = null
         ViewEventActivityNoRecents.eventsStorageProvider = null
         
-        // Reset fragment providers
+        // Reset fragment providers and ApplicationController clock
         ActiveEventsFragment.resetProviders()
         DismissedEventsFragment.resetProviders()
         UpcomingEventsFragment.resetProviders()
+        ApplicationController.resetClockProvider()
         
         unmockkAll()
     }
@@ -207,7 +218,7 @@ class UITestFixtureRobolectric {
         isTask: Boolean = false,
         snoozedUntil: Long = 0L
     ): EventAlertRecord {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val startTime = currentTime + startTimeOffset
         val endTime = startTime + durationMillis
         val eventId = eventIdCounter++
@@ -264,7 +275,7 @@ class UITestFixtureRobolectric {
         title: String = "Snoozed Event",
         snoozeMinutes: Int = 30
     ): EventAlertRecord {
-        val snoozedUntil = System.currentTimeMillis() + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
         return createEvent(title = title, snoozedUntil = snoozedUntil)
     }
     
@@ -315,7 +326,7 @@ class UITestFixtureRobolectric {
         durationMinutes: Int = 60,
         isAllDay: Boolean = false
     ): MonitorEventAlertEntry {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)

@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.ui
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,7 +43,7 @@ class FilterStateTest {
         isMuted: Boolean = false,
         isRepeating: Boolean = false
     ): EventAlertRecord {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         return EventAlertRecord(
             calendarId = 1L,
             eventId = 1L,
@@ -67,7 +68,7 @@ class FilterStateTest {
     }
     
     private fun createActiveEvent() = createEvent(snoozedUntil = 0L)
-    private fun createSnoozedEvent() = createEvent(snoozedUntil = System.currentTimeMillis() + 3600000)
+    private fun createSnoozedEvent() = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 3600000)
     private fun createMutedEvent() = createEvent(isMuted = true)
     private fun createRecurringEvent() = createEvent(isRepeating = true)
     
@@ -158,7 +159,7 @@ class FilterStateTest {
     
     @Test
     fun `StatusOption SNOOZED matches event with snoozedUntil greater than 0`() {
-        val snoozedEvent = createEvent(snoozedUntil = System.currentTimeMillis() + 1000)
+        val snoozedEvent = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 1000)
         val notSnoozedEvent = createEvent(snoozedUntil = 0L)
         
         assertTrue(StatusOption.SNOOZED.matches(snoozedEvent))
@@ -168,7 +169,7 @@ class FilterStateTest {
     @Test
     fun `StatusOption ACTIVE matches event with snoozedUntil equal to 0`() {
         val activeEvent = createEvent(snoozedUntil = 0L)
-        val snoozedEvent = createEvent(snoozedUntil = System.currentTimeMillis() + 1000)
+        val snoozedEvent = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 1000)
         
         assertTrue(StatusOption.ACTIVE.matches(activeEvent))
         assertFalse(StatusOption.ACTIVE.matches(snoozedEvent))
@@ -198,7 +199,7 @@ class FilterStateTest {
     fun `event can match multiple status options`() {
         // Snoozed AND muted event
         val snoozedMutedEvent = createEvent(
-            snoozedUntil = System.currentTimeMillis() + 1000,
+            snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 1000,
             isMuted = true
         )
         
@@ -249,7 +250,7 @@ class FilterStateTest {
     
     @Test
     fun `TimeFilter ALL matches all events`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val pastEvent = createEvent().copy(
             instanceStartTime = now - 2 * 24 * 3600 * 1000,  // 2 days ago
             instanceEndTime = now - 2 * 24 * 3600 * 1000 + 3600000
@@ -266,7 +267,7 @@ class FilterStateTest {
     
     @Test
     fun `TimeFilter STARTED_TODAY matches events starting today`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val cal = java.util.Calendar.getInstance()
         cal.timeInMillis = now
         
@@ -289,7 +290,7 @@ class FilterStateTest {
     
     @Test
     fun `TimeFilter STARTED_THIS_WEEK matches events starting this week`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val cal = java.util.Calendar.getInstance()
         cal.timeInMillis = now
         
@@ -306,7 +307,7 @@ class FilterStateTest {
     
     @Test
     fun `TimeFilter PAST matches events that have ended`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         
         // Event that ended in the past
         val pastEvent = createEvent().copy(
@@ -333,7 +334,7 @@ class FilterStateTest {
     
     @Test
     fun `TimeFilter STARTED_THIS_MONTH matches events starting this month`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val cal = java.util.Calendar.getInstance()
         cal.timeInMillis = now
         
@@ -350,7 +351,7 @@ class FilterStateTest {
     
     @Test
     fun `FilterState matchesTime uses timeFilter`() {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         val pastEvent = createEvent().copy(
             instanceEndTime = now - 1000  // ended 1 second ago
         )
@@ -429,7 +430,7 @@ class FilterStateTest {
     }
     
     private fun createEventWithCalendar(calendarId: Long): EventAlertRecord {
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         return EventAlertRecord(
             calendarId = calendarId,
             eventId = 1L,
