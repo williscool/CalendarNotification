@@ -99,8 +99,6 @@ class EventListAdapterSelectionTest {
             lastStatusChangeTime = 0L,
             displayStatus = com.github.quarck.calnotify.calendar.EventDisplayStatus.Hidden,
             color = 0,
-            isTask = false,
-            isMuted = false,
             eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
             attendanceStatus = com.github.quarck.calnotify.calendar.AttendanceStatus.None
         )
