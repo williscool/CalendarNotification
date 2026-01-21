@@ -202,15 +202,37 @@ open class SnoozeAllActivity : AppCompatActivity() {
         }
 
         val count = intent.getIntExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT,  0)
+        val totalFilteredCount = intent.getIntExtra(ActiveEventsFragment.INTENT_TOTAL_FILTERED_COUNT, 0)
 
         val snoozeCountTextView = findViewById<TextView>(R.id.snooze_count_text)
         
-        // Multi-select mode: show simple count
+        // Multi-select mode: show count with filter context if applicable
         if (selectedEventKeys != null) {
+            val filterDescription = filterState?.toDisplayString(this)
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
+            
             snoozeCountTextView.visibility = View.VISIBLE
-            snoozeCountTextView.text = resources.getQuantityString(
-                R.plurals.selection_count, count, count
-            )
+            
+            when {
+                (hasSearch || hasFilter) && totalFilteredCount > 0 -> {
+                    // Show "X selected from Y matching: filter description"
+                    val filterDesc = when {
+                        hasSearch && hasFilter -> getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
+                        hasSearch -> "'$searchQuery'"
+                        else -> filterDescription ?: ""
+                    }
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.selection_count_from_filtered, count, count, totalFilteredCount, filterDesc
+                    )
+                }
+                else -> {
+                    // Simple count without filter context
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.selection_count, count, count
+                    )
+                }
+            }
         } else {
             val filterDescription = filterState?.toDisplayString(this)
             val hasSearch = !searchQuery.isNullOrEmpty()

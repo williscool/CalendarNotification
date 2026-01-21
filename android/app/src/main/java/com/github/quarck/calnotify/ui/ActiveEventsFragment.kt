@@ -182,17 +182,30 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         val isChange = !hasActiveEvents
         
         // Pass selected event keys to SnoozeAllActivity via intent
-        // We'll use a custom intent extra to indicate selected-only mode
         val eventKeys = selectedEvents.map { "${it.eventId}:${it.instanceStartTime}" }.toTypedArray()
         
-        startActivity(
-            Intent(ctx, SnoozeAllActivity::class.java)
-                .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
-                .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                .putExtra(INTENT_SELECTED_EVENT_KEYS, eventKeys)
-                .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, selectedEvents.size)
-                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        )
+        // Get filter/search context for display
+        val filterState = getFilterState()
+        val searchQuery = getSearchQuery()
+        val totalFilteredCount = adapter.itemCount  // Total visible (filtered) events
+        
+        val intent = Intent(ctx, SnoozeAllActivity::class.java)
+            .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
+            .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
+            .putExtra(INTENT_SELECTED_EVENT_KEYS, eventKeys)
+            .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, selectedEvents.size)
+            .putExtra(INTENT_TOTAL_FILTERED_COUNT, totalFilteredCount)
+            .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        
+        // Pass filter/search info if active
+        if (!searchQuery.isNullOrEmpty()) {
+            intent.putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
+        }
+        if (filterState.hasActiveFilters()) {
+            intent.putExtra(Consts.INTENT_FILTER_STATE, filterState.toIntentString())
+        }
+        
+        startActivity(intent)
         
         // Exit selection mode after launching snooze
         adapter.exitSelectionMode()
@@ -419,6 +432,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         
         /** Intent extra for passing selected event keys to SnoozeAllActivity */
         const val INTENT_SELECTED_EVENT_KEYS = "selected_event_keys"
+        const val INTENT_TOTAL_FILTERED_COUNT = "total_filtered_count"
         
         /** Provider for EventsStorage - enables DI for testing */
         var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null

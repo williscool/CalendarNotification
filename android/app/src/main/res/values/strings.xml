@@ -875,6 +875,12 @@
     <string name="snooze_selected_events_to">Snooze selected events to:</string>
     <string name="change_selected_events_to">Change snooze time for selected events:</string>
     
+    <!-- Multi-select with filter context -->
+    <plurals name="selection_count_from_filtered">
+        <item quantity="one">%1$d selected from %2$d matching: %3$s</item>
+        <item quantity="other">%1$d selected from %2$d matching: %3$s</item>
+    </plurals>
+    
     <plurals name="events_snoozed">
         <item quantity="one">%d event snoozed</item>
         <item quantity="other">%d events snoozed</item>
