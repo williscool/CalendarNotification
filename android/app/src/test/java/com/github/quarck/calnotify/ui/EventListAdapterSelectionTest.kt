@@ -324,20 +324,22 @@ class EventListAdapterSelectionTest {
     
     @Test
     fun enterSelectionMode_ignores_special_events() {
-        val specialEvent = createTestEvent(eventId = -1L)  // Negative IDs are special
+        // Special events have instanceStartTime = Long.MAX_VALUE
+        val specialEvent = createTestEvent(eventId = 1L, instanceStartTime = Long.MAX_VALUE)
         setAdapterEvents(specialEvent)
         
         adapter.enterSelectionMode(specialEvent)
         
         // Special events should be ignored - can't enter selection mode with them
-        // Note: This depends on isSpecial implementation
-        // If the test fails, we may need to adjust based on actual isSpecial logic
+        assertFalse(adapter.selectionMode)
+        assertEquals(0, adapter.getSelectedEvents().size)
     }
     
     @Test
     fun toggleSelection_ignores_special_events() {
         val normalEvent = createTestEvent(eventId = 1L)
-        val specialEvent = createTestEvent(eventId = -1L)
+        // Special events have instanceStartTime = Long.MAX_VALUE
+        val specialEvent = createTestEvent(eventId = 2L, instanceStartTime = Long.MAX_VALUE)
         setAdapterEvents(normalEvent, specialEvent)
         adapter.enterSelectionMode(normalEvent)
         
