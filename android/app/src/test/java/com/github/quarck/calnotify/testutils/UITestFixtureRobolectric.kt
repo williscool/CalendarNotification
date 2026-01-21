@@ -106,10 +106,11 @@ class UITestFixtureRobolectric {
         DismissedEventsFragment.dismissedEventsStorageProvider = { dismissedEventsStorage }
         UpcomingEventsFragment.monitorStorageProvider = { monitorStorage }
         
-        // Inject test clock into fragments for deterministic time behavior
+        // Inject test clock into fragments and ApplicationController for deterministic time behavior
         ActiveEventsFragment.clockProvider = { testClock }
         UpcomingEventsFragment.clockProvider = { testClock }
         DismissedEventsFragment.clockProvider = { testClock }
+        ApplicationController.clockProvider = { testClock }
         
         // Mock PermissionsManager to return true for calendar permissions
         mockkObject(PermissionsManager)
@@ -193,10 +194,11 @@ class UITestFixtureRobolectric {
         DismissedEventsActivity.dismissedEventsStorageProvider = null
         ViewEventActivityNoRecents.eventsStorageProvider = null
         
-        // Reset fragment providers
+        // Reset fragment providers and ApplicationController clock
         ActiveEventsFragment.resetProviders()
         DismissedEventsFragment.resetProviders()
         UpcomingEventsFragment.resetProviders()
+        ApplicationController.resetClockProvider()
         
         unmockkAll()
     }

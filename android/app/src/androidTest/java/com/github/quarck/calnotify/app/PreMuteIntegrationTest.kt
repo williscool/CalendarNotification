@@ -33,6 +33,8 @@ import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.testutils.TestTimeConstants
+import com.github.quarck.calnotify.utils.CNPlusTestClock
+import com.github.quarck.calnotify.app.ApplicationController
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -54,11 +56,16 @@ class PreMuteIntegrationTest {
     private lateinit var context: Context
     private val baseTime = TestTimeConstants.STANDARD_TEST_TIME
     private var testEventId = 900000L  // Use high IDs to avoid conflicts
+    private lateinit var testClock: CNPlusTestClock
 
     @Before
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up test")
         context = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Set up test clock for deterministic time
+        testClock = CNPlusTestClock(baseTime)
+        ApplicationController.clockProvider = { testClock }
         
         // Clean up any leftover test data
         cleanupTestData()
@@ -67,6 +74,10 @@ class PreMuteIntegrationTest {
     @After
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up test")
+        
+        // Reset clock provider
+        ApplicationController.resetClockProvider()
+        
         cleanupTestData()
     }
     
