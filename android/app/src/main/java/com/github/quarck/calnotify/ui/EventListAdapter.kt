@@ -144,7 +144,9 @@ class EventListAdapter(
             eventHolder?.setOnClickListener(itemClickListener)
             eventHolder?.setOnLongClickListener(itemLongClickListener)
             eventDateText.setOnClickListener(itemClickListener)
+            eventDateText.setOnLongClickListener(itemLongClickListener)
             eventTimeText.setOnClickListener(itemClickListener)
+            eventTimeText.setOnLongClickListener(itemLongClickListener)
         }
     }
 
