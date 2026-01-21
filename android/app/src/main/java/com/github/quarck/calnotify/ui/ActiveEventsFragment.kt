@@ -28,9 +28,11 @@ import androidx.core.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
@@ -56,7 +58,7 @@ import com.google.android.material.snackbar.Snackbar
  * Fragment for displaying active event notifications.
  * Migrated from MainActivity's event list functionality.
  */
-class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
+class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, SelectionModeCallback {
 
     private lateinit var settings: Settings
     private val clock: CNPlusClockInterface get() = getClock()
@@ -66,6 +68,12 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
     private var newUIBanner: LinearLayout? = null
+    
+    // Selection mode UI elements
+    private var selectionActionBar: LinearLayout? = null
+    private var selectionBottomBar: LinearLayout? = null
+    private var selectionCountText: TextView? = null
+    private var backPressedCallback: OnBackPressedCallback? = null
     
     private val dataUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -94,6 +102,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         emptyView.text = getString(R.string.empty_active)
         
         adapter = EventListAdapter(requireContext(), this)
+        adapter.selectionModeCallback = this
         recyclerView.layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView.adapter = adapter
         adapter.recyclerView = recyclerView
@@ -104,6 +113,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         
         // Setup new UI banner
         setupNewUIBanner(view)
+        
+        // Setup selection mode UI
+        setupSelectionModeUI(view)
     }
     
     private fun setupNewUIBanner(view: View) {
@@ -126,6 +138,64 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         dismissButton?.setOnClickListener {
             dismissBanner()
         }
+    }
+    
+    private fun setupSelectionModeUI(view: View) {
+        selectionActionBar = view.findViewById(R.id.selection_action_bar)
+        selectionBottomBar = view.findViewById(R.id.selection_bottom_bar)
+        selectionCountText = view.findViewById(R.id.selection_count_text)
+        
+        // Close selection button
+        view.findViewById<ImageButton>(R.id.btn_close_selection)?.setOnClickListener {
+            adapter.exitSelectionMode()
+        }
+        
+        // Select all button
+        view.findViewById<TextView>(R.id.btn_select_all)?.setOnClickListener {
+            adapter.selectAllVisible()
+        }
+        
+        // Snooze selected button
+        view.findViewById<Button>(R.id.btn_snooze_selected)?.setOnClickListener {
+            showSnoozeSelectedDialog()
+        }
+        
+        // Setup back press callback for exiting selection mode
+        backPressedCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                if (adapter.selectionMode) {
+                    adapter.exitSelectionMode()
+                }
+            }
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback!!)
+    }
+    
+    private fun showSnoozeSelectedDialog() {
+        val selectedEvents = adapter.getSelectedEvents()
+        if (selectedEvents.isEmpty()) return
+        
+        val ctx = context ?: return
+        
+        // Determine if this is a "change" (all snoozed) or "snooze" (some active)
+        val hasActiveEvents = selectedEvents.any { it.snoozedUntil == 0L }
+        val isChange = !hasActiveEvents
+        
+        // Pass selected event keys to SnoozeAllActivity via intent
+        // We'll use a custom intent extra to indicate selected-only mode
+        val eventKeys = selectedEvents.map { "${it.eventId}:${it.instanceStartTime}" }.toTypedArray()
+        
+        startActivity(
+            Intent(ctx, SnoozeAllActivity::class.java)
+                .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
+                .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
+                .putExtra(INTENT_SELECTED_EVENT_KEYS, eventKeys)
+                .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, selectedEvents.size)
+                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        )
+        
+        // Exit selection mode after launching snooze
+        adapter.exitSelectionMode()
     }
     
     private fun dismissBanner() {
@@ -239,6 +309,16 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             )
         }
     }
+    
+    override fun onItemLongClick(v: View, position: Int, eventId: Long): Boolean {
+        DevLog.info(LOG_TAG, "onItemLongClick, pos=$position, eventId=$eventId")
+        
+        val event = adapter.getEventAtPosition(position, eventId) ?: return false
+        if (event.isSpecial) return false
+        
+        adapter.enterSelectionMode(event)
+        return true
+    }
 
     override fun onItemRemoved(event: EventAlertRecord) {
         val ctx = context ?: return
@@ -294,9 +374,51 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     override fun onFilterChanged() {
         loadEvents()
     }
+    
+    // SelectionModeCallback implementation
+    
+    override fun onSelectionModeChanged(active: Boolean) {
+        selectionActionBar?.visibility = if (active) View.VISIBLE else View.GONE
+        selectionBottomBar?.visibility = if (active) View.VISIBLE else View.GONE
+        
+        // Hide the new UI banner when in selection mode
+        if (active) {
+            newUIBanner?.visibility = View.GONE
+        } else if (settings.showNewUIBanner) {
+            newUIBanner?.visibility = View.VISIBLE
+        }
+        
+        // Enable/disable back press callback
+        backPressedCallback?.isEnabled = active
+        
+        // Notify activity to hide/show its toolbar and FAB
+        (activity as? MainActivityModern)?.onSelectionModeChanged(active)
+    }
+    
+    override fun onSelectionCountChanged(selected: Int, visible: Int, hiddenSelected: Int) {
+        val text = if (hiddenSelected > 0) {
+            getString(R.string.selection_count_with_hidden, selected, hiddenSelected)
+        } else {
+            resources.getQuantityString(R.plurals.selection_count, selected, selected)
+        }
+        selectionCountText?.text = text
+    }
+    
+    /** Check if fragment is currently in selection mode */
+    fun isInSelectionMode(): Boolean = adapter.selectionMode
+    
+    /** Exit selection mode if active */
+    fun exitSelectionMode() {
+        if (adapter.selectionMode) {
+            adapter.exitSelectionMode()
+        }
+    }
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"
+        
+        /** Intent extra for passing selected event keys to SnoozeAllActivity */
+        const val INTENT_SELECTED_EVENT_KEYS = "selected_event_keys"
         
         /** Provider for EventsStorage - enables DI for testing */
         var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null

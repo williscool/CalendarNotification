@@ -16,12 +16,27 @@
         android:layout_height="@dimen/compact_view_layout_height"
         android:id="@+id/compact_view_content_layout"
         >
+        
+        <CheckBox
+            android:id="@+id/selection_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="4dp"
+            android:layout_marginLeft="4dp"
+            android:visibility="gone"
+            android:clickable="false"
+            android:focusable="false"/>
 
         <View
             android:id="@+id/compact_view_calendar_color"
             android:layout_width="10dp"
             android:layout_height="match_parent"
             android:background="@color/cal_sample_primary"
+            android:layout_toEndOf="@id/selection_checkbox"
+            android:layout_toRightOf="@id/selection_checkbox"
             android:layout_marginLeft="2dp"
             android:layout_marginStart="2dp"
             android:layout_marginRight="5dp"

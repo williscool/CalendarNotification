@@ -621,6 +621,26 @@ class MainActivityModern : MainActivityBase() {
         }
     }
 
+    // === Selection Mode Coordination ===
+    
+    /** Called by ActiveEventsFragment when selection mode changes */
+    fun onSelectionModeChanged(active: Boolean) {
+        // Hide/show the app toolbar
+        supportActionBar?.let { actionBar ->
+            if (active) {
+                actionBar.hide()
+            } else {
+                actionBar.show()
+            }
+        }
+        
+        // Hide/show the FAB
+        floatingAddEvent.visibility = if (active) View.GONE else View.VISIBLE
+        
+        // Hide/show the filter chips
+        chipGroup?.visibility = if (active) View.GONE else View.VISIBLE
+    }
+
     companion object {
         private const val LOG_TAG = "MainActivityModern"
         
