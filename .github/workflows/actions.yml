@@ -41,6 +41,11 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      enable_tmate:
+        description: 'Enable tmate SSH session on failure'
+        type: boolean
+        default: false
 
 jobs:
   set_build_datetime:
@@ -135,7 +140,7 @@ jobs:
         BUILD_ARCH: ${{ matrix.arch }}
 
     - name: Setup tmate session
-      if: ${{ failure() }}
+      if: ${{ failure() && inputs.enable_tmate == true }}
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
@@ -583,7 +588,7 @@ jobs:
         retention-days: 90
 
     - name: Setup tmate session
-      if: ${{ failure() }}
+      if: ${{ failure() && inputs.enable_tmate == true }}
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
@@ -855,7 +860,7 @@ jobs:
         test_runner_only: "true"
 
     - name: Setup tmate session
-      if: ${{ failure() }}
+      if: ${{ failure() && inputs.enable_tmate == true }}
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
