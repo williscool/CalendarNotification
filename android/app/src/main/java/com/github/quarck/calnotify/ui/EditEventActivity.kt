@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
@@ -419,7 +419,7 @@ open class EditEventActivity : AppCompatActivity() {
 
             accountName.text = "" // remove debug mess
 
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                     .setMessage(R.string.no_active_calendars)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
                         finish()
@@ -706,7 +706,7 @@ open class EditEventActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (anyChanges) {
 
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                     .setMessage(R.string.discard_new_event)
                     .setCancelable(false)
                     .setPositiveButton(android.R.string.yes) {
@@ -735,7 +735,7 @@ open class EditEventActivity : AppCompatActivity() {
         if (originalEvent != null)
             return // not editable anymore
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 
@@ -830,7 +830,7 @@ open class EditEventActivity : AppCompatActivity() {
             } else {
                 DevLog.error(LOG_TAG, "Failed to create event")
 
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                         .setMessage(R.string.new_event_failed_to_create_event)
                         .setPositiveButton(android.R.string.ok) { _, _ -> }
                         .show()
@@ -1024,7 +1024,7 @@ open class EditEventActivity : AppCompatActivity() {
 
         val isEmailCb = dialogView.find<CheckBox?>(R.id.checkbox_as_email)
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         builder.setView(dialogView)
 
@@ -1079,7 +1079,7 @@ open class EditEventActivity : AppCompatActivity() {
             return showAddReminderCustomDialog(currentReminder, existingReminderView)
         }
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 
@@ -1138,7 +1138,7 @@ open class EditEventActivity : AppCompatActivity() {
         timePicker.minuteCompat = min
 
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         builder.setView(dialogView)
 
@@ -1200,7 +1200,7 @@ open class EditEventActivity : AppCompatActivity() {
             return showAddReminderCustomAllDayDialog(currentReminder, existingReminderView)
         }
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 

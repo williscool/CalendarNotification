@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.prefs
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Context
 import android.os.Bundle
 import android.util.AttributeSet
@@ -106,7 +106,7 @@ class SnoozePresetPreferenceX @JvmOverloads constructor(
 
         private fun showMessage(id: Int) {
             val context = requireContext()
-            AlertDialog.Builder(context)
+            MaterialAlertDialogBuilder(context)
                 .setMessage(context.getString(id))
                 .setCancelable(false)
                 .setPositiveButton(android.R.string.ok) { _, _ -> }

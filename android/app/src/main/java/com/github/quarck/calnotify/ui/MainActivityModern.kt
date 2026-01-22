@@ -20,7 +20,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -340,7 +340,7 @@ class MainActivityModern : MainActivityBase() {
     // === Bulk actions ===
 
     private fun onDismissAll() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.dismiss_all_events_confirmation)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
@@ -360,7 +360,7 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun onMuteAll() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.mute_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->

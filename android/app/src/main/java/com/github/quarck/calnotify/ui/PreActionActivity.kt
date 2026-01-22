@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -291,7 +291,7 @@ class PreActionActivity : AppCompatActivity() {
         val intervalNames = resources.getStringArray(R.array.default_snooze_intervals)
         val intervalValues = resources.getIntArray(R.array.default_snooze_intervals_seconds_values)
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.for_a_custom_time)
             .setItems(intervalNames) { _, which ->
                 val intervalSeconds = intervalValues.getOrNull(which)?.toLong() ?: return@setItems

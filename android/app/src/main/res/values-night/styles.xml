@@ -2,10 +2,10 @@
     <!-- Dark mode specific style overrides -->
     
     <!-- Use dark popup overlay in dark mode -->
-    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.MaterialComponents.Dark"></style>
+    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.Material3.Dark"></style>
     
-    <!-- Bottom sheet dark mode - uses dark cardview background (#1E1E1E) -->
-    <style name="AppTheme.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
+    <!-- Bottom sheet dark mode - uses dark surface color (#1E1E1E) -->
+    <style name="AppTheme.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
         <item name="backgroundTint">@color/cardview_light_background</item>
     </style>
     

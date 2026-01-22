@@ -20,7 +20,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
@@ -455,7 +455,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
                 R.id.action_delete_event -> {
 
-                    AlertDialog.Builder(this)
+                    MaterialAlertDialogBuilder(this)
                             .setMessage(getString(R.string.delete_event_question))
                             .setCancelable(false)
                             .setPositiveButton(android.R.string.yes) { _, _ ->
@@ -667,7 +667,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         val intervalNames: Array<String> = this.resources.getStringArray(R.array.default_snooze_intervals)
         val intervalValues = this.resources.getIntArray(R.array.default_snooze_intervals_seconds_values)
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 
@@ -701,7 +701,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         state.state = ViewEventActivityStateCode.CustomSnoozeOpened
         customSnooze_TimeIntervalPickerController = timeIntervalPicker
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         builder.setView(dialogView)
 
@@ -761,7 +761,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             snoozeUntil_DatePicker?.updateDate(year, month, day)
         }
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         builder.setView(dialogDate)
 
@@ -816,7 +816,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                         resources.getString(R.string.choose_time),
                         DateUtils.formatDateTime(this, date.timeInMillis, DateUtils.FORMAT_SHOW_DATE))
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
         builder.setView(dialogTime)
         builder.setPositiveButton(R.string.snooze) {
             _: DialogInterface?, _: Int ->
@@ -838,7 +838,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             }
             else {
                 // Selected time is in the past
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.selected_time_is_in_the_past)
                         .setNegativeButton(R.string.cancel) {
                             _: DialogInterface?, _: Int ->
