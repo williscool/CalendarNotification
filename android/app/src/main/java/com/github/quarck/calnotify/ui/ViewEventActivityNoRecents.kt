@@ -21,6 +21,9 @@
 package com.github.quarck.calnotify.ui
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.timepicker.MaterialTimePicker
+import com.google.android.material.timepicker.TimeFormat
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
@@ -150,8 +153,6 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
     // These dialog controls moved here so saveInstanceState could store current time selection
     var customSnooze_TimeIntervalPickerController: TimeIntervalPickerController? = null
-    var snoozeUntil_DatePicker: DatePicker? = null
-    var snoozeUntil_TimePicker: TimePicker? = null
 
     lateinit var calendarNameTextView: TextView
     lateinit var calendarAccountTextView: TextView
@@ -609,51 +610,27 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             ViewEventActivityStateCode.CustomSnoozeOpened -> {
                 state.timeAMillis = customSnooze_TimeIntervalPickerController?.intervalMilliseconds ?: 0L
             }
-            ViewEventActivityStateCode.SnoozeUntilOpenedDatePicker -> {
-
-                val datePicker = snoozeUntil_DatePicker
-                if (datePicker != null) {
-                    datePicker.clearFocus()
-
-                    val date = Calendar.getInstance()
-                    date.set(datePicker.year, datePicker.month, datePicker.dayOfMonth, 0, 0, 0)
-                    state.timeAMillis = date.timeInMillis
-                    state.timeBMillis = event?.snoozedUntil ?: 0L
-                }
-            }
+            // Material pickers handle their own state via FragmentManager
+            ViewEventActivityStateCode.SnoozeUntilOpenedDatePicker,
             ViewEventActivityStateCode.SnoozeUntilOpenedTimePicker -> {
-
-                val timePicker = snoozeUntil_TimePicker
-                if (timePicker != null) {
-                    timePicker.clearFocus()
-
-                    val time = Calendar.getInstance()
-                    time.timeInMillis = state.timeAMillis
-                    time.set(Calendar.HOUR_OF_DAY, timePicker.hourCompat)
-                    time.set(Calendar.MINUTE, timePicker.minuteCompat)
-
-                    state.timeBMillis = time.timeInMillis
-                }
+                // No-op: MaterialDatePicker/MaterialTimePicker are DialogFragments
+                // and restore themselves automatically
             }
         }
-        // val intervalMilliseconds = customSnooze_TimeIntervalPickerController?.intervalMilliseconds ?: 0L
         state.toBundle(outState)
     }
 
     private fun restoreState(state: ViewEventActivityState) {
-
         when (state.state) {
             ViewEventActivityStateCode.Normal -> {
-
             }
             ViewEventActivityStateCode.CustomSnoozeOpened -> {
                 customSnoozeShowDialog(state.timeAMillis)
             }
-            ViewEventActivityStateCode.SnoozeUntilOpenedDatePicker -> {
-                snoozeUntilShowDatePickerDialog(state.timeAMillis, state.timeBMillis)
-            }
+            // Material pickers restore themselves via FragmentManager
+            ViewEventActivityStateCode.SnoozeUntilOpenedDatePicker,
             ViewEventActivityStateCode.SnoozeUntilOpenedTimePicker -> {
-                snoozeUntilShowTimePickerDialog(state.timeAMillis, state.timeBMillis)
+                // No-op: MaterialDatePicker/MaterialTimePicker restore automatically
             }
         }
     }
@@ -730,134 +707,55 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonSnoozeUntilClick(v: View?) {
-        snoozeUntilShowDatePickerDialog(event.snoozedUntil, event.snoozedUntil)
+        val initialDate = if (event.snoozedUntil != 0L) event.snoozedUntil else clock.currentTimeMillis()
+        
+        val datePicker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText(R.string.choose_date)
+                .setSelection(initialDate)
+                .build()
+
+        datePicker.addOnPositiveButtonClickListener { dateSelection ->
+            showSnoozeUntilTimePicker(dateSelection, initialDate)
+        }
+
+        datePicker.show(supportFragmentManager, "snoozeUntilDatePicker")
     }
 
-    fun inflateDatePickerDialog() = layoutInflater?.inflate(R.layout.dialog_date_picker, null)
-
-    fun inflateTimePickerDialog() = layoutInflater?.inflate(R.layout.dialog_time_picker, null)
-
-    fun snoozeUntilShowDatePickerDialog(initialValueForDate: Long, initialValueForTime: Long) {
-
-        val dialogDate = inflateDatePickerDialog() ?: return
-
-        val datePicker = dialogDate.findOrThrow<DatePicker>(R.id.datePickerCustomSnooze)
-
-        state.state = ViewEventActivityStateCode.SnoozeUntilOpenedDatePicker
-        snoozeUntil_DatePicker = datePicker
-
-        val firstDayOfWeek = Settings(this).firstDayOfWeek
-        if (firstDayOfWeek != -1) {
-            snoozeUntil_DatePicker?.firstDayOfWeek = firstDayOfWeek
-        }
-
-        if (initialValueForDate != 0L) {
-            val cal = Calendar.getInstance()
-            cal.timeInMillis = initialValueForDate
-
-            val year = cal.get(Calendar.YEAR)
-            val month = cal.get(Calendar.MONTH)
-            val day = cal.get(Calendar.DAY_OF_MONTH)
-
-            snoozeUntil_DatePicker?.updateDate(year, month, day)
-        }
-
-        val builder = MaterialAlertDialogBuilder(this)
-
-        builder.setView(dialogDate)
-
-        builder.setPositiveButton(R.string.next) {
-            _: DialogInterface?, _: Int ->
-
-            datePicker.clearFocus()
-
-            val date = Calendar.getInstance()
-            date.set(datePicker.year, datePicker.month, datePicker.dayOfMonth, 0, 0, 0)
-
-            snoozeUntilShowTimePickerDialog(date.timeInMillis, initialValueForTime)
-        }
-
-        builder.setNegativeButton(R.string.cancel) {
-            _: DialogInterface?, _: Int ->
-
-            state.state = ViewEventActivityStateCode.Normal
-            snoozeUntil_DatePicker = null
-        }
-
-        builder.create().show()
-
-    }
-
-    fun snoozeUntilShowTimePickerDialog(currentDateSelection: Long, initialTimeValue: Long) {
-
-        val date = Calendar.getInstance()
-        date.timeInMillis = currentDateSelection
-
-        val dialogTime = inflateTimePickerDialog() ?: return
-
-        val timePicker: TimePicker = dialogTime.findOrThrow<TimePicker>(R.id.timePickerCustomSnooze)
-        timePicker.setIs24HourView(android.text.format.DateFormat.is24HourFormat(this))
-
-        state.state = ViewEventActivityStateCode.SnoozeUntilOpenedTimePicker
-        state.timeAMillis = currentDateSelection
-        snoozeUntil_TimePicker = timePicker
-        snoozeUntil_DatePicker = null
-
+    private fun showSnoozeUntilTimePicker(dateSelection: Long, initialTimeValue: Long) {
+        val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
+        
+        val cal = Calendar.getInstance()
         if (initialTimeValue != 0L) {
-            val cal = Calendar.getInstance()
             cal.timeInMillis = initialTimeValue
-
-            timePicker.hourCompat = cal.get(Calendar.HOUR_OF_DAY)
-            timePicker.minuteCompat = cal.get(Calendar.MINUTE)
         }
 
-        val title = dialogTime.findOrThrow<TextView>(R.id.textViewSnoozeUntilDate)
-        title.text =
-                String.format(
-                        resources.getString(R.string.choose_time),
-                        DateUtils.formatDateTime(this, date.timeInMillis, DateUtils.FORMAT_SHOW_DATE))
+        val timePicker = MaterialTimePicker.Builder()
+                .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+                .setHour(cal.get(Calendar.HOUR_OF_DAY))
+                .setMinute(cal.get(Calendar.MINUTE))
+                .setTitleText(getString(R.string.choose_time) + " - " + 
+                        DateUtils.formatDateTime(this, dateSelection, DateUtils.FORMAT_SHOW_DATE))
+                .build()
 
-        val builder = MaterialAlertDialogBuilder(this)
-        builder.setView(dialogTime)
-        builder.setPositiveButton(R.string.snooze) {
-            _: DialogInterface?, _: Int ->
-
-            state.state = ViewEventActivityStateCode.Normal
-            snoozeUntil_TimePicker = null
-
-            timePicker.clearFocus()
-
-            // grab time from timePicker + date picker
-
-            date.set(Calendar.HOUR_OF_DAY, timePicker.hourCompat)
-            date.set(Calendar.MINUTE, timePicker.minuteCompat)
+        timePicker.addOnPositiveButtonClickListener {
+            val date = Calendar.getInstance()
+            date.timeInMillis = dateSelection
+            date.set(Calendar.HOUR_OF_DAY, timePicker.hour)
+            date.set(Calendar.MINUTE, timePicker.minute)
 
             val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
 
             if (snoozeFor > 0L) {
                 snoozeEvent(snoozeFor)
-            }
-            else {
-                // Selected time is in the past
+            } else {
                 MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.selected_time_is_in_the_past)
-                        .setNegativeButton(R.string.cancel) {
-                            _: DialogInterface?, _: Int ->
-                        }
-                        .create()
+                        .setNegativeButton(R.string.cancel, null)
                         .show()
             }
-
         }
 
-        builder.setNegativeButton(R.string.cancel) {
-            _: DialogInterface?, _: Int ->
-
-            state.state = ViewEventActivityStateCode.Normal
-            snoozeUntil_TimePicker = null
-        }
-
-        builder.create().show()
+        timePicker.show(supportFragmentManager, "snoozeUntilTimePicker")
     }
 
     fun reschedule(addTime: Long) {

@@ -119,37 +119,28 @@ Before removing these features:
 
 ## Custom Date/Time Picker Layouts
 
-**Status:** DEPRECATED
+**Status:** REMOVED ✅
 
-**Reason:** These custom layouts exist only to work around limitations of the old callback-based `DatePickerDialog`/`TimePickerDialog` (state loss on rotation, manual flow management). Modern `MaterialDatePicker`/`MaterialTimePicker` are fragment-based and handle all of this automatically.
+**Reason:** These custom layouts existed only to work around limitations of the old callback-based `DatePickerDialog`/`TimePickerDialog` (state loss on rotation, manual flow management). Modern `MaterialDatePicker`/`MaterialTimePicker` are fragment-based and handle all of this automatically.
 
-### Files to Remove
+### Files Removed
 
-**Layouts:**
-- [ ] `dialog_date_picker.xml` - Just a DatePicker in a ScrollView with title
-- [ ] `dialog_time_picker.xml` - Just a TimePicker in a ScrollView with title
+**Layouts (DELETED):**
+- [x] `dialog_date_picker.xml` 
+- [x] `dialog_time_picker.xml`
+- [x] `dialog_date_time_picker.xml` (orphaned, never used)
+- [x] `dialog_date_picker_halo_light.xml` (orphaned, never used)
+- [x] `dialog_time_picker_halo_light.xml` (orphaned, never used)
 
-**Code to simplify:**
-- [ ] `ViewEventActivityNoRecents.kt` - `snoozeUntilShowDatePickerDialog()`, `snoozeUntilShowTimePickerDialog()`, state tracking code
-- [ ] `SnoozeAllActivity.kt` - Same methods, same state tracking
+**Code simplified:**
+- [x] `ViewEventActivityNoRecents.kt` - Replaced ~100 lines of state tracking with ~30 lines using MaterialPickers
+- [x] `SnoozeAllActivity.kt` - Same simplification
+- [x] `EditEventActivity.kt` - Migrated to MaterialDatePicker/MaterialTimePicker
 
-**Replace with:**
-```kotlin
-// Modern approach - 5 lines instead of 50+
-val picker = MaterialDatePicker.Builder.datePicker()
-    .setTitleText("Snooze until")
-    .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
-    .build()
-picker.addOnPositiveButtonClickListener { dateMillis ->
-    showTimePicker(dateMillis)
-}
-picker.show(supportFragmentManager, "datePicker")
-```
-
-**Benefits of migration:**
-- Automatic state restoration on rotation
-- Beautiful Material 3 UI
-- ~100+ lines of code removed per activity
+**Benefits achieved:**
+- Automatic state restoration on rotation (DialogFragments handle their own state)
+- Beautiful Material 3 UI with clock face time picker and calendar date picker
+- ~200+ lines of manual state management code removed
 - Built-in accessibility support
 
 ---
@@ -183,7 +174,7 @@ picker.show(supportFragmentManager, "datePicker")
 | 3 | Remove Quiet Hours feature | Pending |
 | 4 | Remove Calendar Editor feature | Pending |
 | 5 | Remove LED notification settings | Pending |
-| 6 | Remove custom picker layouts (use MaterialDatePicker/MaterialTimePicker) | Pending |
+| 6 | Remove custom picker layouts (use MaterialDatePicker/MaterialTimePicker) | ✅ DONE |
 | 7 | Remove Legacy Storage & `.use {}` pattern | Pending |
 | 8 | Clean up dependencies and update docs | Pending |
 

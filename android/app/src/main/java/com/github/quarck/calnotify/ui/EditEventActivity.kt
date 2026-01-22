@@ -20,8 +20,9 @@
 package com.github.quarck.calnotify.ui
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
+import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.timepicker.MaterialTimePicker
+import com.google.android.material.timepicker.TimeFormat
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
@@ -880,126 +881,108 @@ open class EditEventActivity : AppCompatActivity() {
 
     @Suppress("UNUSED_PARAMETER")
     fun onDateFromClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
 
-        val dialog = DatePickerDialog(
-                this,
-                {
-                    _, year, month, day ->
+        val picker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText(R.string.choose_date)
+                .setSelection(from.timeInMillis)
+                .build()
 
-                    from.year = year
-                    from.month = month
-                    from.dayOfMonth = day
+        picker.addOnPositiveButtonClickListener { selection ->
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = selection
+            from.year = cal.get(Calendar.YEAR)
+            from.month = cal.get(Calendar.MONTH)
+            from.dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
 
-                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                    to.addMinutes(durationMinutes.toInt())
+            to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+            to.addMinutes(durationMinutes.toInt())
 
-                    updateDateTimeUI()
-
-                },
-                from.year,
-                from.month,
-                from.dayOfMonth
-        )
-
-        val firstDayOfWeek = Settings(this).firstDayOfWeek
-        if (firstDayOfWeek != -1) {
-            dialog.datePicker.firstDayOfWeek = firstDayOfWeek
+            updateDateTimeUI()
         }
 
-        dialog.show()
-        //builder.setIcon(R.drawable.ic_launcher)
+        picker.show(supportFragmentManager, "dateFromPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun onTimeFromClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+        val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
 
-        val dialog = TimePickerDialog(
-                this,
-                {
-                    _, hour, min ->
+        val picker = MaterialTimePicker.Builder()
+                .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+                .setHour(from.hourOfDay)
+                .setMinute(from.minute)
+                .setTitleText(R.string.choose_time)
+                .build()
 
-                    from.hourOfDay = hour
-                    from.minute = min
+        picker.addOnPositiveButtonClickListener {
+            from.hourOfDay = picker.hour
+            from.minute = picker.minute
 
-                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                    to.addMinutes(durationMinutes.toInt())
+            to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+            to.addMinutes(durationMinutes.toInt())
 
-                    updateDateTimeUI()
-                },
-                from.hourOfDay,
-                from.minute,
-                android.text.format.DateFormat.is24HourFormat(this)
-        )
+            updateDateTimeUI()
+        }
 
-        dialog.show()
+        picker.show(supportFragmentManager, "timeFromPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun onDateToClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
 
-        val dialog = DatePickerDialog(
-                this,
-                {
-                    _, year, month, day ->
+        val picker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText(R.string.choose_date)
+                .setSelection(to.timeInMillis)
+                .build()
 
-                    to.year = year
-                    to.month = month
-                    to.dayOfMonth = day
+        picker.addOnPositiveButtonClickListener { selection ->
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = selection
+            to.year = cal.get(Calendar.YEAR)
+            to.month = cal.get(Calendar.MONTH)
+            to.dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
 
-                    if (to.before(from)) {
-                        Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
-                        to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                        to.addMinutes(durationMinutes.toInt())
-                    }
+            if (to.before(from)) {
+                Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+            }
 
-                    updateDateTimeUI()
-
-                },
-                to.year,
-                to.month,
-                to.dayOfMonth
-        )
-        val firstDayOfWeek = Settings(this).firstDayOfWeek
-        if (firstDayOfWeek != -1) {
-            dialog.datePicker.firstDayOfWeek = firstDayOfWeek
+            updateDateTimeUI()
         }
 
-        dialog.show()
+        picker.show(supportFragmentManager, "dateToPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun onTimeToClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+        val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
 
-        val dialog = TimePickerDialog(
-                this,
-                {
-                    _, hour, min ->
+        val picker = MaterialTimePicker.Builder()
+                .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+                .setHour(to.hourOfDay)
+                .setMinute(to.minute)
+                .setTitleText(R.string.choose_time)
+                .build()
 
-                    to.hourOfDay = hour
-                    to.minute = min
+        picker.addOnPositiveButtonClickListener {
+            to.hourOfDay = picker.hour
+            to.minute = picker.minute
 
-                    if (to.before(from)) {
-                        Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
-                        to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                        to.addMinutes(durationMinutes.toInt())
-                    }
+            if (to.before(from)) {
+                Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+            }
 
-                    updateDateTimeUI()
-                },
-                to.hourOfDay,
-                to.minute,
-                android.text.format.DateFormat.is24HourFormat(this)
-        )
+            updateDateTimeUI()
+        }
 
-        dialog.show()
+        picker.show(supportFragmentManager, "timeToPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")

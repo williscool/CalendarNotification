@@ -444,8 +444,8 @@ picker.show(supportFragmentManager, "datePicker")
 | Task | Effort | Visual Impact | UX Benefit |
 |------|--------|---------------|------------|
 | Toast → Snackbar | 2-3 hours | Medium | **High** (undo actions!) |
-| MaterialTimePicker | 3-4 hours | High | Modern look |
-| MaterialDatePicker | 2-3 hours | High | Modern look |
+| MaterialTimePicker | 1 hour | High | ✅ Done |
+| MaterialDatePicker | 1 hour | High | ✅ Done |
 | MaterialSwitch | 30 min | Medium | M3 styling |
 | MaterialDivider | 1-2 hours | Low | Consistency |
 | MaterialToolbar | 1 hour | Low | Minor |
@@ -628,11 +628,17 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [x] Spinner → ExposedDropdownMenu (4 layouts + 2 Kotlin files)
 - [x] ~~SeekBar → Slider~~ - SKIPPED (LED feature deprecated, see deprecated_features.md)
 
-## Phase 5: Pickers (~2-3 hours)
-- [ ] MaterialTimePicker (2 in EditEventActivity + 2 custom picker dialogs)
-- [ ] MaterialDatePicker (2 in EditEventActivity + 2 custom picker dialogs)
+## Phase 5: Pickers - ✅ Complete!
+- [x] MaterialTimePicker (2 in EditEventActivity + 2 custom picker dialogs)
+- [x] MaterialDatePicker (2 in EditEventActivity + 2 custom picker dialogs)
+- [x] DELETED `dialog_date_picker.xml` (legacy custom layout)
+- [x] DELETED `dialog_time_picker.xml` (legacy custom layout)
 
-**Note:** Custom picker layouts (`dialog_date_picker.xml`, `dialog_time_picker.xml`) are deprecated legacy code. Migration to MaterialPickers will DELETE these and simplify ViewEventActivityNoRecents + SnoozeAllActivity significantly. See `deprecated_features.md`.
+**Benefits achieved:**
+- Removed ~200 lines of manual state restoration code
+- Material pickers are DialogFragments and handle their own state
+- Modern M3 styling with clock face time picker and calendar date picker
+- Simplified ViewEventActivityNoRecents and SnoozeAllActivity significantly
 
 ---
 
