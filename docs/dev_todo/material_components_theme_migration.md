@@ -228,11 +228,45 @@ Material 3 buttons have different default styles:
 
 ---
 
-# Phase 2: Component Upgrades
+# Phase 2: Quick Component Upgrades
 
-Once Phase 1 is complete, these additional upgrades will further modernize the UI.
+Simple drop-in replacements with minimal code changes.
 
-## 2.1 Toast → Snackbar
+## 2.1 Switch → MaterialSwitch ✅ COMPLETE
+
+**Files updated:**
+- `pref_switch_with_text.xml`
+- `content_add_event.xml`
+
+## 2.2 Dividers → MaterialDivider (OPTIONAL)
+
+~15 dividers across 6 files. Low visual impact, can be done incrementally.
+
+**Pattern:**
+```xml
+<!-- Before -->
+<View
+    android:layout_width="match_parent"
+    android:layout_height="1dp"
+    android:background="@color/divider" />
+
+<!-- After -->
+<com.google.android.material.divider.MaterialDivider
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content" />
+```
+
+**Files:** `content_add_event.xml` (4), `content_main.xml` (3), `activity_view.xml` (2), `activity_pre_action.xml` (2), `dialog_color_picker.xml` (3), `bottom_sheet_calendar_filter.xml` (1)
+
+**Note:** One divider has ID `snooze_view_inter_view_divider` used in code - preserve the ID.
+
+---
+
+# Phase 3: Snackbar Migration (SELECTIVE)
+
+Requires View anchor - only practical in Activities/Fragments, not services.
+
+## 3.1 Toast → Snackbar
 
 **Impact:** 32 usages across 11 files  
 **Effort:** 2-3 hours  
@@ -264,7 +298,11 @@ Snackbar.make(rootView, "Event dismissed", Snackbar.LENGTH_LONG)
 
 ---
 
-## 2.2 TimePickerDialog → MaterialTimePicker
+# Phase 4: Picker Upgrades (HIGH IMPACT)
+
+Requires API changes from callback-based to fragment-based pickers.
+
+## 4.1 TimePickerDialog → MaterialTimePicker
 
 **Impact:** ~77 usages across 6 files  
 **Effort:** 3-4 hours  
@@ -588,17 +626,21 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [ ] Edit Event screen
 - [ ] About screen
 
-## Phase 2
-- [ ] Snackbar with undo actions
-- [ ] Time picker (snooze, event editing)
-- [ ] Date picker (event editing)
-- [ ] Switch toggles
-- [ ] Divider consistency
+## Phase 2: MaterialDivider (~30 min)
+- [x] MaterialSwitch (2 files) ✅
+- [ ] MaterialDivider (~15 locations)
 
-## Phase 3
-- [ ] Dropdown menus in interval dialogs
-- [ ] LED pattern sliders
-- [ ] Icon buttons in selection bar
+## Phase 3: Snackbar (~2-3 hours)
+- [ ] Toast → Snackbar in Activities (selective, skip services)
+
+## Phase 4: Advanced Components (~3-4 hours)
+- [ ] Spinner → ExposedDropdownMenu (4 files)
+- [ ] SeekBar → Slider (LED pattern dialog)
+- [ ] ImageButton → MaterialButton (2 usages)
+
+## Phase 5: Pickers (~4-6 hours) - BIGGEST UNDERTAKING
+- [ ] MaterialTimePicker (~77 usages across 6 files)
+- [ ] MaterialDatePicker (bundled with above)
 
 ---
 
