@@ -33,6 +33,7 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 
 class ReportABugActivity : AppCompatActivity() {
     private var easterEggCount = 0;
@@ -42,6 +43,7 @@ class ReportABugActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_report_a_bug)
+        setupStatusBarSpacer()
 
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

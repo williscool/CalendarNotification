@@ -51,6 +51,7 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 
 /**
  * Activity for pre-actions on upcoming events.
@@ -143,6 +144,7 @@ class PreActionActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_pre_action)
+        setupStatusBarSpacer()
         
         settings = Settings(this)
         formatter = EventFormatter(this)

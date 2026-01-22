@@ -26,6 +26,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.prefs.NavigationSettingsFragmentX
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import com.github.quarck.calnotify.prefs.PreferenceHeadersFragment
 
 /**
@@ -38,6 +39,7 @@ class SettingsActivityX : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings_x)
+        setupStatusBarSpacer()
         
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

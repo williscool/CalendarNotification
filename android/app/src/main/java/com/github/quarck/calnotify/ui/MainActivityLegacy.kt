@@ -57,6 +57,7 @@ import com.github.quarck.calnotify.quiethours.QuietHoursManager
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
 
@@ -112,15 +113,7 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
         window.statusBarColor = getColor(R.color.primary_dark)
 
         // Set status bar spacer height
-        findViewById<View>(R.id.status_bar_spacer)?.let { spacer ->
-            ViewCompat.setOnApplyWindowInsetsListener(spacer) { view, insets ->
-                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-                view.layoutParams.height = statusBarInset
-                view.requestLayout()
-                insets
-            }
-            ViewCompat.requestApplyInsets(spacer)
-        }
+        setupStatusBarSpacer()
 
         // Apply nav bar inset to FAB bottom margin
         findViewById<FloatingActionButton>(R.id.action_btn_add_event)?.let { fab ->

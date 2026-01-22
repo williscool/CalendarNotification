@@ -48,6 +48,7 @@ import com.github.quarck.calnotify.globalState
 import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import com.github.quarck.calnotify.utils.truncateForChip
 import androidx.appcompat.view.ContextThemeWrapper
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -117,16 +118,7 @@ class MainActivityModern : MainActivityBase() {
         window.statusBarColor = getColor(R.color.primary_dark)
 
         // Set status bar spacer height (pinned, doesn't scroll with toolbar)
-        val statusBarSpacer = findViewById<View>(R.id.status_bar_spacer)
-        statusBarSpacer?.let { spacer ->
-            ViewCompat.setOnApplyWindowInsetsListener(spacer) { view, insets ->
-                val statusBarInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-                view.layoutParams.height = statusBarInset
-                view.requestLayout()
-                insets
-            }
-            ViewCompat.requestApplyInsets(spacer)
-        }
+        setupStatusBarSpacer()
 
         // Set up navigation
         val navHostFragment = supportFragmentManager

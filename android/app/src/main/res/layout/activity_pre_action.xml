@@ -28,10 +28,18 @@
                 android:elevation="@dimen/toolbar_elevation"
                 tools:targetApi="m">
 
+                <!-- Status bar spacer - height set programmatically -->
+                <View
+                    android:id="@+id/status_bar_spacer"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_alignParentTop="true" />
+
                 <ImageView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:id="@+id/btn_back"
+                    android:layout_below="@id/status_bar_spacer"
                     android:src="@drawable/ic_navigate_before_white_24dp"
                     android:paddingTop="@dimen/snooze_view_img_padding_start"
                     android:paddingBottom="@dimen/snooze_view_img_padding_start"

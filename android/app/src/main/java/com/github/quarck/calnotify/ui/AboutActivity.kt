@@ -28,6 +28,7 @@ import android.widget.TextView
 import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.utils.find
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,6 +40,7 @@ class AboutActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_about)
+        setupStatusBarSpacer()
 
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
