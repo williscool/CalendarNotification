@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <Switch
+    <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/pref_switch_generic"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

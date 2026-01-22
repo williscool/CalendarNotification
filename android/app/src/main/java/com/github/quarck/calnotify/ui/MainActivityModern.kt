@@ -29,8 +29,8 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.PopupMenu
-import android.widget.Toast
 import androidx.appcompat.widget.SearchView
+import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -314,7 +314,7 @@ class MainActivityModern : MainActivityBase() {
                         hasFilter -> getString(R.string.snooze_all_no_events_filters)
                         else -> getString(R.string.snooze_all_no_events)
                     }
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT).show()
                     return true
                 }
 

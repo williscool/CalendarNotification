@@ -26,6 +26,7 @@ import android.view.View
 import android.widget.*
 import androidx.preference.DialogPreference
 import androidx.preference.PreferenceDialogFragmentCompat
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.utils.findOrThrow
@@ -142,7 +143,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
                     var simpleIntervalMillis = simpleIntervalSeconds * 1000L
                     if (simpleIntervalMillis == 0L) {
                         simpleIntervalMillis = 60 * 1000L
-                        Toast.makeText(context, R.string.invalid_reminder_interval, Toast.LENGTH_LONG).show()
+                        view?.let { Snackbar.make(it, R.string.invalid_reminder_interval, Snackbar.LENGTH_LONG).show() }
                     }
                     reminderPatternMillis = longArrayOf(simpleIntervalMillis)
                     newPattern = PreferenceUtils.formatPattern(reminderPatternMillis)
@@ -156,7 +157,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
                         }.toLongArray()
                         newPattern = PreferenceUtils.formatPattern(reminderPatternMillis)
                     } else {
-                        Toast.makeText(context, R.string.error_cannot_parse_pattern, Toast.LENGTH_LONG).show()
+                        view?.let { Snackbar.make(it, R.string.error_cannot_parse_pattern, Snackbar.LENGTH_LONG).show() }
                         return
                     }
                 }

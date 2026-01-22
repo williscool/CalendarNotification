@@ -332,11 +332,9 @@
 
 
 
-                <View
+                <com.google.android.material.divider.MaterialDivider
                     android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="@color/divider"
-                    android:padding="0dp" />
+                    android:layout_height="wrap_content" />
 
                 <TextView
                     android:layout_width="match_parent"
@@ -764,13 +762,10 @@
                         android:textColor="@color/primary_text" />
                 </RelativeLayout>
 
-                <View
+                <com.google.android.material.divider.MaterialDivider
                     android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="@color/divider"
-                    android:id="@+id/snooze_view_inter_view_divider"
-                    android:padding="0dp"
-                    />
+                    android:layout_height="wrap_content"
+                    android:id="@+id/snooze_view_inter_view_divider" />
 
                 <RelativeLayout
                     android:layout_width="match_parent"

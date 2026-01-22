@@ -1,6 +1,6 @@
 # Material 3 Theme Migration
 
-## Status: In Progress (Phase 2)
+## Status: In Progress (Phase 4 - Cleanup)
 
 ## Post-Migration Cleanup Notes
 
@@ -626,17 +626,28 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [ ] Edit Event screen
 - [ ] About screen
 
-## Phase 2: MaterialDivider (~30 min)
-- [x] MaterialSwitch (2 files) ✅
-- [ ] MaterialDivider (~15 locations)
+## Phase 1: Core Theme ✅ COMPLETE
+- [x] Theme parent → Material3.DayNight
+- [x] AlertDialog → MaterialAlertDialogBuilder (18 files)
+- [x] TextInputLayout for bottom sheet search
+- [x] CardView → MaterialCardView
 
-## Phase 3: Snackbar (~2-3 hours)
-- [ ] Toast → Snackbar in Activities (selective, skip services)
+## Phase 2: Quick Components ✅ COMPLETE  
+- [x] MaterialSwitch (2 files)
+- [x] MaterialDivider (~15 locations across 10 files)
 
-## Phase 4: Advanced Components (~3-4 hours)
-- [ ] Spinner → ExposedDropdownMenu (4 files)
-- [ ] SeekBar → Slider (LED pattern dialog)
-- [ ] ImageButton → MaterialButton (2 usages)
+## Phase 3: Snackbar ✅ COMPLETE
+- [x] Toast → Snackbar in Activities (selective)
+  - MainActivityModern, ViewEventActivityNoRecents, PreActionActivity
+  - EditEventActivity, ReportABugActivity, MiscSettingsFragmentX
+  - ReminderPatternPreferenceX
+- [x] Keep Toast in services (ApplicationController, SnoozeResult, NotificationActionSnoozeService)
+- [x] Keep Toast in NavigationSettingsFragmentX (app restart scenario)
+
+## Phase 4: Advanced Components (PARTIAL)
+- [x] ImageButton → MaterialButton (2 usages in fragment_event_list.xml)
+- [ ] Spinner → ExposedDropdownMenu (4 files) - LOW PRIORITY (legacy dialogs)
+- [ ] SeekBar → Slider (LED pattern dialog) - LOW PRIORITY (rarely used)
 
 ## Phase 5: Pickers (~4-6 hours) - BIGGEST UNDERTAKING
 - [ ] MaterialTimePicker (~77 usages across 6 files)

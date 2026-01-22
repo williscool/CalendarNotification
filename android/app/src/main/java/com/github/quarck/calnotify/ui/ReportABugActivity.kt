@@ -26,8 +26,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import android.view.View
 import android.widget.TextView
-import android.widget.Toast
 import com.github.quarck.calnotify.R
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.find
@@ -137,7 +137,7 @@ class ReportABugActivity : AppCompatActivity() {
         if (++easterEggCount > 13) {
             if (clock.currentTimeMillis() - firstClick < 5000L) {
                 Settings(this).devModeEnabled = true
-                Toast.makeText(this, "Developer Mode Enabled", Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), "Developer Mode Enabled", Snackbar.LENGTH_LONG).show()
             }
             else {
                 easterEggCount = 0;

@@ -22,9 +22,9 @@ package com.github.quarck.calnotify.prefs
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
@@ -199,6 +199,6 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
     }
 
     private fun showToast(messageResId: Int) {
-        Toast.makeText(requireContext(), messageResId, Toast.LENGTH_LONG).show()
+        view?.let { Snackbar.make(it, messageResId, Snackbar.LENGTH_LONG).show() }
     }
 }

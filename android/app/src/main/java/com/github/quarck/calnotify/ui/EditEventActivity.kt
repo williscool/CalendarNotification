@@ -37,6 +37,7 @@ import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
@@ -338,7 +339,7 @@ open class EditEventActivity : AppCompatActivity() {
             originalEvent = CalendarProvider.getEvent(this, eventId)
 
             if (originalEvent == null) {
-                Toast.makeText(this, R.string.event_not_found, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.event_not_found, Snackbar.LENGTH_LONG).show()
                 finish()
                 return
             }
@@ -506,7 +507,7 @@ open class EditEventActivity : AppCompatActivity() {
 
             val cal = calendars.find { it.calendarId == eventToEdit.calendarId }
             if (cal == null) {
-                Toast.makeText(this, R.string.calendar_not_found, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.calendar_not_found, Snackbar.LENGTH_LONG).show()
                 finish()
                 return
             }
@@ -816,14 +817,14 @@ open class EditEventActivity : AppCompatActivity() {
 
                 val nextReminder = calendarProvider.getNextEventReminderTime(this, eventId, startTime)
                 if (nextReminder != 0L) {
-                    Toast.makeText(
-                            this,
+                    Snackbar.make(
+                            findViewById(android.R.id.content),
                             resources.getString(R.string.event_was_created_reminder_at).format(dateToStr(this, nextReminder)),
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_LONG
                     ).show()
                 }
                 else {
-                    Toast.makeText(this, R.string.event_was_created, Toast.LENGTH_LONG).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.event_was_created, Snackbar.LENGTH_LONG).show()
                 }
                 finish()
 
@@ -842,20 +843,20 @@ open class EditEventActivity : AppCompatActivity() {
             if (success) {
                 val nextReminder = calendarProvider.getNextEventReminderTime(this, eventToEdit.eventId, details.startTime)
                 if (nextReminder != 0L) {
-                    Toast.makeText(
-                            this,
+                    Snackbar.make(
+                            findViewById(android.R.id.content),
                             resources.getString(R.string.event_was_updated_next_reminder).format(dateToStr(this, nextReminder)),
-                            Toast.LENGTH_LONG
+                            Snackbar.LENGTH_LONG
                     ).show()
                 }
                 else {
-                    Toast.makeText(this, getString(R.string.event_was_updated), Toast.LENGTH_LONG).show()
+                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.event_was_updated), Snackbar.LENGTH_LONG).show()
                 }
 
                 finish()
             }
             else {
-                Toast.makeText(this, R.string.failed_to_update_event_details, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.failed_to_update_event_details, Snackbar.LENGTH_LONG).show()
             }
         }
     }
@@ -952,7 +953,7 @@ open class EditEventActivity : AppCompatActivity() {
                     to.dayOfMonth = day
 
                     if (to.before(from)) {
-                        Toast.makeText(this, getString(R.string.end_time_before_start_time), Toast.LENGTH_LONG).show()
+                        Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
                         to = DateTimeUtils.createCalendarTime(from.timeInMillis)
                         to.addMinutes(durationMinutes.toInt())
                     }
@@ -986,7 +987,7 @@ open class EditEventActivity : AppCompatActivity() {
                     to.minute = min
 
                     if (to.before(from)) {
-                        Toast.makeText(this, getString(R.string.end_time_before_start_time), Toast.LENGTH_LONG).show()
+                        Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
                         to = DateTimeUtils.createCalendarTime(from.timeInMillis)
                         to.addMinutes(durationMinutes.toInt())
                     }
@@ -1036,7 +1037,7 @@ open class EditEventActivity : AppCompatActivity() {
 
             if (intervalMilliseconds > Consts.NEW_EVENT_MAX_REMINDER_MILLISECONDS_BEFORE) {
                 intervalMilliseconds = Consts.NEW_EVENT_MAX_REMINDER_MILLISECONDS_BEFORE
-                Toast.makeText(this, R.string.new_event_max_reminder_is_28_days, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.new_event_max_reminder_is_28_days, Snackbar.LENGTH_LONG).show()
             }
 
             val reminder = EventReminderRecord(

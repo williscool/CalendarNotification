@@ -32,6 +32,7 @@ import androidx.appcompat.widget.Toolbar
 import android.text.format.DateUtils
 import android.view.View
 import android.widget.*
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.app.*
 import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
@@ -501,7 +502,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                 R.id.action_unsnooze_to_upcoming -> {
                     val success = ApplicationController.unsnoozeToUpcoming(this, event)
                     if (success) {
-                        Toast.makeText(this, R.string.event_restored_to_upcoming, Toast.LENGTH_SHORT).show()
+                        Snackbar.make(findViewById(android.R.id.content), R.string.event_restored_to_upcoming, Snackbar.LENGTH_SHORT).show()
                     }
                     finish()
                     true
@@ -572,7 +573,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
     private fun openEventInCalendar(event: EventAlertRecord) {
         val found = CalendarIntents.viewCalendarEventWithFallback(this, calendarProvider, event)
         if (!found) {
-            Toast.makeText(this, R.string.event_not_found_opening_calendar_at_time, Toast.LENGTH_LONG).show()
+            Snackbar.make(findViewById(android.R.id.content), R.string.event_not_found_opening_calendar_at_time, Snackbar.LENGTH_LONG).show()
         }
     }
 

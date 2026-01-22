@@ -232,12 +232,9 @@
         </RelativeLayout>
 
         <!-- HR -->
-        <View
+        <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/divider"
-            android:padding="0dp"
-            />
+            android:layout_height="wrap_content" />
 
         <!-- Date / time -->
         <RelativeLayout
@@ -261,7 +258,7 @@
                 android:importantForAccessibility="no"
                 />
 
-            <Switch
+            <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/switch_all_day"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -346,12 +343,9 @@
         </RelativeLayout>
 
         <!-- HR -->
-        <View
+        <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/divider"
-            android:padding="0dp"
-            />
+            android:layout_height="wrap_content" />
 
 
         <!-- Location -->
@@ -398,12 +392,9 @@
         </RelativeLayout>
 
         <!-- HR -->
-        <View
+        <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/divider"
-            android:padding="0dp"
-            />
+            android:layout_height="wrap_content" />
 
         <!-- notification -->
 
@@ -482,12 +473,9 @@
         </RelativeLayout>
 
         <!-- HR -->
-        <View
+        <com.google.android.material.divider.MaterialDivider
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/divider"
-            android:padding="0dp"
-            />
+            android:layout_height="wrap_content" />
 
 
         <!-- Note -->

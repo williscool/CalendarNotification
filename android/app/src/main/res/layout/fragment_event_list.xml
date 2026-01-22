@@ -23,14 +23,14 @@
         android:elevation="4dp"
         tools:visibility="visible">
 
-        <ImageButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_close_selection"
+            style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_clear_white_24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/cancel_selection"
-            app:tint="@android:color/white" />
+            app:icon="@drawable/ic_clear_white_24dp"
+            app:iconTint="@android:color/white"
+            android:contentDescription="@string/cancel_selection" />
 
         <TextView
             android:id="@+id/selection_count_text"
@@ -76,14 +76,14 @@
             android:textColor="@android:color/white"
             android:textSize="14sp" />
 
-        <ImageButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/new_ui_banner_dismiss"
+            style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:src="@drawable/ic_clear_white_24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/dismiss"
-            app:tint="@android:color/white" />
+            app:icon="@drawable/ic_clear_white_24dp"
+            app:iconTint="@android:color/white"
+            android:contentDescription="@string/dismiss" />
 
     </LinearLayout>
 

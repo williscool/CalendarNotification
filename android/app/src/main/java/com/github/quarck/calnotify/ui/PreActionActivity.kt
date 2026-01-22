@@ -27,8 +27,8 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
@@ -350,10 +350,10 @@ class PreActionActivity : AppCompatActivity() {
             
             runOnUiThread {
                 if (monitorSuccess && storageSuccess) {
-                    Toast.makeText(this, R.string.event_pre_snoozed, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.event_pre_snoozed, Snackbar.LENGTH_SHORT).show()
                     finish()
                 } else {
-                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
                 }
             }
         }
@@ -407,9 +407,9 @@ class PreActionActivity : AppCompatActivity() {
                 if (newMutedState != null) {
                     updateMuteButton()
                     val msgRes = if (eventIsMuted) R.string.event_will_be_muted else R.string.event_unmuted
-                    Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), msgRes, Snackbar.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
                 }
             }
         }
@@ -424,10 +424,10 @@ class PreActionActivity : AppCompatActivity() {
             
             runOnUiThread {
                 if (success) {
-                    Toast.makeText(this, R.string.event_pre_dismissed, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.event_pre_dismissed, Snackbar.LENGTH_SHORT).show()
                     finish()
                 } else {
-                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
                 }
             }
         }
