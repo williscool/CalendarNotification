@@ -65,6 +65,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           sparse-checkout: |
             android/app/src/main/res/menu/main.xml
@@ -94,6 +96,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     - name: ccache
@@ -218,6 +222,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Import build variables from build job
@@ -305,10 +311,10 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             SUFFIX="-${VERSION}"
           elif [[ $GITHUB_REF == refs/pull/* ]]; then
-            # For pull requests
+            # For pull requests - use actual PR head SHA, not merge commit SHA
             PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
             BRANCH_NAME=$(sanitize_branch_name "$GITHUB_HEAD_REF")
-            SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+            SHORT_SHA=$(echo $PR_HEAD_SHA | cut -c1-7)
             SUFFIX="-pr-${PR_NUMBER}-${BRANCH_NAME}-${SHORT_SHA}"
           else
             # For pushes to branches other than main
@@ -335,6 +341,9 @@ jobs:
           # List all renamed files
           echo "Renamed files:"
           ls -la renamed_apks/
+        env:
+          # For PRs, this is the actual PR head commit; for other events it's empty (not used)
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
       # Upload signed artifacts
       - name: Upload SIGNED APK Debug
@@ -367,11 +376,15 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            // Use the actual PR head commit SHA, not the merge commit SHA
+            const commitSha = context.payload.pull_request.head.sha;
+            const shortSha = commitSha.substring(0, 7);
+            const commitUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${commitSha}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `Build artifacts for PR #${context.issue.number} (commit ${context.sha}) are available:
+              body: `Build artifacts for PR #${context.issue.number} (commit [\`${shortSha}\`](${commitUrl})) are available:
 
               - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
               - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
@@ -392,6 +405,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     - name: ccache
@@ -523,6 +538,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     # Execute the common setup with emulator configuration
@@ -727,6 +744,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     # Execute minimal setup for running pre-built APKs on emulator
@@ -874,6 +893,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Fail early if any integration test shard failed (prevents release with broken tests)
@@ -970,6 +991,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Download coverage results from both unit and integration tests
@@ -1049,6 +1072,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For tags this is a no-op (falls back to github.sha), but consistent pattern
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Download all artifacts
