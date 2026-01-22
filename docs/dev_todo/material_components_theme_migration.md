@@ -642,6 +642,53 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 
 ---
 
+## Phase 6: Event Card & List Redesign - ✅ Complete!
+- [x] Event card → MaterialCardView with ConstraintLayout
+- [x] M3 typography and spacing
+- [x] MaterialCheckBox and MaterialRadioButton across app
+- [x] Tighter list spacing per M3 guidelines
+
+## Phase 7: App Bar Modernization - PARTIAL
+- [x] Main activity → MaterialToolbar with M3 styling
+- [x] Main activity legacy → Same
+- [x] Day mode keeps original `colorPrimary` (teal/gray)
+- [x] Night mode uses surface color for M3 dark theme look
+
+### Remaining Toolbar Updates (Polish Pass)
+The following activities still use old `androidx.appcompat.widget.Toolbar`:
+- [ ] `activity_view.xml` - Event view screen
+- [ ] `activity_add_event.xml` - Add/Edit event
+- [ ] `activity_settings.xml` / `activity_settings_x.xml` - Settings
+- [ ] `activity_about.xml` - About screen
+- [ ] `activity_calendars.xml` - Calendar selection
+- [ ] `activity_dismissed_events.xml` - Dismissed events
+- [ ] `activity_snooze_all.xml` - Snooze all
+- [ ] `activity_privacy_policy.xml` - Privacy policy
+- [ ] `activity_report_a_bug.xml` - Bug report
+- [ ] `activity_car_mode.xml` - Car mode
+
+**Pattern to apply:**
+```xml
+<com.google.android.material.appbar.MaterialToolbar
+    android:id="@+id/toolbar"
+    android:layout_width="match_parent"
+    android:layout_height="?attr/actionBarSize"
+    app:titleTextAppearance="?attr/textAppearanceTitleLarge"
+    app:titleTextColor="@color/app_bar_on_background"
+    app:navigationIconTint="@color/app_bar_on_background" />
+```
+
+---
+
+## Phase 8: Event View Modernization - TODO
+The event view screen (`activity_view.xml`) needs a full redesign:
+- [ ] Replace colored header with MaterialCardView or surface treatment
+- [ ] Update FAB styling
+- [ ] Modernize action items/buttons
+- [ ] Consider using M3 list items for snooze options
+
+---
+
 # References
 
 - [Material 3 for Android](https://m3.material.io/develop/android/mdc-android)

@@ -47,6 +47,10 @@
 
     <!-- FAB color (lighter for dark mode) -->
     <color name="fab_background">#5C6BC0</color>
+    
+    <!-- App bar colors (use surface color in dark mode for M3 look) -->
+    <color name="app_bar_background">#1E1E1E</color>
+    <color name="app_bar_on_background">#E1E1E1</color>
 
 </resources>
 
