@@ -117,6 +117,43 @@ Before removing these features:
 
 ---
 
+## Custom Date/Time Picker Layouts
+
+**Status:** DEPRECATED
+
+**Reason:** These custom layouts exist only to work around limitations of the old callback-based `DatePickerDialog`/`TimePickerDialog` (state loss on rotation, manual flow management). Modern `MaterialDatePicker`/`MaterialTimePicker` are fragment-based and handle all of this automatically.
+
+### Files to Remove
+
+**Layouts:**
+- [ ] `dialog_date_picker.xml` - Just a DatePicker in a ScrollView with title
+- [ ] `dialog_time_picker.xml` - Just a TimePicker in a ScrollView with title
+
+**Code to simplify:**
+- [ ] `ViewEventActivityNoRecents.kt` - `snoozeUntilShowDatePickerDialog()`, `snoozeUntilShowTimePickerDialog()`, state tracking code
+- [ ] `SnoozeAllActivity.kt` - Same methods, same state tracking
+
+**Replace with:**
+```kotlin
+// Modern approach - 5 lines instead of 50+
+val picker = MaterialDatePicker.Builder.datePicker()
+    .setTitleText("Snooze until")
+    .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
+    .build()
+picker.addOnPositiveButtonClickListener { dateMillis ->
+    showTimePicker(dateMillis)
+}
+picker.show(supportFragmentManager, "datePicker")
+```
+
+**Benefits of migration:**
+- Automatic state restoration on rotation
+- Beautiful Material 3 UI
+- ~100+ lines of code removed per activity
+- Built-in accessibility support
+
+---
+
 ## LED Notification Pattern
 
 **Status:** DEPRECATED
@@ -146,6 +183,7 @@ Before removing these features:
 | 3 | Remove Quiet Hours feature | Pending |
 | 4 | Remove Calendar Editor feature | Pending |
 | 5 | Remove LED notification settings | Pending |
-| 6 | Remove Legacy Storage & `.use {}` pattern | Pending |
-| 7 | Clean up dependencies and update docs | Pending |
+| 6 | Remove custom picker layouts (use MaterialDatePicker/MaterialTimePicker) | Pending |
+| 7 | Remove Legacy Storage & `.use {}` pattern | Pending |
+| 8 | Clean up dependencies and update docs | Pending |
 

@@ -298,23 +298,23 @@ Snackbar.make(rootView, "Event dismissed", Snackbar.LENGTH_LONG)
 
 ---
 
-# Phase 4: Picker Upgrades (HIGH IMPACT)
+# Phase 4: Picker Upgrades
 
 Requires API changes from callback-based to fragment-based pickers.
 
 ## 4.1 TimePickerDialog → MaterialTimePicker
 
-**Impact:** ~77 usages across 6 files  
-**Effort:** 3-4 hours  
-**Benefit:** Modern clock-style picker, Material 3 styling
+**Impact:** ~4 actual picker instantiations + 2 deprecated custom layouts  
+**Effort:** 2-3 hours  
+**Benefit:** Modern clock-style picker, Material 3 styling, DELETE legacy code
 
 **Files to update:**
-- `ViewEventActivityNoRecents.kt` (32 usages)
-- `SnoozeAllActivity.kt` (30 usages)
-- `EditEventActivity.kt` (7 usages)
-- `SystemUtils.kt` (4 usages)
-- `TimeOfDayPreferenceX.kt` (2 usages)
-- `DefaultManualAllDayNotificationPreferenceX.kt` (2 usages)
+- `EditEventActivity.kt` - 2 `TimePickerDialog` instantiations (start/end time)
+- `ViewEventActivityNoRecents.kt` - Custom picker → MaterialTimePicker (deletes ~50 lines)
+- `SnoozeAllActivity.kt` - Same custom picker → MaterialTimePicker (deletes ~50 lines)
+
+**Legacy files to DELETE:**
+- `dialog_time_picker.xml` - No longer needed with MaterialTimePicker
 
 **Change pattern:**
 ```kotlin
@@ -339,10 +339,19 @@ picker.show(supportFragmentManager, "timePicker")
 
 ---
 
-## 2.3 DatePickerDialog → MaterialDatePicker
+## 4.2 DatePickerDialog → MaterialDatePicker
 
-**Effort:** 2-3 hours (bundled with time picker work)  
-**Benefit:** Modern calendar picker, range selection support
+**Impact:** ~4 actual picker instantiations + 2 deprecated custom layouts  
+**Effort:** Bundled with time picker work  
+**Benefit:** Modern calendar picker, DELETE legacy code
+
+**Files to update:**
+- `EditEventActivity.kt` - 2 `DatePickerDialog` instantiations (start/end date)
+- `ViewEventActivityNoRecents.kt` - Custom picker → MaterialDatePicker
+- `SnoozeAllActivity.kt` - Same custom picker → MaterialDatePicker
+
+**Legacy files to DELETE:**
+- `dialog_date_picker.xml` - No longer needed with MaterialDatePicker
 
 **Change pattern:**
 ```kotlin
@@ -619,9 +628,11 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [x] Spinner → ExposedDropdownMenu (4 layouts + 2 Kotlin files)
 - [x] ~~SeekBar → Slider~~ - SKIPPED (LED feature deprecated, see deprecated_features.md)
 
-## Phase 5: Pickers (~4-6 hours) - BIGGEST UNDERTAKING
-- [ ] MaterialTimePicker (~77 usages across 6 files)
-- [ ] MaterialDatePicker (bundled with above)
+## Phase 5: Pickers (~2-3 hours)
+- [ ] MaterialTimePicker (2 in EditEventActivity + 2 custom picker dialogs)
+- [ ] MaterialDatePicker (2 in EditEventActivity + 2 custom picker dialogs)
+
+**Note:** Custom picker layouts (`dialog_date_picker.xml`, `dialog_time_picker.xml`) are deprecated legacy code. Migration to MaterialPickers will DELETE these and simplify ViewEventActivityNoRecents + SnoozeAllActivity significantly. See `deprecated_features.md`.
 
 ---
 
