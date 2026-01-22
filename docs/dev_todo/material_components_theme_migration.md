@@ -1,6 +1,6 @@
 # Material 3 Theme Migration
 
-## Status: Planning
+## Status: In Progress (Phase 1)
 ## Related: [#15 - Upgrade the UI](https://github.com/williscool/CalendarNotification/issues/15), [#225 - Filter pills bottom sheet dark theme](https://github.com/williscool/CalendarNotification/issues/225)
 
 ## Overview
@@ -400,6 +400,133 @@ picker.show(supportFragmentManager, "datePicker")
 
 ---
 
+# Phase 3: Advanced Component Upgrades
+
+Lower priority upgrades for complete Material 3 consistency.
+
+## 3.1 Spinner → ExposedDropdownMenu
+
+**Impact:** 4 files  
+**Effort:** 2-3 hours  
+**Benefit:** Modern dropdown with Material 3 styling, search support
+
+**Files to update:**
+- `dialog_interval_picker.xml`
+- `dialog_add_event_notification.xml`
+- `dialog_default_manual_notification.xml`
+- `dialog_reminder_interval_configuration.xml`
+
+**Change pattern:**
+```xml
+<!-- Before -->
+<Spinner
+    android:id="@+id/spinner_unit"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content" />
+
+<!-- After - Material 3 Exposed Dropdown Menu -->
+<com.google.android.material.textfield.TextInputLayout
+    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:hint="Unit">
+    
+    <AutoCompleteTextView
+        android:id="@+id/dropdown_unit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="none" />
+        
+</com.google.android.material.textfield.TextInputLayout>
+```
+
+**Kotlin changes required:**
+```kotlin
+// Before (Spinner)
+spinner.adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, items)
+spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener { ... }
+
+// After (ExposedDropdownMenu)
+val adapter = ArrayAdapter(context, R.layout.list_item, items)
+(textInputLayout.editText as? AutoCompleteTextView)?.setAdapter(adapter)
+autoCompleteTextView.setOnItemClickListener { _, _, position, _ -> ... }
+```
+
+---
+
+## 3.2 SeekBar → Slider
+
+**Impact:** 2 usages in `dialog_led_pattern.xml`  
+**Effort:** 1 hour  
+**Benefit:** Material 3 slider with value labels, tick marks
+
+```xml
+<!-- Before -->
+<SeekBar
+    android:id="@+id/seekbar_led_on"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:max="100" />
+
+<!-- After -->
+<com.google.android.material.slider.Slider
+    android:id="@+id/slider_led_on"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:valueFrom="0"
+    android:valueTo="100"
+    android:stepSize="1"
+    app:labelBehavior="floating" />
+```
+
+**Kotlin changes:**
+```kotlin
+// Before
+seekBar.progress = value
+seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { ... })
+
+// After
+slider.value = value.toFloat()
+slider.addOnChangeListener { _, value, fromUser -> ... }
+```
+
+---
+
+## 3.3 ImageButton → MaterialButton (Icon style)
+
+**Impact:** 2 usages in `fragment_event_list.xml`  
+**Effort:** 30 minutes  
+**Benefit:** Consistent ripple, better accessibility
+
+```xml
+<!-- Before -->
+<ImageButton
+    android:id="@+id/btn_close_selection"
+    android:src="@drawable/ic_clear_white_24dp"
+    android:background="?attr/selectableItemBackgroundBorderless" />
+
+<!-- After -->
+<com.google.android.material.button.MaterialButton
+    android:id="@+id/btn_close_selection"
+    style="@style/Widget.Material3.Button.IconButton"
+    app:icon="@drawable/ic_clear_white_24dp"
+    app:iconTint="@android:color/white" />
+```
+
+---
+
+## Phase 3 Summary
+
+| Task | Effort | Visual Impact | Priority |
+|------|--------|---------------|----------|
+| Spinner → ExposedDropdownMenu | 2-3 hours | Medium | Low |
+| SeekBar → Slider | 1 hour | Medium | Low |
+| ImageButton → MaterialButton | 30 min | Low | Low |
+
+**Phase 3 Total:** ~4-5 hours
+
+---
+
 # Optional: Dynamic Colors (Android 12+)
 
 Material 3 supports **Dynamic Colors** - extracting colors from the user's wallpaper. This is opt-in.
@@ -460,6 +587,11 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [ ] Date picker (event editing)
 - [ ] Switch toggles
 - [ ] Divider consistency
+
+## Phase 3
+- [ ] Dropdown menus in interval dialogs
+- [ ] LED pattern sliders
+- [ ] Icon buttons in selection bar
 
 ---
 
