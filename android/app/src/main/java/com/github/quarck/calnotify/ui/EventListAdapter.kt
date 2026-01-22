@@ -86,8 +86,8 @@ class EventListAdapter(
         var snoozedUntilText: TextView?
         val compactViewCalendarColor: View?
 
-        val compactViewContentLayout: RelativeLayout?
-        var undoLayout: RelativeLayout?
+        val compactViewContentLayout: ViewGroup?
+        var undoLayout: ViewGroup?
 
         var undoButton: Button?
 
@@ -107,9 +107,9 @@ class EventListAdapter(
             eventTimeText = itemView.findOrThrow<TextView>(R.id.card_view_event_time)
             snoozedUntilText = itemView.find<TextView>(R.id.card_view_snoozed_until)
 
-            undoLayout = itemView.find<RelativeLayout?>(R.id.event_card_undo_layout)
+            undoLayout = itemView.find<ViewGroup?>(R.id.event_card_undo_layout)
 
-            compactViewContentLayout = itemView.find<RelativeLayout?>(R.id.compact_view_content_layout)
+            compactViewContentLayout = itemView.find<ViewGroup?>(R.id.compact_view_content_layout)
             compactViewCalendarColor = itemView.find<View?>(R.id.compact_view_calendar_color)
 
             undoButton = itemView.find<Button?>(R.id.card_view_button_undo)

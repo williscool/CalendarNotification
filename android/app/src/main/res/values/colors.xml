@@ -49,6 +49,9 @@
 
     <color name="material_red">#c3362b</color>
     <color name="material_blue">#3f51b8</color>
+    
+    <!-- Alpha colors for ripples -->
+    <color name="white_alpha_50">#80FFFFFF</color>
 
     <color name="cal_sample_primary">#03A9F4</color>
 

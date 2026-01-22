@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -8,231 +7,210 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="8dp"
-    android:layout_marginVertical="4dp"
+    android:layout_marginTop="2dp"
+    android:layout_marginBottom="2dp"
     app:cardCornerRadius="12dp"
-    app:cardElevation="2dp"
+    app:cardElevation="0dp"
     app:strokeWidth="0dp"
+    style="@style/Widget.Material3.CardView.Filled"
     >
 
-    <RelativeLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="@dimen/compact_view_layout_height"
-        >
+        android:layout_height="wrap_content">
 
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/compact_view_layout_height"
+        <!-- Main content -->
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/compact_view_content_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="56dp"
+            android:paddingVertical="8dp"
+            android:paddingEnd="16dp"
+            android:paddingStart="4dp"
+            android:background="?attr/selectableItemBackground"
             >
-            
+
+            <!-- Selection checkbox (hidden by default) -->
             <com.google.android.material.checkbox.MaterialCheckBox
                 android:id="@+id/selection_checkbox"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignParentStart="true"
-                android:layout_alignParentLeft="true"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="4dp"
-                android:layout_marginLeft="4dp"
                 android:visibility="gone"
                 android:clickable="false"
-                android:focusable="false"/>
-
-            <View
-                android:id="@+id/compact_view_calendar_color"
-                android:layout_width="6dp"
-                android:layout_height="match_parent"
-                android:background="@color/cal_sample_primary"
-                android:layout_toEndOf="@id/selection_checkbox"
-                android:layout_toRightOf="@id/selection_checkbox"
-                android:layout_marginLeft="2dp"
-                android:layout_marginStart="2dp"
-                android:layout_marginRight="8dp"
-                android:layout_marginEnd="8dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"/>
-
-            <TextView
-                android:id="@+id/card_view_event_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="left"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textColor="?attr/colorOnSurface"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:layout_marginLeft="@dimen/compact_view_left_margin"
-                android:layout_marginStart="@dimen/compact_view_left_margin"
-                android:layout_marginRight="@dimen/compact_view_right_margin"
-                android:layout_marginEnd="@dimen/compact_view_right_margin"
-
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="2dp"
-
-                android:text="@string/event_title_example"
-
-                android:layout_toEndOf="@id/compact_view_calendar_color"
-                android:layout_toRightOf="@id/compact_view_calendar_color"
-                android:layout_alignParentTop="true"
-                android:layout_alignParentRight="true"
-                android:layout_alignParentEnd="true"
+                android:focusable="false"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
                 />
 
+            <!-- Calendar color indicator - rounded pill -->
+            <View
+                android:id="@+id/compact_view_calendar_color"
+                android:layout_width="4dp"
+                android:layout_height="0dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginVertical="2dp"
+                android:background="@drawable/calendar_color_indicator"
+                app:layout_constraintStart_toEndOf="@id/selection_checkbox"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                />
+
+            <!-- Event title -->
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/card_view_event_name"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/event_title_example"
+                android:textAppearance="?attr/textAppearanceBodyLarge"
+                android:textColor="?attr/colorOnSurface"
+                app:layout_constraintEnd_toStartOf="@id/indicators_container"
+                app:layout_constraintStart_toEndOf="@id/compact_view_calendar_color"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toTopOf="@id/card_view_event_date"
+                app:layout_constraintVertical_chainStyle="packed"
+                />
+
+            <!-- Event date/time -->
+            <TextView
                 android:id="@+id/card_view_event_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginTop="2dp"
                 android:text="@string/event_time_example"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                android:layout_below="@id/card_view_event_name"
-
-                android:layout_marginLeft="@dimen/compact_view_left_margin"
-                android:layout_marginStart="@dimen/compact_view_left_margin"
-                android:layout_marginRight="@dimen/compact_view_right_margin"
-                android:layout_marginEnd="@dimen/compact_view_right_margin"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="4dp"
-
-                android:layout_toEndOf="@id/compact_view_calendar_color"
-                android:layout_toRightOf="@id/compact_view_calendar_color"
+                app:layout_constraintEnd_toStartOf="@id/indicators_container"
+                app:layout_constraintStart_toEndOf="@id/compact_view_calendar_color"
+                app:layout_constraintTop_toBottomOf="@id/card_view_event_name"
+                app:layout_constraintBottom_toTopOf="@id/card_view_event_time"
                 />
 
+            <!-- Secondary time info (optional) -->
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
                 android:id="@+id/card_view_event_time"
-                android:text=""
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
-
-                android:layout_marginLeft="@dimen/compact_view_left_margin"
-                android:layout_marginStart="@dimen/compact_view_left_margin"
-                android:layout_marginRight="@dimen/compact_view_right_margin"
-                android:layout_marginEnd="@dimen/compact_view_right_margin"
-                android:layout_marginTop="1dp"
-                android:layout_marginBottom="1dp"
-
-                android:layout_below="@id/card_view_event_date"
-                android:layout_toEndOf="@id/compact_view_calendar_color"
-                android:layout_toRightOf="@id/compact_view_calendar_color"
+                android:visibility="gone"
+                app:layout_constraintEnd_toStartOf="@id/indicators_container"
+                app:layout_constraintStart_toEndOf="@id/compact_view_calendar_color"
+                app:layout_constraintTop_toBottomOf="@id/card_view_event_date"
+                app:layout_constraintBottom_toTopOf="@id/card_view_snoozed_until"
+                tools:visibility="gone"
                 />
 
+            <!-- Snoozed until info -->
             <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
                 android:id="@+id/card_view_snoozed_until"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginTop="2dp"
                 android:text="@string/snoozed_until_example"
-                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
                 android:textColor="@color/snoozed_until_text"
-
-                android:layout_below="@id/card_view_event_date"
-                android:layout_toEndOf="@id/compact_view_calendar_color"
-
-                android:layout_marginStart="@dimen/compact_view_left_margin"
-                android:layout_marginEnd="@dimen/compact_view_right_margin"
-                android:layout_marginTop="1dp"
-                android:layout_marginBottom="1dp"
-
+                android:visibility="gone"
+                app:layout_constraintEnd_toStartOf="@id/indicators_container"
+                app:layout_constraintStart_toEndOf="@id/compact_view_calendar_color"
+                app:layout_constraintTop_toBottomOf="@id/card_view_event_time"
+                app:layout_constraintBottom_toBottomOf="parent"
+                tools:visibility="visible"
                 />
 
+            <!-- Indicator icons container -->
             <LinearLayout
+                android:id="@+id/indicators_container"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignBottom="@id/card_view_event_date"
-                android:layout_alignParentEnd="true"
                 android:orientation="horizontal"
-                android:layout_marginTop="4dp"
-                android:layout_marginEnd="8dp"
+                android:gravity="center_vertical"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
                 >
 
                 <ImageView
                     android:id="@+id/imageview_is_muted_indicator"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="4dp"
+                    android:contentDescription="@string/notification_is_muted"
+                    android:visibility="gone"
                     app:srcCompat="@drawable/ic_volume_off_black_24dp"
                     app:tint="?attr/colorOnSurfaceVariant"
-                    android:contentDescription="@string/notification_is_muted"
-                    android:layout_marginTop="0dp"
-                    android:layout_marginEnd="0dp"
-                    android:padding="0dp"
-                    android:visibility="gone"
-                    android:scaleX="0.75"
-                    android:scaleY="0.75"
                     />
 
                 <ImageView
                     android:id="@+id/imageview_is_task_indicator"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="4dp"
+                    android:importantForAccessibility="no"
+                    android:visibility="gone"
                     app:srcCompat="@drawable/ic_event_available_black_24dp"
                     app:tint="?attr/colorOnSurfaceVariant"
-                    android:layout_marginTop="0dp"
-                    android:layout_marginEnd="0dp"
-                    android:padding="0dp"
-                    android:visibility="gone"
-                    android:importantForAccessibility="no"
-                    android:scaleX="0.75"
-                    android:scaleY="0.75"
                     />
 
                 <ImageView
                     android:id="@+id/imageview_is_alarm_indicator"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="0dp"
-                    android:layout_marginTop="0dp"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:importantForAccessibility="no"
-                    android:padding="0dp"
-                    android:scaleX="0.75"
-                    android:scaleY="0.75"
                     android:visibility="gone"
                     app:srcCompat="@drawable/ic_alarm_black_24dp"
                     app:tint="?attr/colorOnSurfaceVariant"
                     />
 
-
             </LinearLayout>
 
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
-        </RelativeLayout>
-
-        <RelativeLayout
+        <!-- Undo overlay (shown after dismiss) -->
+        <LinearLayout
             android:id="@+id/event_card_undo_layout"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/compact_view_layout_height"
+            android:layout_height="match_parent"
+            android:minHeight="56dp"
             android:background="@color/material_red"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
             android:visibility="gone"
             >
 
             <TextView
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="@string/dismissed"
                 android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textColor="@color/icons"
-                android:layout_centerVertical="true"
-                android:layout_alignParentStart="true"
-                android:layout_alignParentLeft="true"
-                android:layout_marginLeft="25dp"
-                android:layout_marginStart="25dp"
+                android:textColor="@android:color/white"
                 />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/card_view_button_undo"
+                style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/undo"
-                android:id="@+id/card_view_button_undo"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:textColor="@color/icons"
-                android:layout_alignParentEnd="true"
-                android:layout_alignParentRight="true"
-                android:layout_centerVertical="true"
+                android:textColor="@android:color/white"
+                app:rippleColor="@color/white_alpha_50"
                 />
 
-        </RelativeLayout>
+        </LinearLayout>
 
-    </RelativeLayout>
+    </FrameLayout>
 
 </com.google.android.material.card.MaterialCardView>
