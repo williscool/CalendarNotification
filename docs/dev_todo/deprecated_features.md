@@ -117,6 +117,26 @@ Before removing these features:
 
 ---
 
+## LED Notification Pattern
+
+**Status:** DEPRECATED
+
+**Reason:** LED notification lights have been removed from virtually all modern phones since ~2018. Replaced by Always-On Display, edge lighting, and screen-based notification effects.
+
+### Files to Remove
+
+**UI:**
+- [ ] `dialog_led_pattern.xml` - LED on/off time SeekBars
+- [ ] `dialog_color_picker.xml` - LED color picker
+
+**Code:**
+- [ ] LED color/pattern handling in notification builders
+- [ ] Settings preferences for LED customization
+
+**Note:** Android still has the `Notification.Builder.setLights()` API but it's effectively a no-op on modern devices.
+
+---
+
 ## Removal Timeline
 
 | Phase | Action | Status |
@@ -125,6 +145,7 @@ Before removing these features:
 | 2 | Complete core feature test suite | In Progress |
 | 3 | Remove Quiet Hours feature | Pending |
 | 4 | Remove Calendar Editor feature | Pending |
-| 5 | Remove Legacy Storage & `.use {}` pattern | Pending |
-| 6 | Clean up dependencies and update docs | Pending |
+| 5 | Remove LED notification settings | Pending |
+| 6 | Remove Legacy Storage & `.use {}` pattern | Pending |
+| 7 | Clean up dependencies and update docs | Pending |
 

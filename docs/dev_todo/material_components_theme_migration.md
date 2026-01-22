@@ -501,39 +501,9 @@ autoCompleteTextView.setOnItemClickListener { _, _, position, _ -> ... }
 
 ## 3.2 SeekBar → Slider
 
-**Impact:** 2 usages in `dialog_led_pattern.xml`  
-**Effort:** 1 hour  
-**Benefit:** Material 3 slider with value labels, tick marks
+**Status:** SKIPPED - LED notification feature deprecated (see `deprecated_features.md`)
 
-```xml
-<!-- Before -->
-<SeekBar
-    android:id="@+id/seekbar_led_on"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:max="100" />
-
-<!-- After -->
-<com.google.android.material.slider.Slider
-    android:id="@+id/slider_led_on"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:valueFrom="0"
-    android:valueTo="100"
-    android:stepSize="1"
-    app:labelBehavior="floating" />
-```
-
-**Kotlin changes:**
-```kotlin
-// Before
-seekBar.progress = value
-seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { ... })
-
-// After
-slider.value = value.toFloat()
-slider.addOnChangeListener { _, value, fromUser -> ... }
-```
+LED notification lights have been removed from modern phones since ~2018. No point upgrading UI for a feature scheduled for removal.
 
 ---
 
@@ -565,10 +535,10 @@ slider.addOnChangeListener { _, value, fromUser -> ... }
 | Task | Effort | Visual Impact | Priority |
 |------|--------|---------------|----------|
 | Spinner → ExposedDropdownMenu | 2-3 hours | Medium | Low |
-| SeekBar → Slider | 1 hour | Medium | Low |
-| ImageButton → MaterialButton | 30 min | Low | Low |
+| ~~SeekBar → Slider~~ | - | - | SKIPPED (LED deprecated) |
+| ImageButton → MaterialButton | 30 min | Low | ✅ Done |
 
-**Phase 3 Total:** ~4-5 hours
+**Phase 3 Total:** ~2-3 hours remaining
 
 ---
 
@@ -647,7 +617,7 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 ## Phase 4: Advanced Components (PARTIAL)
 - [x] ImageButton → MaterialButton (2 usages in fragment_event_list.xml)
 - [ ] Spinner → ExposedDropdownMenu (4 files) - LOW PRIORITY (legacy dialogs)
-- [ ] SeekBar → Slider (LED pattern dialog) - LOW PRIORITY (rarely used)
+- [x] ~~SeekBar → Slider~~ - SKIPPED (LED feature deprecated, see deprecated_features.md)
 
 ## Phase 5: Pickers (~4-6 hours) - BIGGEST UNDERTAKING
 - [ ] MaterialTimePicker (~77 usages across 6 files)
