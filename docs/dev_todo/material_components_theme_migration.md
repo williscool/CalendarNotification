@@ -1,6 +1,13 @@
 # Material 3 Theme Migration
 
-## Status: In Progress (Phase 1)
+## Status: In Progress (Phase 2)
+
+## Post-Migration Cleanup Notes
+
+Items to address after core migration is complete:
+
+- [ ] **FAB styling** - Edit FAB on main screen and pencil on activity view look slightly off with M3. Consider using `ExtendedFloatingActionButton` or adjusting `app:fabSize` and icon tint.
+- [ ] **Button audit** - Review buttons throughout app for consistent M3 styling (filled vs tonal vs outlined)
 ## Related: [#15 - Upgrade the UI](https://github.com/williscool/CalendarNotification/issues/15), [#225 - Filter pills bottom sheet dark theme](https://github.com/williscool/CalendarNotification/issues/225)
 
 ## Overview
