@@ -80,7 +80,7 @@ class DismissedEventListAdapter(
         //var eventId: Long = 0;
         var entry: DismissedEventAlertRecord? = null
 
-        var eventHolder: RelativeLayout?
+        var eventHolder: View?
         var eventTitleText: TextView
         //var eventTitleLayout: RelativeLayout?
         var eventDateText: TextView
@@ -95,7 +95,7 @@ class DismissedEventListAdapter(
         var calendarColor: ColorDrawable
 
         init {
-            eventHolder = itemView.find<RelativeLayout>(R.id.card_view_main_holder)
+            eventHolder = itemView.find<View>(R.id.card_view_main_holder)
             eventTitleText = itemView.findOrThrow<TextView>(R.id.card_view_event_name)
             //eventTitleLayout = itemView.findOrThrow<RelativeLayout?>(R.id.card_view_event_title_layout)
 
