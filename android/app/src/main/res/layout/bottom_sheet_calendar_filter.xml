@@ -40,7 +40,7 @@
         android:paddingBottom="8dp"
         android:visibility="gone" />
 
-    <CheckBox
+    <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/checkbox_all_calendars"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

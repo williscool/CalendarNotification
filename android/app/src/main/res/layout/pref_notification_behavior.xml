@@ -31,19 +31,19 @@
         android:paddingTop="0dp"
         >
 
-        <RadioButton
+        <com.google.android.material.radiobutton.MaterialRadioButton
             android:id="@+id/pref_notification_swipe_dismiss"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/notificaiton_swipe_dismisses_the_event" />
 
-        <RadioButton
+        <com.google.android.material.radiobutton.MaterialRadioButton
             android:id="@+id/pref_notification_swipe_snoozes"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/notificaiton_swipe_snoozes_the_event" />
 
-        <RadioButton
+        <com.google.android.material.radiobutton.MaterialRadioButton
             android:id="@+id/pref_notification_swipe_disallowed"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
