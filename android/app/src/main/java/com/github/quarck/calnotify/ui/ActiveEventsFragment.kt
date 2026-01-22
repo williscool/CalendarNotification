@@ -182,7 +182,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         val isChange = !hasActiveEvents
         
         // Pass selected event keys to SnoozeAllActivity via intent
-        val eventKeys = selectedEvents.map { "${it.eventId}:${it.instanceStartTime}" }.toTypedArray()
+        val eventKeys = selectedEvents.map { it.key.toIntentString() }.toTypedArray()
         
         // Get filter/search context for display
         val filterState = getFilterState()
