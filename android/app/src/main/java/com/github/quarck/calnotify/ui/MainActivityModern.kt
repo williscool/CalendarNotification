@@ -170,6 +170,8 @@ class MainActivityModern : MainActivityBase() {
                 searchMenuItem?.collapseActionView()
                 // Clear filters when switching tabs (same behavior as search)
                 filterState = FilterState()
+                // Exit selection mode and restore UI when switching tabs
+                exitSelectionModeIfActive()
             }
             
             currentDestinationId = destination.id
@@ -619,6 +621,40 @@ class MainActivityModern : MainActivityBase() {
             updateFilterChipsForCurrentTab()
             notifyCurrentFragmentFilterChanged()
         }
+    }
+
+    // === Selection Mode Coordination ===
+    
+    /** Called by ActiveEventsFragment when selection mode changes */
+    fun onSelectionModeChanged(active: Boolean) {
+        // Hide/show the app toolbar
+        supportActionBar?.let { actionBar ->
+            if (active) {
+                actionBar.hide()
+            } else {
+                actionBar.show()
+            }
+        }
+        
+        // Hide/show the FAB
+        floatingAddEvent.visibility = if (active) View.GONE else View.VISIBLE
+        
+        // Hide/show the filter chips
+        chipGroup?.visibility = if (active) View.GONE else View.VISIBLE
+    }
+    
+    /** Exit selection mode if active (e.g., when switching tabs) */
+    private fun exitSelectionModeIfActive() {
+        // Find the ActiveEventsFragment and exit selection mode
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        val activeFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull { it is ActiveEventsFragment } as? ActiveEventsFragment
+        
+        if (activeFragment?.isInSelectionMode() == true) {
+            activeFragment.exitSelectionMode()
+        }
+        
+        // Always restore UI state when switching tabs (in case fragment was already destroyed)
+        onSelectionModeChanged(false)
     }
 
     companion object {

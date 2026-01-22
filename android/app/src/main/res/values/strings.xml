@@ -839,4 +839,50 @@
         <item>30</item>
         <item>50</item>
     </string-array>
+    
+    <!-- Multi-select mode -->
+    <string name="cancel_selection">Cancel selection</string>
+    <string name="select_all">Select all</string>
+    <string name="snooze_selected">Snooze selected</string>
+    
+    <plurals name="selection_count">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    
+    <string name="selection_count_with_hidden">%1$d selected (%2$d hidden by filters)</string>
+    
+    <plurals name="snooze_selected_title">
+        <item quantity="one">Snooze %d selected event</item>
+        <item quantity="other">Snooze %d selected events</item>
+    </plurals>
+    
+    <plurals name="change_selected_title">
+        <item quantity="one">Change snooze for %d selected event</item>
+        <item quantity="other">Change snooze for %d selected events</item>
+    </plurals>
+    
+    <plurals name="snooze_selected_confirmation">
+        <item quantity="one">Snooze %d selected event?</item>
+        <item quantity="other">Snooze %d selected events?</item>
+    </plurals>
+    
+    <plurals name="change_selected_confirmation">
+        <item quantity="one">Change snooze time for %d selected event?</item>
+        <item quantity="other">Change snooze time for %d selected events?</item>
+    </plurals>
+    
+    <string name="snooze_selected_events_to">Snooze selected events to:</string>
+    <string name="change_selected_events_to">Change snooze time for selected events:</string>
+    
+    <!-- Multi-select with filter context -->
+    <plurals name="selection_count_from_filtered">
+        <item quantity="one">%1$d selected from %2$d matching: %3$s</item>
+        <item quantity="other">%1$d selected from %2$d matching: %3$s</item>
+    </plurals>
+    
+    <plurals name="events_snoozed">
+        <item quantity="one">%d event snoozed</item>
+        <item quantity="other">%d events snoozed</item>
+    </plurals>
 </resources>

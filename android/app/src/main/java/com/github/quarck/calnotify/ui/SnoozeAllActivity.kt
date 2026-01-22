@@ -102,6 +102,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
     var snoozeUntil_TimePicker: TimePicker? = null
     private var searchQuery: String? = null
     private var filterState: FilterState? = null
+    private var selectedEventKeys: Set<String>? = null  // For multi-select mode
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
@@ -124,6 +125,10 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
       searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
       filterState = FilterState.fromBundle(intent.getBundleExtra(Consts.INTENT_FILTER_STATE))
+      
+      // Check for multi-select mode
+      val selectedKeysArray = intent.getStringArrayExtra(ActiveEventsFragment.INTENT_SELECTED_EVENT_KEYS)
+      selectedEventKeys = selectedKeysArray?.toSet()
 
       val toolbar = find<Toolbar?>(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -170,55 +175,95 @@ open class SnoozeAllActivity : AppCompatActivity() {
         if (snoozeCustom != null)
             snoozeCustom.visibility = showCustomSnoozeVisibility
 
-        findOrThrow<TextView>(R.id.snooze_snooze_for).text =
-                if (!snoozeAllIsChange)
-                    this.resources.getString(R.string.snooze_all_events)
-                else
-                    this.resources.getString(R.string.change_all_events)
+        // Set the label text based on mode (multi-select vs all)
+        val isMultiSelect = selectedEventKeys != null
+        findOrThrow<TextView>(R.id.snooze_snooze_for).text = when {
+            isMultiSelect && !snoozeAllIsChange -> getString(R.string.snooze_selected_events_to)
+            isMultiSelect && snoozeAllIsChange -> getString(R.string.change_selected_events_to)
+            !snoozeAllIsChange -> getString(R.string.snooze_all_events)
+            else -> getString(R.string.change_all_events)
+        }
 
         find<ImageView?>(R.id.snooze_view_img_custom_period)?.visibility = View.VISIBLE
         find<ImageView?>(R.id.snooze_view_img_until)?.visibility = View.VISIBLE
 
-
-        this.title =
-                if (!snoozeAllIsChange)
-                    resources.getString(R.string.snooze_all_title)
-                else
-                    resources.getString(R.string.change_all_title)
+        // Set the title based on mode
+        this.title = if (isMultiSelect) {
+            val count = selectedEventKeys!!.size
+            if (!snoozeAllIsChange)
+                resources.getQuantityString(R.plurals.snooze_selected_title, count, count)
+            else
+                resources.getQuantityString(R.plurals.change_selected_title, count, count)
+        } else {
+            if (!snoozeAllIsChange)
+                resources.getString(R.string.snooze_all_title)
+            else
+                resources.getString(R.string.change_all_title)
+        }
 
         val count = intent.getIntExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT,  0)
+        val totalFilteredCount = intent.getIntExtra(ActiveEventsFragment.INTENT_TOTAL_FILTERED_COUNT, 0)
 
         val snoozeCountTextView = findViewById<TextView>(R.id.snooze_count_text)
         
-        val filterDescription = filterState?.toDisplayString(this)
-        val hasSearch = !searchQuery.isNullOrEmpty()
-        val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
-        
-        when {
-            hasSearch && hasFilter -> {
-                // Both search and filters: "3 events matching 'query', Filter1, Filter2 will be snoozed"
-                val combined = getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
-                snoozeCountTextView.visibility = View.VISIBLE
-                snoozeCountTextView.text = resources.getQuantityString(
-                    R.plurals.snooze_count_text_filtered, count, count, combined
-                )
+        // Multi-select mode: show count with filter context if applicable
+        if (selectedEventKeys != null) {
+            val filterDescription = filterState?.toDisplayString(this)
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
+            
+            snoozeCountTextView.visibility = View.VISIBLE
+            
+            when {
+                (hasSearch || hasFilter) && totalFilteredCount > 0 -> {
+                    // Show "X selected from Y matching: filter description"
+                    val filterDesc = when {
+                        hasSearch && hasFilter -> getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
+                        hasSearch -> "'$searchQuery'"
+                        else -> filterDescription ?: ""
+                    }
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.selection_count_from_filtered, count, count, totalFilteredCount, filterDesc
+                    )
+                }
+                else -> {
+                    // Simple count without filter context
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.selection_count, count, count
+                    )
+                }
             }
-            hasSearch -> {
-                // Search only (existing behavior)
-                snoozeCountTextView.visibility = View.VISIBLE
-                snoozeCountTextView.text = resources.getQuantityString(
-                    R.plurals.snooze_count_text, count, count, searchQuery
-                )
-            }
-            hasFilter -> {
-                // Filters only
-                snoozeCountTextView.visibility = View.VISIBLE
-                snoozeCountTextView.text = resources.getQuantityString(
-                    R.plurals.snooze_count_text_filtered, count, count, filterDescription
-                )
-            }
-            else -> {
-                snoozeCountTextView.visibility = View.GONE
+        } else {
+            val filterDescription = filterState?.toDisplayString(this)
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
+            
+            when {
+                hasSearch && hasFilter -> {
+                    // Both search and filters: "3 events matching 'query', Filter1, Filter2 will be snoozed"
+                    val combined = getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
+                    snoozeCountTextView.visibility = View.VISIBLE
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.snooze_count_text_filtered, count, count, combined
+                    )
+                }
+                hasSearch -> {
+                    // Search only (existing behavior)
+                    snoozeCountTextView.visibility = View.VISIBLE
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.snooze_count_text, count, count, searchQuery
+                    )
+                }
+                hasFilter -> {
+                    // Filters only
+                    snoozeCountTextView.visibility = View.VISIBLE
+                    snoozeCountTextView.text = resources.getQuantityString(
+                        R.plurals.snooze_count_text_filtered, count, count, filterDescription
+                    )
+                }
+                else -> {
+                    snoozeCountTextView.visibility = View.GONE
+                }
             }
         }
 
@@ -277,16 +322,27 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 .setPositiveButton(android.R.string.yes) {
                     _, _ ->
 
-                    DevLog.debug(LOG_TAG, "Snoozing (change=$snoozeAllIsChange) all requests, snoozeDelay=${snoozeDelay / 1000L}")
+                    DevLog.debug(LOG_TAG, "Snoozing (change=$snoozeAllIsChange) requests, snoozeDelay=${snoozeDelay / 1000L}")
 
-                    val result = ApplicationController.snoozeAllEvents(
-                        this, 
-                        snoozeDelay, 
-                        snoozeAllIsChange, 
-                        false, 
-                        searchQuery,
-                        filterState
-                    )
+                    val result = if (selectedEventKeys != null) {
+                        // Multi-select mode: snooze only selected events
+                        ApplicationController.snoozeSelectedEvents(
+                            this,
+                            selectedEventKeys!!,
+                            snoozeDelay,
+                            snoozeAllIsChange
+                        )
+                    } else {
+                        // Normal mode: snooze all (with optional filter/search)
+                        ApplicationController.snoozeAllEvents(
+                            this, 
+                            snoozeDelay, 
+                            snoozeAllIsChange, 
+                            false, 
+                            searchQuery,
+                            filterState
+                        )
+                    }
                     if (result != null) {
                         result.toast(this)
                     }
@@ -300,6 +356,16 @@ open class SnoozeAllActivity : AppCompatActivity() {
     }
     
     private fun getConfirmationMessage(): String {
+        // Multi-select mode: simple confirmation with count
+        if (selectedEventKeys != null) {
+            val count = selectedEventKeys!!.size
+            return if (snoozeAllIsChange) {
+                resources.getQuantityString(R.plurals.change_selected_confirmation, count, count)
+            } else {
+                resources.getQuantityString(R.plurals.snooze_selected_confirmation, count, count)
+            }
+        }
+        
         val filterDescription = filterState?.toDisplayString(this)
         val hasSearch = !searchQuery.isNullOrEmpty()
         val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null

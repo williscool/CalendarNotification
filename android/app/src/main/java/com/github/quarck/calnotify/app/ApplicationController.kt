@@ -958,6 +958,40 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             matchesSearch && matchesFilter
         }, snoozeDelay, isChange, onlySnoozeVisible)
     }
+    
+    /**
+     * Snooze a specific set of selected events.
+     * 
+     * @param context The context
+     * @param eventKeys Set of event keys in format "eventId:instanceStartTime"
+     * @param snoozeDelay The snooze delay in milliseconds
+     * @param isChange Whether this is a "change snooze" (all events already snoozed)
+     * @return SnoozeResult if successful, null otherwise
+     */
+    fun snoozeSelectedEvents(
+        context: Context,
+        eventKeys: Set<String>,
+        snoozeDelay: Long,
+        isChange: Boolean
+    ): SnoozeResult? {
+        if (eventKeys.isEmpty()) return null
+        
+        // Parse event keys into (eventId, instanceStartTime) pairs
+        val keyPairs = eventKeys.mapNotNull { key ->
+            val parts = key.split(":")
+            if (parts.size == 2) {
+                val eventId = parts[0].toLongOrNull()
+                val instanceStartTime = parts[1].toLongOrNull()
+                if (eventId != null && instanceStartTime != null) {
+                    Pair(eventId, instanceStartTime)
+                } else null
+            } else null
+        }.toSet()
+        
+        return snoozeEvents(context, { event ->
+            keyPairs.contains(Pair(event.eventId, event.instanceStartTime))
+        }, snoozeDelay, isChange, false)
+    }
 
     fun fireEventReminder(
             context: Context,

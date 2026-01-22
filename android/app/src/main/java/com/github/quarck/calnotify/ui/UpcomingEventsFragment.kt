@@ -204,6 +204,11 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         }
     }
 
+    override fun onItemLongClick(v: View, position: Int, eventId: Long): Boolean {
+        // Multi-select not supported in Upcoming tab (future enhancement)
+        return false
+    }
+
     override fun onItemRemoved(event: EventAlertRecord) {
         // Called by adapter after swipe - this is where we do the actual pre-dismiss
         val ctx = context ?: return

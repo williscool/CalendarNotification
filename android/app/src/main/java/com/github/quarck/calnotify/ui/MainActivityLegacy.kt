@@ -496,6 +496,11 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
         }
     }
 
+    override fun onItemLongClick(v: View, position: Int, eventId: Long): Boolean {
+        // Multi-select not supported in legacy UI
+        return false
+    }
+
     override fun onItemRemoved(event: EventAlertRecord) {
         DevLog.info(LOG_TAG, "onItemRemoved: Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
         ApplicationController.dismissEvent(this, EventDismissType.ManuallyDismissedFromActivity, event)
