@@ -51,6 +51,9 @@ class AboutActivity : AppCompatActivity() {
 
         val buildTime = find<TextView?>(R.id.text_view_app_build_time)
         buildTime?.text = String.format(resources.getString(R.string.build_time_string_format), getBuildDate())
+
+        val commitSha = find<TextView?>(R.id.text_view_app_commit_sha)
+        commitSha?.text = String.format(resources.getString(R.string.commit_sha_string_format), BuildConfig.GIT_COMMIT_SHA)
     }
 
     fun getBuildDate(): String {
