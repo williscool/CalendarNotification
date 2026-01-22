@@ -43,6 +43,7 @@ import com.github.quarck.calnotify.quiethours.QuietHoursManager
 import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.utils.*
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import java.util.*
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.logs.DevLog
@@ -313,6 +314,9 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         findOrThrow<RelativeLayout>(R.id.snooze_view_event_details_layout).background = colorDrawable
 
         window.statusBarColor = color.scaleColor(0.7f)
+
+        // Set status bar spacer height (for edge-to-edge displays)
+        setupStatusBarSpacer()
 
 //        val shouldOfferMove = (!event.isRepeating) && (DateTimeUtils.isUTCTodayOrInThePast(event.startTime))
         val shouldOfferMove = (DateTimeUtils.isUTCTodayOrInThePast(event.startTime))

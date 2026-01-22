@@ -50,6 +50,7 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 
 enum class CalendarListEntryType {Header, Calendar, Divider }
 
@@ -169,6 +170,7 @@ class CalendarsActivity : AppCompatActivity() {
         DevLog.debug(LOG_TAG, "onCreate")
 
         setContentView(R.layout.activity_calendars)
+        setupStatusBarSpacer()
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)

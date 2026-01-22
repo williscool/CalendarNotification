@@ -41,6 +41,7 @@ import com.github.quarck.calnotify.quiethours.QuietHoursManager
 import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.utils.*
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import java.util.*
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.logs.DevLog
@@ -113,6 +114,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
             state = ViewEventActivityState.fromBundle(savedInstanceState)
 
         setContentView(R.layout.activity_snooze_all)
+        setupStatusBarSpacer()
 
         val currentTime = clock.currentTimeMillis()
 

@@ -21,6 +21,7 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback {
 
     private val settings: Settings by lazy { Settings(this) }
@@ -33,6 +34,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dismissed_events)
+        setupStatusBarSpacer()
 
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

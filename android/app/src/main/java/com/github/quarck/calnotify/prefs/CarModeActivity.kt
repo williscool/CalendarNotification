@@ -47,6 +47,7 @@ import com.github.quarck.calnotify.permissions.PermissionsManager
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 
 
 class BlueboothDeviceListEntry(
@@ -124,6 +125,7 @@ class CarModeActivity : AppCompatActivity() {
         DevLog.debug(LOG_TAG, "onCreate")
 
         setContentView(R.layout.activity_car_mode)
+        setupStatusBarSpacer()
         setSupportActionBar(find<Toolbar?>(R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
