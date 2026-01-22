@@ -317,9 +317,6 @@ jobs:
             SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
             SUFFIX="-${BRANCH_NAME}-${SHORT_SHA}"
           fi
-        env:
-          # For PRs, this is the actual PR head commit; for other events it's empty (not used)
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
           # Find and rename signed debug APKs
           find signing/apk/debug/ -name "*-signed.apk" | while read apk; do
@@ -339,6 +336,9 @@ jobs:
           # List all renamed files
           echo "Renamed files:"
           ls -la renamed_apks/
+        env:
+          # For PRs, this is the actual PR head commit; for other events it's empty (not used)
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
       # Upload signed artifacts
       - name: Upload SIGNED APK Debug
