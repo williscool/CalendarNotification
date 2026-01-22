@@ -60,6 +60,7 @@
                     android:minLines="2"
                     android:id="@+id/snooze_view_title"
                     android:layout_below="@id/status_bar_spacer"
+                    android:layout_toStartOf="@id/snooze_view_menu"
                     android:text="Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. Event Title Place Holder. "
                     android:textAppearance="?android:textAppearanceMedium"
                     android:textSize="19sp"
