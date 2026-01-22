@@ -976,17 +976,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     ): SnoozeResult? {
         if (eventKeys.isEmpty()) return null
         
-        // Parse event keys into (eventId, instanceStartTime) pairs
-        val keyPairs = eventKeys.mapNotNull { key ->
-            val parts = key.split(":")
-            if (parts.size == 2) {
-                val eventId = parts[0].toLongOrNull()
-                val instanceStartTime = parts[1].toLongOrNull()
-                if (eventId != null && instanceStartTime != null) {
-                    Pair(eventId, instanceStartTime)
-                } else null
-            } else null
-        }.toSet()
+        // Parse event keys into (eventId, instanceStartTime) pairs using the shared format
+        val keyPairs = eventKeys.mapNotNull { EventAlertRecordKey.fromIntentString(it) }
+            .map { Pair(it.eventId, it.instanceStartTime) }
+            .toSet()
         
         return snoozeEvents(context, { event ->
             keyPairs.contains(Pair(event.eventId, event.instanceStartTime))

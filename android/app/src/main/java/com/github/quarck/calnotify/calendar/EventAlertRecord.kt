@@ -110,7 +110,22 @@ fun Long.setFlag(flag: Long, value: Boolean)
         else
             this and flag.inv()
 
-data class EventAlertRecordKey(val eventId: Long, val instanceStartTime: Long)
+data class EventAlertRecordKey(val eventId: Long, val instanceStartTime: Long) {
+    
+    /** Serialize for Intent extras */
+    fun toIntentString(): String = "$eventId:$instanceStartTime"
+    
+    companion object {
+        /** Parse from Intent extras */
+        fun fromIntentString(key: String): EventAlertRecordKey? {
+            val parts = key.split(":")
+            if (parts.size != 2) return null
+            val eventId = parts[0].toLongOrNull() ?: return null
+            val instanceStartTime = parts[1].toLongOrNull() ?: return null
+            return EventAlertRecordKey(eventId, instanceStartTime)
+        }
+    }
+}
 
 data class EventAlertRecord(
         val calendarId: Long,
