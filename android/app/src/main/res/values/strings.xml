@@ -239,6 +239,7 @@
     <string name="use_set_alarm_clock_summary">Marshmallow and above only!\nThis would trigger app to use setAlarmClock API call when scheduling reminders and snoozed events\nThis would increase reminders time accuracy\nAs a side effect, user would see \'alarm\' icon on UI when there are snoozed events or active reminders</string>
 
     <string name="build_time_string_format" formatted="false">Build time: %s</string>
+    <string name="commit_sha_string_format" formatted="false">Commit: %s</string>
     <string name="dismiss_all_events">Dismiss all events</string>
     <string name="dismiss_all_events_confirmation">Dismiss all events?\n\nCANNOT BE UNDONE!\n\nSnoozed events would not be removed</string>
     <string name="handle_events_with_no_reminders">Handle events with no reminders</string>

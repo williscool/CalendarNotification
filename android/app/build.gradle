@@ -99,6 +99,9 @@ android {
     versionName "9.16.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+    // Git commit SHA for identifying builds
+    def gitSha = 'git rev-parse --short HEAD'.execute().text.trim()
+    buildConfigField "String", "GIT_COMMIT_SHA", "\"${gitSha}\""
     // React Native New Architecture flags
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", project.hasProperty("newArchEnabled") ? project.property("newArchEnabled") : "false"
     buildConfigField "boolean", "IS_HERMES_ENABLED", project.hasProperty("hermesEnabled") ? project.property("hermesEnabled") : "true"
