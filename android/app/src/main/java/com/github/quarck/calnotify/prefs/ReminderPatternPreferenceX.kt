@@ -23,7 +23,12 @@ import android.content.Context
 import android.os.Bundle
 import android.util.AttributeSet
 import android.view.View
-import android.widget.*
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.NumberPicker
 import androidx.preference.DialogPreference
 import androidx.preference.PreferenceDialogFragmentCompat
 import com.google.android.material.snackbar.Snackbar
@@ -61,7 +66,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
         return a.getString(index) ?: "10m"
     }
 
-    class Dialog : PreferenceDialogFragmentCompat(), AdapterView.OnItemSelectedListener {
+    class Dialog : PreferenceDialogFragmentCompat() {
         private val SecondsIndex = 0
         private val MinutesIndex = 1
         private val HoursIndex = 2
@@ -69,9 +74,11 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
 
         private var reminderPatternMillis = longArrayOf(0)
         private var simpleIntervalMode = true
+        private var selectedPosition: Int = MinutesIndex
 
         private lateinit var numberPicker: NumberPicker
-        private lateinit var timeUnitsSpinners: Spinner
+        private lateinit var timeUnitsDropdown: AutoCompleteTextView
+        private lateinit var timeUnitsArray: Array<String>
         private lateinit var checkboxCustomPattern: CheckBox
         private lateinit var editTextCustomPattern: EditText
         private lateinit var layoutSimpleInterval: LinearLayout
@@ -81,20 +88,25 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
             super.onBindDialogView(view)
 
             numberPicker = view.findOrThrow(R.id.numberPickerTimeInterval)
-            timeUnitsSpinners = view.findOrThrow(R.id.spinnerTimeIntervalUnit)
+            timeUnitsDropdown = view.findOrThrow(R.id.spinnerTimeIntervalUnit)
             checkboxCustomPattern = view.findOrThrow(R.id.checkbox_custom_reminder_pattern)
             editTextCustomPattern = view.findOrThrow(R.id.edittext_custom_reminder_pattern)
             layoutSimpleInterval = view.findOrThrow(R.id.layout_reminder_interval_simple)
             layoutCustomPattern = view.findOrThrow(R.id.layout_reminder_interval_custom)
 
-            timeUnitsSpinners.adapter = ArrayAdapter(
+            timeUnitsArray = view.context.resources.getStringArray(R.array.time_units_plurals_with_seconds)
+            val adapter = ArrayAdapter(
                 view.context,
-                android.R.layout.simple_list_item_1,
-                view.context.resources.getStringArray(R.array.time_units_plurals_with_seconds)
+                android.R.layout.simple_dropdown_item_1line,
+                timeUnitsArray
             )
+            timeUnitsDropdown.setAdapter(adapter)
 
-            timeUnitsSpinners.onItemSelectedListener = this
-            timeUnitsSpinners.setSelection(MinutesIndex)
+            timeUnitsDropdown.setOnItemClickListener { _, _, position, _ ->
+                selectedPosition = position
+                onItemSelected(position)
+            }
+            setSelection(MinutesIndex)
 
             numberPicker.minValue = 1
             numberPicker.maxValue = 100
@@ -114,6 +126,13 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
                 updateLayout()
             }
         }
+        
+        private fun setSelection(position: Int) {
+            selectedPosition = position
+            if (position >= 0 && position < timeUnitsArray.size) {
+                timeUnitsDropdown.setText(timeUnitsArray[position], false)
+            }
+        }
 
         private fun updateLayout() {
             if (simpleIntervalMode) {
@@ -129,7 +148,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
 
         private fun clearFocus() {
             numberPicker.clearFocus()
-            timeUnitsSpinners.clearFocus()
+            timeUnitsDropdown.clearFocus()
         }
 
         override fun onDialogClosed(positiveResult: Boolean) {
@@ -168,7 +187,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
             }
         }
 
-        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+        private fun onItemSelected(position: Int) {
             if (position == SecondsIndex) {
                 numberPicker.minValue = Consts.MIN_REMINDER_INTERVAL_SECONDS
                 numberPicker.maxValue = 60
@@ -178,13 +197,11 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
             }
         }
 
-        override fun onNothingSelected(parent: AdapterView<*>?) {}
-
         private var simpleIntervalSeconds: Int
             get() {
                 clearFocus()
                 val number = numberPicker.value
-                val multiplier = when (timeUnitsSpinners.selectedItemPosition) {
+                val multiplier = when (selectedPosition) {
                     SecondsIndex -> 1
                     MinutesIndex -> 60
                     HoursIndex -> 60 * 60
@@ -210,7 +227,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
                     number /= 24
                 }
 
-                timeUnitsSpinners.setSelection(units)
+                setSelection(units)
                 numberPicker.value = number
             }
 

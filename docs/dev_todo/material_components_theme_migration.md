@@ -532,13 +532,13 @@ LED notification lights have been removed from modern phones since ~2018. No poi
 
 ## Phase 3 Summary
 
-| Task | Effort | Visual Impact | Priority |
-|------|--------|---------------|----------|
-| Spinner → ExposedDropdownMenu | 2-3 hours | Medium | Low |
+| Task | Effort | Visual Impact | Status |
+|------|--------|---------------|--------|
+| Spinner → ExposedDropdownMenu | 2-3 hours | Medium | ✅ Done |
 | ~~SeekBar → Slider~~ | - | - | SKIPPED (LED deprecated) |
 | ImageButton → MaterialButton | 30 min | Low | ✅ Done |
 
-**Phase 3 Total:** ~2-3 hours remaining
+**Phase 3 Total:** ✅ Complete!
 
 ---
 
@@ -614,9 +614,9 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [x] Keep Toast in services (ApplicationController, SnoozeResult, NotificationActionSnoozeService)
 - [x] Keep Toast in NavigationSettingsFragmentX (app restart scenario)
 
-## Phase 4: Advanced Components (PARTIAL)
+## Phase 4: Advanced Components ✅ COMPLETE
 - [x] ImageButton → MaterialButton (2 usages in fragment_event_list.xml)
-- [ ] Spinner → ExposedDropdownMenu (4 files) - LOW PRIORITY (legacy dialogs)
+- [x] Spinner → ExposedDropdownMenu (4 layouts + 2 Kotlin files)
 - [x] ~~SeekBar → Slider~~ - SKIPPED (LED feature deprecated, see deprecated_features.md)
 
 ## Phase 5: Pickers (~4-6 hours) - BIGGEST UNDERTAKING
