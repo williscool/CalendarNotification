@@ -147,7 +147,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
             }
             
             activity?.runOnUiThread {
-                adapter.setEventsToDisplay(events)
+                adapter.setEventsToDisplay(events, EventDisplayMode.UPCOMING)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
                 // Update search hint with new event count
