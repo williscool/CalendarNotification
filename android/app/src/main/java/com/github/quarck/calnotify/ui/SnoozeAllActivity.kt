@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.ui
 
 import android.annotation.SuppressLint
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.datepicker.CalendarConstraints
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
@@ -523,10 +524,32 @@ open class SnoozeAllActivity : AppCompatActivity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonSnoozeUntilClick(v: View?) {
         val initialDate = clock.currentTimeMillis()
+        val initialLocal = Calendar.getInstance()
+        initialLocal.timeInMillis = initialDate
+
+        val initialSelectionUtcMidnight = Calendar.getInstance(TimeZone.getTimeZone("UTC")).run {
+            set(
+                    initialLocal.get(Calendar.YEAR),
+                    initialLocal.get(Calendar.MONTH),
+                    initialLocal.get(Calendar.DAY_OF_MONTH),
+                    0,
+                    0,
+                    0
+            )
+            set(Calendar.MILLISECOND, 0)
+            timeInMillis
+        }
+
+        val constraintsBuilder = CalendarConstraints.Builder()
+        val firstDayOfWeek = Settings(this).firstDayOfWeek
+        if (firstDayOfWeek != -1) {
+            constraintsBuilder.setFirstDayOfWeek(firstDayOfWeek)
+        }
         
         val datePicker = MaterialDatePicker.Builder.datePicker()
                 .setTitleText(R.string.choose_date)
-                .setSelection(initialDate)
+                .setSelection(initialSelectionUtcMidnight)
+                .setCalendarConstraints(constraintsBuilder.build())
                 .build()
 
         datePicker.addOnPositiveButtonClickListener { dateSelection ->
@@ -541,12 +564,17 @@ open class SnoozeAllActivity : AppCompatActivity() {
         val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
         val cal = Calendar.getInstance()
 
+        val dateStr = DateUtils.formatDateTime(
+                this,
+                localMidnightMillisFromUtcDateSelection(dateSelection),
+                DateUtils.FORMAT_SHOW_DATE
+        )
+
         val timePicker = MaterialTimePicker.Builder()
                 .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
                 .setHour(cal.get(Calendar.HOUR_OF_DAY))
                 .setMinute(cal.get(Calendar.MINUTE))
-                .setTitleText(getString(R.string.choose_time) + " - " + 
-                        DateUtils.formatDateTime(this, localMidnightMillisFromUtcDateSelection(dateSelection), DateUtils.FORMAT_SHOW_DATE))
+                .setTitleText(getString(R.string.choose_time).format(dateStr))
                 .build()
 
         timePicker.addOnPositiveButtonClickListener {

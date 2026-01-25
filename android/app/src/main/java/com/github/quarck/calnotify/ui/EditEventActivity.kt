@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.ui
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.datepicker.CalendarConstraints
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
@@ -590,6 +591,8 @@ open class EditEventActivity : AppCompatActivity() {
 
             updateReminders()
         }
+
+        rewireMaterialPickersIfPresent()
     }
 
     public override fun onSaveInstanceState(outState: Bundle) {
@@ -616,6 +619,83 @@ open class EditEventActivity : AppCompatActivity() {
                 )
 
         state.toBundle(outState)
+    }
+
+    private fun rewireMaterialPickersIfPresent() {
+        (supportFragmentManager.findFragmentByTag(TAG_DATE_FROM_PICKER) as? MaterialDatePicker<Long>)?.let { picker ->
+            picker.addOnPositiveButtonClickListener { selection ->
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                utc.timeInMillis = selection
+                from.year = utc.get(Calendar.YEAR)
+                from.month = utc.get(Calendar.MONTH)
+                from.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
+
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+
+                updateDateTimeUI()
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_TIME_FROM_PICKER) as? MaterialTimePicker)?.let { picker ->
+            picker.addOnPositiveButtonClickListener {
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                from.hourOfDay = picker.hour
+                from.minute = picker.minute
+
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+
+                updateDateTimeUI()
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_DATE_TO_PICKER) as? MaterialDatePicker<Long>)?.let { picker ->
+            picker.addOnPositiveButtonClickListener { selection ->
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                utc.timeInMillis = selection
+                to.year = utc.get(Calendar.YEAR)
+                to.month = utc.get(Calendar.MONTH)
+                to.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
+
+                if (to.before(from)) {
+                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                    to.addMinutes(durationMinutes.toInt())
+                }
+
+                updateDateTimeUI()
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_TIME_TO_PICKER) as? MaterialTimePicker)?.let { picker ->
+            picker.addOnPositiveButtonClickListener {
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                to.hourOfDay = picker.hour
+                to.minute = picker.minute
+
+                if (to.before(from)) {
+                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                    to.addMinutes(durationMinutes.toInt())
+                }
+
+                updateDateTimeUI()
+            }
+        }
+    }
+
+    private companion object {
+        private const val TAG_DATE_FROM_PICKER = "dateFromPicker"
+        private const val TAG_TIME_FROM_PICKER = "timeFromPicker"
+        private const val TAG_DATE_TO_PICKER = "dateToPicker"
+        private const val TAG_TIME_TO_PICKER = "timeToPicker"
     }
 
     fun updateDateTimeUI() {
@@ -883,9 +963,22 @@ open class EditEventActivity : AppCompatActivity() {
     fun onDateFromClick(v: View) {
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
 
+        val selectionUtcMidnight = Calendar.getInstance(TimeZone.getTimeZone("UTC")).run {
+            set(from.year, from.month, from.dayOfMonth, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+            timeInMillis
+        }
+
+        val constraintsBuilder = CalendarConstraints.Builder()
+        val firstDayOfWeek = settings.firstDayOfWeek
+        if (firstDayOfWeek != -1) {
+            constraintsBuilder.setFirstDayOfWeek(firstDayOfWeek)
+        }
+
         val picker = MaterialDatePicker.Builder.datePicker()
                 .setTitleText(R.string.choose_date)
-                .setSelection(from.timeInMillis)
+                .setSelection(selectionUtcMidnight)
+                .setCalendarConstraints(constraintsBuilder.build())
                 .build()
 
         picker.addOnPositiveButtonClickListener { selection ->
@@ -913,7 +1006,7 @@ open class EditEventActivity : AppCompatActivity() {
                 .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
                 .setHour(from.hourOfDay)
                 .setMinute(from.minute)
-                .setTitleText(R.string.choose_time)
+                .setTitleText(R.string.change_event_time)
                 .build()
 
         picker.addOnPositiveButtonClickListener {
@@ -933,9 +1026,22 @@ open class EditEventActivity : AppCompatActivity() {
     fun onDateToClick(v: View) {
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
 
+        val selectionUtcMidnight = Calendar.getInstance(TimeZone.getTimeZone("UTC")).run {
+            set(to.year, to.month, to.dayOfMonth, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+            timeInMillis
+        }
+
+        val constraintsBuilder = CalendarConstraints.Builder()
+        val firstDayOfWeek = settings.firstDayOfWeek
+        if (firstDayOfWeek != -1) {
+            constraintsBuilder.setFirstDayOfWeek(firstDayOfWeek)
+        }
+
         val picker = MaterialDatePicker.Builder.datePicker()
                 .setTitleText(R.string.choose_date)
-                .setSelection(to.timeInMillis)
+                .setSelection(selectionUtcMidnight)
+                .setCalendarConstraints(constraintsBuilder.build())
                 .build()
 
         picker.addOnPositiveButtonClickListener { selection ->
@@ -966,7 +1072,7 @@ open class EditEventActivity : AppCompatActivity() {
                 .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
                 .setHour(to.hourOfDay)
                 .setMinute(to.minute)
-                .setTitleText(R.string.choose_time)
+                .setTitleText(R.string.change_event_time)
                 .build()
 
         picker.addOnPositiveButtonClickListener {
