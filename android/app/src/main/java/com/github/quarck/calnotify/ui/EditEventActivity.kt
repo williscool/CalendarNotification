@@ -691,13 +691,6 @@ open class EditEventActivity : AppCompatActivity() {
         }
     }
 
-    private companion object {
-        private const val TAG_DATE_FROM_PICKER = "dateFromPicker"
-        private const val TAG_TIME_FROM_PICKER = "timeFromPicker"
-        private const val TAG_DATE_TO_PICKER = "dateToPicker"
-        private const val TAG_TIME_TO_PICKER = "timeToPicker"
-    }
-
     fun updateDateTimeUI() {
 
         if (isAllDay) {
@@ -1399,5 +1392,10 @@ open class EditEventActivity : AppCompatActivity() {
     companion object {
         private const val LOG_TAG = "EditEventActivity"
         const val EVENT_ID = "event_id"
+
+        private const val TAG_DATE_FROM_PICKER = "dateFromPicker"
+        private const val TAG_TIME_FROM_PICKER = "timeFromPicker"
+        private const val TAG_DATE_TO_PICKER = "dateToPicker"
+        private const val TAG_TIME_TO_PICKER = "timeToPicker"
     }
 }
