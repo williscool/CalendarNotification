@@ -582,7 +582,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
     private fun openEventInCalendar(event: EventAlertRecord) {
         val found = CalendarIntents.viewCalendarEventWithFallback(this, calendarProvider, event)
         if (!found) {
-            Snackbar.make(findViewById(android.R.id.content), R.string.event_not_found_opening_calendar_at_time, Snackbar.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.event_not_found_opening_calendar_at_time, Toast.LENGTH_LONG).show()
         }
     }
 
