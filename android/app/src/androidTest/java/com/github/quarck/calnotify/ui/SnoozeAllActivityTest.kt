@@ -218,8 +218,8 @@ class SnoozeAllActivityTest : BaseUltronTest() {
         // Click snooze until button
         withId(R.id.snooze_view_snooze_until).click()
         
-        // Should show a date picker
-        withClassName(containsString("DatePicker")).isDisplayed()
+        // Should show the MaterialDatePicker dialog
+        withText(R.string.choose_date).isDisplayed()
         
         scenario.close()
     }

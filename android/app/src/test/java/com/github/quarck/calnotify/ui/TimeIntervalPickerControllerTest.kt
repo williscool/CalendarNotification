@@ -341,7 +341,7 @@ class TimeIntervalPickerControllerTest {
         
         // Trigger onItemSelected by changing selection
         spinner.setSelection(controller.MinutesIndex)
-        controller.onItemSelected(null, null, controller.MinutesIndex, 0)
+        controller.onItemSelected(controller.MinutesIndex)
         
         // Max should be 120 minutes (but capped at 100)
         assertEquals(100, numberPicker.maxValue)
@@ -359,7 +359,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         spinner.setSelection(controller.HoursIndex)
-        controller.onItemSelected(null, null, controller.HoursIndex, 0)
+        controller.onItemSelected(controller.HoursIndex)
         
         assertEquals(5, numberPicker.maxValue)
     }

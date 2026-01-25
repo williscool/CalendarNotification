@@ -98,7 +98,8 @@ class TimeIntervalPickerController(
     }
 
 
-    private fun onItemSelected(position: Int) {
+    // Internal for Robolectric unit tests (see TimeIntervalPickerControllerTest).
+    internal fun onItemSelected(position: Int) {
         if (maxIntervalMilliseconds == 0L) {
             if (position == SecondsIndex) {
                 numberPicker.minValue = 15
@@ -122,7 +123,7 @@ class TimeIntervalPickerController(
                 DaysIndex ->
                     maxIntervalMilliseconds / Consts.DAY_IN_MILLISECONDS
                 else ->
-                    throw Exception("Unknown time unit")
+                    throw IllegalStateException("Unknown time unit")
             }
 
         numberPicker.maxValue = Math.min(maxValue.toInt(), 100)
@@ -145,7 +146,7 @@ class TimeIntervalPickerController(
                         DaysIndex ->
                             24 * 60 * 60
                         else ->
-                            throw Exception("Unknown time unit")
+                            throw IllegalStateException("Unknown time unit")
                     }
 
             return (number * multiplier).toInt()
