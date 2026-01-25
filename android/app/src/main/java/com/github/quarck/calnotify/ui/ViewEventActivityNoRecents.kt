@@ -159,6 +159,8 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
+    private var pendingSnoozeUntilDateSelectionUtcMillis: Long? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -169,6 +171,10 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
         if (savedInstanceState != null)
             state = ViewEventActivityState.fromBundle(savedInstanceState)
+
+        pendingSnoozeUntilDateSelectionUtcMillis =
+            savedInstanceState?.getLong(BUNDLE_PENDING_SNOOZE_UNTIL_DATE_UTC_MILLIS)
+                ?.takeIf { it != 0L }
 
         setContentView(R.layout.activity_view)
 
@@ -393,6 +399,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
         ApplicationController.cleanupEventReminder(this)
 
+        rewireSnoozeUntilPickersIfPresent()
         restoreState(state)
     }
 
@@ -618,6 +625,11 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             }
         }
         state.toBundle(outState)
+
+        outState.putLong(
+            BUNDLE_PENDING_SNOOZE_UNTIL_DATE_UTC_MILLIS,
+            pendingSnoozeUntilDateSelectionUtcMillis ?: 0L
+        )
     }
 
     private fun restoreState(state: ViewEventActivityState) {
@@ -715,10 +727,11 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                 .build()
 
         datePicker.addOnPositiveButtonClickListener { dateSelection ->
+            pendingSnoozeUntilDateSelectionUtcMillis = dateSelection
             showSnoozeUntilTimePicker(dateSelection, initialDate)
         }
 
-        datePicker.show(supportFragmentManager, "snoozeUntilDatePicker")
+        datePicker.show(supportFragmentManager, TAG_SNOOZE_UNTIL_DATE_PICKER)
     }
 
     private fun showSnoozeUntilTimePicker(dateSelection: Long, initialTimeValue: Long) {
@@ -734,28 +747,76 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                 .setHour(cal.get(Calendar.HOUR_OF_DAY))
                 .setMinute(cal.get(Calendar.MINUTE))
                 .setTitleText(getString(R.string.choose_time) + " - " + 
-                        DateUtils.formatDateTime(this, dateSelection, DateUtils.FORMAT_SHOW_DATE))
+                        DateUtils.formatDateTime(this, localMidnightMillisFromUtcDateSelection(dateSelection), DateUtils.FORMAT_SHOW_DATE))
                 .build()
 
         timePicker.addOnPositiveButtonClickListener {
-            val date = Calendar.getInstance()
-            date.timeInMillis = dateSelection
-            date.set(Calendar.HOUR_OF_DAY, timePicker.hour)
-            date.set(Calendar.MINUTE, timePicker.minute)
+            onSnoozeUntilTimePicked(dateSelection, timePicker.hour, timePicker.minute)
+        }
 
-            val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
+        timePicker.show(supportFragmentManager, TAG_SNOOZE_UNTIL_TIME_PICKER)
+    }
 
-            if (snoozeFor > 0L) {
-                snoozeEvent(snoozeFor)
-            } else {
-                MaterialAlertDialogBuilder(this)
-                        .setTitle(R.string.selected_time_is_in_the_past)
-                        .setNegativeButton(R.string.cancel, null)
-                        .show()
+    private fun rewireSnoozeUntilPickersIfPresent() {
+        (supportFragmentManager.findFragmentByTag(TAG_SNOOZE_UNTIL_DATE_PICKER) as? MaterialDatePicker<Long>)?.let { picker ->
+            val initialDate = if (event.snoozedUntil != 0L) event.snoozedUntil else clock.currentTimeMillis()
+            picker.addOnPositiveButtonClickListener { dateSelection ->
+                pendingSnoozeUntilDateSelectionUtcMillis = dateSelection
+                showSnoozeUntilTimePicker(dateSelection, initialDate)
             }
         }
 
-        timePicker.show(supportFragmentManager, "snoozeUntilTimePicker")
+        (supportFragmentManager.findFragmentByTag(TAG_SNOOZE_UNTIL_TIME_PICKER) as? MaterialTimePicker)?.let { picker ->
+            picker.addOnPositiveButtonClickListener {
+                val dateSelection = pendingSnoozeUntilDateSelectionUtcMillis ?: return@addOnPositiveButtonClickListener
+                onSnoozeUntilTimePicked(dateSelection, picker.hour, picker.minute)
+            }
+        }
+    }
+
+    private fun onSnoozeUntilTimePicked(dateSelection: Long, hour: Int, minute: Int) {
+        val date = localCalendarFromUtcDateSelection(dateSelection, hour, minute)
+
+        val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
+        if (snoozeFor > 0L) {
+            snoozeEvent(snoozeFor)
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.selected_time_is_in_the_past)
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun localMidnightMillisFromUtcDateSelection(dateSelectionUtcMillis: Long): Long {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        utc.timeInMillis = dateSelectionUtcMillis
+
+        val local = Calendar.getInstance()
+        local.set(Calendar.YEAR, utc.get(Calendar.YEAR))
+        local.set(Calendar.MONTH, utc.get(Calendar.MONTH))
+        local.set(Calendar.DAY_OF_MONTH, utc.get(Calendar.DAY_OF_MONTH))
+        local.set(Calendar.HOUR_OF_DAY, 0)
+        local.set(Calendar.MINUTE, 0)
+        local.set(Calendar.SECOND, 0)
+        local.set(Calendar.MILLISECOND, 0)
+        return local.timeInMillis
+    }
+
+    private fun localCalendarFromUtcDateSelection(dateSelectionUtcMillis: Long, hour: Int, minute: Int): Calendar {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        utc.timeInMillis = dateSelectionUtcMillis
+
+        val local = Calendar.getInstance()
+        local.set(Calendar.YEAR, utc.get(Calendar.YEAR))
+        local.set(Calendar.MONTH, utc.get(Calendar.MONTH))
+        local.set(Calendar.DAY_OF_MONTH, utc.get(Calendar.DAY_OF_MONTH))
+        local.set(Calendar.HOUR_OF_DAY, hour)
+        local.set(Calendar.MINUTE, minute)
+        local.set(Calendar.SECOND, 0)
+        local.set(Calendar.MILLISECOND, 0)
+        return local
     }
 
     fun reschedule(addTime: Long) {
@@ -827,6 +888,9 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
     companion object {
         private const val LOG_TAG = "ActivitySnooze"
+        private const val TAG_SNOOZE_UNTIL_DATE_PICKER = "snoozeUntilDatePicker"
+        private const val TAG_SNOOZE_UNTIL_TIME_PICKER = "snoozeUntilTimePicker"
+        private const val BUNDLE_PENDING_SNOOZE_UNTIL_DATE_UTC_MILLIS = "pendingSnoozeUntilDateUtcMillis"
 
         const val CUSTOM_SNOOZE_SNOOZE_FOR_IDX = 0
         const val CUSTOM_SNOOZE_SNOOZE_UNTIL_IDX = 1

@@ -106,6 +106,8 @@ open class SnoozeAllActivity : AppCompatActivity() {
     private var filterState: FilterState? = null
     private var selectedEventKeys: Set<String>? = null  // For multi-select mode
 
+    private var pendingSnoozeUntilDateSelectionUtcMillis: Long? = null
+
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -116,6 +118,12 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_snooze_all)
         setupStatusBarSpacer()
+
+        pendingSnoozeUntilDateSelectionUtcMillis =
+            savedInstanceState?.getLong(BUNDLE_PENDING_SNOOZE_UNTIL_DATE_UTC_MILLIS)
+                ?.takeIf { it != 0L }
+
+        rewireSnoozeUntilPickersIfPresent()
 
         val currentTime = clock.currentTimeMillis()
 
@@ -420,6 +428,11 @@ open class SnoozeAllActivity : AppCompatActivity() {
             }
         }
         state.toBundle(outState)
+
+        outState.putLong(
+            BUNDLE_PENDING_SNOOZE_UNTIL_DATE_UTC_MILLIS,
+            pendingSnoozeUntilDateSelectionUtcMillis ?: 0L
+        )
     }
 
     private fun restoreState(state: ViewEventActivityState) {
@@ -517,6 +530,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 .build()
 
         datePicker.addOnPositiveButtonClickListener { dateSelection ->
+            pendingSnoozeUntilDateSelectionUtcMillis = dateSelection
             showSnoozeUntilTimePicker(dateSelection)
         }
 
@@ -532,28 +546,75 @@ open class SnoozeAllActivity : AppCompatActivity() {
                 .setHour(cal.get(Calendar.HOUR_OF_DAY))
                 .setMinute(cal.get(Calendar.MINUTE))
                 .setTitleText(getString(R.string.choose_time) + " - " + 
-                        DateUtils.formatDateTime(this, dateSelection, DateUtils.FORMAT_SHOW_DATE))
+                        DateUtils.formatDateTime(this, localMidnightMillisFromUtcDateSelection(dateSelection), DateUtils.FORMAT_SHOW_DATE))
                 .build()
 
         timePicker.addOnPositiveButtonClickListener {
-            val date = Calendar.getInstance()
-            date.timeInMillis = dateSelection
-            date.set(Calendar.HOUR_OF_DAY, timePicker.hour)
-            date.set(Calendar.MINUTE, timePicker.minute)
-
-            val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
-
-            if (snoozeFor > 0L) {
-                snoozeEvent(snoozeFor)
-            } else {
-                MaterialAlertDialogBuilder(this)
-                        .setTitle(R.string.selected_time_is_in_the_past)
-                        .setNegativeButton(R.string.cancel, null)
-                        .show()
-            }
+            onSnoozeUntilTimePicked(dateSelection, timePicker.hour, timePicker.minute)
         }
 
         timePicker.show(supportFragmentManager, "snoozeUntilTimePicker")
+    }
+
+    private fun rewireSnoozeUntilPickersIfPresent() {
+        (supportFragmentManager.findFragmentByTag(TAG_SNOOZE_UNTIL_DATE_PICKER) as? MaterialDatePicker<Long>)?.let { picker ->
+            picker.addOnPositiveButtonClickListener { dateSelection ->
+                pendingSnoozeUntilDateSelectionUtcMillis = dateSelection
+                showSnoozeUntilTimePicker(dateSelection)
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_SNOOZE_UNTIL_TIME_PICKER) as? MaterialTimePicker)?.let { picker ->
+            picker.addOnPositiveButtonClickListener {
+                val dateSelection = pendingSnoozeUntilDateSelectionUtcMillis ?: return@addOnPositiveButtonClickListener
+                onSnoozeUntilTimePicked(dateSelection, picker.hour, picker.minute)
+            }
+        }
+    }
+
+    private fun onSnoozeUntilTimePicked(dateSelection: Long, hour: Int, minute: Int) {
+        val date = localCalendarFromUtcDateSelection(dateSelection, hour, minute)
+
+        val snoozeFor = date.timeInMillis - clock.currentTimeMillis() + Consts.ALARM_THRESHOLD
+        if (snoozeFor > 0L) {
+            snoozeEvent(snoozeFor)
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.selected_time_is_in_the_past)
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun localMidnightMillisFromUtcDateSelection(dateSelectionUtcMillis: Long): Long {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        utc.timeInMillis = dateSelectionUtcMillis
+
+        val local = Calendar.getInstance()
+        local.set(Calendar.YEAR, utc.get(Calendar.YEAR))
+        local.set(Calendar.MONTH, utc.get(Calendar.MONTH))
+        local.set(Calendar.DAY_OF_MONTH, utc.get(Calendar.DAY_OF_MONTH))
+        local.set(Calendar.HOUR_OF_DAY, 0)
+        local.set(Calendar.MINUTE, 0)
+        local.set(Calendar.SECOND, 0)
+        local.set(Calendar.MILLISECOND, 0)
+        return local.timeInMillis
+    }
+
+    private fun localCalendarFromUtcDateSelection(dateSelectionUtcMillis: Long, hour: Int, minute: Int): Calendar {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        utc.timeInMillis = dateSelectionUtcMillis
+
+        val local = Calendar.getInstance()
+        local.set(Calendar.YEAR, utc.get(Calendar.YEAR))
+        local.set(Calendar.MONTH, utc.get(Calendar.MONTH))
+        local.set(Calendar.DAY_OF_MONTH, utc.get(Calendar.DAY_OF_MONTH))
+        local.set(Calendar.HOUR_OF_DAY, hour)
+        local.set(Calendar.MINUTE, minute)
+        local.set(Calendar.SECOND, 0)
+        local.set(Calendar.MILLISECOND, 0)
+        return local
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
@@ -562,6 +623,9 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
     companion object {
         private const val LOG_TAG = "ActivitySnoozeAll"
+        private const val TAG_SNOOZE_UNTIL_DATE_PICKER = "snoozeUntilDatePicker"
+        private const val TAG_SNOOZE_UNTIL_TIME_PICKER = "snoozeUntilTimePicker"
+        private const val BUNDLE_PENDING_SNOOZE_UNTIL_DATE_UTC_MILLIS = "pendingSnoozeUntilDateUtcMillis"
     }
 
 }

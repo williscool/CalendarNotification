@@ -27,6 +27,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
@@ -350,7 +351,7 @@ class PreActionActivity : AppCompatActivity() {
             
             runOnUiThread {
                 if (monitorSuccess && storageSuccess) {
-                    Snackbar.make(findViewById(android.R.id.content), R.string.event_pre_snoozed, Snackbar.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.event_pre_snoozed, Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
                     Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
@@ -424,7 +425,7 @@ class PreActionActivity : AppCompatActivity() {
             
             runOnUiThread {
                 if (success) {
-                    Snackbar.make(findViewById(android.R.id.content), R.string.event_pre_dismissed, Snackbar.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.event_pre_dismissed, Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
                     Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()

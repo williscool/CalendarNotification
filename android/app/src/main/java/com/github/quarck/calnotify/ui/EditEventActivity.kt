@@ -340,7 +340,7 @@ open class EditEventActivity : AppCompatActivity() {
             originalEvent = CalendarProvider.getEvent(this, eventId)
 
             if (originalEvent == null) {
-                Snackbar.make(findViewById(android.R.id.content), R.string.event_not_found, Snackbar.LENGTH_LONG).show()
+                Toast.makeText(this, R.string.event_not_found, Toast.LENGTH_LONG).show()
                 finish()
                 return
             }
@@ -818,14 +818,13 @@ open class EditEventActivity : AppCompatActivity() {
 
                 val nextReminder = calendarProvider.getNextEventReminderTime(this, eventId, startTime)
                 if (nextReminder != 0L) {
-                    Snackbar.make(
-                            findViewById(android.R.id.content),
+                    Toast.makeText(
                             resources.getString(R.string.event_was_created_reminder_at).format(dateToStr(this, nextReminder)),
-                            Snackbar.LENGTH_LONG
+                            Toast.LENGTH_LONG
                     ).show()
                 }
                 else {
-                    Snackbar.make(findViewById(android.R.id.content), R.string.event_was_created, Snackbar.LENGTH_LONG).show()
+                    Toast.makeText(this, R.string.event_was_created, Toast.LENGTH_LONG).show()
                 }
                 finish()
 
@@ -844,14 +843,13 @@ open class EditEventActivity : AppCompatActivity() {
             if (success) {
                 val nextReminder = calendarProvider.getNextEventReminderTime(this, eventToEdit.eventId, details.startTime)
                 if (nextReminder != 0L) {
-                    Snackbar.make(
-                            findViewById(android.R.id.content),
+                    Toast.makeText(
                             resources.getString(R.string.event_was_updated_next_reminder).format(dateToStr(this, nextReminder)),
-                            Snackbar.LENGTH_LONG
+                            Toast.LENGTH_LONG
                     ).show()
                 }
                 else {
-                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.event_was_updated), Snackbar.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.event_was_updated), Toast.LENGTH_LONG).show()
                 }
 
                 finish()
@@ -889,11 +887,11 @@ open class EditEventActivity : AppCompatActivity() {
                 .build()
 
         picker.addOnPositiveButtonClickListener { selection ->
-            val cal = Calendar.getInstance()
-            cal.timeInMillis = selection
-            from.year = cal.get(Calendar.YEAR)
-            from.month = cal.get(Calendar.MONTH)
-            from.dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+            val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            utc.timeInMillis = selection
+            from.year = utc.get(Calendar.YEAR)
+            from.month = utc.get(Calendar.MONTH)
+            from.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
 
             to = DateTimeUtils.createCalendarTime(from.timeInMillis)
             to.addMinutes(durationMinutes.toInt())
@@ -939,11 +937,11 @@ open class EditEventActivity : AppCompatActivity() {
                 .build()
 
         picker.addOnPositiveButtonClickListener { selection ->
-            val cal = Calendar.getInstance()
-            cal.timeInMillis = selection
-            to.year = cal.get(Calendar.YEAR)
-            to.month = cal.get(Calendar.MONTH)
-            to.dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+            val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            utc.timeInMillis = selection
+            to.year = utc.get(Calendar.YEAR)
+            to.month = utc.get(Calendar.MONTH)
+            to.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
 
             if (to.before(from)) {
                 Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()

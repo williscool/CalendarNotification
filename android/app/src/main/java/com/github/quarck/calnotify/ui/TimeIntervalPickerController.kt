@@ -89,6 +89,7 @@ class TimeIntervalPickerController(
         selectedPosition = position
         if (position >= 0 && position < timeUnitsArray.size) {
             timeUnitsDropdown.setText(timeUnitsArray[position], false)
+            onItemSelected(position)
         }
     }
 

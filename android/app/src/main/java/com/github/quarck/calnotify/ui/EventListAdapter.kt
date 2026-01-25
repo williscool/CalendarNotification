@@ -398,6 +398,9 @@ class EventListAdapter(
                 holder.eventTimeText.text = detail2
             }
 
+            holder.eventTimeText.visibility =
+                if (holder.eventTimeText.text.toString().isNotBlank()) View.VISIBLE else View.GONE
+
             if (event.snoozedUntil != 0L) {
                 holder.snoozedUntilText?.text =
                         context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event);

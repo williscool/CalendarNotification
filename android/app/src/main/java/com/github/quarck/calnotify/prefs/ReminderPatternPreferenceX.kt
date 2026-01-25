@@ -29,9 +29,9 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.NumberPicker
+import android.widget.Toast
 import androidx.preference.DialogPreference
 import androidx.preference.PreferenceDialogFragmentCompat
-import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.utils.findOrThrow
@@ -131,6 +131,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
             selectedPosition = position
             if (position >= 0 && position < timeUnitsArray.size) {
                 timeUnitsDropdown.setText(timeUnitsArray[position], false)
+                onItemSelected(position)
             }
         }
 
@@ -162,7 +163,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
                     var simpleIntervalMillis = simpleIntervalSeconds * 1000L
                     if (simpleIntervalMillis == 0L) {
                         simpleIntervalMillis = 60 * 1000L
-                        view?.let { Snackbar.make(it, R.string.invalid_reminder_interval, Snackbar.LENGTH_LONG).show() }
+                        Toast.makeText(requireContext(), R.string.invalid_reminder_interval, Toast.LENGTH_LONG).show()
                     }
                     reminderPatternMillis = longArrayOf(simpleIntervalMillis)
                     newPattern = PreferenceUtils.formatPattern(reminderPatternMillis)
@@ -176,7 +177,7 @@ class ReminderPatternPreferenceX @JvmOverloads constructor(
                         }.toLongArray()
                         newPattern = PreferenceUtils.formatPattern(reminderPatternMillis)
                     } else {
-                        view?.let { Snackbar.make(it, R.string.error_cannot_parse_pattern, Snackbar.LENGTH_LONG).show() }
+                        Toast.makeText(requireContext(), R.string.error_cannot_parse_pattern, Toast.LENGTH_LONG).show()
                         return
                     }
                 }
