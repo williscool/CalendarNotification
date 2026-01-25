@@ -101,6 +101,7 @@ class TimeIntervalPickerController(
 
     // Internal for Robolectric unit tests (see TimeIntervalPickerControllerTest).
     internal fun onItemSelected(position: Int) {
+        selectedPosition = position
         if (maxIntervalMilliseconds == 0L) {
             if (position == SecondsIndex) {
                 numberPicker.minValue = 15
@@ -114,7 +115,7 @@ class TimeIntervalPickerController(
 
 
         val maxValue =
-            when (selectedPosition) {
+            when (position) {
                 SecondsIndex ->
                     maxIntervalMilliseconds / 1000L
                 MinutesIndex ->

@@ -2,8 +2,8 @@ package com.github.quarck.calnotify.ui
 
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.AutoCompleteTextView
 import android.widget.NumberPicker
-import android.widget.Spinner
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
@@ -25,14 +25,29 @@ class TimeIntervalPickerControllerTest {
     
     private lateinit var view: View
     private lateinit var numberPicker: NumberPicker
-    private lateinit var spinner: Spinner
+    private lateinit var timeUnitsDropdown: AutoCompleteTextView
     
     @Before
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         view = LayoutInflater.from(context).inflate(R.layout.dialog_interval_picker, null)
         numberPicker = view.findViewById(R.id.numberPickerTimeInterval)
-        spinner = view.findViewById(R.id.spinnerTimeIntervalUnit)
+        timeUnitsDropdown = view.findViewById(R.id.spinnerTimeIntervalUnit)
+    }
+
+    private fun expectedTimeUnitsArray(controller: TimeIntervalPickerController): Array<String> {
+        val ctx = view.context
+        return if (controller.SecondsIndex >= 0) {
+            ctx.resources.getStringArray(R.array.time_units_plurals_with_seconds)
+        } else {
+            ctx.resources.getStringArray(R.array.time_units_plurals)
+        }
+    }
+
+    private fun selectTimeUnit(controller: TimeIntervalPickerController, position: Int) {
+        val labels = expectedTimeUnitsArray(controller)
+        timeUnitsDropdown.setText(labels[position], false)
+        controller.onItemSelected(position)
     }
     
     // === Index Configuration Tests (without sub-minute intervals) ===
@@ -102,7 +117,8 @@ class TimeIntervalPickerControllerTest {
             allowSubMinuteIntervals = false
         )
         
-        assertEquals(controller.MinutesIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.MinutesIndex], timeUnitsDropdown.text.toString())
     }
     
     // === Interval Seconds Getter Tests ===
@@ -117,7 +133,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         numberPicker.value = 30
-        spinner.setSelection(controller.MinutesIndex)
+        selectTimeUnit(controller, controller.MinutesIndex)
         
         assertEquals(30 * 60, controller.intervalSeconds)
     }
@@ -132,7 +148,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         numberPicker.value = 2
-        spinner.setSelection(controller.HoursIndex)
+        selectTimeUnit(controller, controller.HoursIndex)
         
         assertEquals(2 * 60 * 60, controller.intervalSeconds)
     }
@@ -147,7 +163,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         numberPicker.value = 1
-        spinner.setSelection(controller.DaysIndex)
+        selectTimeUnit(controller, controller.DaysIndex)
         
         assertEquals(24 * 60 * 60, controller.intervalSeconds)
     }
@@ -162,7 +178,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         numberPicker.value = 45
-        spinner.setSelection(controller.SecondsIndex)
+        selectTimeUnit(controller, controller.SecondsIndex)
         
         assertEquals(45, controller.intervalSeconds)
     }
@@ -180,7 +196,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalSeconds = 30 * 60 // 30 minutes in seconds
         
-        assertEquals(controller.MinutesIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.MinutesIndex], timeUnitsDropdown.text.toString())
         assertEquals(30, numberPicker.value)
     }
     
@@ -195,7 +212,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalSeconds = 2 * 60 * 60 // 2 hours in seconds
         
-        assertEquals(controller.HoursIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.HoursIndex], timeUnitsDropdown.text.toString())
         assertEquals(2, numberPicker.value)
     }
     
@@ -210,7 +228,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalSeconds = 2 * 24 * 60 * 60 // 2 days in seconds
         
-        assertEquals(controller.DaysIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.DaysIndex], timeUnitsDropdown.text.toString())
         assertEquals(2, numberPicker.value)
     }
     
@@ -226,7 +245,8 @@ class TimeIntervalPickerControllerTest {
         // 90 minutes = 1.5 hours, should stay as minutes
         controller.intervalSeconds = 90 * 60
         
-        assertEquals(controller.MinutesIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.MinutesIndex], timeUnitsDropdown.text.toString())
         assertEquals(90, numberPicker.value)
     }
     
@@ -243,7 +263,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalSeconds = 45 // 45 seconds
         
-        assertEquals(controller.SecondsIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.SecondsIndex], timeUnitsDropdown.text.toString())
         assertEquals(45, numberPicker.value)
     }
     
@@ -258,7 +279,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalSeconds = 5 * 60 // 5 minutes
         
-        assertEquals(controller.MinutesIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.MinutesIndex], timeUnitsDropdown.text.toString())
         assertEquals(5, numberPicker.value)
     }
     
@@ -274,7 +296,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         numberPicker.value = 15
-        spinner.setSelection(controller.MinutesIndex)
+        selectTimeUnit(controller, controller.MinutesIndex)
         
         assertEquals(15 * 60 * 1000L, controller.intervalMilliseconds)
     }
@@ -290,7 +312,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalMilliseconds = Consts.HOUR_IN_MILLISECONDS // 1 hour
         
-        assertEquals(controller.HoursIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.HoursIndex], timeUnitsDropdown.text.toString())
         assertEquals(1, numberPicker.value)
     }
     
@@ -306,7 +329,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         numberPicker.value = 2
-        spinner.setSelection(controller.HoursIndex)
+        selectTimeUnit(controller, controller.HoursIndex)
         
         assertEquals(120, controller.intervalMinutes) // 2 hours = 120 minutes
     }
@@ -322,7 +345,8 @@ class TimeIntervalPickerControllerTest {
         
         controller.intervalMinutes = 60 // 60 minutes = 1 hour
         
-        assertEquals(controller.HoursIndex, spinner.selectedItemPosition)
+        val labels = expectedTimeUnitsArray(controller)
+        assertEquals(labels[controller.HoursIndex], timeUnitsDropdown.text.toString())
         assertEquals(1, numberPicker.value)
     }
     
@@ -340,8 +364,7 @@ class TimeIntervalPickerControllerTest {
         )
         
         // Trigger onItemSelected by changing selection
-        spinner.setSelection(controller.MinutesIndex)
-        controller.onItemSelected(controller.MinutesIndex)
+        selectTimeUnit(controller, controller.MinutesIndex)
         
         // Max should be 120 minutes (but capped at 100)
         assertEquals(100, numberPicker.maxValue)
@@ -358,8 +381,7 @@ class TimeIntervalPickerControllerTest {
             allowSubMinuteIntervals = false
         )
         
-        spinner.setSelection(controller.HoursIndex)
-        controller.onItemSelected(controller.HoursIndex)
+        selectTimeUnit(controller, controller.HoursIndex)
         
         assertEquals(5, numberPicker.maxValue)
     }
