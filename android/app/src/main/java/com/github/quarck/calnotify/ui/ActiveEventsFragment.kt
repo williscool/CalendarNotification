@@ -156,7 +156,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         }
         
         // Snooze selected button
-        view.findViewById<Button>(  R.id.btn_snooze_selected)?.setOnClickListener {
+        view.findViewById<Button>(R.id.btn_snooze_selected)?.setOnClickListener {
             showSnoozeSelectedDialog()
         }
         

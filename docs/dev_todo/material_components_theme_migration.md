@@ -648,35 +648,23 @@ DynamicColors.applyToActivitiesIfAvailable(this)
 - [x] MaterialCheckBox and MaterialRadioButton across app
 - [x] Tighter list spacing per M3 guidelines
 
-## Phase 7: App Bar Modernization - PARTIAL
+## Phase 7: App Bar Modernization - ✅ COMPLETE
 - [x] Main activity → MaterialToolbar with M3 styling
 - [x] Main activity legacy → Same
 - [x] Day mode keeps original `colorPrimary` (teal/gray)
 - [x] Night mode uses surface color for M3 dark theme look
+- [x] All secondary activities migrated to MaterialToolbar:
+  - `activity_view.xml` - Event view screen
+  - `activity_settings_x.xml` - Settings
+  - `activity_about.xml` - About screen
+  - `activity_calendars.xml` - Calendar selection
+  - `activity_dismissed_events.xml` - Dismissed events
+  - `activity_snooze_all.xml` - Snooze all
+  - `activity_privacy_policy.xml` - Privacy policy
+  - `activity_report_a_bug.xml` - Bug report
+  - `activity_car_mode.xml` - Car mode
 
-### Remaining Toolbar Updates (Polish Pass)
-The following activities still use old `androidx.appcompat.widget.Toolbar`:
-- [ ] `activity_view.xml` - Event view screen
-- [ ] `activity_add_event.xml` - Add/Edit event
-- [ ] `activity_settings.xml` / `activity_settings_x.xml` - Settings
-- [ ] `activity_about.xml` - About screen
-- [ ] `activity_calendars.xml` - Calendar selection
-- [ ] `activity_dismissed_events.xml` - Dismissed events
-- [ ] `activity_snooze_all.xml` - Snooze all
-- [ ] `activity_privacy_policy.xml` - Privacy policy
-- [ ] `activity_report_a_bug.xml` - Bug report
-- [ ] `activity_car_mode.xml` - Car mode
-
-**Pattern to apply:**
-```xml
-<com.google.android.material.appbar.MaterialToolbar
-    android:id="@+id/toolbar"
-    android:layout_width="match_parent"
-    android:layout_height="?attr/actionBarSize"
-    app:titleTextAppearance="?attr/textAppearanceTitleLarge"
-    app:titleTextColor="@color/app_bar_on_background"
-    app:navigationIconTint="@color/app_bar_on_background" />
-```
+**Note:** `activity_add_event.xml` and `activity_settings.xml` have toolbar commented out (use different layout approach)
 
 ---
 
