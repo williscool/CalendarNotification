@@ -22,9 +22,9 @@ package com.github.quarck.calnotify.prefs
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
@@ -123,7 +123,7 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
     }
 
     private fun showImportConfirmation(uri: android.net.Uri) {
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.import_confirm_title)
             .setMessage(R.string.import_confirm_message)
             .setPositiveButton(android.R.string.ok) { _, _ ->
@@ -191,7 +191,7 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
             append(getString(R.string.import_summary_restart_note))
         }
 
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.import_summary_title)
             .setMessage(message)
             .setPositiveButton(android.R.string.ok, null)
@@ -199,6 +199,6 @@ class MiscSettingsFragmentX : PreferenceFragmentCompat() {
     }
 
     private fun showToast(messageResId: Int) {
-        Toast.makeText(requireContext(), messageResId, Toast.LENGTH_LONG).show()
+        view?.let { Snackbar.make(it, messageResId, Snackbar.LENGTH_LONG).show() }
     }
 }

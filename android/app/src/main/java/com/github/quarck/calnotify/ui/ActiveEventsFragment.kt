@@ -29,8 +29,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.ImageButton
 import android.widget.LinearLayout
+import com.google.android.material.button.MaterialButton
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
@@ -121,7 +121,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     private fun setupNewUIBanner(view: View) {
         newUIBanner = view.findViewById(R.id.new_ui_banner)
         val bannerText = view.findViewById<TextView>(R.id.new_ui_banner_text)
-        val dismissButton = view.findViewById<ImageButton>(R.id.new_ui_banner_dismiss)
+        val dismissButton = view.findViewById<MaterialButton>(R.id.new_ui_banner_dismiss)
         
         // Show banner if enabled in settings
         if (settings.showNewUIBanner) {
@@ -146,7 +146,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         selectionCountText = view.findViewById(R.id.selection_count_text)
         
         // Close selection button
-        view.findViewById<ImageButton>(R.id.btn_close_selection)?.setOnClickListener {
+        view.findViewById<MaterialButton>(R.id.btn_close_selection)?.setOnClickListener {
             adapter.exitSelectionMode()
         }
         

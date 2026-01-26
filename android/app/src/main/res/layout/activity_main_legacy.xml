@@ -17,43 +17,34 @@
         android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorPrimary"
-        android:theme="@style/AppTheme.AppBarOverlay">
+        android:background="@color/app_bar_background"
+        android:fitsSystemWindows="true"
+        app:elevation="0dp"
+        app:liftOnScroll="true">
 
-        <!-- Status bar spacer - height set programmatically -->
-        <View
-            android:id="@+id/status_bar_spacer"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:background="?attr/colorPrimary" />
-
-        <androidx.appcompat.widget.Toolbar
+        <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
             app:popupTheme="@style/AppTheme.PopupOverlay"
-            app:titleTextAppearance="@style/ToolbarTitle"
-            android:elevation="@dimen/toolbar_elevation"
-            tools:targetApi="m"
-            />
+            app:titleTextAppearance="?attr/textAppearanceTitleLarge"
+            app:titleTextColor="@color/app_bar_on_background"
+            app:navigationIconTint="@color/app_bar_on_background" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
     <include layout="@layout/content_main"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:src="@drawable/ic_add_white_24dp"
         android:id="@+id/action_btn_add_event"
-        app:fabSize="normal"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|right|end"
         android:layout_margin="16dp"
-        android:visibility="visible"
-        android:elevation="@dimen/toolbar_elevation"
-        app:backgroundTint="@color/fab_background"
-        tools:targetApi="m"
-        />
+        android:contentDescription="@string/add_event"
+        app:srcCompat="@drawable/ic_add_white_24dp"
+        app:tint="?attr/colorOnPrimaryContainer"
+        app:backgroundTint="?attr/colorPrimaryContainer"
+        app:fabSize="normal" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

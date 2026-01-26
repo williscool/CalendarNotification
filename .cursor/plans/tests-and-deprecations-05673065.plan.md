@@ -1,4 +1,27 @@
-<!-- 05673065-27e0-4a04-a257-8525be445a15 3afab678-bedd-4dd7-864c-eb4b19e101df -->
+---
+name: Test Suite Completion and Feature Deprecation Plan
+overview: ""
+todos:
+  - id: 79b81bf4-3f65-4e9f-bc0f-fb6ddce985c7
+    content: Create docs/dev_todo/deprecated_features.md for Quiet Hours and Calendar Editor
+    status: completed
+  - id: c4df911b-675b-4368-a071-6d3d217eef33
+    content: Add @Deprecated annotations to quiethours/ and calendareditor/ packages
+    status: completed
+  - id: 1e277f70-4abe-4c61-92c8-33e53295a31d
+    content: Create SettingsTest for snoozePresets and reminder interval logic
+    status: completed
+  - id: 6c9bf775-f418-4e52-b99d-f06ee604f3a8
+    content: Create SnoozeTest for snoozeEvent, snoozeEvents, snoozeAllEvents
+    status: completed
+  - id: 8598291e-6765-48e1-bc2e-466899a1f890
+    content: Create CalendarReloadManagerTest for calendar change handling
+    status: completed
+  - id: 65d33916-bf6f-4294-9369-fa2594421973
+    content: Create BroadcastReceiverTest for Boot, Snooze, and Reminder receivers
+    status: completed
+---
+
 # Test Suite Completion and Feature Deprecation Plan
 
 ## Part 1: Deprecation Tracking
@@ -141,12 +164,3 @@ Test cases:
 - 2 in `quiethours/`
 - 7 in `calendareditor/`
 - 1 in `prefs/fragments/`
-
-### To-dos
-
-- [x] Create docs/dev_todo/deprecated_features.md for Quiet Hours and Calendar Editor
-- [x] Add @Deprecated annotations to quiethours/ and calendareditor/ packages
-- [x] Create SettingsTest for snoozePresets and reminder interval logic
-- [x] Create SnoozeTest for snoozeEvent, snoozeEvents, snoozeAllEvents
-- [x] Create CalendarReloadManagerTest for calendar change handling
-- [x] Create BroadcastReceiverTest for Boot, Snooze, and Reminder receivers

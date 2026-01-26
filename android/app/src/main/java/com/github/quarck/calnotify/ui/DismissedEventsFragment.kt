@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -120,7 +120,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     
     private fun showRemoveAllConfirmation() {
         val ctx = context ?: return
-        AlertDialog.Builder(ctx)
+        MaterialAlertDialogBuilder(ctx)
             .setMessage(getString(R.string.remove_all_confirmation))
             .setCancelable(false)
             .setPositiveButton(android.R.string.ok) { _, _ ->

@@ -80,7 +80,7 @@ class DismissedEventListAdapter(
         //var eventId: Long = 0;
         var entry: DismissedEventAlertRecord? = null
 
-        var eventHolder: RelativeLayout?
+        var eventHolder: View?
         var eventTitleText: TextView
         //var eventTitleLayout: RelativeLayout?
         var eventDateText: TextView
@@ -89,13 +89,13 @@ class DismissedEventListAdapter(
         var snoozedUntilText: TextView?
         val compactViewCalendarColor: View?
 
-        val compactViewContentLayout: RelativeLayout?
-        var undoLayout: RelativeLayout?
+        val compactViewContentLayout: ViewGroup?
+        var undoLayout: ViewGroup?
 
         var calendarColor: ColorDrawable
 
         init {
-            eventHolder = itemView.find<RelativeLayout>(R.id.card_view_main_holder)
+            eventHolder = itemView.find<View>(R.id.card_view_main_holder)
             eventTitleText = itemView.findOrThrow<TextView>(R.id.card_view_event_name)
             //eventTitleLayout = itemView.findOrThrow<RelativeLayout?>(R.id.card_view_event_title_layout)
 
@@ -103,9 +103,9 @@ class DismissedEventListAdapter(
             eventTimeText = itemView.findOrThrow<TextView>(R.id.card_view_event_time)
             snoozedUntilText = itemView.find<TextView>(R.id.card_view_snoozed_until)
 
-            undoLayout = itemView.find<RelativeLayout?>(R.id.event_card_undo_layout)
+            undoLayout = itemView.find<ViewGroup?>(R.id.event_card_undo_layout)
 
-            compactViewContentLayout = itemView.find<RelativeLayout?>(R.id.compact_view_content_layout)
+            compactViewContentLayout = itemView.find<ViewGroup?>(R.id.compact_view_content_layout)
             compactViewCalendarColor = itemView.find<View?>(R.id.compact_view_calendar_color)
 
             calendarColor = ColorDrawable(0)

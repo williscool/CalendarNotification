@@ -1,6 +1,6 @@
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
@@ -117,7 +117,7 @@ class DismissedEventsActivity : AppCompatActivity(), DismissedEventListCallback 
         when (item.itemId) {
             R.id.action_remove_all -> {
 
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                         .setMessage(resources.getString(R.string.remove_all_confirmation))
                         .setCancelable(false)
                         .setPositiveButton(android.R.string.ok) {

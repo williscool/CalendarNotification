@@ -20,11 +20,10 @@
 package com.github.quarck.calnotify.ui
 
 import android.view.View
-import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.NumberPicker
-import android.widget.Spinner
 import android.widget.TextView
-import android.widget.*
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.utils.find
@@ -35,7 +34,7 @@ class TimeIntervalPickerController(
         titleId: Int?,
         val maxIntervalMilliseconds: Long, // 0 by default
         val allowSubMinuteIntervals: Boolean // false by default
-) : AdapterView.OnItemSelectedListener {
+) {
 
     var SecondsIndex = -1
     var MinutesIndex = 0
@@ -43,34 +42,36 @@ class TimeIntervalPickerController(
     var DaysIndex = 2
 
     var numberPicker: NumberPicker
-    var timeUnitsSpinners: Spinner
+    var timeUnitsDropdown: AutoCompleteTextView
+    private var selectedPosition: Int = 0
+    private lateinit var timeUnitsArray: Array<String>
 
     init {
         numberPicker = view.findOrThrow<NumberPicker>(R.id.numberPickerTimeInterval)
-        timeUnitsSpinners = view.findOrThrow<Spinner>(R.id.spinnerTimeIntervalUnit)
+        timeUnitsDropdown = view.findOrThrow<AutoCompleteTextView>(R.id.spinnerTimeIntervalUnit)
 
         if (allowSubMinuteIntervals) {
-            timeUnitsSpinners.adapter =
-                    ArrayAdapter(
-                            view.context,
-                            android.R.layout.simple_list_item_1,
-                            view.context.resources.getStringArray(R.array.time_units_plurals_with_seconds)
-                    )
+            timeUnitsArray = view.context.resources.getStringArray(R.array.time_units_plurals_with_seconds)
             SecondsIndex += 1
             MinutesIndex += 1
             HoursIndex += 1
             DaysIndex += 1
         }
         else {
-            timeUnitsSpinners.adapter =
-                    ArrayAdapter(
-                            view.context,
-                            android.R.layout.simple_list_item_1,
-                            view.context.resources.getStringArray(R.array.time_units_plurals)
-                    )
+            timeUnitsArray = view.context.resources.getStringArray(R.array.time_units_plurals)
         }
 
-        timeUnitsSpinners.onItemSelectedListener = this
+        val adapter = ArrayAdapter(
+                view.context,
+                android.R.layout.simple_dropdown_item_1line,
+                timeUnitsArray
+        )
+        timeUnitsDropdown.setAdapter(adapter)
+
+        timeUnitsDropdown.setOnItemClickListener { _, _, position, _ ->
+            selectedPosition = position
+            onItemSelected(position)
+        }
 
         val label: TextView? = view.find<TextView>(R.id.textViewTimeIntervalTitle)
         if (titleId != null)
@@ -78,22 +79,29 @@ class TimeIntervalPickerController(
         else
             label?.visibility = View.GONE
 
-        timeUnitsSpinners.setSelection(MinutesIndex)
-
-        timeUnitsSpinners.onItemSelectedListener = this
+        setSelection(MinutesIndex)
 
         numberPicker.minValue = 1
         numberPicker.maxValue = 100
     }
 
+    private fun setSelection(position: Int) {
+        selectedPosition = position
+        if (position >= 0 && position < timeUnitsArray.size) {
+            timeUnitsDropdown.setText(timeUnitsArray[position], false)
+            onItemSelected(position)
+        }
+    }
+
     fun clearFocus() {
         numberPicker.clearFocus()
-        timeUnitsSpinners.clearFocus()
+        timeUnitsDropdown.clearFocus()
     }
 
 
-    override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-
+    // Internal for Robolectric unit tests (see TimeIntervalPickerControllerTest).
+    internal fun onItemSelected(position: Int) {
+        selectedPosition = position
         if (maxIntervalMilliseconds == 0L) {
             if (position == SecondsIndex) {
                 numberPicker.minValue = 15
@@ -107,7 +115,7 @@ class TimeIntervalPickerController(
 
 
         val maxValue =
-            when (timeUnitsSpinners.selectedItemPosition) {
+            when (position) {
                 SecondsIndex ->
                     maxIntervalMilliseconds / 1000L
                 MinutesIndex ->
@@ -117,14 +125,10 @@ class TimeIntervalPickerController(
                 DaysIndex ->
                     maxIntervalMilliseconds / Consts.DAY_IN_MILLISECONDS
                 else ->
-                    throw Exception("Unknown time unit")
+                    throw IllegalStateException("Unknown time unit")
             }
 
         numberPicker.maxValue = Math.min(maxValue.toInt(), 100)
-    }
-
-    override fun onNothingSelected(parent: AdapterView<*>) {
-
     }
 
     var intervalSeconds: Int
@@ -134,7 +138,7 @@ class TimeIntervalPickerController(
             val number = numberPicker.value
 
             val multiplier =
-                    when (timeUnitsSpinners.selectedItemPosition) {
+                    when (selectedPosition) {
                         SecondsIndex ->
                             1
                         MinutesIndex ->
@@ -144,7 +148,7 @@ class TimeIntervalPickerController(
                         DaysIndex ->
                             24 * 60 * 60
                         else ->
-                            throw Exception("Unknown time unit")
+                            throw IllegalStateException("Unknown time unit")
                     }
 
             return (number * multiplier).toInt()
@@ -170,7 +174,7 @@ class TimeIntervalPickerController(
                     number /= 24 // to days
                 }
 
-                timeUnitsSpinners.setSelection(units)
+                setSelection(units)
                 numberPicker.value = number.toInt()
 
             }
@@ -188,7 +192,7 @@ class TimeIntervalPickerController(
                     number /= 24 // to days
                 }
 
-                timeUnitsSpinners.setSelection(units)
+                setSelection(units)
                 numberPicker.value = number.toInt()
             }
         }

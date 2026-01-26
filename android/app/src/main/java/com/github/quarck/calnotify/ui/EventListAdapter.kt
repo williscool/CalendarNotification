@@ -78,7 +78,7 @@ class EventListAdapter(
         : RecyclerView.ViewHolder(itemView) {
         var eventId: Long = 0;
 
-        var eventHolder: RelativeLayout?
+        var eventHolder: View?
         var eventTitleText: TextView
         var eventDateText: TextView
         var eventTimeText: TextView
@@ -86,8 +86,8 @@ class EventListAdapter(
         var snoozedUntilText: TextView?
         val compactViewCalendarColor: View?
 
-        val compactViewContentLayout: RelativeLayout?
-        var undoLayout: RelativeLayout?
+        val compactViewContentLayout: ViewGroup?
+        var undoLayout: ViewGroup?
 
         var undoButton: Button?
 
@@ -100,16 +100,16 @@ class EventListAdapter(
         var calendarColor: ColorDrawable
 
         init {
-            eventHolder = itemView.find<RelativeLayout>(R.id.card_view_main_holder)
+            eventHolder = itemView.find<View>(R.id.card_view_main_holder)
             eventTitleText = itemView.findOrThrow<TextView>(R.id.card_view_event_name)
 
             eventDateText = itemView.findOrThrow<TextView>(R.id.card_view_event_date)
             eventTimeText = itemView.findOrThrow<TextView>(R.id.card_view_event_time)
             snoozedUntilText = itemView.find<TextView>(R.id.card_view_snoozed_until)
 
-            undoLayout = itemView.find<RelativeLayout?>(R.id.event_card_undo_layout)
+            undoLayout = itemView.find<ViewGroup?>(R.id.event_card_undo_layout)
 
-            compactViewContentLayout = itemView.find<RelativeLayout?>(R.id.compact_view_content_layout)
+            compactViewContentLayout = itemView.find<ViewGroup?>(R.id.compact_view_content_layout)
             compactViewCalendarColor = itemView.find<View?>(R.id.compact_view_calendar_color)
 
             undoButton = itemView.find<Button?>(R.id.card_view_button_undo)
@@ -397,6 +397,9 @@ class EventListAdapter(
                 holder.eventDateText.text = detail1
                 holder.eventTimeText.text = detail2
             }
+
+            holder.eventTimeText.visibility =
+                if (holder.eventTimeText.text.toString().isNotBlank()) View.VISIBLE else View.GONE
 
             if (event.snoozedUntil != 0L) {
                 holder.snoozedUntilText?.text =

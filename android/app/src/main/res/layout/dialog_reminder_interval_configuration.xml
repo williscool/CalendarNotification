@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -9,7 +10,7 @@
     android:theme="@style/PickerDialogTheme"
     >
 
-    <CheckBox
+    <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/checkbox_custom_reminder_pattern"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -27,6 +28,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:layout_gravity="center_horizontal"
         >
 
@@ -38,16 +40,21 @@
             android:layout_gravity="center"
             />
 
-        <Spinner
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:id="@+id/spinnerTimeIntervalUnit"
             android:layout_gravity="center"
-            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:layout_marginStart="8dp">
 
-            />
+            <AutoCompleteTextView
+                android:id="@+id/spinnerTimeIntervalUnit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
 
-        <!-- android:entries="@array/time_units_plurals" -->
+        </com.google.android.material.textfield.TextInputLayout>
 
     </LinearLayout>
 

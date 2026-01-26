@@ -117,6 +117,54 @@ Before removing these features:
 
 ---
 
+## Custom Date/Time Picker Layouts
+
+**Status:** REMOVED ✅
+
+**Reason:** These custom layouts existed only to work around limitations of the old callback-based `DatePickerDialog`/`TimePickerDialog` (state loss on rotation, manual flow management). Modern `MaterialDatePicker`/`MaterialTimePicker` are fragment-based and handle all of this automatically.
+
+### Files Removed
+
+**Layouts (DELETED):**
+- [x] `dialog_date_picker.xml` 
+- [x] `dialog_time_picker.xml`
+- [x] `dialog_date_time_picker.xml` (orphaned, never used)
+- [x] `dialog_date_picker_halo_light.xml` (orphaned, never used)
+- [x] `dialog_time_picker_halo_light.xml` (orphaned, never used)
+
+**Code simplified:**
+- [x] `ViewEventActivityNoRecents.kt` - Replaced ~100 lines of state tracking with ~30 lines using MaterialPickers
+- [x] `SnoozeAllActivity.kt` - Same simplification
+- [x] `EditEventActivity.kt` - Migrated to MaterialDatePicker/MaterialTimePicker
+
+**Benefits achieved:**
+- Automatic state restoration on rotation (DialogFragments handle their own state)
+- Beautiful Material 3 UI with clock face time picker and calendar date picker
+- ~200+ lines of manual state management code removed
+- Built-in accessibility support
+
+---
+
+## LED Notification Pattern
+
+**Status:** DEPRECATED
+
+**Reason:** LED notification lights have been removed from virtually all modern phones since ~2018. Replaced by Always-On Display, edge lighting, and screen-based notification effects.
+
+### Files to Remove
+
+**UI:**
+- [ ] `dialog_led_pattern.xml` - LED on/off time SeekBars
+- [ ] `dialog_color_picker.xml` - LED color picker
+
+**Code:**
+- [ ] LED color/pattern handling in notification builders
+- [ ] Settings preferences for LED customization
+
+**Note:** Android still has the `Notification.Builder.setLights()` API but it's effectively a no-op on modern devices.
+
+---
+
 ## Removal Timeline
 
 | Phase | Action | Status |
@@ -125,6 +173,8 @@ Before removing these features:
 | 2 | Complete core feature test suite | In Progress |
 | 3 | Remove Quiet Hours feature | Pending |
 | 4 | Remove Calendar Editor feature | Pending |
-| 5 | Remove Legacy Storage & `.use {}` pattern | Pending |
-| 6 | Clean up dependencies and update docs | Pending |
+| 5 | Remove LED notification settings | Pending |
+| 6 | Remove custom picker layouts (use MaterialDatePicker/MaterialTimePicker) | ✅ DONE |
+| 7 | Remove Legacy Storage & `.use {}` pattern | Pending |
+| 8 | Clean up dependencies and update docs | Pending |
 

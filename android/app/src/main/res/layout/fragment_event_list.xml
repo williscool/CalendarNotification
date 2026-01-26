@@ -23,14 +23,14 @@
         android:elevation="4dp"
         tools:visibility="visible">
 
-        <ImageButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_close_selection"
+            style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_clear_white_24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/cancel_selection"
-            app:tint="@android:color/white" />
+            app:icon="@drawable/ic_clear_white_24dp"
+            app:iconTint="@android:color/white"
+            android:contentDescription="@string/cancel_selection" />
 
         <TextView
             android:id="@+id/selection_count_text"
@@ -76,14 +76,14 @@
             android:textColor="@android:color/white"
             android:textSize="14sp" />
 
-        <ImageButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/new_ui_banner_dismiss"
+            style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:src="@drawable/ic_clear_white_24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/dismiss"
-            app:tint="@android:color/white" />
+            app:icon="@drawable/ic_clear_white_24dp"
+            app:iconTint="@android:color/white"
+            android:contentDescription="@string/dismiss" />
 
     </LinearLayout>
 
@@ -126,24 +126,21 @@
         android:id="@+id/selection_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/cardview_light_background"
+        android:background="?attr/colorSurface"
         android:elevation="8dp"
         android:visibility="gone"
         android:gravity="center"
         android:padding="16dp"
         tools:visibility="visible">
 
-        <Button
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_snooze_selected"
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:text="@string/snooze_selected"
-            android:textSize="16sp"
-            android:textAllCaps="true"
-            android:backgroundTint="@color/primary"
-            android:textColor="@android:color/white" />
+            android:textSize="16sp" />
 
     </LinearLayout>
 

@@ -20,7 +20,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -29,8 +29,8 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.PopupMenu
-import android.widget.Toast
 import androidx.appcompat.widget.SearchView
+import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -314,7 +314,7 @@ class MainActivityModern : MainActivityBase() {
                         hasFilter -> getString(R.string.snooze_all_no_events_filters)
                         else -> getString(R.string.snooze_all_no_events)
                     }
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT).show()
                     return true
                 }
 
@@ -340,7 +340,7 @@ class MainActivityModern : MainActivityBase() {
     // === Bulk actions ===
 
     private fun onDismissAll() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.dismiss_all_events_confirmation)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
@@ -360,7 +360,7 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun onMuteAll() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.mute_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->

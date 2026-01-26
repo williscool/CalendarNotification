@@ -20,7 +20,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.SearchManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -406,7 +406,7 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
     // === Bulk actions ===
 
     private fun onDismissAll() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.dismiss_all_events_confirmation)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
@@ -427,7 +427,7 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
     }
 
     private fun onMuteAll() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.mute_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
@@ -450,7 +450,7 @@ class MainActivityLegacy : MainActivityBase(), EventListCallback {
             val intervalValues: IntArray = resources.getIntArray(R.array.custom_quiet_hours_interval_values)
             val intervalNames: Array<String> = resources.getStringArray(R.array.custom_quiet_hours_interval_names)
 
-            val builder = AlertDialog.Builder(this)
+            val builder = MaterialAlertDialogBuilder(this)
             val listAdapter = ArrayAdapter<String>(this, R.layout.simple_list_item_large)
 
             builder.setTitle(getString(R.string.start_quiet_hours_dialog_title))

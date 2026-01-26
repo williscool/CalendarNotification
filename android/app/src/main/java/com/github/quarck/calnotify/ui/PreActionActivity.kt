@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -29,6 +29,7 @@ import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
@@ -291,7 +292,7 @@ class PreActionActivity : AppCompatActivity() {
         val intervalNames = resources.getStringArray(R.array.default_snooze_intervals)
         val intervalValues = resources.getIntArray(R.array.default_snooze_intervals_seconds_values)
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.for_a_custom_time)
             .setItems(intervalNames) { _, which ->
                 val intervalSeconds = intervalValues.getOrNull(which)?.toLong() ?: return@setItems
@@ -353,7 +354,7 @@ class PreActionActivity : AppCompatActivity() {
                     Toast.makeText(this, R.string.event_pre_snoozed, Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
-                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
                 }
             }
         }
@@ -407,9 +408,9 @@ class PreActionActivity : AppCompatActivity() {
                 if (newMutedState != null) {
                     updateMuteButton()
                     val msgRes = if (eventIsMuted) R.string.event_will_be_muted else R.string.event_unmuted
-                    Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), msgRes, Snackbar.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
                 }
             }
         }
@@ -427,7 +428,7 @@ class PreActionActivity : AppCompatActivity() {
                     Toast.makeText(this, R.string.event_pre_dismissed, Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
-                    Toast.makeText(this, R.string.error, Toast.LENGTH_SHORT).show()
+                    Snackbar.make(findViewById(android.R.id.content), R.string.error, Snackbar.LENGTH_SHORT).show()
                 }
             }
         }

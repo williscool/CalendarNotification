@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -32,6 +33,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:layout_gravity="center_horizontal">
 
         <NumberPicker
@@ -42,15 +44,21 @@
             android:layout_gravity="center"
             />
 
-        <Spinner
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:id="@+id/spinnerTimeIntervalUnit"
             android:layout_gravity="center"
-            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:layout_marginStart="8dp">
 
-            />
-        <!-- android:entries="@array/time_units_plurals" -->
+            <AutoCompleteTextView
+                android:id="@+id/spinnerTimeIntervalUnit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        </com.google.android.material.textfield.TextInputLayout>
 
     </LinearLayout>
 

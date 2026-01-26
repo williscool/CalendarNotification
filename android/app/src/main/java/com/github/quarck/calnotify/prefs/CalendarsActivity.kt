@@ -35,7 +35,7 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.RecyclerView
@@ -244,7 +244,7 @@ class CalendarsActivity : AppCompatActivity() {
     }
 
     private fun showCalendarSyncHelp() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.calendar_sync_help_title)
             .setMessage(R.string.calendar_sync_help_message)
             .setPositiveButton(android.R.string.ok, null)

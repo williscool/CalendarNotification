@@ -49,10 +49,17 @@
 
     <color name="material_red">#c3362b</color>
     <color name="material_blue">#3f51b8</color>
+    
+    <!-- Alpha colors for ripples -->
+    <color name="white_alpha_50">#80FFFFFF</color>
 
     <color name="cal_sample_primary">#03A9F4</color>
 
     <color name="fab_background">#134093</color>
+    
+    <!-- App bar colors (keep original teal in day mode) -->
+    <color name="app_bar_background">@color/primary</color>
+    <color name="app_bar_on_background">@color/icons</color>
 
     <color name="quiet_hours_active_text">#FFC107</color>
     <color name="quiet_hours_active_background">#212121</color>

@@ -24,7 +24,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.github.quarck.calnotify.R
@@ -61,7 +61,7 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     
     private fun showSwitchToClassicViewDialog() {
         val ctx = context ?: return
-        AlertDialog.Builder(ctx)
+        MaterialAlertDialogBuilder(ctx)
             .setMessage(R.string.switch_to_classic_view_confirm)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 switchToClassicView()
@@ -72,7 +72,7 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     
     private fun showSwitchToNewViewDialog() {
         val ctx = context ?: return
-        AlertDialog.Builder(ctx)
+        MaterialAlertDialogBuilder(ctx)
             .setMessage(R.string.switch_to_new_view_confirm)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 switchToNewView()

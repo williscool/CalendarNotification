@@ -19,7 +19,7 @@
 
 package com.github.quarck.calnotify.prefs
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Context
 import android.widget.ArrayAdapter
 import com.github.quarck.calnotify.R
@@ -35,7 +35,7 @@ class ListPreference<T>(
 
     fun create() {
 
-        val builder = AlertDialog.Builder(context)
+        val builder = MaterialAlertDialogBuilder(context)
         builder.setIcon(R.drawable.ic_launcher)
         builder.setTitle(context.resources.getString(titleId))
 

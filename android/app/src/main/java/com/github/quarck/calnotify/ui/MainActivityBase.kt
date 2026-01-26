@@ -20,7 +20,7 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.SQLException
@@ -136,7 +136,7 @@ abstract class MainActivityBase : AppCompatActivity() {
 
         if (!hasPermissions) {
             if (PermissionsManager.shouldShowCalendarRationale(this)) {
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                     .setMessage(R.string.application_has_no_access)
                     .setCancelable(false)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
@@ -157,7 +157,7 @@ abstract class MainActivityBase : AppCompatActivity() {
             // Check for power manager optimisations
             if (!settings.doNotShowBatteryOptimisationWarning &&
                 !powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                     .setTitle(getString(R.string.battery_optimisation_title))
                     .setMessage(getString(R.string.battery_optimisation_details))
                     .setPositiveButton(getString(R.string.you_can_do_it)) { _, _ ->
@@ -183,7 +183,7 @@ abstract class MainActivityBase : AppCompatActivity() {
     protected fun checkNotificationPermission() {
         if (!PermissionsManager.hasNotificationPermission(this)) {
             if (PermissionsManager.shouldShowNotificationRationale(this)) {
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.notification_permission_title)
                     .setMessage(R.string.notification_permission_explanation)
                     .setCancelable(false)

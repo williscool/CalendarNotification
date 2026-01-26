@@ -135,12 +135,9 @@
                 android:textColor="@color/primary_text"
                 android:focusable="true" />
 
-            <View
+            <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
-                android:layout_height="0.5dp"
-                android:background="@color/divider_light"
-                android:padding="0dp"
-                />
+                android:layout_height="wrap_content" />
 
         </LinearLayout>
 

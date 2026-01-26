@@ -19,9 +19,11 @@
 
 package com.github.quarck.calnotify.ui
 
-import android.app.AlertDialog
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.datepicker.CalendarConstraints
+import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.timepicker.MaterialTimePicker
+import com.google.android.material.timepicker.TimeFormat
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
@@ -37,6 +39,7 @@ import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import com.google.android.material.snackbar.Snackbar
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
@@ -419,7 +422,7 @@ open class EditEventActivity : AppCompatActivity() {
 
             accountName.text = "" // remove debug mess
 
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                     .setMessage(R.string.no_active_calendars)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
                         finish()
@@ -506,7 +509,7 @@ open class EditEventActivity : AppCompatActivity() {
 
             val cal = calendars.find { it.calendarId == eventToEdit.calendarId }
             if (cal == null) {
-                Toast.makeText(this, R.string.calendar_not_found, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.calendar_not_found, Snackbar.LENGTH_LONG).show()
                 finish()
                 return
             }
@@ -588,6 +591,8 @@ open class EditEventActivity : AppCompatActivity() {
 
             updateReminders()
         }
+
+        rewireMaterialPickersIfPresent()
     }
 
     public override fun onSaveInstanceState(outState: Bundle) {
@@ -614,6 +619,76 @@ open class EditEventActivity : AppCompatActivity() {
                 )
 
         state.toBundle(outState)
+    }
+
+    private fun rewireMaterialPickersIfPresent() {
+        (supportFragmentManager.findFragmentByTag(TAG_DATE_FROM_PICKER) as? MaterialDatePicker<Long>)?.let { picker ->
+            picker.addOnPositiveButtonClickListener { selection ->
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                utc.timeInMillis = selection
+                from.year = utc.get(Calendar.YEAR)
+                from.month = utc.get(Calendar.MONTH)
+                from.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
+
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+
+                updateDateTimeUI()
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_TIME_FROM_PICKER) as? MaterialTimePicker)?.let { picker ->
+            picker.addOnPositiveButtonClickListener {
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                from.hourOfDay = picker.hour
+                from.minute = picker.minute
+
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+
+                updateDateTimeUI()
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_DATE_TO_PICKER) as? MaterialDatePicker<Long>)?.let { picker ->
+            picker.addOnPositiveButtonClickListener { selection ->
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                utc.timeInMillis = selection
+                to.year = utc.get(Calendar.YEAR)
+                to.month = utc.get(Calendar.MONTH)
+                to.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
+
+                if (to.before(from)) {
+                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                    to.addMinutes(durationMinutes.toInt())
+                }
+
+                updateDateTimeUI()
+            }
+        }
+
+        (supportFragmentManager.findFragmentByTag(TAG_TIME_TO_PICKER) as? MaterialTimePicker)?.let { picker ->
+            picker.addOnPositiveButtonClickListener {
+                val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+
+                to.hourOfDay = picker.hour
+                to.minute = picker.minute
+
+                if (to.before(from)) {
+                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                    to.addMinutes(durationMinutes.toInt())
+                }
+
+                updateDateTimeUI()
+            }
+        }
     }
 
     fun updateDateTimeUI() {
@@ -706,7 +781,7 @@ open class EditEventActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (anyChanges) {
 
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                     .setMessage(R.string.discard_new_event)
                     .setCancelable(false)
                     .setPositiveButton(android.R.string.yes) {
@@ -735,7 +810,7 @@ open class EditEventActivity : AppCompatActivity() {
         if (originalEvent != null)
             return // not editable anymore
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 
@@ -830,7 +905,7 @@ open class EditEventActivity : AppCompatActivity() {
             } else {
                 DevLog.error(LOG_TAG, "Failed to create event")
 
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                         .setMessage(R.string.new_event_failed_to_create_event)
                         .setPositiveButton(android.R.string.ok) { _, _ -> }
                         .show()
@@ -855,7 +930,7 @@ open class EditEventActivity : AppCompatActivity() {
                 finish()
             }
             else {
-                Toast.makeText(this, R.string.failed_to_update_event_details, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.failed_to_update_event_details, Snackbar.LENGTH_LONG).show()
             }
         }
     }
@@ -879,126 +954,134 @@ open class EditEventActivity : AppCompatActivity() {
 
     @Suppress("UNUSED_PARAMETER")
     fun onDateFromClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
 
-        val dialog = DatePickerDialog(
-                this,
-                {
-                    _, year, month, day ->
-
-                    from.year = year
-                    from.month = month
-                    from.dayOfMonth = day
-
-                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                    to.addMinutes(durationMinutes.toInt())
-
-                    updateDateTimeUI()
-
-                },
-                from.year,
-                from.month,
-                from.dayOfMonth
-        )
-
-        val firstDayOfWeek = Settings(this).firstDayOfWeek
-        if (firstDayOfWeek != -1) {
-            dialog.datePicker.firstDayOfWeek = firstDayOfWeek
+        val selectionUtcMidnight = Calendar.getInstance(TimeZone.getTimeZone("UTC")).run {
+            set(from.year, from.month, from.dayOfMonth, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+            timeInMillis
         }
 
-        dialog.show()
-        //builder.setIcon(R.drawable.ic_launcher)
+        val constraintsBuilder = CalendarConstraints.Builder()
+        val firstDayOfWeek = settings.firstDayOfWeek
+        if (firstDayOfWeek != -1) {
+            constraintsBuilder.setFirstDayOfWeek(firstDayOfWeek)
+        }
+
+        val picker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText(R.string.choose_date)
+                .setSelection(selectionUtcMidnight)
+                .setCalendarConstraints(constraintsBuilder.build())
+                .build()
+
+        picker.addOnPositiveButtonClickListener { selection ->
+            val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            utc.timeInMillis = selection
+            from.year = utc.get(Calendar.YEAR)
+            from.month = utc.get(Calendar.MONTH)
+            from.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
+
+            to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+            to.addMinutes(durationMinutes.toInt())
+
+            updateDateTimeUI()
+        }
+
+        picker.show(supportFragmentManager, "dateFromPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun onTimeFromClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+        val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
 
-        val dialog = TimePickerDialog(
-                this,
-                {
-                    _, hour, min ->
+        val picker = MaterialTimePicker.Builder()
+                .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+                .setHour(from.hourOfDay)
+                .setMinute(from.minute)
+                .setTitleText(R.string.change_event_time)
+                .build()
 
-                    from.hourOfDay = hour
-                    from.minute = min
+        picker.addOnPositiveButtonClickListener {
+            from.hourOfDay = picker.hour
+            from.minute = picker.minute
 
-                    to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                    to.addMinutes(durationMinutes.toInt())
+            to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+            to.addMinutes(durationMinutes.toInt())
 
-                    updateDateTimeUI()
-                },
-                from.hourOfDay,
-                from.minute,
-                android.text.format.DateFormat.is24HourFormat(this)
-        )
+            updateDateTimeUI()
+        }
 
-        dialog.show()
+        picker.show(supportFragmentManager, "timeFromPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun onDateToClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
 
-        val dialog = DatePickerDialog(
-                this,
-                {
-                    _, year, month, day ->
-
-                    to.year = year
-                    to.month = month
-                    to.dayOfMonth = day
-
-                    if (to.before(from)) {
-                        Toast.makeText(this, getString(R.string.end_time_before_start_time), Toast.LENGTH_LONG).show()
-                        to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                        to.addMinutes(durationMinutes.toInt())
-                    }
-
-                    updateDateTimeUI()
-
-                },
-                to.year,
-                to.month,
-                to.dayOfMonth
-        )
-        val firstDayOfWeek = Settings(this).firstDayOfWeek
-        if (firstDayOfWeek != -1) {
-            dialog.datePicker.firstDayOfWeek = firstDayOfWeek
+        val selectionUtcMidnight = Calendar.getInstance(TimeZone.getTimeZone("UTC")).run {
+            set(to.year, to.month, to.dayOfMonth, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+            timeInMillis
         }
 
-        dialog.show()
+        val constraintsBuilder = CalendarConstraints.Builder()
+        val firstDayOfWeek = settings.firstDayOfWeek
+        if (firstDayOfWeek != -1) {
+            constraintsBuilder.setFirstDayOfWeek(firstDayOfWeek)
+        }
+
+        val picker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText(R.string.choose_date)
+                .setSelection(selectionUtcMidnight)
+                .setCalendarConstraints(constraintsBuilder.build())
+                .build()
+
+        picker.addOnPositiveButtonClickListener { selection ->
+            val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            utc.timeInMillis = selection
+            to.year = utc.get(Calendar.YEAR)
+            to.month = utc.get(Calendar.MONTH)
+            to.dayOfMonth = utc.get(Calendar.DAY_OF_MONTH)
+
+            if (to.before(from)) {
+                Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+            }
+
+            updateDateTimeUI()
+        }
+
+        picker.show(supportFragmentManager, "dateToPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun onTimeToClick(v: View) {
-
         val durationMinutes = (to.timeInMillis - from.timeInMillis) / Consts.MINUTE_IN_MILLISECONDS
+        val is24Hour = android.text.format.DateFormat.is24HourFormat(this)
 
-        val dialog = TimePickerDialog(
-                this,
-                {
-                    _, hour, min ->
+        val picker = MaterialTimePicker.Builder()
+                .setTimeFormat(if (is24Hour) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H)
+                .setHour(to.hourOfDay)
+                .setMinute(to.minute)
+                .setTitleText(R.string.change_event_time)
+                .build()
 
-                    to.hourOfDay = hour
-                    to.minute = min
+        picker.addOnPositiveButtonClickListener {
+            to.hourOfDay = picker.hour
+            to.minute = picker.minute
 
-                    if (to.before(from)) {
-                        Toast.makeText(this, getString(R.string.end_time_before_start_time), Toast.LENGTH_LONG).show()
-                        to = DateTimeUtils.createCalendarTime(from.timeInMillis)
-                        to.addMinutes(durationMinutes.toInt())
-                    }
+            if (to.before(from)) {
+                Snackbar.make(findViewById(android.R.id.content), getString(R.string.end_time_before_start_time), Snackbar.LENGTH_LONG).show()
+                to = DateTimeUtils.createCalendarTime(from.timeInMillis)
+                to.addMinutes(durationMinutes.toInt())
+            }
 
-                    updateDateTimeUI()
-                },
-                to.hourOfDay,
-                to.minute,
-                android.text.format.DateFormat.is24HourFormat(this)
-        )
+            updateDateTimeUI()
+        }
 
-        dialog.show()
+        picker.show(supportFragmentManager, "timeToPicker")
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -1024,7 +1107,7 @@ open class EditEventActivity : AppCompatActivity() {
 
         val isEmailCb = dialogView.find<CheckBox?>(R.id.checkbox_as_email)
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         builder.setView(dialogView)
 
@@ -1036,7 +1119,7 @@ open class EditEventActivity : AppCompatActivity() {
 
             if (intervalMilliseconds > Consts.NEW_EVENT_MAX_REMINDER_MILLISECONDS_BEFORE) {
                 intervalMilliseconds = Consts.NEW_EVENT_MAX_REMINDER_MILLISECONDS_BEFORE
-                Toast.makeText(this, R.string.new_event_max_reminder_is_28_days, Toast.LENGTH_LONG).show()
+                Snackbar.make(findViewById(android.R.id.content), R.string.new_event_max_reminder_is_28_days, Snackbar.LENGTH_LONG).show()
             }
 
             val reminder = EventReminderRecord(
@@ -1079,7 +1162,7 @@ open class EditEventActivity : AppCompatActivity() {
             return showAddReminderCustomDialog(currentReminder, existingReminderView)
         }
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 
@@ -1138,7 +1221,7 @@ open class EditEventActivity : AppCompatActivity() {
         timePicker.minuteCompat = min
 
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         builder.setView(dialogView)
 
@@ -1200,7 +1283,7 @@ open class EditEventActivity : AppCompatActivity() {
             return showAddReminderCustomAllDayDialog(currentReminder, existingReminderView)
         }
 
-        val builder = AlertDialog.Builder(this)
+        val builder = MaterialAlertDialogBuilder(this)
 
         val adapter = ArrayAdapter<String>(this, R.layout.simple_list_item_medium)
 
@@ -1309,5 +1392,10 @@ open class EditEventActivity : AppCompatActivity() {
     companion object {
         private const val LOG_TAG = "EditEventActivity"
         const val EVENT_ID = "event_id"
+
+        private const val TAG_DATE_FROM_PICKER = "dateFromPicker"
+        private const val TAG_TIME_FROM_PICKER = "timeFromPicker"
+        private const val TAG_DATE_TO_PICKER = "dateToPicker"
+        private const val TAG_TIME_TO_PICKER = "timeToPicker"
     }
 }

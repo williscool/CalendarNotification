@@ -208,7 +208,7 @@ class ViewEventActivityTest : BaseUltronTest() {
         withId(R.id.snooze_view_snooze_until).click()
         
         // Should show date picker
-        withClassName(containsString("DatePicker")).isDisplayed()
+        withText(R.string.choose_date).isDisplayed()
         
         scenario.close()
     }
