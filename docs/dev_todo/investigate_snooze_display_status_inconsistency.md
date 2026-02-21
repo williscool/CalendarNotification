@@ -1,36 +1,37 @@
 # Investigate: Snooze displayStatus inconsistency
 
+## Status: INVESTIGATED — minor data hygiene bug, no behavioral impact
+
 ## Summary
 
-Individual snooze and batch snooze handle `displayStatus` differently. Need to investigate whether this is intentional or a bug.
+Individual snooze and batch snooze handle `displayStatus` differently. The batch snooze path forgot to set `displayStatus = Hidden`. This has been present since the original 2016 code and is **not intentional** — just an oversight that never caused problems because snoozed events are filtered by `snoozedUntil` before `displayStatus` matters.
 
-## Discovery
+## What is displayStatus for?
 
-While investigating the sync filter bug (see `fix_sync_display_status_filter.md`), we found that snoozed events had inconsistent `displayStatus` values:
+`displayStatus` is a **notification tray cache** — it tracks the current presentation state of each event in Android's notification manager so `postEventNotifications` can skip redundant work:
 
-- 3 events had `dsts = 0` (Hidden)
-- 155 events had `dsts = 2` (DisplayedCollapsed)
+| Value | Meaning | Effect |
+|-------|---------|--------|
+| `Hidden` (0) | No notification currently in tray | Manager will post a new notification |
+| `DisplayedNormal` (1) | Has its own individual notification | `shouldPostIndividualNotification` returns false (skip) |
+| `DisplayedCollapsed` (2) | Represented in "X more" summary | `postEverythingCollapsed` skips re-posting |
 
-All 158 events were snoozed with future snooze times. The difference was **how** they were snoozed.
+It's an **idempotency/performance optimization** — without it, every call to `postEventNotifications` would tear down and rebuild every notification. It has nothing to do with whether an event is "active" or "dismissed" (that's determined by which table the event lives in: `eventsV9` vs `dismissedEventsV2`).
 
 ## The Inconsistency
 
-### Individual snooze (`snoozeEvent`)
-
-**File:** `android/app/src/main/java/com/github/quarck/calnotify/app/ApplicationController.kt`
-**Lines:** 825-828
+### Individual snooze (`snoozeEvent`) — line 825-828
 
 ```kotlin
 val (success, newEvent) = db.updateEvent(event,
         snoozedUntil = snoozedUntil,
         lastStatusChangeTime = currentTime,
-        displayStatus = EventDisplayStatus.Hidden)  // ← Explicitly sets Hidden
+        displayStatus = EventDisplayStatus.Hidden)  // ← Correctly reflects "no notification in tray"
 ```
 
-### Batch snooze (`snoozeEvents`)
+Then calls `onEventSnoozed` → removes the individual notification → calls `postEventNotifications`.
 
-**File:** `android/app/src/main/java/com/github/quarck/calnotify/app/ApplicationController.kt`
-**Lines:** 894-899
+### Batch snooze (`snoozeEvents`) — line 894-899
 
 ```kotlin
 val (success, _) =
@@ -38,38 +39,63 @@ val (success, _) =
                 event,
                 snoozedUntil = newSnoozeUntil,
                 lastStatusChangeTime = currentTime
-        )  // ← Does NOT change displayStatus
+        )  // ← Leaves displayStatus as DisplayedCollapsed even though cancelAll() removes all notifications
 ```
 
-## Questions to Investigate
+Then calls `onAllEventsSnoozed` → `cancelAll()` (removes all notifications from tray).
 
-1. **Is this intentional?** Was there a reason to set Hidden on individual snooze but not batch?
+## Git history
 
-2. **What's the semantic meaning?** 
-   - Does `displayStatus = Hidden` affect anything when `snoozedUntil > 0`?
-   - When the snooze alarm fires, does it matter what the prior `displayStatus` was?
+- `displayStatus` was created in June 2016 (`fe921bb8`) by Sergey Parshin
+- `snoozeEvent` has **always** set `displayStatus = Hidden` — present from the earliest version (`a2a8e9a1`)
+- `snoozeEvents` (batch) has **never** set it — the omission has been there since the function was created
+- No commit message or code comment suggests this difference was intentional
+- The batch snooze was extracted from `snoozeAllEvents` in `98634331` ("Back port from Calendar Notifications NG") — the omission carried over
 
-3. **What should happen when snooze fires?**
-   - The notification manager will post the event and set `displayStatus = DisplayedNormal` or `DisplayedCollapsed`
-   - Does the starting state matter for sound/vibration behavior?
+## Investigation: Does it affect behavior?
 
-4. **NotificationContext implications:**
-   - `isReminderEvent()` returns `true` if `displayStatus != Hidden || snoozedUntil != 0`
-   - So snoozed events are considered "reminder events" regardless of displayStatus
-   - This suggests displayStatus might not matter for snoozed events?
+**No.** Every code path that reads `displayStatus` for snoozed events is guarded by `snoozedUntil` checks:
 
-## Related Code
+1. **`isReminderEvent`** — `displayStatus != Hidden || snoozedUntil != 0L` → snoozed events always match via the `snoozedUntil` clause regardless of `displayStatus`
+
+2. **`computeHasNewTriggeringEvent`** — requires `snoozedUntil == 0L`, so snoozed events never qualify regardless of `displayStatus`
+
+3. **`shouldPostIndividualNotification`** — `isReturningFromSnooze` (checks `snoozedUntil != 0L`) is the first case and takes priority
+
+4. **`shouldBeQuietForEvent` parameters** — every `displayStatus`-dependent value is ANDed with `!isReturningFromSnooze`:
+   ```kotlin
+   isAlreadyDisplayed = wasCollapsed && !isReturningFromSnooze,  // always false for snooze returns
+   isPrimaryEvent = isPrimaryEvent && !isReturningFromSnooze,    // always false for snooze returns
+   ```
+
+5. **Database overwrite on snooze fire** — when snooze expires, `postEventNotifications` always sets `displayStatus` to `DisplayedNormal` or `DisplayedCollapsed`, overwriting whatever was there
+
+The `snoozedUntil` field is the real gatekeeper for snoozed event behavior. `displayStatus` is irrelevant while an event is snoozed.
+
+## The Fix
+
+Add `displayStatus = EventDisplayStatus.Hidden` to the batch snooze path for data hygiene:
+
+**File:** `android/app/src/main/java/com/github/quarck/calnotify/app/ApplicationController.kt`
 
 ```kotlin
-// NotificationContext.kt line 184-185
-fun isReminderEvent(event: EventAlertRecord): Boolean =
-    event.displayStatus != EventDisplayStatus.Hidden || event.snoozedUntil != 0L
+// In snoozeEvents, around line 894-899:
+val (success, _) =
+        db.updateEvent(
+                event,
+                snoozedUntil = newSnoozeUntil,
+                lastStatusChangeTime = currentTime,
+                displayStatus = EventDisplayStatus.Hidden
+        )
 ```
 
-The `|| snoozedUntil != 0L` part means snoozed events are always treated as reminder events regardless of displayStatus. This might mean the inconsistency has no practical effect.
+### Why
 
-## Next Steps
+- Makes DB state semantically correct (snoozed = no notification in tray = Hidden)
+- Consistent with individual snooze path
+- Zero behavioral change — this is purely data hygiene
+- Prevents future confusion if someone queries the DB and sees "DisplayedCollapsed" for events with no notification
 
-1. Review git history to see if there's context on why these differ
-2. Trace what happens when a snooze alarm fires - does displayStatus affect behavior?
-3. Decide if both should set Hidden, both should preserve, or the current behavior is fine
+## Related
+
+- `docs/dev_todo/fix_sync_display_status_filter.md` — the sync filter bug that surfaced this inconsistency
