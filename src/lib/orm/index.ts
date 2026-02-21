@@ -22,11 +22,7 @@ export async function psInsertDbTable(
   const regDb = open({ name: dbName });
 
   try {
-    // Build query - for eventsV9, only sync active events (not dismissed)
-    // dsts is displayStatus: 0=Hidden (dismissed), 1=DisplayedNormal, 2=DisplayedCollapsed
-    const query = tableName === 'eventsV9' 
-      ? `SELECT * FROM ${tableName} WHERE dsts != 0`
-      : `SELECT * FROM ${tableName}`;
+    const query = `SELECT * FROM ${tableName}`;
     
     const fullTableResult = await regDb.execute(query);
     const rows: SqliteRow[] = fullTableResult?.rows || [];
