@@ -895,7 +895,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                             db.updateEvent(
                                     event,
                                     snoozedUntil = newSnoozeUntil,
-                                    lastStatusChangeTime = currentTime
+                                    lastStatusChangeTime = currentTime,
+                                    displayStatus = EventDisplayStatus.Hidden
                             )
 
                     allSuccess = allSuccess && success;
