@@ -128,7 +128,8 @@ val upcomingEventsFixedLookaheadMillis: Long
     set(value) = setLong(UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY, value.coerceAtMost(MAX_LOOKAHEAD_MILLIS))
 
 // Scan window cap — MonitorStorage only has data this far ahead
-internal const val MAX_LOOKAHEAD_MILLIS = 30L * Consts.DAY_IN_MILLISECONDS
+internal const val MAX_LOOKAHEAD_DAYS = 30L  // derived from manualCalWatchScanWindow
+internal const val MAX_LOOKAHEAD_MILLIS = MAX_LOOKAHEAD_DAYS * Consts.DAY_IN_MILLISECONDS
 ```
 
 `UpcomingEventsLookahead.calculateFixedEndTime()` then uses `upcomingEventsFixedLookaheadMillis` directly instead of multiplying hours.
@@ -149,17 +150,9 @@ val upcomingTimePresetsRaw: String
 
 val upcomingTimePresets: LongArray
     get() {
-        var ret = PreferenceUtils.parseSnoozePresets(upcomingTimePresetsRaw)
-        if (ret == null)
-            ret = PreferenceUtils.parseSnoozePresets(DEFAULT_UPCOMING_TIME_PRESETS)
-        if (ret == null || ret.isEmpty())
-            ret = longArrayOf(
-                4 * Consts.HOUR_IN_MILLISECONDS,
-                8 * Consts.HOUR_IN_MILLISECONDS,
-                1 * Consts.DAY_IN_MILLISECONDS,
-                3 * Consts.DAY_IN_MILLISECONDS,
-                7 * Consts.DAY_IN_MILLISECONDS
-            )
+        val ret = PreferenceUtils.parseSnoozePresets(upcomingTimePresetsRaw)
+            ?: PreferenceUtils.parseSnoozePresets(DEFAULT_UPCOMING_TIME_PRESETS)
+            ?: return longArrayOf() // should never happen — DEFAULT is a compile-time constant
         // Filter out negative values and cap at scan window
         return ret.filter { it > 0 && it <= MAX_LOOKAHEAD_MILLIS }.toLongArray()
     }
@@ -190,7 +183,8 @@ Either create a new `UpcomingTimePresetPreferenceX` (nearly identical to `Snooze
 **Key difference from snooze preset dialog:** No negative values allowed. The help text should say:
 
 ```xml
-<string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum 30 days (calendar scan limit)\n\nLeave empty to use defaults</string>
+<string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum %d days (calendar scan limit)\n\nLeave empty to use defaults</string>
+<!-- Format at runtime with MAX_LOOKAHEAD_DAYS (= MAX_LOOKAHEAD_MILLIS / DAY_IN_MILLISECONDS, currently 30) -->
 ```
 
 ## Implementation Plan
@@ -282,7 +276,8 @@ When the time filter changes (via pill or Settings UI), the Upcoming fragment ne
 <string name="upcoming_time_day_boundary">Day boundary (%s)</string>
 <string name="upcoming_time_presets_title">Lookahead interval presets</string>
 <string name="upcoming_time_presets_summary">Comma-separated intervals (e.g., 4h, 8h, 1d, 3d, 1w)</string>
-<string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum 30 days (calendar scan limit)\n\nLeave empty to use defaults</string>
+<string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum %d days (calendar scan limit)\n\nLeave empty to use defaults</string>
+<!-- Format at runtime with MAX_LOOKAHEAD_DAYS -->
 ```
 
 ## Edge Cases
