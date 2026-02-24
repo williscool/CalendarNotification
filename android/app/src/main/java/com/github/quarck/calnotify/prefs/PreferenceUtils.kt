@@ -19,7 +19,9 @@
 
 package com.github.quarck.calnotify.prefs
 
+import android.content.Context
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
 
 object PreferenceUtils {
 
@@ -116,9 +118,48 @@ object PreferenceUtils {
             pattern.map { p -> formatSnoozePreset(p) }.joinToString(", ")
 
     /**
-     * Format a millisecond duration as a human-readable label (e.g., "8 hours", "3 days", "1 week").
-     * Used for display in bottom sheets and chips.
+     * Parse and normalize a comma-separated preset string.
+     * Returns the normalized string, or null if parsing failed.
+     * [filter] optionally filters the parsed millis values (e.g., positive-only, max cap).
      */
+    fun normalizePresetInput(value: String, defaultValue: String, filter: ((Long) -> Boolean)? = null): String? {
+        val presets = parseSnoozePresets(value) ?: return null
+        val filtered = if (filter != null) presets.filter(filter) else presets.toList()
+        if (filtered.isEmpty()) return defaultValue
+        return value.split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(", ")
+    }
+
+    /**
+     * Format a millisecond duration as a localizable human-readable label using Android plural resources.
+     * Prefer this over the non-Context overload for user-facing text.
+     */
+    fun formatPresetHumanReadable(context: Context, millis: Long): String {
+        val seconds = millis / 1000L
+        val res = context.resources
+
+        if (seconds % Consts.WEEK_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.WEEK_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_weeks, n, n)
+        }
+        if (seconds % Consts.DAY_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.DAY_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_days, n, n)
+        }
+        if (seconds % Consts.HOUR_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.HOUR_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_hours, n, n)
+        }
+        if (seconds % Consts.MINUTE_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.MINUTE_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_minutes, n, n)
+        }
+        return res.getQuantityString(R.plurals.duration_seconds, seconds.toInt(), seconds.toInt())
+    }
+
+    /** Non-Context fallback — English-only. Prefer the Context overload for user-facing text. */
     fun formatPresetHumanReadable(millis: Long): String {
         val seconds = millis / 1000L
 

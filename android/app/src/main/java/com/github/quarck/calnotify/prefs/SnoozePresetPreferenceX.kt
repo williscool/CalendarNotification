@@ -74,33 +74,22 @@ class SnoozePresetPreferenceX @JvmOverloads constructor(
         }
 
         override fun onDialogClosed(positiveResult: Boolean) {
-            if (positiveResult) {
-                val value = edit?.text?.toString()
+            if (!positiveResult) return
+            val value = edit?.text?.toString() ?: return
 
-                if (value != null) {
-                    val presets = PreferenceUtils.parseSnoozePresets(value)
-                    if (presets != null) {
-                        val newValue = if (presets.isEmpty()) {
-                            Settings.DEFAULT_SNOOZE_PRESET
-                        } else {
-                            value.split(',')
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
-                                .joinToString(", ")
-                        }
-
-                        val pref = preference as SnoozePresetPreferenceX
-                        if (pref.callChangeListener(newValue)) {
-                            pref.persistPreset(newValue)
-                        }
-
-                        if (presets.size > Consts.MAX_SUPPORTED_PRESETS) {
-                            showMessage(R.string.error_too_many_presets)
-                        }
-                    } else {
-                        showMessage(R.string.error_cannot_parse_preset)
-                    }
+            val newValue = PreferenceUtils.normalizePresetInput(value, Settings.DEFAULT_SNOOZE_PRESET)
+            if (newValue != null) {
+                val pref = preference as SnoozePresetPreferenceX
+                if (pref.callChangeListener(newValue)) {
+                    pref.persistPreset(newValue)
                 }
+
+                val parsed = PreferenceUtils.parseSnoozePresets(newValue)
+                if (parsed != null && parsed.size > Consts.MAX_SUPPORTED_PRESETS) {
+                    showMessage(R.string.error_too_many_presets)
+                }
+            } else {
+                showMessage(R.string.error_cannot_parse_preset)
             }
         }
 

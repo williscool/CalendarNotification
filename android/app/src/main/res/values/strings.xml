@@ -849,6 +849,28 @@
         <item>50</item>
     </string-array>
     
+    <!-- Time duration plurals (for human-readable preset labels) -->
+    <plurals name="duration_weeks">
+        <item quantity="one">%d week</item>
+        <item quantity="other">%d weeks</item>
+    </plurals>
+    <plurals name="duration_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="duration_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="duration_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <plurals name="duration_seconds">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+    
     <!-- Multi-select mode -->
     <string name="cancel_selection">Cancel selection</string>
     <string name="select_all">Select all</string>

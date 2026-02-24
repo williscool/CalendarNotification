@@ -68,13 +68,15 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
         val currentMode = settings.upcomingEventsMode
         val currentMillis = settings.upcomingEventsFixedLookaheadMillis
         val presets = settings.upcomingTimePresets
+        val radioPaddingV = resources.getDimensionPixelSize(R.dimen.bottom_sheet_radio_padding_vertical)
+        val dividerHeight = resources.getDimensionPixelSize(R.dimen.bottom_sheet_divider_height)
         
         // Day boundary option
         val dayBoundaryRadio = RadioButton(requireContext()).apply {
             id = DAY_BOUNDARY_RADIO_ID
             val hourStr = DateTimeUtils.formatHourOfDay(settings.upcomingEventsDayBoundaryHour)
             text = getString(R.string.upcoming_time_day_boundary, hourStr)
-            setPadding(0, 24, 0, 24)
+            setPadding(0, radioPaddingV, 0, radioPaddingV)
         }
         radioGroup.addView(dayBoundaryRadio)
         
@@ -85,7 +87,7 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
         ta.recycle()
         val divider = View(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 2
+                ViewGroup.LayoutParams.MATCH_PARENT, dividerHeight
             )
             background = dividerDrawable
         }
@@ -98,8 +100,8 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
             presetRadioIds.add(radioId to presetMillis)
             val radio = RadioButton(requireContext()).apply {
                 id = radioId
-                text = PreferenceUtils.formatPresetHumanReadable(presetMillis)
-                setPadding(0, 24, 0, 24)
+                text = PreferenceUtils.formatPresetHumanReadable(requireContext(), presetMillis)
+                setPadding(0, radioPaddingV, 0, radioPaddingV)
             }
             radioGroup.addView(radio)
         }
