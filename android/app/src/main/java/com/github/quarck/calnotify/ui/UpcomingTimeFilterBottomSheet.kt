@@ -78,12 +78,16 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
         }
         radioGroup.addView(dayBoundaryRadio)
         
-        // Divider
+        // Divider — use ?android:attr/listDivider for dark mode compatibility
+        val dividerAttrs = intArrayOf(android.R.attr.listDivider)
+        val ta = requireContext().obtainStyledAttributes(dividerAttrs)
+        val dividerDrawable = ta.getDrawable(0)
+        ta.recycle()
         val divider = View(requireContext()).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 2
             )
-            setBackgroundColor(0x1F000000.toInt())
+            background = dividerDrawable
         }
         radioGroup.addView(divider)
         
