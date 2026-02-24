@@ -469,12 +469,37 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
             .coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR)
         set(value) = setString(UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY, value.coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR).toString())
     
-    /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
+    /** Fixed hours lookahead (1-48, default 8). Legacy property — prefer upcomingEventsFixedLookaheadMillis. */
     var upcomingEventsFixedHours: Int
         get() = (getString(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS.toString())
             .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
             .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)
         set(value) = setString(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS).toString())
+    
+    /** Fixed lookahead in milliseconds. Clamped to MAX_LOOKAHEAD_MILLIS (scan window).
+     *  Falls back to legacy upcomingEventsFixedHours if no millis value is stored. */
+    var upcomingEventsFixedLookaheadMillis: Long
+        get() {
+            val raw = getLong(UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY, -1L)
+            if (raw > 0) return raw.coerceAtMost(MAX_LOOKAHEAD_MILLIS)
+            return (upcomingEventsFixedHours.toLong() * Consts.HOUR_IN_MILLISECONDS).coerceAtMost(MAX_LOOKAHEAD_MILLIS)
+        }
+        set(value) = setLong(UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY, value.coerceIn(1L, MAX_LOOKAHEAD_MILLIS))
+    
+    /** Raw configurable upcoming time presets string (e.g., "4h, 8h, 1d, 3d, 1w") */
+    val upcomingTimePresetsRaw: String
+        get() = getString(UPCOMING_TIME_PRESETS_KEY, DEFAULT_UPCOMING_TIME_PRESETS)
+    
+    /** Parsed upcoming time presets in milliseconds. Filters out negative and >30d values. */
+    val upcomingTimePresets: LongArray
+        get() {
+            val ret = PreferenceUtils.parseSnoozePresets(upcomingTimePresetsRaw)
+                ?: PreferenceUtils.parseSnoozePresets(DEFAULT_UPCOMING_TIME_PRESETS)
+                ?: return longArrayOf()
+            return ret.filter { it > 0 && it <= MAX_LOOKAHEAD_MILLIS }
+                .take(MAX_UPCOMING_TIME_PRESETS)
+                .toLongArray()
+        }
     
     /** Max calendars to show in calendar filter. 0 = no limit (show all). */
     val calendarFilterMaxItems: Int
@@ -586,6 +611,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
         private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
+        private const val UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY = "upcoming_fixed_lookahead_millis"
+        private const val UPCOMING_TIME_PRESETS_KEY = "pref_upcoming_time_presets"
         private const val CALENDAR_FILTER_MAX_ITEMS_KEY = "calendar_filter_max_items"
         private const val CALENDAR_FILTER_SHOW_SEARCH_KEY = "calendar_filter_show_search"
         private const val CALENDAR_FILTER_SHOW_IDS_KEY = "calendar_filter_show_ids"
@@ -607,6 +634,10 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val MAX_DAY_BOUNDARY_HOUR = 10  // 10am (max slack for night owls)
         internal const val MIN_FIXED_HOURS = 1
         internal const val MAX_FIXED_HOURS = 48
+        internal const val DEFAULT_UPCOMING_TIME_PRESETS = "4h, 8h, 1d, 3d, 1w"
+        internal const val MAX_UPCOMING_TIME_PRESETS = 10
+        internal const val MAX_LOOKAHEAD_DAYS = 30L
+        internal const val MAX_LOOKAHEAD_MILLIS = MAX_LOOKAHEAD_DAYS * Consts.DAY_IN_MILLISECONDS
         /** Default max calendars in filter (0 = no limit) */
         internal const val DEFAULT_CALENDAR_FILTER_MAX_ITEMS = 20
     }

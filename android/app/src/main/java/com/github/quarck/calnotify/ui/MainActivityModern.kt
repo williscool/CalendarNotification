@@ -40,6 +40,9 @@ import androidx.navigation.ui.setupWithNavController
 import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.prefs.PreferenceUtils
+import com.github.quarck.calnotify.upcoming.UpcomingEventsLookahead
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
@@ -392,9 +395,9 @@ class MainActivityModern : MainActivityBase() {
                 addTimeChip(TimeFilterBottomSheet.TabType.ACTIVE)
             }
             R.id.upcomingEventsFragment -> {
-                // Upcoming tab: Calendar, Status (Time filter deferred - needs lookahead integration)
                 addCalendarChip()
                 addStatusChip()
+                addUpcomingTimeChip()
             }
             R.id.dismissedEventsFragment -> {
                 // Dismissed tab: Calendar, Time
@@ -590,6 +593,36 @@ class MainActivityModern : MainActivityBase() {
         bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
     }
     
+    // === Upcoming Time Filter Chip ===
+    
+    private fun addUpcomingTimeChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getUpcomingTimeChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showUpcomingTimeFilterBottomSheet() }
+            setOnCloseIconClickListener { showUpcomingTimeFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getUpcomingTimeChipText(): String {
+        val settings = Settings(this)
+        return if (settings.upcomingEventsMode == UpcomingEventsLookahead.MODE_DAY_BOUNDARY) {
+            getString(R.string.upcoming_events_mode_day_boundary)
+        } else {
+            PreferenceUtils.formatPresetHumanReadable(settings.upcomingEventsFixedLookaheadMillis)
+        }
+    }
+    
+    private fun showUpcomingTimeFilterBottomSheet() {
+        val bottomSheet = UpcomingTimeFilterBottomSheet.newInstance()
+        bottomSheet.show(supportFragmentManager, "UpcomingTimeFilterBottomSheet")
+    }
+    
     /** Setup Fragment Result listeners for bottom sheets (survives config changes) */
     private fun setupFilterResultListeners() {
         // Time filter result
@@ -610,6 +643,23 @@ class MainActivityModern : MainActivityBase() {
             val calendarArray = bundle.getLongArray(CalendarFilterBottomSheet.RESULT_CALENDARS)
             val selectedCalendars: Set<Long>? = calendarArray?.toSet()
             filterState = filterState.copy(selectedCalendarIds = selectedCalendars)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Upcoming time filter result — writes to Settings, not FilterState
+        supportFragmentManager.setFragmentResultListener(
+            UpcomingTimeFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val mode = bundle.getString(UpcomingTimeFilterBottomSheet.RESULT_MODE) ?: return@setFragmentResultListener
+            val settings = Settings(this)
+            settings.upcomingEventsMode = mode
+            if (mode == UpcomingEventsLookahead.MODE_FIXED) {
+                val millis = bundle.getLong(UpcomingTimeFilterBottomSheet.RESULT_MILLIS, -1L)
+                if (millis > 0) {
+                    settings.upcomingEventsFixedLookaheadMillis = millis
+                }
+            }
             updateFilterChipsForCurrentTab()
             notifyCurrentFragmentFilterChanged()
         }

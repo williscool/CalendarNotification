@@ -41,14 +41,6 @@
         android:dependency="use_new_navigation_ui">
 
         <ListPreference
-            android:key="upcoming_events_mode"
-            android:title="@string/upcoming_events_mode_title"
-            android:dialogTitle="@string/upcoming_events_mode_title"
-            android:entries="@array/upcoming_events_mode_entries"
-            android:entryValues="@array/upcoming_events_mode_values"
-            android:defaultValue="fixed" />
-
-        <ListPreference
             android:key="upcoming_events_day_boundary_hour"
             android:title="@string/upcoming_events_day_boundary_hour_title"
             android:dialogTitle="@string/upcoming_events_day_boundary_hour_title"
@@ -56,13 +48,11 @@
             android:entryValues="@array/upcoming_events_day_boundary_hour_values"
             android:defaultValue="4" />
 
-        <ListPreference
-            android:key="upcoming_events_fixed_hours"
-            android:title="@string/upcoming_events_fixed_hours_title"
-            android:dialogTitle="@string/upcoming_events_fixed_hours_title"
-            android:entries="@array/upcoming_events_fixed_hours_entries"
-            android:entryValues="@array/upcoming_events_fixed_hours_values"
-            android:defaultValue="8" />
+        <com.github.quarck.calnotify.prefs.UpcomingTimePresetPreferenceX
+            android:key="pref_upcoming_time_presets"
+            android:title="@string/upcoming_time_presets_title"
+            android:summary="@string/upcoming_time_presets_summary"
+            android:defaultValue="4h, 8h, 1d, 3d, 1w" />
 
     </PreferenceCategory>
 

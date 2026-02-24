@@ -27,6 +27,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceDialogFragmentCompat
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.ui.MainActivityLegacy
@@ -41,21 +42,31 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     companion object {
         // Delay before restarting app to let user see the "Restarting..." toast
         private const val RESTART_DELAY_FOR_TOAST_VISIBILITY_MS = 500L
+        private const val DIALOG_FRAGMENT_TAG = "NavigationSettingsFragmentX.DIALOG"
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.navigation_preferences, rootKey)
         
-        // Set up click handler for "Switch to Classic View" button
         findPreference<Preference>("switch_to_classic_view")?.setOnPreferenceClickListener {
             showSwitchToClassicViewDialog()
             true
         }
         
-        // Set up click handler for "Switch to New View" button
         findPreference<Preference>("switch_to_new_view")?.setOnPreferenceClickListener {
             showSwitchToNewViewDialog()
             true
+        }
+    }
+    
+    override fun onDisplayPreferenceDialog(preference: Preference) {
+        if (preference is UpcomingTimePresetPreferenceX) {
+            val dialogFragment = UpcomingTimePresetPreferenceX.Dialog.newInstance(preference.key)
+            @Suppress("DEPRECATION")
+            dialogFragment.setTargetFragment(this, 0)
+            dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+        } else {
+            super.onDisplayPreferenceDialog(preference)
         }
     }
     

@@ -920,7 +920,7 @@ Each phase is independently testable and deliverable.
     - "5 events matching Snoozed, Muted filters will be snoozed"
     - "3 events matching 'meeting', Snoozed filter will be snoozed" (search + filter)
     - Pattern: `X event(s) matching [search], [filter1, filter2, ...] will be snoozed`
-- **Time filter for Upcoming tab** - Needs thoughtful integration with existing lookahead settings (fixed hours vs. day boundary mode). Could filter within existing lookahead or override/extend it. Implement after Calendar filter to learn from those patterns.
+- **Time filter for Upcoming tab** - Spec'd out: [upcoming_time_filter.md](./upcoming_time_filter.md) ([#216](https://github.com/williscool/CalendarNotification/issues/216)). Unlike other time filters, this controls the lookahead window and persists to Settings.
 - **Fix test activity calendar creation** - The test activity (`TestActivityCalendarEvents` or similar) creates a new calendar each time it runs instead of reusing an existing "Test Calendar". This leads to hundreds of duplicate calendars over time (observed 718 "Test Calendar" entries). Should check for existing test calendar by name before creating a new one.
 
 ### potential

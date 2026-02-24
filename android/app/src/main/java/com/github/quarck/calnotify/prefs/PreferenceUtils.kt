@@ -36,18 +36,23 @@ object PreferenceUtils {
     internal fun formatSnoozePreset(value: Long): String {
         val seconds = value / 1000L
 
-        if (seconds % (3600L * 24) == 0L) {
-            val days = seconds / (3600L * 24)
+        if (seconds % Consts.WEEK_IN_SECONDS == 0L) {
+            val weeks = seconds / Consts.WEEK_IN_SECONDS
+            return "${weeks}w"
+        }
+
+        if (seconds % Consts.DAY_IN_SECONDS == 0L) {
+            val days = seconds / Consts.DAY_IN_SECONDS
             return "${days}d"
         }
 
-        if (seconds % 3600L == 0L) {
-            val hours = seconds / 3600L
+        if (seconds % Consts.HOUR_IN_SECONDS == 0L) {
+            val hours = seconds / Consts.HOUR_IN_SECONDS
             return "${hours}h"
         }
 
-        if (seconds % 60L == 0L) {
-            val minutes = seconds / 60L
+        if (seconds % Consts.MINUTE_IN_SECONDS == 0L) {
+            val minutes = seconds / Consts.MINUTE_IN_SECONDS
             return "${minutes}m"
         }
 
@@ -70,9 +75,10 @@ object PreferenceUtils {
                         val seconds =
                                 when (unit) {
                                     "s" -> num
-                                    "m" -> num * Consts.MINUTE_IN_SECONDS;
-                                    "h" -> num * Consts.HOUR_IN_SECONDS;
-                                    "d" -> num * Consts.DAY_IN_SECONDS;
+                                    "m" -> num * Consts.MINUTE_IN_SECONDS
+                                    "h" -> num * Consts.HOUR_IN_SECONDS
+                                    "d" -> num * Consts.DAY_IN_SECONDS
+                                    "w" -> num * Consts.WEEK_IN_SECONDS
                                     else -> throw Exception("Unknown unit ${unit}")
                                 }
                         seconds * 1000L
@@ -108,4 +114,30 @@ object PreferenceUtils {
 
     fun formatPattern(pattern: LongArray): String =
             pattern.map { p -> formatSnoozePreset(p) }.joinToString(", ")
+
+    /**
+     * Format a millisecond duration as a human-readable label (e.g., "8 hours", "3 days", "1 week").
+     * Used for display in bottom sheets and chips.
+     */
+    fun formatPresetHumanReadable(millis: Long): String {
+        val seconds = millis / 1000L
+
+        if (seconds % Consts.WEEK_IN_SECONDS == 0L) {
+            val weeks = seconds / Consts.WEEK_IN_SECONDS
+            return if (weeks == 1L) "1 week" else "$weeks weeks"
+        }
+        if (seconds % Consts.DAY_IN_SECONDS == 0L) {
+            val days = seconds / Consts.DAY_IN_SECONDS
+            return if (days == 1L) "1 day" else "$days days"
+        }
+        if (seconds % Consts.HOUR_IN_SECONDS == 0L) {
+            val hours = seconds / Consts.HOUR_IN_SECONDS
+            return if (hours == 1L) "1 hour" else "$hours hours"
+        }
+        if (seconds % Consts.MINUTE_IN_SECONDS == 0L) {
+            val minutes = seconds / Consts.MINUTE_IN_SECONDS
+            return if (minutes == 1L) "1 minute" else "$minutes minutes"
+        }
+        return "$seconds seconds"
+    }
 }

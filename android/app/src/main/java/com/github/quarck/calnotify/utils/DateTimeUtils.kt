@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.utils
 
+import java.text.SimpleDateFormat
 import java.util.*
 
 object DateTimeUtils {
@@ -137,6 +138,18 @@ object DateTimeUtils {
         val tsCal = createCalendarTime(timestamp)
         return nowCal.get(Calendar.YEAR) == tsCal.get(Calendar.YEAR) &&
                nowCal.get(Calendar.MONTH) == tsCal.get(Calendar.MONTH)
+    }
+
+    /**
+     * Format an hour-of-day (0-23) as a locale-aware time string (e.g., "4 AM", "16:00").
+     */
+    fun formatHourOfDay(hour: Int): String {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, 0)
+        }
+        val format = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT)
+        return format.format(cal.time)
     }
 }
 
