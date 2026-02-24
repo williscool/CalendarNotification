@@ -812,6 +812,13 @@
     <string name="switch_to_new_view_confirm">Switch to new view? The app will restart.</string>
     <string name="restarting">Restarting…</string>
     
+    <!-- Upcoming time filter bottom sheet -->
+    <string name="upcoming_time_filter_title">Upcoming Window</string>
+    <string name="upcoming_time_day_boundary">Day boundary (%s)</string>
+    <string name="upcoming_time_presets_title">Lookahead interval presets</string>
+    <string name="upcoming_time_presets_summary">Comma-separated intervals (e.g., 4h, 8h, 1d, 3d, 1w)</string>
+    <string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum %d days (calendar scan limit)\n\nLeave empty to use defaults</string>
+    
     <!-- Filter settings -->
     <string name="filter_settings_category">Filters</string>
     <string name="calendar_filter_max_items_title">Max calendars in filter</string>

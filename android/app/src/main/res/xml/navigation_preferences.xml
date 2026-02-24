@@ -64,6 +64,12 @@
             android:entryValues="@array/upcoming_events_fixed_hours_values"
             android:defaultValue="8" />
 
+        <com.github.quarck.calnotify.prefs.UpcomingTimePresetPreferenceX
+            android:key="pref_upcoming_time_presets"
+            android:title="@string/upcoming_time_presets_title"
+            android:summary="@string/upcoming_time_presets_summary"
+            android:defaultValue="4h, 8h, 1d, 3d, 1w" />
+
     </PreferenceCategory>
 
     <PreferenceCategory
