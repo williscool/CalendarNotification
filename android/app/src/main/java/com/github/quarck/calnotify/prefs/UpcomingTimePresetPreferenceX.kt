@@ -70,7 +70,7 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
             val pref = preference as UpcomingTimePresetPreferenceX
 
             val label = view.findViewById<TextView>(R.id.text_label_upcoming_presets)
-            label?.text = getString(R.string.dialog_upcoming_time_presets_label, Settings.MAX_LOOKAHEAD_DAYS.toInt())
+            label?.text = getString(R.string.dialog_upcoming_time_presets_label, Settings.MAX_UPCOMING_TIME_PRESETS, Settings.MAX_LOOKAHEAD_DAYS.toInt())
 
             edit = view.findViewById(R.id.edit_text_upcoming_time_presets)
             edit?.setText(pref.presetValue)
@@ -98,6 +98,10 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
                         if (pref.callChangeListener(newValue)) {
                             pref.persistPreset(newValue)
                         }
+
+                        if (validPresets.size > Settings.MAX_UPCOMING_TIME_PRESETS) {
+                            showFormattedMessage(R.string.error_too_many_upcoming_presets, Settings.MAX_UPCOMING_TIME_PRESETS)
+                        }
                     } else {
                         showMessage(R.string.error_cannot_parse_preset)
                     }
@@ -109,6 +113,16 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
             val context = requireContext()
             AlertDialog.Builder(context)
                 .setMessage(context.getString(id))
+                .setCancelable(false)
+                .setPositiveButton(android.R.string.ok) { _, _ -> }
+                .create()
+                .show()
+        }
+
+        private fun showFormattedMessage(id: Int, vararg args: Any) {
+            val context = requireContext()
+            AlertDialog.Builder(context)
+                .setMessage(context.getString(id, *args))
                 .setCancelable(false)
                 .setPositiveButton(android.R.string.ok) { _, _ -> }
                 .create()

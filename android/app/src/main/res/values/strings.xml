@@ -816,8 +816,9 @@
     <string name="upcoming_time_filter_title">Upcoming Window</string>
     <string name="upcoming_time_day_boundary">Day boundary (%s)</string>
     <string name="upcoming_time_presets_title">Lookahead interval presets</string>
+    <string name="error_too_many_upcoming_presets">Only up to %d presets are supported, extra presets will be ignored</string>
     <string name="upcoming_time_presets_summary">Comma-separated intervals (e.g., 4h, 8h, 1d, 3d, 1w)</string>
-    <string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum %d days (calendar scan limit)\n\nLeave empty to use defaults</string>
+    <string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nUp to %1$d items in the list\n\nMaximum %2$d days (calendar scan limit)\n\nLeave empty to use defaults</string>
     
     <!-- Filter settings -->
     <string name="filter_settings_category">Filters</string>

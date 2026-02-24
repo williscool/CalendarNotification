@@ -496,7 +496,9 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
             val ret = PreferenceUtils.parseSnoozePresets(upcomingTimePresetsRaw)
                 ?: PreferenceUtils.parseSnoozePresets(DEFAULT_UPCOMING_TIME_PRESETS)
                 ?: return longArrayOf()
-            return ret.filter { it > 0 && it <= MAX_LOOKAHEAD_MILLIS }.toLongArray()
+            return ret.filter { it > 0 && it <= MAX_LOOKAHEAD_MILLIS }
+                .take(MAX_UPCOMING_TIME_PRESETS)
+                .toLongArray()
         }
     
     /** Max calendars to show in calendar filter. 0 = no limit (show all). */
@@ -633,6 +635,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val MIN_FIXED_HOURS = 1
         internal const val MAX_FIXED_HOURS = 48
         internal const val DEFAULT_UPCOMING_TIME_PRESETS = "4h, 8h, 1d, 3d, 1w"
+        internal const val MAX_UPCOMING_TIME_PRESETS = 10
         internal const val MAX_LOOKAHEAD_DAYS = 30L
         internal const val MAX_LOOKAHEAD_MILLIS = MAX_LOOKAHEAD_DAYS * Consts.DAY_IN_MILLISECONDS
         /** Default max calendars in filter (0 = no limit) */
