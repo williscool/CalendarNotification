@@ -40,6 +40,7 @@ import com.github.quarck.calnotify.ui.MainActivityModern
 class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     
     companion object {
+        // Delay before restarting app to let user see the "Restarting..." toast
         private const val RESTART_DELAY_FOR_TOAST_VISIBILITY_MS = 500L
         private const val DIALOG_FRAGMENT_TAG = "NavigationSettingsFragmentX.DIALOG"
     }

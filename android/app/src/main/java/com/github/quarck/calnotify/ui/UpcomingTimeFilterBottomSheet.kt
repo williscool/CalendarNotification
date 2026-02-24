@@ -32,6 +32,7 @@ import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.prefs.PreferenceUtils
 import com.github.quarck.calnotify.upcoming.UpcomingEventsLookahead
+import com.github.quarck.calnotify.utils.DateTimeUtils
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 /**
@@ -59,7 +60,9 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         
         val settings = Settings(requireContext())
-        val radioGroup = view.findViewById<RadioGroup>(R.id.upcoming_time_radio_group)
+        val radioGroup = view.findViewById<RadioGroup>(R.id.upcoming_time_radio_group).apply {
+            isSaveEnabled = false
+        }
         val applyButton = view.findViewById<Button>(R.id.btn_apply)
         
         val currentMode = settings.upcomingEventsMode
@@ -69,7 +72,7 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
         // Day boundary option
         val dayBoundaryRadio = RadioButton(requireContext()).apply {
             id = DAY_BOUNDARY_RADIO_ID
-            val hourStr = formatBoundaryHour(settings.upcomingEventsDayBoundaryHour)
+            val hourStr = DateTimeUtils.formatHourOfDay(settings.upcomingEventsDayBoundaryHour)
             text = getString(R.string.upcoming_time_day_boundary, hourStr)
             setPadding(0, 24, 0, 24)
         }
@@ -123,13 +126,6 @@ class UpcomingTimeFilterBottomSheet : BottomSheetDialogFragment() {
             }
             dismiss()
         }
-    }
-    
-    private fun formatBoundaryHour(hour: Int): String {
-        return if (hour == 0) "12 AM"
-        else if (hour < 12) "$hour AM"
-        else if (hour == 12) "12 PM"
-        else "${hour - 12} PM"
     }
     
     companion object {
