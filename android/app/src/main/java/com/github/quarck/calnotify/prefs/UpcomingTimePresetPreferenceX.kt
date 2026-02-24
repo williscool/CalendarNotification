@@ -70,7 +70,7 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
             val pref = preference as UpcomingTimePresetPreferenceX
 
             val label = view.findViewById<TextView>(R.id.text_label_upcoming_presets)
-            label?.text = getString(R.string.dialog_upcoming_time_presets_label, Settings.MAX_UPCOMING_TIME_PRESETS, Settings.MAX_LOOKAHEAD_DAYS.toInt())
+            label?.text = getString(R.string.dialog_upcoming_time_presets_label, Settings.MAX_LOOKAHEAD_DAYS.toInt(), Settings.MAX_UPCOMING_TIME_PRESETS)
 
             edit = view.findViewById(R.id.edit_text_upcoming_time_presets)
             edit?.setText(pref.presetValue)
