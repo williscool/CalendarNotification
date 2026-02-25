@@ -119,17 +119,19 @@ object PreferenceUtils {
 
     /**
      * Parse and normalize a comma-separated preset string.
-     * Returns the normalized string, or null if parsing failed.
-     * [filter] optionally filters the parsed millis values (e.g., positive-only, max cap).
+     * Returns the normalized string, or null if parsing failed entirely.
+     * [filter] removes individual millis values that don't pass (e.g., negative, over max).
      */
     fun normalizePresetInput(value: String, defaultValue: String, filter: ((Long) -> Boolean)? = null): String? {
         val presets = parseSnoozePresets(value) ?: return null
-        val filtered = if (filter != null) presets.filter(filter) else presets.toList()
-        if (filtered.isEmpty()) return defaultValue
-        return value.split(',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString(", ")
+        val tokens = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        val kept = if (filter != null) {
+            tokens.zip(presets.toList()).filter { (_, millis) -> filter(millis) }.map { it.first }
+        } else {
+            tokens
+        }
+        if (kept.isEmpty()) return defaultValue
+        return kept.joinToString(", ")
     }
 
     /**
