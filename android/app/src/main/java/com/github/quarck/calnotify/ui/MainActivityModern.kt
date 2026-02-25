@@ -614,7 +614,7 @@ class MainActivityModern : MainActivityBase() {
         return if (settings.upcomingEventsMode == UpcomingEventsLookahead.MODE_DAY_BOUNDARY) {
             getString(R.string.upcoming_events_mode_day_boundary)
         } else {
-            PreferenceUtils.formatPresetHumanReadable(settings.upcomingEventsFixedLookaheadMillis)
+            PreferenceUtils.formatPresetHumanReadable(this, settings.upcomingEventsFixedLookaheadMillis)
         }
     }
     

@@ -109,6 +109,9 @@
 
 
     <dimen name="add_event_view_title_height">60dp</dimen>
+    <dimen name="bottom_sheet_radio_padding_vertical">12dp</dimen>
+    <dimen name="bottom_sheet_divider_height">1dp</dimen>
+
     <dimen name="dimen_main_settings_padding_bottom">15dp</dimen>
     <dimen name="dimen_main_settings_padding_end">20dp</dimen>
     <dimen name="dimen_main_settings_padding_start">20dp</dimen>

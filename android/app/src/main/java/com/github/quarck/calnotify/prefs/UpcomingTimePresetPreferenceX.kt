@@ -77,35 +77,29 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
         }
 
         override fun onDialogClosed(positiveResult: Boolean) {
-            if (positiveResult) {
-                val value = edit?.text?.toString()
+            if (!positiveResult) return
+            val value = edit?.text?.toString() ?: return
 
-                if (value != null) {
-                    val presets = PreferenceUtils.parseSnoozePresets(value)
-                    if (presets != null) {
-                        // Filter out negative values
-                        val validPresets = presets.filter { it > 0 }
-                        val newValue = if (validPresets.isEmpty()) {
-                            Settings.DEFAULT_UPCOMING_TIME_PRESETS
-                        } else {
-                            value.split(',')
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
-                                .joinToString(", ")
-                        }
+            val result = PreferenceUtils.normalizePresetInput(
+                value, Settings.DEFAULT_UPCOMING_TIME_PRESETS
+            ) { it > 0 && it <= Settings.MAX_LOOKAHEAD_MILLIS }
 
-                        val pref = preference as UpcomingTimePresetPreferenceX
-                        if (pref.callChangeListener(newValue)) {
-                            pref.persistPreset(newValue)
-                        }
-
-                        if (validPresets.size > Settings.MAX_UPCOMING_TIME_PRESETS) {
-                            showFormattedMessage(R.string.error_too_many_upcoming_presets, Settings.MAX_UPCOMING_TIME_PRESETS)
-                        }
-                    } else {
-                        showMessage(R.string.error_cannot_parse_preset)
-                    }
+            if (result != null) {
+                val pref = preference as UpcomingTimePresetPreferenceX
+                if (pref.callChangeListener(result.value)) {
+                    pref.persistPreset(result.value)
                 }
+
+                if (result.droppedCount > 0) {
+                    showMessage(R.string.warning_presets_invalid_removed)
+                }
+
+                val parsed = PreferenceUtils.parseSnoozePresets(result.value)
+                if (parsed != null && parsed.size > Settings.MAX_UPCOMING_TIME_PRESETS) {
+                    showFormattedMessage(R.string.error_too_many_upcoming_presets, Settings.MAX_UPCOMING_TIME_PRESETS)
+                }
+            } else {
+                showMessage(R.string.error_cannot_parse_preset)
             }
         }
 
