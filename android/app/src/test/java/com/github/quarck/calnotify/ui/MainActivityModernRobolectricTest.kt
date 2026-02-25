@@ -850,6 +850,9 @@ class MainActivityModernRobolectricTest {
     
     @Test
     fun search_hint_shows_x_of_y_when_filters_active() {
+        val filterState = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        ActiveEventsFragment.filterStateProvider = { filterState }
+        
         fixture.createEvent(title = "Active Event 1")
         fixture.createEvent(title = "Active Event 2")
         fixture.createEvent(title = "Snoozed Event", snoozedUntil = Long.MAX_VALUE)
@@ -858,14 +861,7 @@ class MainActivityModernRobolectricTest {
         shadowOf(Looper.getMainLooper()).idle()
         
         scenario.onActivity { activity ->
-            activity.setFilterStateForTesting(FilterState(statusFilters = setOf(StatusOption.ACTIVE)))
-            
-            val navHostFragment = activity.supportFragmentManager
-                .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-            val fragment = navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
-            fragment?.onFilterChanged()
-            shadowOf(Looper.getMainLooper()).idle()
-            
+            activity.setFilterStateForTesting(filterState)
             activity.invalidateOptionsMenu()
             shadowOf(Looper.getMainLooper()).idle()
             
@@ -880,6 +876,9 @@ class MainActivityModernRobolectricTest {
     
     @Test
     fun search_hint_shows_standard_format_when_filters_match_all() {
+        val filterState = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        ActiveEventsFragment.filterStateProvider = { filterState }
+        
         fixture.createEvent(title = "Snoozed 1", snoozedUntil = Long.MAX_VALUE)
         fixture.createEvent(title = "Snoozed 2", snoozedUntil = Long.MAX_VALUE)
         
@@ -887,15 +886,7 @@ class MainActivityModernRobolectricTest {
         shadowOf(Looper.getMainLooper()).idle()
         
         scenario.onActivity { activity ->
-            // Filter for SNOOZED, but all events are snoozed → count == totalCount
-            activity.setFilterStateForTesting(FilterState(statusFilters = setOf(StatusOption.SNOOZED)))
-            
-            val navHostFragment = activity.supportFragmentManager
-                .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-            val fragment = navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
-            fragment?.onFilterChanged()
-            shadowOf(Looper.getMainLooper()).idle()
-            
+            activity.setFilterStateForTesting(filterState)
             activity.invalidateOptionsMenu()
             shadowOf(Looper.getMainLooper()).idle()
             
@@ -909,6 +900,9 @@ class MainActivityModernRobolectricTest {
     
     @Test
     fun getTotalEventCount_returns_unfiltered_count() {
+        val filterState = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        ActiveEventsFragment.filterStateProvider = { filterState }
+        
         fixture.createEvent(title = "Active Event")
         fixture.createEvent(title = "Snoozed Event", snoozedUntil = Long.MAX_VALUE)
         fixture.createEvent(title = "Muted Event", isMuted = true)
@@ -917,13 +911,9 @@ class MainActivityModernRobolectricTest {
         shadowOf(Looper.getMainLooper()).idle()
         
         scenario.onActivity { activity ->
-            activity.setFilterStateForTesting(FilterState(statusFilters = setOf(StatusOption.SNOOZED)))
-            
             val navHostFragment = activity.supportFragmentManager
                 .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
             val fragment = navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
-            fragment?.onFilterChanged()
-            shadowOf(Looper.getMainLooper()).idle()
             
             assertEquals("Filtered count should be 1 (only snoozed)", 1, fragment!!.getEventCount())
             assertEquals("Total count should be 3 (all events)", 3, fragment.getTotalEventCount())
