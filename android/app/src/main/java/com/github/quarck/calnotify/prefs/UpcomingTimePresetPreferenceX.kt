@@ -91,7 +91,7 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
                 }
 
                 if (result.droppedCount > 0) {
-                    showFormattedMessage(R.string.warning_presets_exceeded_max_days, Settings.MAX_LOOKAHEAD_DAYS.toInt())
+                    showMessage(R.string.warning_presets_invalid_removed)
                 }
 
                 val parsed = PreferenceUtils.parseSnoozePresets(result.value)
