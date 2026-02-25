@@ -117,21 +117,25 @@ object PreferenceUtils {
     fun formatPattern(pattern: LongArray): String =
             pattern.map { p -> formatSnoozePreset(p) }.joinToString(", ")
 
+    data class NormalizeResult(val value: String, val droppedCount: Int)
+
     /**
      * Parse and normalize a comma-separated preset string.
-     * Returns the normalized string, or null if parsing failed entirely.
+     * Returns null if parsing failed entirely.
      * [filter] removes individual millis values that don't pass (e.g., negative, over max).
+     * [droppedCount] in the result indicates how many values were removed by the filter.
      */
-    fun normalizePresetInput(value: String, defaultValue: String, filter: ((Long) -> Boolean)? = null): String? {
+    fun normalizePresetInput(value: String, defaultValue: String, filter: ((Long) -> Boolean)? = null): NormalizeResult? {
         val presets = parseSnoozePresets(value) ?: return null
         val tokens = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        val totalCount = tokens.size
         val kept = if (filter != null) {
             tokens.zip(presets.toList()).filter { (_, millis) -> filter(millis) }.map { it.first }
         } else {
             tokens
         }
-        if (kept.isEmpty()) return defaultValue
-        return kept.joinToString(", ")
+        if (kept.isEmpty()) return NormalizeResult(defaultValue, totalCount)
+        return NormalizeResult(kept.joinToString(", "), totalCount - kept.size)
     }
 
     /**

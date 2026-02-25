@@ -80,17 +80,21 @@ class UpcomingTimePresetPreferenceX @JvmOverloads constructor(
             if (!positiveResult) return
             val value = edit?.text?.toString() ?: return
 
-            val newValue = PreferenceUtils.normalizePresetInput(
+            val result = PreferenceUtils.normalizePresetInput(
                 value, Settings.DEFAULT_UPCOMING_TIME_PRESETS
             ) { it > 0 && it <= Settings.MAX_LOOKAHEAD_MILLIS }
 
-            if (newValue != null) {
+            if (result != null) {
                 val pref = preference as UpcomingTimePresetPreferenceX
-                if (pref.callChangeListener(newValue)) {
-                    pref.persistPreset(newValue)
+                if (pref.callChangeListener(result.value)) {
+                    pref.persistPreset(result.value)
                 }
 
-                val parsed = PreferenceUtils.parseSnoozePresets(newValue)
+                if (result.droppedCount > 0) {
+                    showFormattedMessage(R.string.warning_presets_exceeded_max_days, Settings.MAX_LOOKAHEAD_DAYS.toInt())
+                }
+
+                val parsed = PreferenceUtils.parseSnoozePresets(result.value)
                 if (parsed != null && parsed.size > Settings.MAX_UPCOMING_TIME_PRESETS) {
                     showFormattedMessage(R.string.error_too_many_upcoming_presets, Settings.MAX_UPCOMING_TIME_PRESETS)
                 }

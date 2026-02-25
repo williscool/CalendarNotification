@@ -77,14 +77,14 @@ class SnoozePresetPreferenceX @JvmOverloads constructor(
             if (!positiveResult) return
             val value = edit?.text?.toString() ?: return
 
-            val newValue = PreferenceUtils.normalizePresetInput(value, Settings.DEFAULT_SNOOZE_PRESET)
-            if (newValue != null) {
+            val result = PreferenceUtils.normalizePresetInput(value, Settings.DEFAULT_SNOOZE_PRESET)
+            if (result != null) {
                 val pref = preference as SnoozePresetPreferenceX
-                if (pref.callChangeListener(newValue)) {
-                    pref.persistPreset(newValue)
+                if (pref.callChangeListener(result.value)) {
+                    pref.persistPreset(result.value)
                 }
 
-                val parsed = PreferenceUtils.parseSnoozePresets(newValue)
+                val parsed = PreferenceUtils.parseSnoozePresets(result.value)
                 if (parsed != null && parsed.size > Consts.MAX_SUPPORTED_PRESETS) {
                     showMessage(R.string.error_too_many_presets)
                 }
