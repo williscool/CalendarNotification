@@ -845,4 +845,80 @@ class MainActivityModernRobolectricTest {
         
         scenario.close()
     }
+    
+    // === Search Hint "X of Y" Tests ===
+    
+    @Test
+    fun search_hint_shows_x_of_y_when_filters_active() {
+        val filterState = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        ActiveEventsFragment.filterStateProvider = { filterState }
+        
+        fixture.createEvent(title = "Active Event 1")
+        fixture.createEvent(title = "Active Event 2")
+        fixture.createEvent(title = "Snoozed Event", snoozedUntil = Long.MAX_VALUE)
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.setFilterStateForTesting(filterState)
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val hint = activity.searchView!!.queryHint?.toString() ?: ""
+            assertTrue("Hint should contain filtered count '2'", hint.contains("2"))
+            assertTrue("Hint should contain total count '3'", hint.contains("3"))
+            assertTrue("Hint should contain 'of'", hint.contains("of"))
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun search_hint_shows_standard_format_when_filters_match_all() {
+        val filterState = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        ActiveEventsFragment.filterStateProvider = { filterState }
+        
+        fixture.createEvent(title = "Snoozed 1", snoozedUntil = Long.MAX_VALUE)
+        fixture.createEvent(title = "Snoozed 2", snoozedUntil = Long.MAX_VALUE)
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            activity.setFilterStateForTesting(filterState)
+            activity.invalidateOptionsMenu()
+            shadowOf(Looper.getMainLooper()).idle()
+            
+            val hint = activity.searchView!!.queryHint?.toString() ?: ""
+            assertTrue("Hint should contain count '2'", hint.contains("2"))
+            assertFalse("Hint should NOT contain 'of' when all match", hint.contains("of"))
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun getTotalEventCount_returns_unfiltered_count() {
+        val filterState = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        ActiveEventsFragment.filterStateProvider = { filterState }
+        
+        fixture.createEvent(title = "Active Event")
+        fixture.createEvent(title = "Snoozed Event", snoozedUntil = Long.MAX_VALUE)
+        fixture.createEvent(title = "Muted Event", isMuted = true)
+        
+        val scenario = fixture.launchMainActivityModern()
+        shadowOf(Looper.getMainLooper()).idle()
+        
+        scenario.onActivity { activity ->
+            val navHostFragment = activity.supportFragmentManager
+                .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+            val fragment = navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
+            
+            assertEquals("Filtered count should be 1 (only snoozed)", 1, fragment!!.getEventCount())
+            assertEquals("Total count should be 3 (all events)", 3, fragment.getTotalEventCount())
+        }
+        
+        scenario.close()
+    }
 }

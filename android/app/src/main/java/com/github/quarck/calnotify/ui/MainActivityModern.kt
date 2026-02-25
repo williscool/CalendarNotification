@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.ui
 
 import android.app.AlertDialog
 import android.app.SearchManager
+import androidx.annotation.VisibleForTesting
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -110,6 +111,11 @@ class MainActivityModern : MainActivityBase() {
     
     /** Get current filter state for fragments to use */
     fun getCurrentFilterState(): FilterState = filterState
+
+    @VisibleForTesting
+    fun setFilterStateForTesting(state: FilterState) {
+        filterState = state
+    }
 
     private fun setupUI() {
         setContentView(R.layout.activity_main)
@@ -254,13 +260,18 @@ class MainActivityModern : MainActivityBase() {
         val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
 
         val count = currentFragment?.getEventCount() ?: 0
+        val totalCount = currentFragment?.getTotalEventCount() ?: count
         val tabName = when (navController?.currentDestination?.id) {
             R.id.activeEventsFragment -> getString(R.string.nav_active)
             R.id.upcomingEventsFragment -> getString(R.string.nav_upcoming)
             R.id.dismissedEventsFragment -> getString(R.string.nav_dismissed)
             else -> ""
         }
-        searchView?.queryHint = resources.getQuantityString(R.plurals.search_placeholder, count, count, tabName)
+        searchView?.queryHint = if (filterState.hasActiveFilters() && count != totalCount) {
+            resources.getQuantityString(R.plurals.search_placeholder_filtered, count, count, totalCount, tabName)
+        } else {
+            resources.getQuantityString(R.plurals.search_placeholder, count, count, tabName)
+        }
         searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
 
         searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {

@@ -63,6 +63,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: DismissedEventListAdapter
+    private var totalEventCount: Int = 0
     
     private val dataUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -166,11 +167,13 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
         val now = clock.currentTimeMillis()
         
         background {
-            val events = getDismissedEventsStorage(ctx).use { db ->
-                filterState.filterDismissedEvents(db.eventsForDisplay, now)
+            val (total, events) = getDismissedEventsStorage(ctx).use { db ->
+                val allDbEvents = db.eventsForDisplay
+                Pair(allDbEvents.size, filterState.filterDismissedEvents(allDbEvents, now))
             }
             
             activity?.runOnUiThread {
+                totalEventCount = total
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
@@ -258,6 +261,8 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun getTotalEventCount(): Int = totalEventCount
     
     override fun onFilterChanged() {
         loadEvents()
