@@ -67,6 +67,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
+    private var totalEventCount: Int = 0
     private var newUIBanner: LinearLayout? = null
     
     // Selection mode UI elements
@@ -253,11 +254,13 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         val now = clock.currentTimeMillis()
         
         background {
-            val events = getEventsStorage(ctx).use { db ->
-                filterState.filterEvents(db.eventsForDisplay, now)
+            val (total, events) = getEventsStorage(ctx).use { db ->
+                val allDbEvents = db.eventsForDisplay
+                Pair(allDbEvents.size, filterState.filterEvents(allDbEvents, now))
             }
             
             activity?.runOnUiThread {
+                totalEventCount = total
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
@@ -361,6 +364,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun getTotalEventCount(): Int = totalEventCount
     
     override fun getDisplayedEventCount(): Int = adapter.itemCount
     

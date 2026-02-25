@@ -135,13 +135,18 @@ Note: `%2$d` is skipped intentionally — `getQuantityString(id, quantity, arg1,
 
 ## Testing
 
-### Unit/Instrumentation Tests
+### Robolectric Tests (`MainActivityModernRobolectricTest.kt`)
 
-- Search hint shows standard format when no filters active
-- Search hint shows "X of Y" format when filter pills reduce count
-- Search hint shows standard format when filters are active but match all events (count == totalCount)
-- `getTotalEventCount()` returns correct unfiltered count
-- `getEventCount()` returns correct filtered count (existing behavior, regression check)
+All search hint tests are Robolectric-only. No instrumentation tests assert on search hint text.
+
+**Existing tests (should still pass unmodified — no filter pills active):**
+- `search_hint_shows_correct_event_count()` — 3 events, no filters, checks hint contains "3" and "Active"
+- `displayed_event_count_updates_during_search()` — checks `getEventCount()` / `getDisplayedEventCount()` during text search
+
+**New tests to add:**
+- `search_hint_shows_x_of_y_when_filters_active()` — Set up filter pills that reduce count, verify hint contains "X of Y" format
+- `search_hint_shows_standard_format_when_filters_match_all()` — Filter pills active but match everything (count == totalCount), verify standard format
+- `getTotalEventCount_returns_unfiltered_count()` — Verify `getTotalEventCount()` returns DB total while `getEventCount()` returns filtered count
 
 ## Files Changed Summary
 
@@ -154,3 +159,4 @@ Note: `%2$d` is skipped intentionally — `getQuantityString(id, quantity, arg1,
 | `MainActivityModern.kt` | Conditional hint text in `onCreateOptionsMenu()` |
 | `values/strings.xml` | Add `search_placeholder_filtered` plural |
 | `values-fr/strings.xml` | Add French translation |
+| `MainActivityModernRobolectricTest.kt` | New Robolectric tests for "X of Y" hint |

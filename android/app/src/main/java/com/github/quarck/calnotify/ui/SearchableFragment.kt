@@ -32,6 +32,9 @@ interface SearchableFragment {
     /** Get the total number of events (for search placeholder) */
     fun getEventCount(): Int
     
+    /** Get total event count before filter pills (for "X of Y" hint) */
+    fun getTotalEventCount(): Int = getEventCount()
+    
     /** Get the count of currently displayed events (after filtering) */
     fun getDisplayedEventCount(): Int = getEventCount()
     

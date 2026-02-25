@@ -68,6 +68,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
+    private var totalEventCount: Int = 0
     
     private val dataUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -131,7 +132,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         val filterState = getFilterState()
         
         background {
-            val events = getMonitorStorage(ctx).use { storage ->
+            val (total, events) = getMonitorStorage(ctx).use { storage ->
                 val provider = UpcomingEventsProvider(
                     context = ctx,
                     settings = settings,
@@ -139,14 +140,16 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
                     monitorStorage = storage,
                     calendarProvider = getCalendarProvider()
                 )
-                filterState.filterEvents(
-                    provider.getUpcomingEvents(),
+                val allUpcoming = provider.getUpcomingEvents()
+                Pair(allUpcoming.size, filterState.filterEvents(
+                    allUpcoming,
                     clock.currentTimeMillis(),
                     apply = setOf(FilterType.CALENDAR, FilterType.STATUS)
-                )
+                ))
             }
             
             activity?.runOnUiThread {
+                totalEventCount = total
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
@@ -272,6 +275,8 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun getTotalEventCount(): Int = totalEventCount
     
     override fun onFilterChanged() {
         loadEvents()
