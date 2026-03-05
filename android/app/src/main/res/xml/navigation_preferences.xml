@@ -36,6 +36,19 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:title="@string/active_events_category"
+        android:key="_active_events"
+        android:dependency="use_new_navigation_ui">
+
+        <com.github.quarck.calnotify.prefs.SnoozedUntilPresetPreferenceX
+            android:key="pref_snoozed_until_presets"
+            android:title="@string/snoozed_until_presets_title"
+            android:summary="@string/snoozed_until_presets_summary"
+            android:defaultValue="12h, 1d, 3d, 7d, 4w" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/upcoming_events_category"
         android:key="_upcoming_events"
         android:dependency="use_new_navigation_ui">
@@ -53,19 +66,6 @@
             android:title="@string/upcoming_time_presets_title"
             android:summary="@string/upcoming_time_presets_summary"
             android:defaultValue="4h, 8h, 1d, 3d, 1w" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        android:title="@string/active_events_category"
-        android:key="_active_events"
-        android:dependency="use_new_navigation_ui">
-
-        <com.github.quarck.calnotify.prefs.SnoozedUntilPresetPreferenceX
-            android:key="pref_snoozed_until_presets"
-            android:title="@string/snoozed_until_presets_title"
-            android:summary="@string/snoozed_until_presets_summary"
-            android:defaultValue="12h, 1d, 3d, 7d, 4w" />
 
     </PreferenceCategory>
 
