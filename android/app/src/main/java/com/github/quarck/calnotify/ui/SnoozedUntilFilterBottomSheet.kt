@@ -50,7 +50,6 @@ import java.util.Calendar
  */
 class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
     
-    private val ALL_RADIO_ID = View.generateViewId()
     private val CUSTOM_PERIOD_RADIO_ID = View.generateViewId()
     private val SPECIFIC_TIME_RADIO_ID = View.generateViewId()
     
@@ -101,22 +100,12 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
             specificTimeMillis = config.valueMillis
         }
         
-        // Direction toggle
-        when (config.direction) {
-            FilterDirection.BEFORE -> directionGroup.check(R.id.radio_before)
-            FilterDirection.AFTER -> directionGroup.check(R.id.radio_after)
+        // 3-way direction toggle: Off / Before / After
+        when {
+            config.mode == SnoozedUntilFilterMode.ALL -> directionGroup.check(R.id.radio_off)
+            config.direction == FilterDirection.BEFORE -> directionGroup.check(R.id.radio_before)
+            config.direction == FilterDirection.AFTER -> directionGroup.check(R.id.radio_after)
         }
-        
-        // "All" option
-        val allRadio = RadioButton(requireContext()).apply {
-            id = ALL_RADIO_ID
-            text = getString(R.string.filter_snoozed_until_all)
-            setPadding(0, radioPaddingV, 0, radioPaddingV)
-        }
-        radioGroup.addView(allRadio)
-        
-        // Divider
-        radioGroup.addView(createDivider(dividerHeight))
         
         // Preset options
         val presetRadioIds = mutableListOf<Pair<Int, Long>>()
@@ -161,15 +150,35 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
         }
         radioGroup.addView(specificTimeRadio)
         
-        // Pre-select current
-        when (config.mode) {
-            SnoozedUntilFilterMode.ALL -> radioGroup.check(ALL_RADIO_ID)
-            SnoozedUntilFilterMode.PRESET -> {
-                val match = presetRadioIds.firstOrNull { it.second == config.valueMillis }
-                if (match != null) radioGroup.check(match.first)
+        // Pre-select current value in preset list (only if filter is active)
+        if (config.mode != SnoozedUntilFilterMode.ALL) {
+            when (config.mode) {
+                SnoozedUntilFilterMode.PRESET -> {
+                    val match = presetRadioIds.firstOrNull { it.second == config.valueMillis }
+                    if (match != null) radioGroup.check(match.first)
+                }
+                SnoozedUntilFilterMode.CUSTOM_PERIOD -> radioGroup.check(CUSTOM_PERIOD_RADIO_ID)
+                SnoozedUntilFilterMode.SPECIFIC_TIME -> radioGroup.check(SPECIFIC_TIME_RADIO_ID)
+                else -> {}
             }
-            SnoozedUntilFilterMode.CUSTOM_PERIOD -> radioGroup.check(CUSTOM_PERIOD_RADIO_ID)
-            SnoozedUntilFilterMode.SPECIFIC_TIME -> radioGroup.check(SPECIFIC_TIME_RADIO_ID)
+        }
+        
+        // Enable/disable preset radios based on direction toggle
+        fun setPresetsEnabled(enabled: Boolean) {
+            for (i in 0 until radioGroup.childCount) {
+                val child = radioGroup.getChildAt(i)
+                child.isEnabled = enabled
+                child.alpha = if (enabled) 1.0f else 0.4f
+            }
+        }
+        setPresetsEnabled(config.mode != SnoozedUntilFilterMode.ALL)
+        
+        directionGroup.setOnCheckedChangeListener { _, checkedId ->
+            val isOff = checkedId == R.id.radio_off
+            setPresetsEnabled(!isOff)
+            if (isOff) {
+                radioGroup.clearCheck()
+            }
         }
         
         // Open picker dialogs when custom options are tapped
@@ -181,20 +190,26 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
         }
         
         applyButton.setOnClickListener {
-            val direction = when (directionGroup.checkedRadioButtonId) {
+            val directionId = directionGroup.checkedRadioButtonId
+            
+            // Off = clear filter
+            if (directionId == R.id.radio_off) {
+                setFragmentResult(REQUEST_KEY, bundleOf(
+                    RESULT_MODE to SnoozedUntilFilterMode.ALL.ordinal,
+                    RESULT_DIRECTION to FilterDirection.BEFORE.ordinal,
+                    RESULT_VALUE to 0L
+                ))
+                dismiss()
+                return@setOnClickListener
+            }
+            
+            val direction = when (directionId) {
                 R.id.radio_after -> FilterDirection.AFTER
                 else -> FilterDirection.BEFORE
             }
             
             val checkedId = radioGroup.checkedRadioButtonId
             when {
-                checkedId == ALL_RADIO_ID -> {
-                    setFragmentResult(REQUEST_KEY, bundleOf(
-                        RESULT_MODE to SnoozedUntilFilterMode.ALL.ordinal,
-                        RESULT_DIRECTION to direction.ordinal,
-                        RESULT_VALUE to 0L
-                    ))
-                }
                 checkedId == CUSTOM_PERIOD_RADIO_ID && customPeriodMillis > 0 -> {
                     setFragmentResult(REQUEST_KEY, bundleOf(
                         RESULT_MODE to SnoozedUntilFilterMode.CUSTOM_PERIOD.ordinal,
@@ -218,9 +233,10 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
                             RESULT_VALUE to selectedPreset.second
                         ))
                     } else {
+                        // Before/After selected but no preset chosen — treat as off
                         setFragmentResult(REQUEST_KEY, bundleOf(
                             RESULT_MODE to SnoozedUntilFilterMode.ALL.ordinal,
-                            RESULT_DIRECTION to direction.ordinal,
+                            RESULT_DIRECTION to FilterDirection.BEFORE.ordinal,
                             RESULT_VALUE to 0L
                         ))
                     }

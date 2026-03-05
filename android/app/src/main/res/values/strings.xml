@@ -846,7 +846,7 @@
     <!-- Snoozed until filter -->
     <string name="filter_snoozed_until">Snoozed Until</string>
     <string name="filter_snoozed_until_display">Snoozed %s</string>
-    <string name="filter_snoozed_until_all">All</string>
+    <string name="filter_snoozed_until_off">Off</string>
     <string name="filter_snoozed_until_before">Before</string>
     <string name="filter_snoozed_until_after">After</string>
     <string name="filter_snoozed_until_custom_period">For a custom period…</string>

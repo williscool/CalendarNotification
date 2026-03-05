@@ -21,6 +21,13 @@
         android:paddingBottom="12dp">
 
         <RadioButton
+            android:id="@+id/radio_off"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/filter_snoozed_until_off" />
+
+        <RadioButton
             android:id="@+id/radio_before"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
