@@ -60,9 +60,8 @@ Add a "Snoozed Until" filter chip to the Active tab that filters events based on
 ┌─────────────────────────────────────────────────┐
 │  Filter by Snoozed Until                        │
 ├─────────────────────────────────────────────────┤
-│  [ ● Before | ○ After ]          ← toggle       │
-├─────────────────────────────────────────────────┤
-│  ○  All                                         │
+│  [ ○ Off | ● Before | ○ After ]   ← 3-way      │
+│  ☐ Include unsnoozed              ← checkbox    │
 │  ─────────────────────────────────              │
 │  ○  12 hours                                    │
 │  ●  1 day                          ← current   │
@@ -111,7 +110,8 @@ Unlike the simple `TimeFilter` enum, this filter needs to represent multiple mod
 data class SnoozedUntilFilterConfig(
     val mode: SnoozedUntilFilterMode = SnoozedUntilFilterMode.ALL,
     val direction: FilterDirection = FilterDirection.BEFORE,
-    val valueMillis: Long = 0L
+    val valueMillis: Long = 0L,
+    val includeUnsnoozed: Boolean = false
 )
 
 enum class SnoozedUntilFilterMode {
@@ -432,13 +432,14 @@ All in `FilterStateTest.kt` — Robolectric tests following existing patterns.
 
 **SnoozedUntilFilterConfig.matches():**
 - ALL mode — matches everything (snoozed and non-snoozed)
-- Non-snoozed events (snoozedUntil == 0) excluded for all non-ALL modes
+- Non-snoozed events (snoozedUntil == 0) — excluded by default; included when `includeUnsnoozed = true`
 - PRESET + BEFORE — snoozedUntil <= now + duration
 - PRESET + AFTER — snoozedUntil > now + duration
 - CUSTOM_PERIOD — same threshold logic as PRESET
 - SPECIFIC_TIME + BEFORE — snoozedUntil <= absolute timestamp
 - SPECIFIC_TIME + AFTER — snoozedUntil > absolute timestamp
 - Boundary: snoozedUntil == threshold → BEFORE matches, AFTER doesn't
+- `includeUnsnoozed` — checkbox in bottom sheet; when checked, events with snoozedUntil == 0 pass through the filter regardless of mode/direction
 
 **FilterState integration:**
 - `matchesSnoozedUntil()` delegates correctly

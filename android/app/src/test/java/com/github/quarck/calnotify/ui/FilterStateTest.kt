@@ -886,6 +886,83 @@ class FilterStateTest {
         assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + DAY_MILLIS), now))
     }
     
+    // === SnoozedUntilFilter includeUnsnoozed Tests ===
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed true matches non-snoozed events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed false excludes non-snoozed events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = false
+        )
+        
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed defaults to false`() {
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        assertFalse(config.includeUnsnoozed)
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed true still filters snoozed events normally`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + 6 * HOUR_MILLIS), now))
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + 2 * DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed with AFTER direction matches non-snoozed`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed with ALL mode still matches all`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.ALL,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + HOUR_MILLIS), now))
+    }
+    
     // === SnoozedUntilFilter FilterState integration ===
     
     @Test
@@ -1049,10 +1126,39 @@ class FilterStateTest {
     }
     
     @Test
+    fun `toBundle and fromBundle round-trip includeUnsnoozed true`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertTrue(restored.snoozedUntilFilter.includeUnsnoozed)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip includeUnsnoozed false`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = false
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertFalse(restored.snoozedUntilFilter.includeUnsnoozed)
+    }
+    
+    @Test
     fun `fromBundle with null returns default snoozedUntilFilter`() {
         val restored = FilterState.fromBundle(null)
         assertEquals(SnoozedUntilFilterMode.ALL, restored.snoozedUntilFilter.mode)
         assertEquals(FilterDirection.BEFORE, restored.snoozedUntilFilter.direction)
         assertEquals(0L, restored.snoozedUntilFilter.valueMillis)
+        assertFalse(restored.snoozedUntilFilter.includeUnsnoozed)
     }
 }

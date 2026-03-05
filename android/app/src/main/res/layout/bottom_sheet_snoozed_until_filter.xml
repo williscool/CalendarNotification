@@ -43,6 +43,19 @@
 
     </RadioGroup>
 
+    <CheckBox
+        android:id="@+id/checkbox_include_unsnoozed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/filter_include_unsnoozed"
+        android:paddingBottom="8dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider"
+        android:layout_marginBottom="8dp" />
+
     <RadioGroup
         android:id="@+id/snoozed_until_radio_group"
         android:layout_width="match_parent"

@@ -26,6 +26,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.DatePicker
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -66,7 +67,8 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
                 direction = FilterDirection.entries.getOrNull(
                     args.getInt(ARG_DIRECTION, 0)
                 ) ?: FilterDirection.BEFORE,
-                valueMillis = args.getLong(ARG_VALUE, 0L)
+                valueMillis = args.getLong(ARG_VALUE, 0L),
+                includeUnsnoozed = args.getBoolean(ARG_INCLUDE_UNSNOOZED, false)
             )
         }
     
@@ -87,6 +89,7 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
             isSaveEnabled = false
         }
         val applyButton = view.findViewById<Button>(R.id.btn_apply)
+        val includeUnsnoozedCheckbox = view.findViewById<CheckBox>(R.id.checkbox_include_unsnoozed)
         
         val config = currentConfig
         val presets = settings.snoozedUntilPresets
@@ -106,6 +109,11 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
             config.direction == FilterDirection.BEFORE -> directionGroup.check(R.id.radio_before)
             config.direction == FilterDirection.AFTER -> directionGroup.check(R.id.radio_after)
         }
+        
+        includeUnsnoozedCheckbox.isChecked = config.includeUnsnoozed
+        val isFilterActive = config.mode != SnoozedUntilFilterMode.ALL
+        includeUnsnoozedCheckbox.isEnabled = isFilterActive
+        includeUnsnoozedCheckbox.alpha = if (isFilterActive) 1.0f else 0.4f
         
         // Preset options
         val presetRadioIds = mutableListOf<Pair<Int, Long>>()
@@ -163,19 +171,20 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
             }
         }
         
-        // Enable/disable preset radios based on direction toggle
-        fun setPresetsEnabled(enabled: Boolean) {
+        fun setControlsEnabled(enabled: Boolean) {
             for (i in 0 until radioGroup.childCount) {
                 val child = radioGroup.getChildAt(i)
                 child.isEnabled = enabled
                 child.alpha = if (enabled) 1.0f else 0.4f
             }
+            includeUnsnoozedCheckbox.isEnabled = enabled
+            includeUnsnoozedCheckbox.alpha = if (enabled) 1.0f else 0.4f
         }
-        setPresetsEnabled(config.mode != SnoozedUntilFilterMode.ALL)
+        setControlsEnabled(config.mode != SnoozedUntilFilterMode.ALL)
         
         directionGroup.setOnCheckedChangeListener { _, checkedId ->
             val isOff = checkedId == R.id.radio_off
-            setPresetsEnabled(!isOff)
+            setControlsEnabled(!isOff)
             if (isOff) {
                 radioGroup.clearCheck()
             }
@@ -192,12 +201,15 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
         applyButton.setOnClickListener {
             val directionId = directionGroup.checkedRadioButtonId
             
+            val includeUnsnoozed = includeUnsnoozedCheckbox.isChecked
+            
             // Off = clear filter
             if (directionId == R.id.radio_off) {
                 setFragmentResult(REQUEST_KEY, bundleOf(
                     RESULT_MODE to SnoozedUntilFilterMode.ALL.ordinal,
                     RESULT_DIRECTION to FilterDirection.BEFORE.ordinal,
-                    RESULT_VALUE to 0L
+                    RESULT_VALUE to 0L,
+                    RESULT_INCLUDE_UNSNOOZED to false
                 ))
                 dismiss()
                 return@setOnClickListener
@@ -214,14 +226,16 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
                     setFragmentResult(REQUEST_KEY, bundleOf(
                         RESULT_MODE to SnoozedUntilFilterMode.CUSTOM_PERIOD.ordinal,
                         RESULT_DIRECTION to direction.ordinal,
-                        RESULT_VALUE to customPeriodMillis
+                        RESULT_VALUE to customPeriodMillis,
+                        RESULT_INCLUDE_UNSNOOZED to includeUnsnoozed
                     ))
                 }
                 checkedId == SPECIFIC_TIME_RADIO_ID && specificTimeMillis > 0 -> {
                     setFragmentResult(REQUEST_KEY, bundleOf(
                         RESULT_MODE to SnoozedUntilFilterMode.SPECIFIC_TIME.ordinal,
                         RESULT_DIRECTION to direction.ordinal,
-                        RESULT_VALUE to specificTimeMillis
+                        RESULT_VALUE to specificTimeMillis,
+                        RESULT_INCLUDE_UNSNOOZED to includeUnsnoozed
                     ))
                 }
                 else -> {
@@ -230,14 +244,15 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
                         setFragmentResult(REQUEST_KEY, bundleOf(
                             RESULT_MODE to SnoozedUntilFilterMode.PRESET.ordinal,
                             RESULT_DIRECTION to direction.ordinal,
-                            RESULT_VALUE to selectedPreset.second
+                            RESULT_VALUE to selectedPreset.second,
+                            RESULT_INCLUDE_UNSNOOZED to includeUnsnoozed
                         ))
                     } else {
-                        // Before/After selected but no preset chosen — treat as off
                         setFragmentResult(REQUEST_KEY, bundleOf(
                             RESULT_MODE to SnoozedUntilFilterMode.ALL.ordinal,
                             RESULT_DIRECTION to FilterDirection.BEFORE.ordinal,
-                            RESULT_VALUE to 0L
+                            RESULT_VALUE to 0L,
+                            RESULT_INCLUDE_UNSNOOZED to false
                         ))
                     }
                 }
@@ -349,11 +364,13 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
         private const val ARG_MODE = "arg_mode"
         private const val ARG_DIRECTION = "arg_direction"
         private const val ARG_VALUE = "arg_value"
+        private const val ARG_INCLUDE_UNSNOOZED = "arg_include_unsnoozed"
         
         const val REQUEST_KEY = "snoozed_until_filter_request"
         const val RESULT_MODE = "result_mode"
         const val RESULT_DIRECTION = "result_direction"
         const val RESULT_VALUE = "result_value"
+        const val RESULT_INCLUDE_UNSNOOZED = "result_include_unsnoozed"
         
         fun newInstance(config: SnoozedUntilFilterConfig): SnoozedUntilFilterBottomSheet {
             return SnoozedUntilFilterBottomSheet().apply {
@@ -361,6 +378,7 @@ class SnoozedUntilFilterBottomSheet : BottomSheetDialogFragment() {
                     putInt(ARG_MODE, config.mode.ordinal)
                     putInt(ARG_DIRECTION, config.direction.ordinal)
                     putLong(ARG_VALUE, config.valueMillis)
+                    putBoolean(ARG_INCLUDE_UNSNOOZED, config.includeUnsnoozed)
                 }
             }
         }

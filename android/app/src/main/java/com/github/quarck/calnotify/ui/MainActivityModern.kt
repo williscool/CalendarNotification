@@ -732,7 +732,8 @@ class MainActivityModern : MainActivityBase() {
                 bundle.getInt(SnoozedUntilFilterBottomSheet.RESULT_DIRECTION, 0)
             ) ?: FilterDirection.BEFORE
             val value = bundle.getLong(SnoozedUntilFilterBottomSheet.RESULT_VALUE, 0L)
-            filterState = filterState.copy(snoozedUntilFilter = SnoozedUntilFilterConfig(mode, direction, value))
+            val includeUnsnoozed = bundle.getBoolean(SnoozedUntilFilterBottomSheet.RESULT_INCLUDE_UNSNOOZED, false)
+            filterState = filterState.copy(snoozedUntilFilter = SnoozedUntilFilterConfig(mode, direction, value, includeUnsnoozed))
             updateFilterChipsForCurrentTab()
             notifyCurrentFragmentFilterChanged()
         }

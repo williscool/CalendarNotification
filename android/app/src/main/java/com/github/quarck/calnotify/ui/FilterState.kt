@@ -59,11 +59,12 @@ enum class SnoozedUntilFilterMode {
 data class SnoozedUntilFilterConfig(
     val mode: SnoozedUntilFilterMode = SnoozedUntilFilterMode.ALL,
     val direction: FilterDirection = FilterDirection.BEFORE,
-    val valueMillis: Long = 0L
+    val valueMillis: Long = 0L,
+    val includeUnsnoozed: Boolean = false
 ) {
     fun matches(event: EventAlertRecord, now: Long): Boolean {
         if (mode == SnoozedUntilFilterMode.ALL) return true
-        if (event.snoozedUntil == 0L) return false
+        if (event.snoozedUntil == 0L) return includeUnsnoozed
 
         val threshold = when (mode) {
             SnoozedUntilFilterMode.ALL -> return true
@@ -96,6 +97,7 @@ data class FilterState(
         private const val BUNDLE_SNOOZED_UNTIL_MODE = "filter_snoozed_until_mode"
         private const val BUNDLE_SNOOZED_UNTIL_DIRECTION = "filter_snoozed_until_direction"
         private const val BUNDLE_SNOOZED_UNTIL_VALUE = "filter_snoozed_until_value"
+        private const val BUNDLE_SNOOZED_UNTIL_INCLUDE_UNSNOOZED = "filter_snoozed_until_include_unsnoozed"
         
         /** Deserialize FilterState from a Bundle */
         fun fromBundle(bundle: Bundle?): FilterState {
@@ -123,7 +125,8 @@ data class FilterState(
                 direction = FilterDirection.entries.getOrNull(
                     bundle.getInt(BUNDLE_SNOOZED_UNTIL_DIRECTION, 0)
                 ) ?: FilterDirection.BEFORE,
-                valueMillis = bundle.getLong(BUNDLE_SNOOZED_UNTIL_VALUE, 0L)
+                valueMillis = bundle.getLong(BUNDLE_SNOOZED_UNTIL_VALUE, 0L),
+                includeUnsnoozed = bundle.getBoolean(BUNDLE_SNOOZED_UNTIL_INCLUDE_UNSNOOZED, false)
             )
             
             return FilterState(
@@ -146,6 +149,7 @@ data class FilterState(
         putInt(BUNDLE_SNOOZED_UNTIL_MODE, snoozedUntilFilter.mode.ordinal)
         putInt(BUNDLE_SNOOZED_UNTIL_DIRECTION, snoozedUntilFilter.direction.ordinal)
         putLong(BUNDLE_SNOOZED_UNTIL_VALUE, snoozedUntilFilter.valueMillis)
+        putBoolean(BUNDLE_SNOOZED_UNTIL_INCLUDE_UNSNOOZED, snoozedUntilFilter.includeUnsnoozed)
     }
     
     /** Check if any filters are active */

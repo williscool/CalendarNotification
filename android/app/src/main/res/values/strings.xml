@@ -849,6 +849,7 @@
     <string name="filter_snoozed_until_off">Off</string>
     <string name="filter_snoozed_until_before">Before</string>
     <string name="filter_snoozed_until_after">After</string>
+    <string name="filter_include_unsnoozed">Include unsnoozed</string>
     <string name="filter_snoozed_until_custom_period">For a custom period…</string>
     <string name="filter_snoozed_until_specific_time">Until a specific time and date…</string>
     <string name="filter_snoozed_until_title">Filter by Snoozed Until</string>
