@@ -400,10 +400,11 @@ class MainActivityModern : MainActivityBase() {
         
         when (currentDestination) {
             R.id.activeEventsFragment -> {
-                // Active tab: Calendar, Status, Time
+                // Active tab: Calendar, Status, Time, Snoozed Until
                 addCalendarChip()
                 addStatusChip()
                 addTimeChip(TimeFilterBottomSheet.TabType.ACTIVE)
+                addSnoozedUntilChip()
             }
             R.id.upcomingEventsFragment -> {
                 addCalendarChip()
@@ -634,6 +635,51 @@ class MainActivityModern : MainActivityBase() {
         bottomSheet.show(supportFragmentManager, "UpcomingTimeFilterBottomSheet")
     }
     
+    // === Snoozed Until Filter Chip ===
+    
+    private fun addSnoozedUntilChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getSnoozedUntilChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showSnoozedUntilFilterBottomSheet() }
+            setOnCloseIconClickListener { showSnoozedUntilFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getSnoozedUntilChipText(): String {
+        val config = filterState.snoozedUntilFilter
+        if (config.mode == SnoozedUntilFilterMode.ALL) {
+            return getString(R.string.filter_snoozed_until)
+        }
+        val symbol = when (config.direction) {
+            FilterDirection.BEFORE -> "\u2264"  // ≤
+            FilterDirection.AFTER -> ">"
+        }
+        val valueText = when (config.mode) {
+            SnoozedUntilFilterMode.ALL -> ""
+            SnoozedUntilFilterMode.PRESET, SnoozedUntilFilterMode.CUSTOM_PERIOD ->
+                PreferenceUtils.formatPresetHumanReadable(this, config.valueMillis)
+            SnoozedUntilFilterMode.SPECIFIC_TIME ->
+                android.text.format.DateUtils.formatDateTime(
+                    this, config.valueMillis,
+                    android.text.format.DateUtils.FORMAT_SHOW_DATE or
+                    android.text.format.DateUtils.FORMAT_SHOW_TIME or
+                    android.text.format.DateUtils.FORMAT_ABBREV_ALL
+                )
+        }
+        return "$symbol $valueText"
+    }
+    
+    private fun showSnoozedUntilFilterBottomSheet() {
+        val bottomSheet = SnoozedUntilFilterBottomSheet.newInstance(filterState.snoozedUntilFilter)
+        bottomSheet.show(supportFragmentManager, "SnoozedUntilFilterBottomSheet")
+    }
+    
     /** Setup Fragment Result listeners for bottom sheets (survives config changes) */
     private fun setupFilterResultListeners() {
         // Time filter result
@@ -671,6 +717,23 @@ class MainActivityModern : MainActivityBase() {
                     settings.upcomingEventsFixedLookaheadMillis = millis
                 }
             }
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Snoozed until filter result
+        supportFragmentManager.setFragmentResultListener(
+            SnoozedUntilFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val mode = SnoozedUntilFilterMode.entries.getOrNull(
+                bundle.getInt(SnoozedUntilFilterBottomSheet.RESULT_MODE, 0)
+            ) ?: SnoozedUntilFilterMode.ALL
+            val direction = FilterDirection.entries.getOrNull(
+                bundle.getInt(SnoozedUntilFilterBottomSheet.RESULT_DIRECTION, 0)
+            ) ?: FilterDirection.BEFORE
+            val value = bundle.getLong(SnoozedUntilFilterBottomSheet.RESULT_VALUE, 0L)
+            val includeUnsnoozed = bundle.getBoolean(SnoozedUntilFilterBottomSheet.RESULT_INCLUDE_UNSNOOZED, false)
+            filterState = filterState.copy(snoozedUntilFilter = SnoozedUntilFilterConfig(mode, direction, value, includeUnsnoozed))
             updateFilterChipsForCurrentTab()
             notifyCurrentFragmentFilterChanged()
         }

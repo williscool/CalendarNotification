@@ -61,6 +61,7 @@ Features and changes under consideration:
   - [Milestone 2: Pre-Actions](dev_todo/event_lookahead_milestone2_pre_actions.md) - Pre-mute, pre-snooze, pre-dismiss ✅
   - [Milestone 3: Filter Pills](dev_todo/event_lookahead_milestone3_filter_pills.md) - Status, Time, Calendar filters 🚧
   - [Upcoming Time Filter](dev_todo/upcoming_time_filter.md) - Time filter for Upcoming tab ([#216](https://github.com/williscool/CalendarNotification/issues/216))
+  - [Snoozed Until Filter Pill](dev_todo/snoozed_until_filter_pill.md) - Filter chip by snooze wake time ([#255](https://github.com/williscool/CalendarNotification/issues/255))
 - [Deprecated Features Removal](dev_todo/deprecated_features.md) - QuietHours, CalendarEditor
 - [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt DI opportunities
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations

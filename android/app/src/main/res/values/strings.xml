@@ -825,6 +825,13 @@
     <string name="upcoming_time_presets_summary">Comma-separated intervals (e.g., 4h, 8h, 1d, 3d, 1w)</string>
     <string name="dialog_upcoming_time_presets_label">Comma-separated list of lookahead intervals\n\nSupported values like \'4h\', \'1d\' or \'1w\'\n\nMaximum %1$d days (calendar scan limit)\n\nUp to %2$d items in the list\n\nLeave empty to use defaults</string>
     
+    <!-- Active events settings -->
+    <string name="active_events_category">Active Events</string>
+    <string name="snoozed_until_presets_title">Snoozed until filter presets</string>
+    <string name="snoozed_until_presets_summary">Comma-separated intervals (e.g., 12h, 1d, 3d, 7d, 4w)</string>
+    <string name="dialog_snoozed_until_presets_label">Comma-separated list of filter intervals\n\nSupported values like \'12h\', \'1d\' or \'4w\'\n\nUp to %1$d items in the list\n\nLeave empty to use defaults</string>
+    <string name="error_too_many_snoozed_until_presets">Only up to %d presets are supported, extra presets will be ignored</string>
+    
     <!-- Filter settings -->
     <string name="filter_settings_category">Filters</string>
     <string name="calendar_filter_max_items_title">Max calendars in filter</string>
@@ -835,6 +842,17 @@
     <string name="calendar_filter_show_ids_summary">Display calendar IDs for debugging</string>
     <string name="calendar_filter_showing_count">Showing %1$d of %2$d</string>
     <string name="calendar_filter_search_hint">Search calendars…</string>
+    
+    <!-- Snoozed until filter -->
+    <string name="filter_snoozed_until">Snoozed Until</string>
+    <string name="filter_snoozed_until_display">Snoozed %s</string>
+    <string name="filter_snoozed_until_off">Off</string>
+    <string name="filter_snoozed_until_before">Before</string>
+    <string name="filter_snoozed_until_after">After</string>
+    <string name="filter_include_unsnoozed">Include unsnoozed</string>
+    <string name="filter_snoozed_until_custom_period">For a custom period…</string>
+    <string name="filter_snoozed_until_specific_time">Until a specific time and date…</string>
+    <string name="filter_snoozed_until_title">Filter by Snoozed Until</string>
     
     <string-array name="calendar_filter_max_items_entries">
         <item>No limit</item>
