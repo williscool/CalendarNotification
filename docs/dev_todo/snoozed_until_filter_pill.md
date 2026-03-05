@@ -5,7 +5,7 @@
 
 ## Overview
 
-Add a "Snoozed Until" filter chip to the Active tab that works like the existing Time filter chip, but filters on `event.snoozedUntil` instead of `event.instanceStartTime`.
+Add a "Snoozed Until" filter chip to the Active tab that filters events based on when their snooze expires (`event.snoozedUntil`). Features configurable interval presets, a before/after direction toggle, and custom period / specific date-time pickers — mirroring patterns from the Upcoming Time Filter and View Event snooze dialogs.
 
 ## Current State
 
@@ -13,30 +13,36 @@ Add a "Snoozed Until" filter chip to the Active tab that works like the existing
 |---------|--------|
 | Time filter chip (Active/Dismissed) | ✅ Filters on `instanceStartTime` / `instanceEndTime` |
 | Status filter chip | ✅ Can filter to show only snoozed events |
+| Upcoming time filter | ✅ Configurable presets, persisted to Settings |
+| View Event "For a custom period" | ✅ `TimeIntervalPickerController` + quick presets dialog |
+| View Event "Until a specific time and date" | ✅ `DatePicker` → `TimePicker` two-step flow |
 | Snoozed Until filter chip | ❌ Not implemented (this feature) |
 
-### Existing Pattern to Follow
+### Existing Patterns to Reuse
 
-The Time filter has a clean, well-tested pattern:
-
-1. `TimeFilter` enum in `FilterState.kt` — filter options + `matches()` logic
-2. `TimeFilterBottomSheet` — bottom sheet UI with radio buttons + Apply
-3. `FilterState.timeFilter` field — holds the current selection
-4. `FilterType.TIME` — enables/disables the filter in `filterEvents()`
-5. `MainActivityModern.addTimeChip()` — creates the chip, wires up the bottom sheet
-6. `FilterStateTest` — comprehensive tests for matching + serialization
-
-The Snoozed Until filter follows this exact pattern.
+| Pattern | Source | How we use it |
+|---------|--------|---------------|
+| Dynamic radio button presets | `UpcomingTimeFilterBottomSheet` | Generate interval options from configurable presets |
+| Preset parsing/formatting | `PreferenceUtils.parseSnoozePresets()` / `formatPresetHumanReadable()` | Parse `"12h, 1d, 3d, 7d, 4w"` format |
+| Custom period preference | `UpcomingTimePresetPreferenceX` / `SnoozePresetPreferenceX` | Settings UI for configuring presets |
+| Duration picker | `TimeIntervalPickerController` + `dialog_interval_picker.xml` | "For a custom period" option |
+| Date + time picker | `dialog_date_picker.xml` → `dialog_time_picker.xml` | "Until a specific time and date" option |
+| Fragment Result API | `TimeFilterBottomSheet`, `UpcomingTimeFilterBottomSheet` | Communicate selection back to activity |
+| In-memory filter state | `FilterState` + Bundle serialization | Filter clears on tab switch, survives rotation |
 
 ## Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Which tabs | **Active only** | Only active events can be snoozed (`snoozedUntil > 0`). Dismissed/Upcoming events don't have meaningful snooze times. |
-| Non-snoozed events | **Excluded when filter active** | When filter is not ALL, events with `snoozedUntil == 0` don't match — they have no snooze time to filter on. |
-| Tab-specific options | **No tab variation** | Unlike Time filter (which hides PAST on Dismissed, MONTH on Active), this only appears on Active so no tab logic needed. |
-| Bottom sheet vs dropdown | **Bottom sheet** | Matches Time filter UX. Single-select with Apply button. |
-| Interaction with Status filter | **Independent** | User can combine Status=Snoozed + SnoozedUntil=Today to see "events snoozed until today". Or use SnoozedUntil alone (implicitly shows only snoozed events since non-snoozed are excluded). |
+| Which tabs | **Active only** | Only active events can be snoozed. Dismissed/Upcoming don't have meaningful `snoozedUntil`. |
+| Non-snoozed events | **Excluded when filter active** | Events with `snoozedUntil == 0` don't match any non-ALL filter — they have no snooze time to filter on. |
+| Preset intervals | **Configurable via Settings** | Follow `UpcomingTimeFilterBottomSheet` pattern — presets parsed from comma-separated string using `PreferenceUtils`. |
+| Default presets | **12h, 1d, 3d, 7d, 4w** | Practical defaults for "show events waking up within X". |
+| Settings location | **Navigation & UI → Active Events** (new category) | Parallel to the existing "Upcoming Events" category. |
+| Filter persistence | **In-memory (`FilterState`)** | Same as Time filter — clears on tab switch, survives rotation. Presets live in Settings, but the current _selection_ is in-memory. |
+| Before/After | **Toggle in bottom sheet** | "Before" = `snoozedUntil <= now + interval`. "After" = `snoozedUntil > now + interval`. |
+| Custom period | **Reuse `TimeIntervalPickerController`** | Same widget used by View Event Activity's "For a custom period". |
+| Specific time | **Reuse `DatePicker` → `TimePicker` flow** | Same two-step flow used by View Event Activity's "Until a specific time and date". |
 
 ## UI Vision
 
@@ -54,37 +60,159 @@ The Snoozed Until filter follows this exact pattern.
 ┌─────────────────────────────────────────────────┐
 │  Filter by Snoozed Until                        │
 ├─────────────────────────────────────────────────┤
+│  [ ● Before | ○ After ]          ← toggle       │
+├─────────────────────────────────────────────────┤
 │  ○  All                                         │
-│  ○  Snoozed until today                         │
-│  ○  Snoozed until this week                     │
-│  ○  Snoozed until this month                    │
+│  ─────────────────────────────────              │
+│  ○  12 hours                                    │
+│  ●  1 day                          ← current   │
+│  ○  3 days                                      │
+│  ○  7 days                                      │
+│  ○  4 weeks                                     │
+│  ─────────────────────────────────              │
+│  ○  For a custom period...                      │
+│  ○  Until a specific time and date...           │
 ├─────────────────────────────────────────────────┤
 │              [ APPLY ]                          │
 └─────────────────────────────────────────────────┘
 ```
 
+**Behavior:**
+
+- **Before + preset**: Show events where `snoozedUntil <= now + preset` (waking up within X)
+- **After + preset**: Show events where `snoozedUntil > now + preset` (won't wake up for at least X)
+- **Before + specific time**: Show events where `snoozedUntil <= specificTime`
+- **After + specific time**: Show events where `snoozedUntil > specificTime`
+- **All**: No filter regardless of direction toggle
+
+**Custom period flow:** Selecting "For a custom period..." opens the `TimeIntervalPickerController` dialog (same as snooze). The entered duration replaces the preset selection.
+
+**Specific time flow:** Selecting "Until a specific time and date..." opens the DatePicker → TimePicker two-step flow (same as snooze). The chosen absolute timestamp replaces the preset selection.
+
+### Chip Text Examples
+
+| State | Chip Text |
+|-------|-----------|
+| No filter | "Snoozed Until" |
+| Before 1 day | "Snoozed ≤ 1 day" |
+| After 7 days | "Snoozed > 7 days" |
+| Before specific time | "Snoozed ≤ Mar 15 3:00 PM" |
+| After custom 6h | "Snoozed > 6 hours" |
+
+---
+
 ## Filter Definitions
 
-### SnoozedUntilFilter Options
+### SnoozedUntilFilterConfig
 
-| Option | Logic | Notes |
-|--------|-------|-------|
-| ALL | No filter (default) | Shows all events regardless of snooze status |
-| SNOOZED_UNTIL_TODAY | `snoozedUntil > 0 && isToday(snoozedUntil, now)` | Events waking up today |
-| SNOOZED_UNTIL_THIS_WEEK | `snoozedUntil > 0 && isThisWeek(snoozedUntil, now)` | Events waking up this week |
-| SNOOZED_UNTIL_THIS_MONTH | `snoozedUntil > 0 && isThisMonth(snoozedUntil, now)` | Events waking up this month |
+Unlike the simple `TimeFilter` enum, this filter needs to represent multiple modes and a direction. Stored as a data class in `FilterState`:
 
-All non-ALL options implicitly require `snoozedUntil > 0`, so non-snoozed events are excluded.
+```kotlin
+data class SnoozedUntilFilterConfig(
+    val mode: SnoozedUntilFilterMode = SnoozedUntilFilterMode.ALL,
+    val direction: FilterDirection = FilterDirection.BEFORE,
+    val valueMillis: Long = 0L
+)
 
-Uses the same `DateTimeUtils.isToday()`, `isThisWeek()`, `isThisMonth()` helpers that `TimeFilter` already uses.
+enum class SnoozedUntilFilterMode {
+    ALL,            // no filter (default)
+    PRESET,         // from configurable interval presets; valueMillis = duration
+    CUSTOM_PERIOD,  // user-entered duration; valueMillis = duration
+    SPECIFIC_TIME   // user-picked date+time; valueMillis = absolute timestamp
+}
+
+enum class FilterDirection { BEFORE, AFTER }
+```
+
+### Matching Logic
+
+```kotlin
+fun matches(event: EventAlertRecord, now: Long): Boolean {
+    if (mode == ALL) return true
+    if (event.snoozedUntil == 0L) return false
+
+    val threshold = when (mode) {
+        ALL -> return true
+        PRESET, CUSTOM_PERIOD -> now + valueMillis
+        SPECIFIC_TIME -> valueMillis
+    }
+
+    return when (direction) {
+        BEFORE -> event.snoozedUntil <= threshold
+        AFTER -> event.snoozedUntil > threshold
+    }
+}
+```
+
+### Bundle Serialization
+
+Three values to persist: `mode.ordinal` (Int), `direction.ordinal` (Int), `valueMillis` (Long). Same pattern as other `FilterState` fields.
+
+---
+
+## Settings: Active Events Category
+
+New category in `navigation_preferences.xml`, parallel to the existing "Upcoming Events" category:
+
+```xml
+<PreferenceCategory
+    android:title="@string/active_events_category"
+    android:key="_active_events"
+    android:dependency="use_new_navigation_ui">
+
+    <com.github.quarck.calnotify.prefs.SnoozedUntilPresetPreferenceX
+        android:key="pref_snoozed_until_presets"
+        android:title="@string/snoozed_until_presets_title"
+        android:summary="@string/snoozed_until_presets_summary"
+        android:defaultValue="12h, 1d, 3d, 7d, 4w" />
+
+</PreferenceCategory>
+```
+
+### Settings Properties
+
+```kotlin
+// In Settings.kt
+private const val SNOOZED_UNTIL_PRESETS_KEY = "pref_snoozed_until_presets"
+const val DEFAULT_SNOOZED_UNTIL_PRESETS = "12h, 1d, 3d, 7d, 4w"
+
+val snoozedUntilPresetsRaw: String
+    get() = getString(SNOOZED_UNTIL_PRESETS_KEY, DEFAULT_SNOOZED_UNTIL_PRESETS)
+
+val snoozedUntilPresets: LongArray
+    get() {
+        val ret = PreferenceUtils.parseSnoozePresets(snoozedUntilPresetsRaw)
+            ?: PreferenceUtils.parseSnoozePresets(DEFAULT_SNOOZED_UNTIL_PRESETS)
+            ?: return longArrayOf()
+        return ret.filter { it > 0 }.toLongArray()
+    }
+```
+
+Uses the same `PreferenceUtils.parseSnoozePresets()` / `formatPresetHumanReadable()` infrastructure as snooze presets and upcoming time presets. No max lookahead clamping needed (unlike upcoming, there's no scan window limit for snoozed events).
+
+The `SnoozedUntilPresetPreferenceX` can either reuse or extend the existing `UpcomingTimePresetPreferenceX` / `SnoozePresetPreferenceX` pattern — custom `DialogPreference` with EditText, parsing via `PreferenceUtils`.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: SnoozedUntilFilter Enum + FilterState Integration
+### Phase 1: Settings Infrastructure
 
-**Goal:** Add the filter logic and state management.
+**Goal:** Add configurable presets and the Active Events settings category.
+
+**Files to modify:**
+- `Settings.kt` — Add `snoozedUntilPresetsRaw`, `snoozedUntilPresets`
+- `navigation_preferences.xml` — Add "Active Events" category with preset preference
+- `strings.xml` — Add `active_events_category`, `snoozed_until_presets_title`, `snoozed_until_presets_summary`
+
+**New files:**
+- `SnoozedUntilPresetPreferenceX.kt` — Custom preference (or generalize the existing `UpcomingTimePresetPreferenceX`)
+
+---
+
+### Phase 2: Filter State Model
+
+**Goal:** Add `SnoozedUntilFilterConfig` to `FilterState` with matching, serialization, and display.
 
 **Files to modify:**
 - `FilterState.kt`
@@ -99,124 +227,121 @@ enum class FilterType {
 }
 ```
 
-2. Add `SnoozedUntilFilter` enum (parallel to `TimeFilter`):
+2. Add `FilterDirection` enum and `SnoozedUntilFilterMode` enum.
 
-```kotlin
-enum class SnoozedUntilFilter {
-    ALL,
-    SNOOZED_UNTIL_TODAY,
-    SNOOZED_UNTIL_THIS_WEEK,
-    SNOOZED_UNTIL_THIS_MONTH;
+3. Add `SnoozedUntilFilterConfig` data class with `matches()` method.
 
-    fun matches(event: EventAlertRecord, now: Long): Boolean {
-        if (this == ALL) return true
-        if (event.snoozedUntil == 0L) return false
-        return when (this) {
-            ALL -> true
-            SNOOZED_UNTIL_TODAY -> DateTimeUtils.isToday(event.snoozedUntil, now)
-            SNOOZED_UNTIL_THIS_WEEK -> DateTimeUtils.isThisWeek(event.snoozedUntil, now)
-            SNOOZED_UNTIL_THIS_MONTH -> DateTimeUtils.isThisMonth(event.snoozedUntil, now)
-        }
-    }
-}
-```
+4. Add `snoozedUntilFilter: SnoozedUntilFilterConfig` field to `FilterState`.
 
-3. Add `snoozedUntilFilter` field to `FilterState`:
+5. Add `matchesSnoozedUntil()` method to `FilterState`.
 
-```kotlin
-data class FilterState(
-    val selectedCalendarIds: Set<Long>? = null,
-    val statusFilters: Set<StatusOption> = emptySet(),
-    val timeFilter: TimeFilter = TimeFilter.ALL,
-    val snoozedUntilFilter: SnoozedUntilFilter = SnoozedUntilFilter.ALL
-)
-```
-
-4. Add `matchesSnoozedUntil()` method to `FilterState`:
-
-```kotlin
-fun matchesSnoozedUntil(event: EventAlertRecord, now: Long): Boolean {
-    return snoozedUntilFilter.matches(event, now)
-}
-```
-
-5. Update `filterEvents()` to include `SNOOZED_UNTIL`:
+6. Update `filterEvents()` inline fun to include `SNOOZED_UNTIL`:
 
 ```kotlin
 (FilterType.SNOOZED_UNTIL !in apply || matchesSnoozedUntil(event, now))
 ```
 
-6. Update `hasActiveFilters()`:
+7. Update `hasActiveFilters()`:
 
 ```kotlin
-fun hasActiveFilters(): Boolean {
-    return selectedCalendarIds != null ||
-           statusFilters.isNotEmpty() ||
-           timeFilter != TimeFilter.ALL ||
-           snoozedUntilFilter != SnoozedUntilFilter.ALL
-}
+snoozedUntilFilter.mode != SnoozedUntilFilterMode.ALL
 ```
 
-7. Update `toDisplayString()` — add snoozed until section.
+8. Update `toDisplayString()` — show direction + value (e.g., "Snoozed ≤ 1 day").
 
-8. Update `toBundle()` / `fromBundle()` — add `BUNDLE_SNOOZED_UNTIL_FILTER` serialization (same pattern as `BUNDLE_TIME_FILTER`).
+9. Update `toBundle()` / `fromBundle()` — serialize `mode.ordinal`, `direction.ordinal`, `valueMillis`.
 
-9. Update `filterEvents()` default `apply` set for active events to include `FilterType.SNOOZED_UNTIL`.
+10. Update active events `filterEvents()` default apply set to include `FilterType.SNOOZED_UNTIL`.
 
 ---
 
-### Phase 2: Tests for SnoozedUntilFilter
+### Phase 3: Tests
 
-**Goal:** Add tests before building the UI.
+**Goal:** Tests before building UI.
 
 **Files to modify:**
 - `FilterStateTest.kt`
 
-**Tests to add** (mirroring existing `TimeFilter` tests):
+**Tests to add:**
 
 ```
-SnoozedUntilFilter ALL matches all events
-SnoozedUntilFilter ALL matches non-snoozed events
-SnoozedUntilFilter SNOOZED_UNTIL_TODAY matches events snoozed until today
-SnoozedUntilFilter SNOOZED_UNTIL_TODAY excludes non-snoozed events
-SnoozedUntilFilter SNOOZED_UNTIL_THIS_WEEK matches events snoozed until this week
-SnoozedUntilFilter SNOOZED_UNTIL_THIS_MONTH matches events snoozed until this month
-FilterState matchesSnoozedUntil uses snoozedUntilFilter
-FilterState default has ALL snoozedUntilFilter
-toBundle and fromBundle round-trip snoozedUntilFilter
-toBundle and fromBundle round-trip all snoozedUntilFilter values
-hasActiveFilters returns true when snoozedUntilFilter is not ALL
-toDisplayString shows snoozed until filter when not ALL
+SnoozedUntilFilter:
+- ALL matches all events including non-snoozed
+- ALL matches non-snoozed events (snoozedUntil == 0)
+- PRESET BEFORE matches events snoozed until within interval
+- PRESET BEFORE excludes events snoozed until beyond interval
+- PRESET BEFORE excludes non-snoozed events
+- PRESET AFTER matches events snoozed until beyond interval
+- PRESET AFTER excludes events snoozed until within interval
+- PRESET AFTER excludes non-snoozed events
+- CUSTOM_PERIOD works same as PRESET (both use now + valueMillis)
+- SPECIFIC_TIME BEFORE matches events snoozed until before timestamp
+- SPECIFIC_TIME BEFORE excludes events snoozed until after timestamp
+- SPECIFIC_TIME AFTER matches events snoozed until after timestamp
+- SPECIFIC_TIME AFTER excludes events snoozed until before timestamp
+- boundary: event.snoozedUntil == threshold with BEFORE matches (<=)
+- boundary: event.snoozedUntil == threshold with AFTER does not match (>)
+
+FilterState integration:
+- matchesSnoozedUntil delegates to config
+- default has ALL snoozedUntilFilter
+- hasActiveFilters true when snoozedUntilFilter is not ALL
+- toDisplayString shows snoozed until when not ALL
+
+Serialization:
+- toBundle/fromBundle round-trip for each mode
+- toBundle/fromBundle round-trip preserves direction
+- toBundle/fromBundle round-trip preserves valueMillis
+- fromBundle with null returns default
 ```
 
 ---
 
-### Phase 3: Bottom Sheet UI
+### Phase 4: Bottom Sheet UI
 
-**Goal:** Create the bottom sheet for selecting snoozed until filter options.
+**Goal:** Create the bottom sheet with dynamic presets, before/after toggle, and custom options.
 
 **New files:**
-- `SnoozedUntilFilterBottomSheet.kt` (parallel to `TimeFilterBottomSheet.kt`)
-- `layout/bottom_sheet_snoozed_until_filter.xml` (parallel to `bottom_sheet_time_filter.xml`)
+- `SnoozedUntilFilterBottomSheet.kt`
+- `layout/bottom_sheet_snoozed_until_filter.xml`
 
-**Strings to add** (in `strings.xml`):
+**Bottom sheet structure** (follows `UpcomingTimeFilterBottomSheet` dynamic pattern):
+
+1. **Header** — "Filter by Snoozed Until"
+2. **Before/After toggle** — `RadioGroup` or `MaterialButtonToggleGroup` with two options
+3. **"All" radio button** — clears filter
+4. **Divider**
+5. **Dynamic preset radio buttons** — generated from `settings.snoozedUntilPresets` using `PreferenceUtils.formatPresetHumanReadable()` (same as `UpcomingTimeFilterBottomSheet`)
+6. **Divider**
+7. **"For a custom period..." radio button** — on select, opens `TimeIntervalPickerController` dialog (reuse from `ViewEventActivityNoRecents.customSnoozeShowDialog`)
+8. **"Until a specific time and date..." radio button** — on select, opens DatePicker → TimePicker flow (reuse from `ViewEventActivityNoRecents.snoozeUntilShowDatePickerDialog`)
+9. **Apply button** — sends result via Fragment Result API
+
+**Result bundle:**
+
+```kotlin
+companion object {
+    const val REQUEST_KEY = "snoozed_until_filter_request"
+    const val RESULT_MODE = "result_mode"        // SnoozedUntilFilterMode ordinal
+    const val RESULT_DIRECTION = "result_direction" // FilterDirection ordinal
+    const val RESULT_VALUE = "result_value"       // Long — duration or timestamp
+}
+```
+
+**Strings to add:**
 
 ```xml
 <string name="filter_snoozed_until">Snoozed Until</string>
 <string name="filter_snoozed_until_all">All</string>
-<string name="filter_snoozed_until_today">Snoozed until today</string>
-<string name="filter_snoozed_until_this_week">Snoozed until this week</string>
-<string name="filter_snoozed_until_this_month">Snoozed until this month</string>
+<string name="filter_snoozed_until_before">Before</string>
+<string name="filter_snoozed_until_after">After</string>
+<string name="filter_snoozed_until_custom_period">For a custom period…</string>
+<string name="filter_snoozed_until_specific_time">Until a specific time and date…</string>
 ```
-
-The bottom sheet follows the exact same pattern as `TimeFilterBottomSheet`:
-- `BottomSheetDialogFragment` with `RadioGroup`
-- `Fragment Result API` for communicating selection back
-- `REQUEST_KEY` / `RESULT_FILTER` constants
 
 ---
 
-### Phase 4: Wire Up Chip in MainActivityModern
+### Phase 5: Wire Up Chip in MainActivityModern
 
 **Goal:** Add the chip to the Active tab and connect it to the bottom sheet.
 
@@ -225,17 +350,20 @@ The bottom sheet follows the exact same pattern as `TimeFilterBottomSheet`:
 
 **Changes:**
 
-1. Add `addSnoozedUntilChip()` method (parallel to `addTimeChip()`):
-   - Creates chip with current filter text
-   - Shows `SnoozedUntilFilterBottomSheet` on click
+1. `addSnoozedUntilChip()` — creates chip, shows `SnoozedUntilFilterBottomSheet` on click.
 
-2. Add `getSnoozedUntilChipText()` method (parallel to `getTimeChipText()`).
+2. `getSnoozedUntilChipText()` — returns text based on current `filterState.snoozedUntilFilter`:
+   - ALL → "Snoozed Until"
+   - BEFORE + preset/custom → "Snoozed ≤ {formatted duration}"
+   - AFTER + preset/custom → "Snoozed > {formatted duration}"
+   - BEFORE + specific → "Snoozed ≤ {formatted date}"
+   - AFTER + specific → "Snoozed > {formatted date}"
 
-3. Add `showSnoozedUntilFilterBottomSheet()` method.
+3. `showSnoozedUntilFilterBottomSheet()` — instantiates and shows the bottom sheet.
 
-4. Add fragment result listener in `setupFilterResultListeners()` for `SnoozedUntilFilterBottomSheet.REQUEST_KEY`.
+4. Fragment result listener in `setupFilterResultListeners()` for `SnoozedUntilFilterBottomSheet.REQUEST_KEY` — builds `SnoozedUntilFilterConfig` from result bundle, updates `filterState`, refreshes chips + fragment.
 
-5. Update `updateFilterChipsForCurrentTab()` — add `addSnoozedUntilChip()` to the Active tab case:
+5. Update `updateFilterChipsForCurrentTab()`:
 
 ```kotlin
 R.id.activeEventsFragment -> {
@@ -248,14 +376,14 @@ R.id.activeEventsFragment -> {
 
 ---
 
-### Phase 5: Apply Filter in Fragment
+### Phase 6: Verify Fragment Filtering
 
-**Goal:** Active events fragment applies the snoozed until filter.
+**Goal:** Ensure Active events fragment applies the snoozed until filter.
 
-**Files to modify:**
+**Files to verify:**
 - `ActiveEventsFragment.kt`
 
-The fragment's `loadEvents()` already calls `filterState.filterEvents()` which applies all `FilterType`s in its `apply` set. Just need to add `FilterType.SNOOZED_UNTIL` to the active tab's default apply set (done in Phase 1).
+The fragment's `loadEvents()` calls `filterState.filterEvents()` which applies all `FilterType`s in its `apply` set. Adding `FilterType.SNOOZED_UNTIL` to the active tab's default apply set (done in Phase 2) should be sufficient. If the active tab currently uses an explicit set that doesn't include `SNOOZED_UNTIL`, update it.
 
 ---
 
@@ -265,57 +393,90 @@ The fragment's `loadEvents()` already calls `filterState.filterEvents()` which a
 
 | File | Phase | Purpose |
 |------|-------|---------|
-| `SnoozedUntilFilterBottomSheet.kt` | 3 | Bottom sheet for snoozed until filter |
-| `bottom_sheet_snoozed_until_filter.xml` | 3 | Bottom sheet layout |
+| `SnoozedUntilFilterBottomSheet.kt` | 4 | Bottom sheet with presets, toggle, custom pickers |
+| `bottom_sheet_snoozed_until_filter.xml` | 4 | Bottom sheet layout |
+| `SnoozedUntilPresetPreferenceX.kt` | 1 | Custom Settings preference for presets (or generalize existing) |
 
 ### Modified Files
 
 | File | Phase | Changes |
 |------|-------|---------|
-| `FilterState.kt` | 1 | Add `SnoozedUntilFilter` enum, `FilterType.SNOOZED_UNTIL`, `FilterState.snoozedUntilFilter` field, matching/serialization |
-| `FilterStateTest.kt` | 2 | Tests for SnoozedUntilFilter matching + serialization |
-| `strings.xml` | 3 | Add snoozed until filter strings |
-| `MainActivityModern.kt` | 4 | Add chip, bottom sheet wiring, result listener |
-| `ActiveEventsFragment.kt` | 5 | Include `SNOOZED_UNTIL` in filter apply set (if not already default) |
+| `Settings.kt` | 1 | `snoozedUntilPresetsRaw`, `snoozedUntilPresets` |
+| `navigation_preferences.xml` | 1 | New "Active Events" category with preset preference |
+| `FilterState.kt` | 2 | `SnoozedUntilFilterConfig`, `FilterDirection`, `SnoozedUntilFilterMode`, `FilterType.SNOOZED_UNTIL`, matching/serialization |
+| `FilterStateTest.kt` | 3 | Tests for all matching modes, directions, serialization |
+| `strings.xml` | 1, 4 | Settings strings, bottom sheet strings, chip text strings |
+| `MainActivityModern.kt` | 5 | Chip, bottom sheet wiring, result listener |
+| `ActiveEventsFragment.kt` | 6 | Include `SNOOZED_UNTIL` in filter apply set (if needed) |
 
 ### Unchanged Files
 
 | File | Reason |
 |------|--------|
-| `TimeFilterBottomSheet.kt` | Separate filter, no changes needed |
+| `TimeFilterBottomSheet.kt` | Separate filter, no changes |
+| `UpcomingTimeFilterBottomSheet.kt` | Reference pattern only, no changes |
+| `TimeIntervalPickerController.kt` | Reused as-is from bottom sheet |
+| `dialog_interval_picker.xml` | Reused as-is |
+| `dialog_date_picker.xml` | Reused as-is |
+| `dialog_time_picker.xml` | Reused as-is |
 | `DismissedEventsFragment.kt` | No snoozed until chip on Dismissed tab |
 | `UpcomingEventsFragment.kt` | No snoozed until chip on Upcoming tab |
-| `SnoozeAllActivity.kt` | Future work — see snooze_all_filter_pills.md |
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests (Phase 2)
+### Unit Tests (Phase 3)
 
-All in `FilterStateTest.kt` — Robolectric tests matching the existing pattern:
+All in `FilterStateTest.kt` — Robolectric tests following existing patterns.
 
-- `SnoozedUntilFilter.matches()` for each enum value
-- Non-snoozed event exclusion (snoozedUntil == 0)
-- `FilterState.matchesSnoozedUntil()` delegation
-- Bundle round-trip serialization
-- `hasActiveFilters()` / `toDisplayString()` integration
+**SnoozedUntilFilterConfig.matches():**
+- ALL mode — matches everything (snoozed and non-snoozed)
+- Non-snoozed events (snoozedUntil == 0) excluded for all non-ALL modes
+- PRESET + BEFORE — snoozedUntil <= now + duration
+- PRESET + AFTER — snoozedUntil > now + duration
+- CUSTOM_PERIOD — same threshold logic as PRESET
+- SPECIFIC_TIME + BEFORE — snoozedUntil <= absolute timestamp
+- SPECIFIC_TIME + AFTER — snoozedUntil > absolute timestamp
+- Boundary: snoozedUntil == threshold → BEFORE matches, AFTER doesn't
+
+**FilterState integration:**
+- `matchesSnoozedUntil()` delegates correctly
+- Default constructor has ALL mode
+- `hasActiveFilters()` detects non-ALL snoozedUntilFilter
+
+**Bundle serialization:**
+- Round-trip each mode (ALL, PRESET, CUSTOM_PERIOD, SPECIFIC_TIME)
+- Round-trip both directions (BEFORE, AFTER)
+- Round-trip preserves `valueMillis`
+- Null bundle returns default
+
+**Settings presets (separate test or existing PreferenceUtils tests):**
+- Parse `"12h, 1d, 3d, 7d, 4w"` correctly
+- Fallback to defaults on invalid input
+- Negative values filtered out
 
 ### Manual Testing Checklist
 
 - [ ] "Snoozed Until" chip appears only on Active tab
 - [ ] Chip does NOT appear on Upcoming or Dismissed tabs
-- [ ] Tapping chip opens bottom sheet with 4 radio options
-- [ ] Selecting option + Apply filters the event list
+- [ ] Tapping chip opens bottom sheet with toggle + presets + custom options
+- [ ] Before/After toggle switches direction
+- [ ] Preset radio buttons match configured intervals from Settings
+- [ ] Selecting preset + Apply filters the event list
+- [ ] "For a custom period..." opens duration picker dialog
+- [ ] Entering custom duration and Apply filters correctly
+- [ ] "Until a specific time and date..." opens DatePicker → TimePicker
+- [ ] Picking a specific date/time and Apply filters correctly
 - [ ] Non-snoozed events are hidden when filter is not "All"
-- [ ] Chip text updates to reflect current selection
+- [ ] Chip text updates with direction symbol (≤ / >) and value
+- [ ] "All" option clears the filter regardless of toggle state
 - [ ] Switching tabs clears the snoozed until filter
 - [ ] Filter survives app backgrounding (via `onSaveInstanceState`)
 - [ ] Filter clears on app restart
-- [ ] Combines correctly with Status filter (e.g., Status=Snoozed + SnoozedUntil=Today)
-- [ ] Combines correctly with Time filter and Calendar filter
-- [ ] "Snoozed until today" correctly includes events snoozed until later today
-- [ ] "Snoozed until this week" correctly uses locale-aware week boundaries
+- [ ] Changing presets in Settings → Navigation & UI → Active Events updates the bottom sheet
+- [ ] Invalid presets in Settings fall back to defaults
+- [ ] Combines correctly with Status, Time, and Calendar filters
 
 ---
 
@@ -323,20 +484,25 @@ All in `FilterStateTest.kt` — Robolectric tests matching the existing pattern:
 
 | Scenario | Expected Behavior |
 |----------|-------------------|
-| No snoozed events, filter set to "Today" | Empty list (all events filtered out) |
-| Event snoozed until exactly midnight boundary | `isToday()` handles this correctly (same as Time filter) |
-| Filter active, then event snooze expires | Event disappears from filtered list on next refresh |
+| No snoozed events, filter active | Empty list (all events filtered out) |
+| Event snoozedUntil exactly at threshold | BEFORE matches (≤), AFTER doesn't (>) |
+| Specific time in the past | Valid — shows events snoozed until before/after that past time |
+| Custom period of 0 | Effectively `now` — BEFORE shows events waking up now or earlier, AFTER shows all future snoozes |
 | All filters combined (Calendar + Status + Time + SnoozedUntil) | AND logic across all filter types |
 | Filter set, then switch to Dismissed tab and back | Filter cleared (same as all other filters) |
+| Presets changed in Settings while bottom sheet open | Bottom sheet reads presets on create — won't update mid-dialog, next open picks up changes |
+| SPECIFIC_TIME mode + rotation | `valueMillis` (absolute timestamp) preserved via Bundle — still correct after rotation |
+| PRESET/CUSTOM_PERIOD mode + time passes | Threshold is `now + duration` — recalculated each time `matches()` is called, so filter stays relative |
 
 ---
 
 ## Implementation Order
 
-1. **Phase 1** — `SnoozedUntilFilter` enum + `FilterState` integration
-2. **Phase 2** — Tests (run before UI work)
-3. **Phase 3** — Bottom sheet UI + strings
-4. **Phase 4** — Wire up chip in `MainActivityModern`
-5. **Phase 5** — Verify fragment filtering works (may be zero changes if default apply set is updated in Phase 1)
+1. **Phase 1** — Settings infrastructure (presets + Active Events category)
+2. **Phase 2** — `SnoozedUntilFilterConfig` + `FilterState` integration
+3. **Phase 3** — Tests (run before UI work)
+4. **Phase 4** — Bottom sheet UI (dynamic presets, toggle, custom pickers)
+5. **Phase 5** — Wire up chip in `MainActivityModern`
+6. **Phase 6** — Verify fragment filtering
 
-Each phase is independently testable. Phases 1-2 are purely logic/tests with no UI changes.
+Phases 1-3 are purely logic/settings/tests with no UI changes. Phase 4 is the bulk of the UI work. Phases 5-6 wire everything together.
