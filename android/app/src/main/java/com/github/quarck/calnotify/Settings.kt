@@ -501,6 +501,21 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
                 .toLongArray()
         }
     
+    /** Raw configurable snoozed-until filter presets string (e.g., "12h, 1d, 3d, 7d, 4w") */
+    val snoozedUntilPresetsRaw: String
+        get() = getString(SNOOZED_UNTIL_PRESETS_KEY, DEFAULT_SNOOZED_UNTIL_PRESETS)
+    
+    /** Parsed snoozed-until filter presets in milliseconds. Filters out negative values. */
+    val snoozedUntilPresets: LongArray
+        get() {
+            val ret = PreferenceUtils.parseSnoozePresets(snoozedUntilPresetsRaw)
+                ?: PreferenceUtils.parseSnoozePresets(DEFAULT_SNOOZED_UNTIL_PRESETS)
+                ?: return longArrayOf()
+            return ret.filter { it > 0 }
+                .take(MAX_SNOOZED_UNTIL_PRESETS)
+                .toLongArray()
+        }
+    
     /** Max calendars to show in calendar filter. 0 = no limit (show all). */
     val calendarFilterMaxItems: Int
         get() = getString(CALENDAR_FILTER_MAX_ITEMS_KEY, DEFAULT_CALENDAR_FILTER_MAX_ITEMS.toString())
@@ -613,6 +628,7 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
         private const val UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY = "upcoming_fixed_lookahead_millis"
         private const val UPCOMING_TIME_PRESETS_KEY = "pref_upcoming_time_presets"
+        private const val SNOOZED_UNTIL_PRESETS_KEY = "pref_snoozed_until_presets"
         private const val CALENDAR_FILTER_MAX_ITEMS_KEY = "calendar_filter_max_items"
         private const val CALENDAR_FILTER_SHOW_SEARCH_KEY = "calendar_filter_show_search"
         private const val CALENDAR_FILTER_SHOW_IDS_KEY = "calendar_filter_show_ids"
@@ -638,6 +654,8 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val MAX_UPCOMING_TIME_PRESETS = 10
         internal const val MAX_LOOKAHEAD_DAYS = 30L
         internal const val MAX_LOOKAHEAD_MILLIS = MAX_LOOKAHEAD_DAYS * Consts.DAY_IN_MILLISECONDS
+        internal const val DEFAULT_SNOOZED_UNTIL_PRESETS = "12h, 1d, 3d, 7d, 4w"
+        internal const val MAX_SNOOZED_UNTIL_PRESETS = 10
         /** Default max calendars in filter (0 = no limit) */
         internal const val DEFAULT_CALENDAR_FILTER_MAX_ITEMS = 20
     }

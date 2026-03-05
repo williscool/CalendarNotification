@@ -60,13 +60,20 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     }
     
     override fun onDisplayPreferenceDialog(preference: Preference) {
-        if (preference is UpcomingTimePresetPreferenceX) {
-            val dialogFragment = UpcomingTimePresetPreferenceX.Dialog.newInstance(preference.key)
-            @Suppress("DEPRECATION")
-            dialogFragment.setTargetFragment(this, 0)
-            dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
-        } else {
-            super.onDisplayPreferenceDialog(preference)
+        when (preference) {
+            is UpcomingTimePresetPreferenceX -> {
+                val dialogFragment = UpcomingTimePresetPreferenceX.Dialog.newInstance(preference.key)
+                @Suppress("DEPRECATION")
+                dialogFragment.setTargetFragment(this, 0)
+                dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+            }
+            is SnoozedUntilPresetPreferenceX -> {
+                val dialogFragment = SnoozedUntilPresetPreferenceX.Dialog.newInstance(preference.key)
+                @Suppress("DEPRECATION")
+                dialogFragment.setTargetFragment(this, 0)
+                dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+            }
+            else -> super.onDisplayPreferenceDialog(preference)
         }
     }
     

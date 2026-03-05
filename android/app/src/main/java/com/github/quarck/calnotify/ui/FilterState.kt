@@ -30,7 +30,52 @@ import com.github.quarck.calnotify.utils.DateTimeUtils
  * Which filters to apply when filtering events.
  */
 enum class FilterType {
-    CALENDAR, STATUS, TIME
+    CALENDAR, STATUS, TIME, SNOOZED_UNTIL
+}
+
+/**
+ * Direction for the snoozed-until filter threshold.
+ */
+enum class FilterDirection {
+    BEFORE,  // snoozedUntil <= threshold
+    AFTER    // snoozedUntil > threshold
+}
+
+/**
+ * Mode for the snoozed-until filter.
+ */
+enum class SnoozedUntilFilterMode {
+    ALL,            // no filter (default)
+    PRESET,         // from configurable interval presets; valueMillis = duration
+    CUSTOM_PERIOD,  // user-entered duration; valueMillis = duration
+    SPECIFIC_TIME   // user-picked date+time; valueMillis = absolute timestamp
+}
+
+/**
+ * Configuration for the snoozed-until filter. Unlike the simple TimeFilter enum,
+ * this supports multiple modes (presets, custom duration, specific time) and a
+ * before/after direction toggle.
+ */
+data class SnoozedUntilFilterConfig(
+    val mode: SnoozedUntilFilterMode = SnoozedUntilFilterMode.ALL,
+    val direction: FilterDirection = FilterDirection.BEFORE,
+    val valueMillis: Long = 0L
+) {
+    fun matches(event: EventAlertRecord, now: Long): Boolean {
+        if (mode == SnoozedUntilFilterMode.ALL) return true
+        if (event.snoozedUntil == 0L) return false
+
+        val threshold = when (mode) {
+            SnoozedUntilFilterMode.ALL -> return true
+            SnoozedUntilFilterMode.PRESET, SnoozedUntilFilterMode.CUSTOM_PERIOD -> now + valueMillis
+            SnoozedUntilFilterMode.SPECIFIC_TIME -> valueMillis
+        }
+
+        return when (direction) {
+            FilterDirection.BEFORE -> event.snoozedUntil <= threshold
+            FilterDirection.AFTER -> event.snoozedUntil > threshold
+        }
+    }
 }
 
 /**
@@ -39,7 +84,8 @@ enum class FilterType {
 data class FilterState(
     val selectedCalendarIds: Set<Long>? = null,  // null = no filter (all), empty = none, set = specific
     val statusFilters: Set<StatusOption> = emptySet(),  // empty = show all (no filter)
-    val timeFilter: TimeFilter = TimeFilter.ALL
+    val timeFilter: TimeFilter = TimeFilter.ALL,
+    val snoozedUntilFilter: SnoozedUntilFilterConfig = SnoozedUntilFilterConfig()
 ) {
     
     companion object {
@@ -47,6 +93,9 @@ data class FilterState(
         private const val BUNDLE_CALENDAR_NULL = "filter_calendar_null"
         private const val BUNDLE_STATUS_FILTERS = "filter_status"
         private const val BUNDLE_TIME_FILTER = "filter_time"
+        private const val BUNDLE_SNOOZED_UNTIL_MODE = "filter_snoozed_until_mode"
+        private const val BUNDLE_SNOOZED_UNTIL_DIRECTION = "filter_snoozed_until_direction"
+        private const val BUNDLE_SNOOZED_UNTIL_VALUE = "filter_snoozed_until_value"
         
         /** Deserialize FilterState from a Bundle */
         fun fromBundle(bundle: Bundle?): FilterState {
@@ -67,10 +116,21 @@ data class FilterState(
                 bundle.getInt(BUNDLE_TIME_FILTER, 0)
             ) ?: TimeFilter.ALL
             
+            val snoozedUntilFilter = SnoozedUntilFilterConfig(
+                mode = SnoozedUntilFilterMode.entries.getOrNull(
+                    bundle.getInt(BUNDLE_SNOOZED_UNTIL_MODE, 0)
+                ) ?: SnoozedUntilFilterMode.ALL,
+                direction = FilterDirection.entries.getOrNull(
+                    bundle.getInt(BUNDLE_SNOOZED_UNTIL_DIRECTION, 0)
+                ) ?: FilterDirection.BEFORE,
+                valueMillis = bundle.getLong(BUNDLE_SNOOZED_UNTIL_VALUE, 0L)
+            )
+            
             return FilterState(
                 selectedCalendarIds = calendarIds,
                 statusFilters = statusFilters,
-                timeFilter = timeFilter
+                timeFilter = timeFilter,
+                snoozedUntilFilter = snoozedUntilFilter
             )
         }
     }
@@ -83,13 +143,17 @@ data class FilterState(
         
         putIntArray(BUNDLE_STATUS_FILTERS, statusFilters.map { it.ordinal }.toIntArray())
         putInt(BUNDLE_TIME_FILTER, timeFilter.ordinal)
+        putInt(BUNDLE_SNOOZED_UNTIL_MODE, snoozedUntilFilter.mode.ordinal)
+        putInt(BUNDLE_SNOOZED_UNTIL_DIRECTION, snoozedUntilFilter.direction.ordinal)
+        putLong(BUNDLE_SNOOZED_UNTIL_VALUE, snoozedUntilFilter.valueMillis)
     }
     
     /** Check if any filters are active */
     fun hasActiveFilters(): Boolean {
         return selectedCalendarIds != null || 
                statusFilters.isNotEmpty() || 
-               timeFilter != TimeFilter.ALL
+               timeFilter != TimeFilter.ALL ||
+               snoozedUntilFilter.mode != SnoozedUntilFilterMode.ALL
     }
     
     /**
@@ -130,6 +194,15 @@ data class FilterState(
             TimeFilter.STARTED_THIS_MONTH -> parts.add(context.getString(R.string.filter_time_started_this_month))
         }
         
+        // Snoozed until filter
+        if (snoozedUntilFilter.mode != SnoozedUntilFilterMode.ALL) {
+            val symbol = when (snoozedUntilFilter.direction) {
+                FilterDirection.BEFORE -> "\u2264"  // ≤
+                FilterDirection.AFTER -> ">"
+            }
+            parts.add(context.getString(R.string.filter_snoozed_until_display, symbol))
+        }
+        
         return if (parts.isEmpty()) null else parts.joinToString(", ")
     }
     /** Check if an event matches current status filters (empty set = match all) */
@@ -141,6 +214,11 @@ data class FilterState(
     /** Check if an event matches current time filter */
     fun matchesTime(event: EventAlertRecord, now: Long): Boolean {
         return timeFilter.matches(event, now)
+    }
+    
+    /** Check if an event matches current snoozed-until filter */
+    fun matchesSnoozedUntil(event: EventAlertRecord, now: Long): Boolean {
+        return snoozedUntilFilter.matches(event, now)
     }
     
     /** Check if an event matches current calendar filter (null = all, empty = none) */
@@ -165,7 +243,8 @@ data class FilterState(
             val event = eventExtractor(item)
             (FilterType.CALENDAR !in apply || matchesCalendar(event)) &&
             (FilterType.STATUS !in apply || matchesStatus(event)) &&
-            (FilterType.TIME !in apply || matchesTime(event, now))
+            (FilterType.TIME !in apply || matchesTime(event, now)) &&
+            (FilterType.SNOOZED_UNTIL !in apply || matchesSnoozedUntil(event, now))
         }.toTypedArray()
     }
     
@@ -173,7 +252,7 @@ data class FilterState(
     fun filterEvents(
         events: List<EventAlertRecord>,
         now: Long,
-        apply: Set<FilterType> = setOf(FilterType.CALENDAR, FilterType.STATUS, FilterType.TIME)
+        apply: Set<FilterType> = setOf(FilterType.CALENDAR, FilterType.STATUS, FilterType.TIME, FilterType.SNOOZED_UNTIL)
     ): Array<EventAlertRecord> {
         return filterEvents(events, now, apply) { it }
     }
