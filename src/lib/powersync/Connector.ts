@@ -110,6 +110,20 @@ const BASE_DELAY_MS = 1000;
 const MAX_FAILED_OPS = 50;
 const FAILED_OPS_STORAGE_KEY = '@powersync_failed_operations';
 
+// Live upload progress counters — incremented per successful op in uploadData
+export interface UploadProgress {
+  upserts: number;
+  updates: number;
+  deletes: number;
+}
+const _uploadProgress: UploadProgress = { upserts: 0, updates: 0, deletes: 0 };
+export const getUploadProgress = (): UploadProgress => ({ ..._uploadProgress });
+export const resetUploadProgress = (): void => {
+  _uploadProgress.upserts = 0;
+  _uploadProgress.updates = 0;
+  _uploadProgress.deletes = 0;
+};
+
 interface SupabaseError {
   code: string;
   message?: string;
@@ -368,6 +382,9 @@ export class Connector implements PowerSyncBackendConnector {
             for (const op of transaction.crud) {
                 lastOp = op;
                 await this.executeWithRetry(op);
+                if (op.op === UpdateType.PUT) _uploadProgress.upserts++;
+                else if (op.op === UpdateType.PATCH) _uploadProgress.updates++;
+                else if (op.op === UpdateType.DELETE) _uploadProgress.deletes++;
             }
     
             await transaction.complete();

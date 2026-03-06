@@ -6,6 +6,8 @@ import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
 import { psResyncTable, psClearTable, getPendingCrudCount } from '@lib/orm';
+import { getUploadProgress, resetUploadProgress } from '@lib/powersync/Connector';
+import type { UploadProgress } from '@lib/powersync/Connector';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
@@ -53,6 +55,7 @@ export const SetupSync = () => {
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [pendingOps, setPendingOps] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ upserts: 0, updates: 0, deletes: 0 });
   const isSyncing = pendingOps !== null && pendingOps > 0;
 
   const isConfigured = isSettingsConfigured(settings);
@@ -126,16 +129,18 @@ export const SetupSync = () => {
           }
         }
 
-        // Always poll pending ops — survives navigation away and back
+        // Always poll pending ops + uploaded counter — survives navigation
         try {
           const count = await getPendingCrudCount(providerDb);
           if (count !== prevPendingOps) {
+            if (count === 0 && prevPendingOps !== null && prevPendingOps > 0) {
+              emitSyncLog('info', 'Sync complete — upload queue drained');
+              resetUploadProgress();
+            }
             prevPendingOps = count;
             setPendingOps(count);
-            if (count === 0 && prevPendingOps !== null) {
-              emitSyncLog('info', 'Sync complete — upload queue drained');
-            }
           }
+          setUploadProgress(getUploadProgress());
         } catch (error) {
           emitSyncLog('warn', 'Failed to poll pending ops count', { error });
         }
@@ -149,6 +154,8 @@ export const SetupSync = () => {
     if (!providerDb || !settings.syncEnabled) return;
 
     try {
+      resetUploadProgress();
+      setUploadProgress({ upserts: 0, updates: 0, deletes: 0 });
       await psResyncTable(eventsDbName, 'eventsV9', providerDb);
       const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
@@ -252,9 +259,7 @@ export const SetupSync = () => {
       {isSyncing && (
         <WarningBanner variant="info" testID="sync-progress-banner">
           <AlertText className="text-center">
-            {pendingOps !== null
-              ? `Uploading — ${pendingOps} operation${pendingOps !== 1 ? 's' : ''} remaining`
-              : 'Preparing sync...'}
+            {`${uploadProgress.deletes} deleted, ${uploadProgress.upserts} upserted, ${uploadProgress.updates} updated — ${pendingOps} queued`}
           </AlertText>
         </WarningBanner>
       )}
