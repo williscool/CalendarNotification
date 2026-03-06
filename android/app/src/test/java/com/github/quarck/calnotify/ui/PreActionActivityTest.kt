@@ -103,22 +103,20 @@ class PreActionActivityTest {
     }
 
     @Test
-    fun `mute button shows correct text for non-muted event`() {
+    fun `snooze until button is present`() {
         val activity = launchActivity()
         
-        val muteButton = activity.findViewById<TextView>(R.id.pre_action_mute_toggle)
-        assertEquals(activity.getString(R.string.pre_mute), muteButton.text)
+        val snoozeUntil = activity.findViewById<TextView>(R.id.pre_action_snooze_until)
+        assertNotNull(snoozeUntil)
+        assertEquals(activity.getString(R.string.until_specific_time), snoozeUntil.text)
     }
 
     @Test
-    fun `mute button shows unmute text for pre-muted event`() {
-        val mutedEvent = testEvent.copy(
-            flags = com.github.quarck.calnotify.calendar.EventAlertFlags.IS_MUTED
-        )
-        val activity = launchActivity(mutedEvent)
+    fun `edit FAB is visible for writable calendar`() {
+        val activity = launchActivity()
         
-        val muteButton = activity.findViewById<TextView>(R.id.pre_action_mute_toggle)
-        assertEquals(activity.getString(R.string.pre_unmute), muteButton.text)
+        val fab = activity.findViewById<View>(R.id.pre_action_edit_button)
+        assertNotNull(fab)
     }
 
     @Test
