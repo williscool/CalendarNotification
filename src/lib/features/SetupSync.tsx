@@ -56,6 +56,7 @@ export const SetupSync = () => {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [pendingOps, setPendingOps] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ upserts: 0, updates: 0, deletes: 0 });
+  const [syncCompleteAt, setSyncCompleteAt] = useState<string | null>(null);
   const isSyncing = pendingOps !== null && pendingOps > 0;
 
   const isConfigured = isSettingsConfigured(settings);
@@ -111,6 +112,7 @@ export const SetupSync = () => {
     let prevStatus = '';
     let prevConnected: boolean | null = null;
     let prevPendingOps: number | null = null;
+    let prevUploadProgress = '';
     
     const statusInterval = setInterval(async () => {
       if (providerDb) {
@@ -135,12 +137,17 @@ export const SetupSync = () => {
           if (count !== prevPendingOps) {
             if (count === 0 && prevPendingOps !== null && prevPendingOps > 0) {
               emitSyncLog('info', 'Sync complete — upload queue drained');
-              resetUploadProgress();
+              setSyncCompleteAt(new Date().toLocaleTimeString());
             }
             prevPendingOps = count;
             setPendingOps(count);
           }
-          setUploadProgress(getUploadProgress());
+          const progress = getUploadProgress();
+          const progressKey = `${progress.upserts},${progress.updates},${progress.deletes}`;
+          if (progressKey !== prevUploadProgress) {
+            prevUploadProgress = progressKey;
+            setUploadProgress(progress);
+          }
         } catch (error) {
           emitSyncLog('warn', 'Failed to poll pending ops count', { error });
         }
@@ -156,6 +163,7 @@ export const SetupSync = () => {
     try {
       resetUploadProgress();
       setUploadProgress({ upserts: 0, updates: 0, deletes: 0 });
+      setSyncCompleteAt(null);
       await psResyncTable(eventsDbName, 'eventsV9', providerDb);
       const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
@@ -260,6 +268,14 @@ export const SetupSync = () => {
         <WarningBanner variant="info" testID="sync-progress-banner">
           <AlertText className="text-center">
             {`${uploadProgress.deletes} deleted, ${uploadProgress.upserts} upserted, ${uploadProgress.updates} updated — ${pendingOps} queued`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
+      {!isSyncing && syncCompleteAt && (
+        <WarningBanner variant="info" testID="sync-complete-banner">
+          <AlertText className="text-center">
+            {`Sync complete at ${syncCompleteAt}`}
           </AlertText>
         </WarningBanner>
       )}
