@@ -80,3 +80,27 @@ export async function psClearTable(
   }
 }
 
+/**
+ * Full resync: clear all remote data then re-upload from local SQLite.
+ * This is the recommended sync workflow — avoids stale/orphaned remote data.
+ */
+export async function psResyncTable(
+  dbName: string,
+  tableName: string,
+  psDb: AbstractPowerSyncDatabase
+): Promise<void> {
+  emitSyncLog('info', `Starting full resync for ${tableName}`);
+  await psClearTable(tableName, psDb);
+  await psInsertDbTable(dbName, tableName, psDb);
+  emitSyncLog('info', `Full resync queued for ${tableName}`);
+}
+
+/** Returns the number of pending CRUD operations in the PowerSync upload queue */
+export async function getPendingCrudCount(
+  psDb: AbstractPowerSyncDatabase
+): Promise<number> {
+  const result = await psDb.execute('SELECT COUNT(*) AS cnt FROM ps_crud');
+  const row = result?.rows?.item(0);
+  return (row?.cnt as number) ?? 0;
+}
+

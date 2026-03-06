@@ -5,7 +5,9 @@ import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
-import { psInsertDbTable, psClearTable } from '@lib/orm';
+import { psResyncTable, psClearTable, getPendingCrudCount } from '@lib/orm';
+import { getUploadProgress, resetUploadProgress } from '@lib/powersync/Connector';
+import type { UploadProgress } from '@lib/powersync/Connector';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
@@ -52,6 +54,11 @@ export const SetupSync = () => {
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [pendingOps, setPendingOps] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ upserts: 0, updates: 0, deletes: 0 });
+  const [syncCompleteAt, setSyncCompleteAt] = useState<string | null>(null);
+  const [syncInFlight, setSyncInFlight] = useState(false);
+  const isSyncing = syncInFlight || (pendingOps !== null && pendingOps > 0);
 
   const isConfigured = isSettingsConfigured(settings);
 
@@ -105,12 +112,13 @@ export const SetupSync = () => {
     // Track previous values to avoid unnecessary re-renders for expensive updates
     let prevStatus = '';
     let prevConnected: boolean | null = null;
+    let prevPendingOps: number | null = null;
+    let prevUploadProgress = '';
     
-    const statusInterval = setInterval(() => {
+    const statusInterval = setInterval(async () => {
       if (providerDb) {
         const newStatus = JSON.stringify(providerDb.currentStatus);
         
-        // Only update dbStatus if it actually changed (avoid expensive re-render)
         if (newStatus !== prevStatus) {
           prevStatus = newStatus;
           setDbStatus(newStatus);
@@ -123,6 +131,27 @@ export const SetupSync = () => {
             setIsConnected(newConnected);
           }
         }
+
+        // Always poll pending ops + uploaded counter — survives navigation
+        try {
+          const count = await getPendingCrudCount(providerDb);
+          if (count !== prevPendingOps) {
+            if (count === 0 && prevPendingOps !== null && prevPendingOps > 0) {
+              emitSyncLog('info', 'Sync complete — upload queue drained');
+              setSyncCompleteAt(new Date().toLocaleTimeString());
+            }
+            prevPendingOps = count;
+            setPendingOps(count);
+          }
+          const progress = getUploadProgress();
+          const progressKey = `${progress.upserts},${progress.updates},${progress.deletes}`;
+          if (progressKey !== prevUploadProgress) {
+            prevUploadProgress = progressKey;
+            setUploadProgress(progress);
+          }
+        } catch (error) {
+          emitSyncLog('warn', 'Failed to poll pending ops count', { error });
+        }
       }
     }, 1000);
 
@@ -132,14 +161,20 @@ export const SetupSync = () => {
   const handleSync = async () => {
     if (!providerDb || !settings.syncEnabled) return;
 
+    setSyncInFlight(true);
     try {
-      await psInsertDbTable(eventsDbName, 'eventsV9', providerDb);
+      resetUploadProgress();
+      setUploadProgress({ upserts: 0, updates: 0, deletes: 0 });
+      setSyncCompleteAt(null);
+      await psResyncTable(eventsDbName, 'eventsV9', providerDb);
       const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
         setSqliteEvents(result.rows || []);
       }
     } catch (error) {
       emitSyncLog('error', 'Failed to sync data', { error });
+    } finally {
+      setSyncInFlight(false);
     }
   };
 
@@ -233,13 +268,29 @@ export const SetupSync = () => {
         </Card>
       )}
 
+      {isSyncing && (
+        <WarningBanner variant="info" testID="sync-progress-banner">
+          <AlertText className="text-center">
+            {`${uploadProgress.deletes} deleted, ${uploadProgress.upserts} upserted, ${uploadProgress.updates} updated — ${pendingOps} queued`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
+      {!isSyncing && syncCompleteAt && (
+        <WarningBanner variant="info" testID="sync-complete-banner">
+          <AlertText className="text-center">
+            {`Sync complete at ${syncCompleteAt}`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
       <ActionButton
         onPress={handleSync}
         variant="success"
-        disabled={!isConnected}
+        disabled={!isConnected || isSyncing}
         testID="sync-button"
       >
-        Sync Events Local To PowerSync Now
+        {isSyncing ? 'Syncing...' : 'Full Resync to Remote'}
       </ActionButton>
 
       <ActionButton
