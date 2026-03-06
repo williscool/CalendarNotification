@@ -15,6 +15,7 @@ The `PreActionActivity` (upcoming events detail view) has several UI/UX discrepa
 | **Mute/Unmute** | In 3-dot menu | Button in main content area (toggle) |
 | **Dismiss** | In 3-dot menu | In 3-dot menu ("Pre-Dismiss") |
 | **Snooze presets** | `settings.snoozePresets` via 6 fixed XML slots | `settings.snoozePresets` via dynamic list (filtered positive-only) |
+| **"Until a specific time"** | Date picker → time picker flow | **Missing** |
 
 ## Changes Required
 
@@ -48,7 +49,19 @@ The 3-dot menu should gain mute/unmute items (hidden/shown based on current mute
 
 Since we're adding a FAB for edit/calendar (change 1), the separate "View in Calendar" button in the content area becomes redundant. Move it to the 3-dot menu for consistency with the main view, where "Open in Calendar" is a menu item.
 
-### 4. (Verify) Snooze Presets Consistency
+### 4. Add "Until a Specific Time" Snooze Option
+
+**Files:**
+- `activity_pre_action.xml` - add "Until a specific time" text button after custom snooze
+- `PreActionActivity.kt` - add date picker → time picker dialog flow
+
+The main view has two custom snooze options:
+- "For a custom time" - dropdown of preset intervals (both views have this)
+- "Until a specific time" (`snooze_view_snooze_until`) - opens date picker then time picker
+
+The pre-action view is missing the "Until a specific time" option entirely. Add it with the same date picker → time picker flow as `ViewEventActivityNoRecents.snoozeUntilShowDatePickerDialog()` / `snoozeUntilShowTimePickerDialog()`.
+
+### 5. (Verify) Snooze Presets Consistency
 
 Both views already use `settings.snoozePresets` from preferences. The pre-action view filters to positive-only values, which is correct since negative presets ("X min before event") don't apply to events that haven't fired yet.
 
@@ -71,7 +84,8 @@ After changes, `pre_action.xml` should contain:
 2. **Move mute to menu** - menu XML + activity logic
 3. **Move calendar to menu** - menu XML + activity logic
 4. **Remove old buttons** from layout (part of steps 2-3)
-5. **Manual test** - verify both views feel consistent
+5. **Add "Until a specific time"** - layout + date/time picker dialog flow
+6. **Manual test** - verify both views feel consistent
 
 ## Out of Scope
 
