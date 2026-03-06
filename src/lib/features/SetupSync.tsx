@@ -57,7 +57,8 @@ export const SetupSync = () => {
   const [pendingOps, setPendingOps] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ upserts: 0, updates: 0, deletes: 0 });
   const [syncCompleteAt, setSyncCompleteAt] = useState<string | null>(null);
-  const isSyncing = pendingOps !== null && pendingOps > 0;
+  const [syncInFlight, setSyncInFlight] = useState(false);
+  const isSyncing = syncInFlight || (pendingOps !== null && pendingOps > 0);
 
   const isConfigured = isSettingsConfigured(settings);
 
@@ -160,6 +161,7 @@ export const SetupSync = () => {
   const handleSync = async () => {
     if (!providerDb || !settings.syncEnabled) return;
 
+    setSyncInFlight(true);
     try {
       resetUploadProgress();
       setUploadProgress({ upserts: 0, updates: 0, deletes: 0 });
@@ -171,6 +173,8 @@ export const SetupSync = () => {
       }
     } catch (error) {
       emitSyncLog('error', 'Failed to sync data', { error });
+    } finally {
+      setSyncInFlight(false);
     }
   };
 
