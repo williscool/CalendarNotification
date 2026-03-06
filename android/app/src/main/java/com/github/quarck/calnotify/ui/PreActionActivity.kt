@@ -22,24 +22,31 @@ package com.github.quarck.calnotify.ui
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.view.View
+import android.widget.DatePicker
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import android.widget.TimePicker
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarIntents
+import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.AttendanceStatus
-import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.utils.adjustCalendarColor
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -51,7 +58,11 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
+import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.hourCompat
+import com.github.quarck.calnotify.utils.minuteCompat
 import com.github.quarck.calnotify.utils.setupStatusBarSpacer
+import java.util.*
 
 /**
  * Activity for pre-actions on upcoming events.
@@ -140,6 +151,7 @@ class PreActionActivity : AppCompatActivity() {
     private var eventIsMuted: Boolean = false
     
     private lateinit var snoozePresets: LongArray
+    private val calendarProvider: CalendarProviderInterface = CalendarProvider
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -213,16 +225,13 @@ class PreActionActivity : AppCompatActivity() {
             showCustomSnoozeDialog()
         }
         
-        // Mute toggle
-        updateMuteButton()
-        findViewById<TextView>(R.id.pre_action_mute_toggle).setOnClickListener {
-            toggleMute()
+        // Until specific time
+        findViewById<TextView>(R.id.pre_action_snooze_until).setOnClickListener {
+            showSnoozeUntilDatePicker()
         }
         
-        // View in calendar
-        findViewById<TextView>(R.id.pre_action_view_calendar).setOnClickListener {
-            viewInCalendar()
-        }
+        // Edit FAB
+        setupEditFab()
         
         // 3-dot menu
         findViewById<View>(R.id.pre_action_menu).setOnClickListener { v ->
@@ -230,14 +239,59 @@ class PreActionActivity : AppCompatActivity() {
         }
     }
     
+    private fun setupEditFab() {
+        val fab = findOrThrow<FloatingActionButton>(R.id.pre_action_edit_button)
+        val calendar = calendarProvider.getCalendarById(this, calendarId)
+            ?: calendarProvider.createCalendarNotFoundCal(this)
+        
+        if (!calendar.isReadOnly) {
+            if (!eventIsRepeating && !settings.alwaysUseExternalEditor) {
+                fab.setOnClickListener {
+                    val intent = Intent(this, EditEventActivity::class.java)
+                    intent.putExtra(EditEventActivity.EVENT_ID, eventId)
+                    startActivity(intent)
+                    finish()
+                }
+            } else {
+                fab.setOnClickListener {
+                    viewInCalendar()
+                    finish()
+                }
+            }
+            
+            val states = arrayOf(
+                intArrayOf(android.R.attr.state_enabled),
+                intArrayOf(android.R.attr.state_pressed)
+            )
+            val colors = intArrayOf(
+                eventColor.adjustCalendarColor(false),
+                eventColor.adjustCalendarColor(true)
+            )
+            fab.backgroundTintList = ColorStateList(states, colors)
+        } else {
+            fab.visibility = View.GONE
+        }
+    }
+    
     private fun showMenu(anchor: View) {
         val popup = PopupMenu(this, anchor)
         popup.menuInflater.inflate(R.menu.pre_action, popup.menu)
+        
+        popup.menu.findItem(R.id.action_pre_mute)?.isVisible = !eventIsMuted
+        popup.menu.findItem(R.id.action_pre_unmute)?.isVisible = eventIsMuted
         
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_pre_dismiss -> {
                     executePreDismiss()
+                    true
+                }
+                R.id.action_pre_mute, R.id.action_pre_unmute -> {
+                    toggleMute()
+                    true
+                }
+                R.id.action_open_in_calendar -> {
+                    viewInCalendar()
                     true
                 }
                 else -> false
@@ -300,6 +354,65 @@ class PreActionActivity : AppCompatActivity() {
                     executePreSnooze(snoozeUntil)
                 }
             }
+            .show()
+    }
+    
+    private fun showSnoozeUntilDatePicker() {
+        val dialogDate = layoutInflater.inflate(R.layout.dialog_date_picker, null) ?: return
+        val datePicker = dialogDate.findOrThrow<DatePicker>(R.id.datePickerCustomSnooze)
+        
+        val firstDayOfWeek = settings.firstDayOfWeek
+        if (firstDayOfWeek != -1) {
+            datePicker.firstDayOfWeek = firstDayOfWeek
+        }
+        
+        AlertDialog.Builder(this)
+            .setView(dialogDate)
+            .setPositiveButton(R.string.next) { _, _ ->
+                datePicker.clearFocus()
+                val date = Calendar.getInstance()
+                date.set(datePicker.year, datePicker.month, datePicker.dayOfMonth, 0, 0, 0)
+                showSnoozeUntilTimePicker(date.timeInMillis)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+            .show()
+    }
+    
+    private fun showSnoozeUntilTimePicker(dateMillis: Long) {
+        val date = Calendar.getInstance()
+        date.timeInMillis = dateMillis
+        
+        val dialogTime = layoutInflater.inflate(R.layout.dialog_time_picker, null) ?: return
+        val timePicker = dialogTime.findOrThrow<TimePicker>(R.id.timePickerCustomSnooze)
+        timePicker.setIs24HourView(android.text.format.DateFormat.is24HourFormat(this))
+        
+        val title = dialogTime.findOrThrow<TextView>(R.id.textViewSnoozeUntilDate)
+        title.text = String.format(
+            resources.getString(R.string.choose_time),
+            DateUtils.formatDateTime(this, date.timeInMillis, DateUtils.FORMAT_SHOW_DATE)
+        )
+        
+        AlertDialog.Builder(this)
+            .setView(dialogTime)
+            .setPositiveButton(R.string.snooze) { _, _ ->
+                timePicker.clearFocus()
+                date.set(Calendar.HOUR_OF_DAY, timePicker.hourCompat)
+                date.set(Calendar.MINUTE, timePicker.minuteCompat)
+                
+                val snoozeUntil = date.timeInMillis + Consts.ALARM_THRESHOLD
+                if (snoozeUntil > getClock().currentTimeMillis()) {
+                    executePreSnooze(snoozeUntil)
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.selected_time_is_in_the_past)
+                        .setNegativeButton(R.string.cancel, null)
+                        .create()
+                        .show()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .create()
             .show()
     }
     
@@ -386,12 +499,6 @@ class PreActionActivity : AppCompatActivity() {
         )
     }
     
-    private fun updateMuteButton() {
-        // Null check in case activity is destroyed while background task runs
-        val muteView = findViewById<TextView>(R.id.pre_action_mute_toggle) ?: return
-        muteView.text = getString(if (eventIsMuted) R.string.pre_unmute else R.string.pre_mute)
-    }
-    
     private fun toggleMute() {
         background {
             val newMutedState = getMonitorStorage(this).use { storage ->
@@ -405,7 +512,6 @@ class PreActionActivity : AppCompatActivity() {
             
             runOnUiThread {
                 if (newMutedState != null) {
-                    updateMuteButton()
                     val msgRes = if (eventIsMuted) R.string.event_will_be_muted else R.string.event_unmuted
                     Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
                 } else {
