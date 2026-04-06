@@ -23,7 +23,7 @@ Add the ability to "pin" event notifications so they are excluded from batch sno
 
 ## Non-Goals
 
-- **Pin/unpin in ViewEventActivity** — Deferred; the detail view is out of scope for this iteration.
+- **Pin indicator icons in ViewEventActivity** — No visual pin icons/badges on the detail view; the "Pin"/"Unpin" menu option in the popup is in scope.
 - **Pin-related filter pill on Dismissed tab** — Dismissed tab has no Status chip today; stays that way.
 - **Notification action button for pin/unpin** — Adding a "Pin" action on individual notifications is future work.
 - **Dismiss All exclusion** — Dismiss All doesn't support any filtering today ([#215 context](./snooze_all_filter_pills.md)). Pinning can be added there when Dismiss All gets filter support.
@@ -36,7 +36,7 @@ Add the ability to "pin" event notifications so they are excluded from batch sno
 |----------|--------|-----------|
 | Storage mechanism | **`IS_PINNED` flag on existing `flags` bitmask** | No DB migration, consistent with `isMuted`/`isTask`/`isAlarm` pattern |
 | Batch exclusion scope | **`snoozeAllEvents` + `snoozeAllCollapsedEvents` + `muteAllVisibleEvents`** | Covers UI, notification, and mute-all paths; `snoozeSelectedEvents` NOT excluded (explicit selection overrides pin) |
-| Pin/unpin UI | **Icon toggle on event card + overflow menu "Pin All"** | Icon for individual toggle (same pattern as mute indicator); menu item for batch pin (same pattern as "Mute all visible") |
+| Pin/unpin UI | **Icon toggle on event card + ViewEventActivity popup menu + overflow menu "Pin All"** | Icon for individual toggle; popup menu Pin/Unpin (same as Mute/Un-Mute); overflow menu for batch (same as "Mute all visible") |
 | Filter integration | **Add `PINNED` to `StatusOption` on Active + Upcoming tabs** | Uses existing filter pill infrastructure; OR logic with other status options |
 | Event count in Snooze All | **Show "excluding N pinned" in confirmation** | Transparent UX — user sees exactly what's happening |
 
@@ -96,7 +96,7 @@ When an event is both pinned and muted, both icons show side by side — no spec
 - Also add "Unpin all visible" (`R.id.action_unpin_all`) for the reverse operation
 - Both skip `isNotSpecial`/task events to match mute behavior
 
-A future phase can add pin/unpin to ViewEventActivityNoRecents for discoverability, but the list icon + overflow menu is sufficient for MVP.
+The ViewEventActivityNoRecents popup menu also gets Pin/Unpin items, following the exact Mute/Un-Mute pattern in `showDismissEditPopup()`.
 
 ### Filter pill: PINNED as StatusOption on Active + Upcoming
 
@@ -156,6 +156,17 @@ This integrates cleanly with the existing `FilterState.matchesStatus()` without 
 - Pin icon drawable: Material `ic_push_pin_24dp` tinted with `@color/primary_text`
 
 **Verification:** Manual testing — pin icon appears for pinned events, tapping toggles state, list refreshes. Both pin + mute icons visible simultaneously when applicable.
+
+### Phase 3.5: ViewEventActivity Popup Menu — Pin / Unpin
+
+**Goal:** Users can pin/unpin individual events from the event detail view popup menu, same pattern as Mute/Un-Mute.
+
+**Changes:**
+- `snooze.xml` (menu): Add `action_pin_event` (visible when not pinned and not a task) and `action_unpin_event` (visible when pinned)
+- `ViewEventActivityNoRecents.kt`: In `showDismissEditPopup()`, set visibility based on `event.isPinned` / `event.isTask`. Handle click to toggle pin in storage and update local state.
+- `strings.xml`: Add `pin_notification` and `unpin_notification` strings
+
+**Verification:** Pin/Unpin items appear correctly based on event state. Tapping toggles the pin and closes the popup.
 
 ### Phase 4: Overflow Menu — Pin All / Unpin All
 
@@ -281,8 +292,7 @@ After Phase 6, the complete pinning feature works end-to-end:
 
 ## Future Enhancements
 
-1. **Pin/unpin in ViewEventActivityNoRecents** — Add toggle button in the event detail view for discoverability
-2. **Notification "Pin" action** — Add a Pin/Unpin action button on individual event notifications
+1. **Notification "Pin" action** — Add a Pin/Unpin action button on individual event notifications
 3. **Dismiss All exclusion** — When Dismiss All gets filter support, exclude pinned events (configurable)
 4. **Pin count badge** — Show count of pinned events somewhere in the UI (toolbar, filter chip)
 5. **`#pin` hashtag auto-pin** — Integration with [#185](https://github.com/williscool/CalendarNotification/issues/185) extended hashtag system: events with `#pin` in title are automatically pinned
