@@ -184,6 +184,7 @@ data class FilterState(
                     StatusOption.ACTIVE -> context.getString(R.string.filter_status_active)
                     StatusOption.MUTED -> context.getString(R.string.filter_status_muted)
                     StatusOption.RECURRING -> context.getString(R.string.filter_status_recurring)
+                    StatusOption.PINNED -> context.getString(R.string.filter_status_pinned)
                 }
             }
             parts.add(names.joinToString(", "))
