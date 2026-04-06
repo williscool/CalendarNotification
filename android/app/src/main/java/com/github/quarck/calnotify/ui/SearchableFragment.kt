@@ -65,6 +65,9 @@ interface SearchableFragment {
     /** Whether there are any events eligible for unpin all */
     fun anyForUnpinAll(): Boolean = false
     
+    /** Get count of pinned events in current displayed set (for snooze all exclusion message) */
+    fun getPinnedEventCount(): Int = 0
+    
     /** Called when mute all action is triggered - fragment should reload data */
     fun onMuteAllComplete() {}
     

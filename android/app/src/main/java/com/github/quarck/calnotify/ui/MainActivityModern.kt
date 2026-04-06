@@ -341,6 +341,8 @@ class MainActivityModern : MainActivityBase() {
                     return true
                 }
 
+                val pinnedCount = fragment?.getPinnedEventCount() ?: 0
+
                 startActivity(
                     Intent(this, SnoozeAllActivity::class.java)
                         .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
@@ -348,6 +350,7 @@ class MainActivityModern : MainActivityBase() {
                         .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
                         .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
                         .putExtra(Consts.INTENT_FILTER_STATE, currentFilterState.toBundle())
+                        .putExtra(Consts.INTENT_PINNED_EVENT_COUNT, pinnedCount)
                         .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 )
             }

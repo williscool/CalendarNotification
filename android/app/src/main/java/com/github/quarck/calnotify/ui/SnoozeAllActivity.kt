@@ -104,6 +104,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
     private var searchQuery: String? = null
     private var filterState: FilterState? = null
     private var selectedEventKeys: Set<String>? = null  // For multi-select mode
+    private var pinnedEventCount: Int = 0
 
     val clock: CNPlusClockInterface = CNPlusSystemClock()
 
@@ -127,6 +128,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
 
       searchQuery = intent.getStringExtra(Consts.INTENT_SEARCH_QUERY)
       filterState = FilterState.fromBundle(intent.getBundleExtra(Consts.INTENT_FILTER_STATE))
+      pinnedEventCount = intent.getIntExtra(Consts.INTENT_PINNED_EVENT_COUNT, 0)
       
       // Check for multi-select mode
       val selectedKeysArray = intent.getStringArrayExtra(ActiveEventsFragment.INTENT_SELECTED_EVENT_KEYS)
@@ -372,7 +374,7 @@ open class SnoozeAllActivity : AppCompatActivity() {
         val hasSearch = !searchQuery.isNullOrEmpty()
         val hasFilter = filterState?.hasActiveFilters() == true && filterDescription != null
         
-        return when {
+        val baseMessage = when {
             hasSearch || hasFilter -> {
                 val combined = when {
                     hasSearch && hasFilter -> getString(R.string.filter_description_search_and_filters, searchQuery, filterDescription)
@@ -387,6 +389,15 @@ open class SnoozeAllActivity : AppCompatActivity() {
             snoozeAllIsChange -> getString(R.string.change_all_notification)
             else -> getString(R.string.snooze_all_confirmation)
         }
+        
+        if (pinnedEventCount > 0) {
+            val pinnedSuffix = resources.getQuantityString(
+                R.plurals.pinned_events_excluded, pinnedEventCount, pinnedEventCount
+            )
+            return "$baseMessage\n$pinnedSuffix"
+        }
+        
+        return baseMessage
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")

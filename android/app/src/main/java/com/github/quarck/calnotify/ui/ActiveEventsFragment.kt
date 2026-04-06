@@ -404,6 +404,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     
     override fun anyForUnpinAll(): Boolean = adapter.anyForUnpinAll
     
+    override fun getPinnedEventCount(): Int = adapter.pinnedCount
+    
     override fun onMuteAllComplete() {
         loadEvents()
     }

@@ -604,6 +604,9 @@ class EventListAdapter(
     val anyForUnpinAll: Boolean
         get() = events.any { it.isPinned }
 
+    val pinnedCount: Int
+        get() = events.count { it.isPinned }
+
     // === Selection Mode Methods ===
     
     fun enterSelectionMode(firstEvent: EventAlertRecord) {
