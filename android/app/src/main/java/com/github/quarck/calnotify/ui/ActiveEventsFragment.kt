@@ -388,6 +388,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     
     override fun hasActiveEvents(): Boolean = adapter.hasActiveEvents
     
+    override fun hasUnpinnedActiveEvents(): Boolean = adapter.hasUnpinnedActiveEvents
+    
     override fun supportsSnoozeAll(): Boolean = true
     
     override fun supportsMuteAll(): Boolean = true

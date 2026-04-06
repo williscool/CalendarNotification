@@ -349,6 +349,38 @@ class EventListAdapterSelectionTest {
         assertEquals(1, adapter.getSelectedEvents().size)
     }
     
+    // === hasUnpinnedActiveEvents Tests ===
+    
+    @Test
+    fun hasUnpinnedActiveEvents_true_when_unpinned_active_exists() {
+        val event = createTestEvent(eventId = 1L)
+        setAdapterEvents(event)
+        
+        assertTrue(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_false_when_only_pinned_active() {
+        val pinned = createTestEvent(eventId = 1L).apply { isPinned = true }
+        setAdapterEvents(pinned)
+        
+        assertFalse(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_false_when_no_events() {
+        assertFalse(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_true_with_mix_of_pinned_and_unpinned() {
+        val pinned = createTestEvent(eventId = 1L).apply { isPinned = true }
+        val unpinned = createTestEvent(eventId = 2L)
+        setAdapterEvents(pinned, unpinned)
+        
+        assertTrue(adapter.hasUnpinnedActiveEvents)
+    }
+    
     // === Mock Callback ===
     
     private class MockEventListCallback : EventListCallback {

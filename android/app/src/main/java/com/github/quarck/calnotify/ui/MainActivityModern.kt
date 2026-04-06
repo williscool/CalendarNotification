@@ -243,7 +243,7 @@ class MainActivityModern : MainActivityBase() {
         snoozeAllMenuItem?.isVisible = supportsSnoozeAll
         if (supportsSnoozeAll) {
             snoozeAllMenuItem?.title = resources.getString(
-                if (currentFragment?.hasActiveEvents() == true) R.string.snooze_all else R.string.change_all
+                if (currentFragment?.hasUnpinnedActiveEvents() == true) R.string.snooze_all else R.string.change_all
             )
         }
 
@@ -322,7 +322,7 @@ class MainActivityModern : MainActivityBase() {
         when (item.itemId) {
             R.id.action_snooze_all -> {
                 val fragment = getCurrentSearchableFragment()
-                val isChange = fragment?.hasActiveEvents() != true
+                val isChange = fragment?.hasUnpinnedActiveEvents() != true
                 val searchQuery = fragment?.getSearchQuery()
                 val eventCount = fragment?.getDisplayedEventCount() ?: 0
                 val currentFilterState = getCurrentFilterState()

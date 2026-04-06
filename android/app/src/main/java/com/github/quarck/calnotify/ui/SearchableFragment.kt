@@ -41,6 +41,9 @@ interface SearchableFragment {
     /** Whether there are active (non-snoozed) events - for snooze all label */
     fun hasActiveEvents(): Boolean = true
     
+    /** Whether there are active non-pinned events (for snooze-vs-change-all decision) */
+    fun hasUnpinnedActiveEvents(): Boolean = hasActiveEvents()
+    
     /** Whether this fragment supports snooze all action */
     fun supportsSnoozeAll(): Boolean = false
     
