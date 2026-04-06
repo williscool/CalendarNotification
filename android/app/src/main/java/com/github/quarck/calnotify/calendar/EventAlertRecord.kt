@@ -99,6 +99,7 @@ object EventAlertFlags {
     const val IS_MUTED = 1L
     const val IS_TASK = 2L
     const val IS_ALARM = 4L
+    const val IS_PINNED = 8L
 }
 
 fun Long.isFlagSet(flag: Long)
@@ -165,6 +166,10 @@ data class EventAlertRecord(
     var isAlarm: Boolean
         get() = flags.isFlagSet(EventAlertFlags.IS_ALARM)
         set(value) { flags = flags.setFlag(EventAlertFlags.IS_ALARM, value) }
+
+    var isPinned: Boolean
+        get() = flags.isFlagSet(EventAlertFlags.IS_PINNED)
+        set(value) { flags = flags.setFlag(EventAlertFlags.IS_PINNED, value) }
 
     val isUnmutedAlarm: Boolean
         get() = isAlarm && !isMuted

@@ -930,7 +930,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     fun snoozeAllCollapsedEvents(context: Context, snoozeDelay: Long, isChange: Boolean, onlySnoozeVisible: Boolean): SnoozeResult? {
-        return snoozeEvents(context, { it.displayStatus == EventDisplayStatus.DisplayedCollapsed }, snoozeDelay, isChange, onlySnoozeVisible)
+        return snoozeEvents(context, { it.displayStatus == EventDisplayStatus.DisplayedCollapsed && !it.isPinned }, snoozeDelay, isChange, onlySnoozeVisible)
     }
 
     fun snoozeAllEvents(
@@ -943,20 +943,19 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     ): SnoozeResult? {
         val now = clock.currentTimeMillis()
         return snoozeEvents(context, { event ->
+            // Pinned events are excluded from batch snooze
+            !event.isPinned &&
             // Search query filter (existing behavior)
-            val matchesSearch = searchQuery?.let { query ->
+            (searchQuery?.let { query ->
                 event.title.contains(query, ignoreCase = true) ||
                 event.desc.contains(query, ignoreCase = true)
-            } ?: true
-            
-            // FilterState filters (new)
-            val matchesFilter = filterState?.let { filter ->
+            } ?: true) &&
+            // FilterState filters
+            (filterState?.let { filter ->
                 filter.matchesCalendar(event) &&
                 filter.matchesStatus(event) &&
                 filter.matchesTime(event, now)
-            } ?: true
-            
-            matchesSearch && matchesFilter
+            } ?: true)
         }, snoozeDelay, isChange, onlySnoozeVisible)
     }
     
@@ -1128,7 +1127,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         getEventsStorage(context).use {
             db ->
             val eventsToMute = db.events.filter {
-                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask && !event.isPinned
             }
 
             if (eventsToMute.isNotEmpty()) {
@@ -1143,6 +1142,28 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 getReminderState(context).onUserInteraction(clock.currentTimeMillis())
 
                 alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
+            }
+        }
+    }
+
+    fun pinAllVisibleEvents(context: Context) {
+        getEventsStorage(context).use { db ->
+            val eventsToPin = db.events.filter {
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask && !event.isPinned
+            }
+            if (eventsToPin.isNotEmpty()) {
+                val pinnedEvents = eventsToPin.map { it.isPinned = true; it }
+                db.updateEvents(pinnedEvents)
+            }
+        }
+    }
+
+    fun unpinAllVisibleEvents(context: Context) {
+        getEventsStorage(context).use { db ->
+            val eventsToUnpin = db.events.filter { event -> event.isPinned }
+            if (eventsToUnpin.isNotEmpty()) {
+                val unpinnedEvents = eventsToUnpin.map { it.isPinned = false; it }
+                db.updateEvents(unpinnedEvents)
             }
         }
     }

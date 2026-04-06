@@ -275,7 +275,7 @@ data class FilterState(
  * Individual status filter options. Multiple can be selected (OR logic).
  */
 enum class StatusOption {
-    SNOOZED, ACTIVE, MUTED, RECURRING;
+    SNOOZED, ACTIVE, MUTED, RECURRING, PINNED;
     
     /** Check if an event matches this specific option */
     fun matches(event: EventAlertRecord): Boolean = when (this) {
@@ -283,6 +283,7 @@ enum class StatusOption {
         ACTIVE -> event.snoozedUntil == 0L
         MUTED -> event.isMuted
         RECURRING -> event.isRepeating
+        PINNED -> event.isPinned
     }
 }
 

@@ -397,6 +397,13 @@
     <string name="mute_all">Mute all visible</string>
     <string name="mute_all_events_question">Mute all visible events? (Tasks excluded)</string>
 
+    <string name="notification_is_pinned">Notification is pinned</string>
+    <string name="pin_all">Pin all visible</string>
+    <string name="unpin_all">Unpin all</string>
+    <string name="pin_all_events_question">Pin all visible events? (Tasks excluded)\nPinned events are excluded from batch snooze and mute.</string>
+    <string name="unpin_all_events_question">Unpin all pinned events?</string>
+    <string name="filter_status_pinned">Pinned</string>
+
     <!-- Pre-actions for upcoming events -->
     <string name="pre_mute">Mute when it fires</string>
     <string name="pre_unmute">Unmute</string>

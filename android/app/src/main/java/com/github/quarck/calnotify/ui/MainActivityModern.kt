@@ -228,6 +228,15 @@ class MainActivityModern : MainActivityBase() {
         dismissAllMenuItem?.isVisible = supportsDismissAll
         dismissAllMenuItem?.isEnabled = currentFragment?.anyForDismissAll() == true
 
+        // Show pin all / unpin all only for fragments that support it
+        val supportsPinAll = currentFragment?.supportsPinAll() == true
+        val pinAllMenuItem = menu.findItem(R.id.action_pin_all)
+        pinAllMenuItem?.isVisible = supportsPinAll
+        pinAllMenuItem?.isEnabled = currentFragment?.anyForPinAll() == true
+        val unpinAllMenuItem = menu.findItem(R.id.action_unpin_all)
+        unpinAllMenuItem?.isVisible = supportsPinAll
+        unpinAllMenuItem?.isEnabled = currentFragment?.anyForUnpinAll() == true
+
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
         val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
@@ -345,6 +354,10 @@ class MainActivityModern : MainActivityBase() {
 
             R.id.action_mute_all -> onMuteAll()
 
+            R.id.action_pin_all -> onPinAll()
+
+            R.id.action_unpin_all -> onUnpinAll()
+
             R.id.action_dismiss_all -> onDismissAll()
         }
 
@@ -388,6 +401,42 @@ class MainActivityModern : MainActivityBase() {
     private fun doMuteAll() {
         ApplicationController.muteAllVisibleEvents(this)
         getCurrentSearchableFragment()?.onMuteAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onPinAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.pin_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doPinAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doPinAll() {
+        ApplicationController.pinAllVisibleEvents(this)
+        getCurrentSearchableFragment()?.onPinAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onUnpinAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.unpin_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doUnpinAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doUnpinAll() {
+        ApplicationController.unpinAllVisibleEvents(this)
+        getCurrentSearchableFragment()?.onPinAllComplete()
         invalidateOptionsMenu()
     }
     
@@ -461,6 +510,7 @@ class MainActivityModern : MainActivityBase() {
         StatusOption.ACTIVE -> getString(R.string.filter_status_active)
         StatusOption.MUTED -> getString(R.string.filter_status_muted)
         StatusOption.RECURRING -> getString(R.string.filter_status_recurring)
+        StatusOption.PINNED -> getString(R.string.filter_status_pinned)
     }
     
     private fun showStatusFilterPopup(anchor: View) {

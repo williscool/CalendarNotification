@@ -56,11 +56,23 @@ interface SearchableFragment {
     /** Whether there are any events eligible for dismiss all */
     fun anyForDismissAll(): Boolean = false
     
+    /** Whether this fragment supports pin all action */
+    fun supportsPinAll(): Boolean = false
+    
+    /** Whether there are any events eligible for pin all */
+    fun anyForPinAll(): Boolean = false
+    
+    /** Whether there are any events eligible for unpin all */
+    fun anyForUnpinAll(): Boolean = false
+    
     /** Called when mute all action is triggered - fragment should reload data */
     fun onMuteAllComplete() {}
     
     /** Called when dismiss all action is triggered - fragment should reload data */
     fun onDismissAllComplete() {}
+    
+    /** Called when pin/unpin all action is triggered - fragment should reload data */
+    fun onPinAllComplete() {}
     
     /** Called when filter state changes - fragment should reload data with new filter */
     fun onFilterChanged() {}
