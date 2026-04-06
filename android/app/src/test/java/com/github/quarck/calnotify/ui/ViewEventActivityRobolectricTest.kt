@@ -433,7 +433,7 @@ class ViewEventActivityRobolectricTest {
     }
     
     @Test
-    fun popupMenu_hides_pin_for_task_event() {
+    fun popupMenu_shows_pin_for_task_event() {
         val event = fixture.createEvent(title = "Task Event", isTask = true)
         
         val scenario = fixture.launchViewEventActivity(event)
@@ -447,7 +447,7 @@ class ViewEventActivityRobolectricTest {
             assertNotNull("Popup menu should be shown", shadowPopup)
             
             val pinItem = shadowPopup.menu.findItem(R.id.action_pin_event)
-            assertFalse("Pin should be hidden for task event", pinItem.isVisible)
+            assertTrue("Pin should be visible for task event (pinning is orthogonal)", pinItem.isVisible)
         }
         
         scenario.close()

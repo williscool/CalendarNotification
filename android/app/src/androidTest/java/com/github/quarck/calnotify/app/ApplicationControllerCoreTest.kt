@@ -342,14 +342,14 @@ class ApplicationControllerCoreTest {
         assertFalse("Task event should NOT be muted", updatedEvent?.isMuted == true)
     }
 
-    // === muteAllVisibleEvents pinned exclusion ===
+    // === muteAllVisibleEvents does NOT skip pinned (pinning only affects batch snooze) ===
 
     @Test
-    fun testMuteAllVisibleEvents_skipsPinnedEvents() {
-        DevLog.info(LOG_TAG, "Running testMuteAllVisibleEvents_skipsPinnedEvents")
+    fun testMuteAllVisibleEvents_mutesPinnedEvents() {
+        DevLog.info(LOG_TAG, "Running testMuteAllVisibleEvents_mutesPinnedEvents")
         
-        val pinnedEventId = System.nanoTime()
-        val normalEventId = pinnedEventId + 1
+        val pinnedEventId = 100040L
+        val normalEventId = 100041L
         val pinnedEvent = createTestEvent(eventId = pinnedEventId, isMuted = false).apply { isPinned = true }
         val normalEvent = createTestEvent(eventId = normalEventId, isMuted = false)
         EventsStorage(context).use { db ->
@@ -362,7 +362,7 @@ class ApplicationControllerCoreTest {
         EventsStorage(context).use { db ->
             val updatedPinned = db.getEvent(pinnedEventId, baseTime)
             val updatedNormal = db.getEvent(normalEventId, baseTime)
-            assertFalse("Pinned event should NOT be muted", updatedPinned?.isMuted == true)
+            assertTrue("Pinned event should be muted (pinning only affects batch snooze)", updatedPinned?.isMuted == true)
             assertTrue("Normal event should be muted", updatedNormal?.isMuted == true)
         }
     }
@@ -373,7 +373,7 @@ class ApplicationControllerCoreTest {
     fun testPinAllVisibleEvents_pinsVisibleEvents() {
         DevLog.info(LOG_TAG, "Running testPinAllVisibleEvents_pinsVisibleEvents")
         
-        val eventId = System.nanoTime()
+        val eventId = 100042L
         val event = createTestEvent(eventId = eventId)
         EventsStorage(context).use { db ->
             db.addEvent(event)
@@ -391,7 +391,7 @@ class ApplicationControllerCoreTest {
     fun testPinAllVisibleEvents_skipsSnoozedEvents() {
         DevLog.info(LOG_TAG, "Running testPinAllVisibleEvents_skipsSnoozedEvents")
         
-        val eventId = System.nanoTime()
+        val eventId = 100043L
         val event = createTestEvent(eventId = eventId, snoozedUntil = baseTime + 3600000L)
         EventsStorage(context).use { db ->
             db.addEvent(event)
@@ -409,7 +409,7 @@ class ApplicationControllerCoreTest {
     fun testUnpinAllVisibleEvents_unpinsAll() {
         DevLog.info(LOG_TAG, "Running testUnpinAllVisibleEvents_unpinsAll")
         
-        val eventId = System.nanoTime()
+        val eventId = 100044L
         val event = createTestEvent(eventId = eventId).apply { isPinned = true }
         EventsStorage(context).use { db ->
             db.addEvent(event)

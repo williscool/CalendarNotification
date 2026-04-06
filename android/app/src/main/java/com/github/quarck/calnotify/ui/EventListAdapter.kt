@@ -599,7 +599,7 @@ class EventListAdapter(
         get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial}
 
     val anyForPinAll: Boolean
-        get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial && !it.isTask && !it.isPinned }
+        get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial && !it.isPinned }
 
     val anyForUnpinAll: Boolean
         get() = events.any { it.isPinned }

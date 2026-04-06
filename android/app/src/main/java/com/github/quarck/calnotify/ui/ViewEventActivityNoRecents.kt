@@ -414,7 +414,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             menuItemUnMute.isVisible = event.isMuted
         }
 
-        popup.menu.findItem(R.id.action_pin_event)?.isVisible = !event.isPinned && !event.isTask
+        popup.menu.findItem(R.id.action_pin_event)?.isVisible = !event.isPinned
         popup.menu.findItem(R.id.action_unpin_event)?.isVisible = event.isPinned
 
         // Show "Back to upcoming" for snoozed events whose alert time hasn't passed

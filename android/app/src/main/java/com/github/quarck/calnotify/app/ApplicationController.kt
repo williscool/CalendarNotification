@@ -1127,7 +1127,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         getEventsStorage(context).use {
             db ->
             val eventsToMute = db.events.filter {
-                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask && !event.isPinned
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask
             }
 
             if (eventsToMute.isNotEmpty()) {
@@ -1149,7 +1149,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     fun pinAllVisibleEvents(context: Context) {
         getEventsStorage(context).use { db ->
             val eventsToPin = db.events.filter {
-                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask && !event.isPinned
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isPinned
             }
             if (eventsToPin.isNotEmpty()) {
                 val pinnedEvents = eventsToPin.map { it.isPinned = true; it }

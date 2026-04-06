@@ -366,7 +366,7 @@ class ApplicationControllerCoreRobolectricTest {
     }
 
     @Test
-    fun testMuteAllVisibleEvents_skipsPinnedEvents() {
+    fun testMuteAllVisibleEvents_mutesPinnedEvents() {
         val pinnedEvent = createTestEvent(eventId = 1, isMuted = false).apply { isPinned = true }
         mockEventsStorage.addEvent(pinnedEvent)
         mockEventsStorage.addEvent(createTestEvent(eventId = 2, isMuted = false))
@@ -377,7 +377,7 @@ class ApplicationControllerCoreRobolectricTest {
         val pinned = events.find { it.eventId == 1L }
         val normal = events.find { it.eventId == 2L }
         
-        assertFalse("Pinned event should NOT be muted", pinned?.isMuted == true)
+        assertTrue("Pinned event should be muted (pinning only affects batch snooze)", pinned?.isMuted == true)
         assertTrue("Normal event should be muted", normal?.isMuted == true)
     }
 
@@ -410,7 +410,7 @@ class ApplicationControllerCoreRobolectricTest {
     }
 
     @Test
-    fun testPinAllVisibleEvents_skipsTaskEvents() {
+    fun testPinAllVisibleEvents_pinsTaskEvents() {
         mockEventsStorage.addEvent(createTestEvent(eventId = 1, isTask = true))
         mockEventsStorage.addEvent(createTestEvent(eventId = 2))
 
@@ -420,7 +420,7 @@ class ApplicationControllerCoreRobolectricTest {
         val task = events.find { it.eventId == 1L }
         val normal = events.find { it.eventId == 2L }
 
-        assertFalse("Task event should NOT be pinned", task?.isPinned == true)
+        assertTrue("Task event should be pinned (pinning is orthogonal to task status)", task?.isPinned == true)
         assertTrue("Normal event should be pinned", normal?.isPinned == true)
     }
 
