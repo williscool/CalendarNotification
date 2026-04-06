@@ -4,7 +4,7 @@ Use for work with high subsystem fan-out, architecture decisions, new components
 
 ## Key Principle
 
-Hit the right level of specificity — everything the plan needs, nothing it doesn't. Large plans are long-lived reference documents that future you (and the AI) will re-read during implementation. Invest in design decisions, non-goals, and scope boundaries. But don't pre-specify implementation details that will change during the build — code snippets, test stubs, and layouts only when they're genuinely the clearest way to communicate an approach.
+Hit the right level of specificity — everything the plan needs, nothing it doesn't. Large plans are long-lived reference documents that future you (and the AI) will re-read during implementation. Invest in design decisions, non-goals, and scope boundaries. But don't pre-specify implementation details that will change during the build — TO BE CLEAR ONLY INCLUDE code snippets, test stubs, layouts, etc. when they're genuinely the clearest way to communicate an approach.
 
 ## Template
 
