@@ -1,6 +1,6 @@
 # Large/XL Plan Template (L-XL)
 
-Use for work touching 8+ files, requiring architecture decisions, new components, or phased rollout.
+Use for work with high subsystem fan-out, architecture decisions, new components, or phased rollout.
 
 ## Key Principle
 
@@ -55,10 +55,6 @@ Go deep. Large plans are long-lived reference documents. Future you (and the AI)
 
 [What milestone N delivers. Validate before proceeding.]
 
-## Edge Cases & Error Handling
-
-[Dedicated section for: empty states, null returns, permission denials, migration paths, graceful degradation.]
-
 ## Files to Modify/Create
 
 ### New Files
@@ -73,11 +69,11 @@ Go deep. Large plans are long-lived reference documents. Future you (and the AI)
 
 ## Testing Plan
 
-[Organized by Robolectric vs instrumentation. Full test stubs with @Test methods and Given/When/Then comments. Group by test class.]
+[Organized by Robolectric vs instrumentation. Full test stubs with @Test methods and Given/When/Then comments. Group by test class. Edge cases and error handling scenarios (empty states, null returns, permission denials, graceful degradation) belong here as test cases, not as a separate section.]
 
 ### Unit Tests (Robolectric)
 
-[Test class per component. Full method signatures with scenario comments.]
+[Test class per component. Full method signatures with scenario comments. Include edge case and error handling tests inline with the component they cover.]
 
 ### Instrumentation Tests
 
@@ -108,8 +104,7 @@ Go deep. Large plans are long-lived reference documents. Future you (and the AI)
 - **Implementation Plan** with 7 phases grouped into 3 milestones
 - **Phase substeps** (0a, 0b, 0c) each independently verifiable
 - **Full code snippets** for Kotlin and XML
-- **Edge Cases** section with empty states, error handling, refresh triggers
-- **Testing Plan** with full `@Test` stubs organized by Robolectric vs instrumentation
+- **Testing Plan** with full `@Test` stubs organized by Robolectric vs instrumentation, with edge cases (empty states, error handling, refresh triggers) as test scenarios
 - **Files to Modify/Create** split into New and Modified tables
 - **Future Enhancements** as numbered phases beyond current scope
 - **Notes** with design principles and technical clarifications
@@ -151,7 +146,6 @@ The Non-Goals section is **mandatory** for L/XL plans. Good non-goals are:
 - Non-Goals section
 - Key Decisions Summary table
 - Full code snippets in implementation phases
-- Edge Cases & Error Handling section
-- Full `@Test` method stubs in Testing Plan
+- Full `@Test` method stubs in Testing Plan (including edge case and error handling scenarios)
 - Files to Modify/Create split into New and Modified
 - Milestone checkpoints between major phases

@@ -21,17 +21,18 @@ Before writing a plan:
 
 ### Step 2: Determine T-Shirt Size
 
-Ask these questions to size the work:
+Size based on **conceptual complexity**, not file count (a variable rename across 20 files is still small). Use these signals:
 
-| Question | S | M | L | XL |
-|----------|---|---|---|-----|
-| Files changed | 1-3 | 3-8 | 8-20 | 20+ |
-| Architecture decisions needed? | No | Minor | Yes | Major |
-| New components/packages? | No | Maybe 1 | Yes | Multiple |
-| Milestones needed? | No | No | Probably | Yes |
-| Phased rollout / feature flags? | No | No | Maybe | Yes |
+| Signal | S | M | L | XL |
+|--------|---|---|---|-----|
+| Scope boundary | One bug, one pattern, one screen | Single feature, single concern | End-to-end feature slice across layers | Multi-milestone program with child plans |
+| Subsystem fan-out | Single subsystem | 1-2 subsystems | Multiple (UI + storage + background + settings) | Broad (nav + tabs + data + calendar + sync + tests) |
+| Design decisions | None or obvious | 1-2 minor choices | Multiple options with tradeoffs | Decision tables, library evaluations |
+| New architectural components | None | Maybe a helper | Named new class/pattern (e.g. `NotificationContext`, `FilterState`) | New navigation patterns, new packages |
+| Independent deliverable phases | 1 | 2-3 | 4-6 across layers | 7+ grouped into milestones |
+| Risk / rollback story | Trivial | Low | Feature flags, migration concerns | Legacy fallback, data loss prevention, phased rollout |
 
-Pick the size that matches the majority of answers. When borderline, size down — you can always expand later.
+Pick the size that matches the majority of signals. When borderline, size down — you can always expand later.
 
 ### Step 3: Select Template
 
@@ -50,7 +51,7 @@ Filename should be descriptive and concise (e.g., `data_sync_improvements.md`, `
 
 ## Repo Conventions to Embed
 
-Every plan should reflect these project rules:
+Every plan should respect these project rules:
 
 - **Tests first** — New features require tests before or during implementation
 - **`CNPlusClockInterface`** — Never use `System.currentTimeMillis()` directly; use the clock interface for testable time-dependent code
@@ -63,6 +64,5 @@ Every plan should reflect these project rules:
 ## Anti-Patterns
 
 - **Over-specifying small plans**: Full code listings and test stubs in an S/M plan waste tokens and will change during implementation anyway
-- **Under-specifying large plans**: Skipping architecture decisions, non-goals, or edge cases in L/XL plans leads to scope creep and rework
 - **Implementation weeds in S/M plans**: Focus on *what* and *why*, not *how* — the how is discovered during implementation
 - **Missing non-goals in L/XL plans**: Every large plan must explicitly state what is out of scope to prevent scope creep
