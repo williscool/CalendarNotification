@@ -341,5 +341,86 @@ class ApplicationControllerCoreTest {
         }
         assertFalse("Task event should NOT be muted", updatedEvent?.isMuted == true)
     }
+
+    // === muteAllVisibleEvents pinned exclusion ===
+
+    @Test
+    fun testMuteAllVisibleEvents_skipsPinnedEvents() {
+        DevLog.info(LOG_TAG, "Running testMuteAllVisibleEvents_skipsPinnedEvents")
+        
+        val pinnedEventId = System.nanoTime()
+        val normalEventId = pinnedEventId + 1
+        val pinnedEvent = createTestEvent(eventId = pinnedEventId, isMuted = false).apply { isPinned = true }
+        val normalEvent = createTestEvent(eventId = normalEventId, isMuted = false)
+        EventsStorage(context).use { db ->
+            db.addEvent(pinnedEvent)
+            db.addEvent(normalEvent)
+        }
+
+        ApplicationController.muteAllVisibleEvents(context)
+
+        EventsStorage(context).use { db ->
+            val updatedPinned = db.getEvent(pinnedEventId, baseTime)
+            val updatedNormal = db.getEvent(normalEventId, baseTime)
+            assertFalse("Pinned event should NOT be muted", updatedPinned?.isMuted == true)
+            assertTrue("Normal event should be muted", updatedNormal?.isMuted == true)
+        }
+    }
+
+    // === pinAllVisibleEvents / unpinAllVisibleEvents ===
+
+    @Test
+    fun testPinAllVisibleEvents_pinsVisibleEvents() {
+        DevLog.info(LOG_TAG, "Running testPinAllVisibleEvents_pinsVisibleEvents")
+        
+        val eventId = System.nanoTime()
+        val event = createTestEvent(eventId = eventId)
+        EventsStorage(context).use { db ->
+            db.addEvent(event)
+        }
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val updatedEvent = EventsStorage(context).use { db ->
+            db.getEvent(eventId, baseTime)
+        }
+        assertTrue("Visible event should be pinned", updatedEvent?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsSnoozedEvents() {
+        DevLog.info(LOG_TAG, "Running testPinAllVisibleEvents_skipsSnoozedEvents")
+        
+        val eventId = System.nanoTime()
+        val event = createTestEvent(eventId = eventId, snoozedUntil = baseTime + 3600000L)
+        EventsStorage(context).use { db ->
+            db.addEvent(event)
+        }
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val updatedEvent = EventsStorage(context).use { db ->
+            db.getEvent(eventId, baseTime)
+        }
+        assertFalse("Snoozed event should NOT be pinned", updatedEvent?.isPinned == true)
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_unpinsAll() {
+        DevLog.info(LOG_TAG, "Running testUnpinAllVisibleEvents_unpinsAll")
+        
+        val eventId = System.nanoTime()
+        val event = createTestEvent(eventId = eventId).apply { isPinned = true }
+        EventsStorage(context).use { db ->
+            db.addEvent(event)
+        }
+
+        ApplicationController.unpinAllVisibleEvents(context)
+
+        val updatedEvent = EventsStorage(context).use { db ->
+            db.getEvent(eventId, baseTime)
+        }
+        assertFalse("Event should be unpinned", updatedEvent?.isPinned == true)
+    }
 }
 

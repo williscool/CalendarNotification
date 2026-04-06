@@ -365,6 +365,103 @@ class ApplicationControllerCoreRobolectricTest {
         assertFalse("No events should be muted", events.any { it.isMuted })
     }
 
+    @Test
+    fun testMuteAllVisibleEvents_skipsPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 1, isMuted = false).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, isMuted = false))
+
+        ApplicationController.muteAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        val pinned = events.find { it.eventId == 1L }
+        val normal = events.find { it.eventId == 2L }
+        
+        assertFalse("Pinned event should NOT be muted", pinned?.isMuted == true)
+        assertTrue("Normal event should be muted", normal?.isMuted == true)
+    }
+
+    // === pinAllVisibleEvents / unpinAllVisibleEvents tests ===
+
+    @Test
+    fun testPinAllVisibleEvents_pinsVisibleEvents() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertTrue("All events should be pinned", events.all { it.isPinned })
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsSnoozedEvents() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, snoozedUntil = baseTime + 3600000L))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        val snoozed = events.find { it.eventId == 1L }
+        val visible = events.find { it.eventId == 2L }
+
+        assertFalse("Snoozed event should NOT be pinned", snoozed?.isPinned == true)
+        assertTrue("Visible event should be pinned", visible?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsTaskEvents() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, isTask = true))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        val task = events.find { it.eventId == 1L }
+        val normal = events.find { it.eventId == 2L }
+
+        assertFalse("Task event should NOT be pinned", task?.isPinned == true)
+        assertTrue("Normal event should be pinned", normal?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsAlreadyPinned() {
+        val alreadyPinned = createTestEvent(eventId = 1).apply { isPinned = true }
+        mockEventsStorage.addEvent(alreadyPinned)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertTrue("All events should be pinned", events.all { it.isPinned })
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_unpinsAllPinnedEvents() {
+        val pinned1 = createTestEvent(eventId = 1).apply { isPinned = true }
+        val pinned2 = createTestEvent(eventId = 2).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinned1)
+        mockEventsStorage.addEvent(pinned2)
+
+        ApplicationController.unpinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertFalse("No events should be pinned", events.any { it.isPinned })
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_leavesUnpinnedAlone() {
+        val pinned = createTestEvent(eventId = 1).apply { isPinned = true }
+        val unpinned = createTestEvent(eventId = 2)
+        mockEventsStorage.addEvent(pinned)
+        mockEventsStorage.addEvent(unpinned)
+
+        ApplicationController.unpinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertFalse("No events should be pinned after unpin all", events.any { it.isPinned })
+    }
+
     // === onEventAlarm tests ===
 
     @Test
@@ -1182,6 +1279,86 @@ class ApplicationControllerCoreRobolectricTest {
         // Original snooze should remain since it's longer
         assertEquals("Should not shorten existing snooze", 
             baseTime + 7200000L, updatedEvent.snoozedUntil)
+    }
+    
+    // === Pinned event exclusion from snoozeAllEvents ===
+    
+    @Test
+    fun testSnoozeAllEvents_skipsPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 1).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        ApplicationController.snoozeAllEvents(context, 3600000L, false, false, null, null)
+        
+        val pinned = mockEventsStorage.events.find { it.eventId == 1L }
+        val normal = mockEventsStorage.events.find { it.eventId == 2L }
+        
+        assertEquals("Pinned event should NOT be snoozed", 0L, pinned!!.snoozedUntil)
+        assertTrue("Normal event should be snoozed", normal!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_allPinned_returnsNull() {
+        val pinned1 = createTestEvent(eventId = 1).apply { isPinned = true }
+        val pinned2 = createTestEvent(eventId = 2).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinned1)
+        mockEventsStorage.addEvent(pinned2)
+        
+        val result = ApplicationController.snoozeAllEvents(context, 3600000L, false, false, null, null)
+        
+        assertNull("Result should be null when all events are pinned", result)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_pinnedExcludedEvenWhenMatchingSearch() {
+        val pinnedEvent = createTestEvent(eventId = 1).apply { isPinned = true }
+        pinnedEvent.title = "Important Meeting"
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).also { it.title = "Important Lunch" })
+        
+        ApplicationController.snoozeAllEvents(
+            context, 3600000L, false, false, searchQuery = "Important", filterState = null
+        )
+        
+        val pinned = mockEventsStorage.events.find { it.eventId == 1L }
+        val normal = mockEventsStorage.events.find { it.eventId == 2L }
+        
+        assertEquals("Pinned event should NOT be snoozed even though it matches search", 
+            0L, pinned!!.snoozedUntil)
+        assertTrue("Unpinned matching event should be snoozed", normal!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_pinnedExcludedEvenWhenMatchingFilter() {
+        val pinnedEvent = createTestEvent(eventId = 1).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        val filterState = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        
+        ApplicationController.snoozeAllEvents(
+            context, 3600000L, false, false, null, filterState
+        )
+        
+        val pinned = mockEventsStorage.events.find { it.eventId == 1L }
+        val normal = mockEventsStorage.events.find { it.eventId == 2L }
+        
+        assertEquals("Pinned event should NOT be snoozed even when matching filter", 
+            0L, pinned!!.snoozedUntil)
+        assertTrue("Unpinned event should be snoozed", normal!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_includesPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 1, instanceStartTime = baseTime).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        
+        val selectedKeys = setOf("${pinnedEvent.eventId}:${pinnedEvent.instanceStartTime}")
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, 3600000L, false)
+        
+        val updated = mockEventsStorage.events.first()
+        assertTrue("Explicitly selected pinned event SHOULD be snoozed", updated.snoozedUntil > 0)
     }
 }
 
