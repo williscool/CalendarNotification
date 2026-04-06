@@ -4,7 +4,7 @@ Use for work with high subsystem fan-out, architecture decisions, new components
 
 ## Key Principle
 
-Go deep. Large plans are long-lived reference documents. Future you (and the AI) will re-read them during implementation. Invest in thorough design decisions, non-goals, edge cases, and test stubs now to avoid rework and scope creep later.
+Hit the right level of specificity — everything the plan needs, nothing it doesn't. Large plans are long-lived reference documents that future you (and the AI) will re-read during implementation. Invest in design decisions, non-goals, and scope boundaries. But don't pre-specify implementation details that will change during the build — code snippets, test stubs, and layouts only when they're genuinely the clearest way to communicate an approach.
 
 ## Template
 
@@ -45,7 +45,7 @@ Go deep. Large plans are long-lived reference documents. Future you (and the AI)
 
 ### Phase 0: [Infrastructure / Setup]
 
-[Substeps (0a, 0b, 0c if needed), each independently verifiable. Include code snippets, XML layouts, etc.]
+[Substeps (0a, 0b, 0c if needed), each independently verifiable. Describe what changes and why. Only include code snippets or layouts when prose alone can't convey the approach clearly.]
 
 ### Phase N: [Name]
 
@@ -69,15 +69,15 @@ Go deep. Large plans are long-lived reference documents. Future you (and the AI)
 
 ## Testing Plan
 
-[Organized by Robolectric vs instrumentation. Full test stubs with @Test methods and Given/When/Then comments. Group by test class. Edge cases and error handling scenarios (empty states, null returns, permission denials, graceful degradation) belong here as test cases, not as a separate section.]
+[Describe what needs to be tested and why, organized by Robolectric vs instrumentation. Name the scenarios to cover — including edge cases and error handling — but don't write full test stubs. The implementation will determine the exact test shape.]
 
 ### Unit Tests (Robolectric)
 
-[Test class per component. Full method signatures with scenario comments. Include edge case and error handling tests inline with the component they cover.]
+[Key scenarios per component. Edge case and error handling scenarios inline with the component they cover.]
 
 ### Instrumentation Tests
 
-[Only for things requiring real Android APIs.]
+[Only for things requiring real Android APIs. Name what must be validated on a real device/emulator.]
 
 ## Future Enhancements (if applicable)
 
@@ -103,8 +103,8 @@ Go deep. Large plans are long-lived reference documents. Future you (and the AI)
 - **Current Architecture** tables showing existing components
 - **Implementation Plan** with 7 phases grouped into 3 milestones
 - **Phase substeps** (0a, 0b, 0c) each independently verifiable
-- **Full code snippets** for Kotlin and XML
-- **Testing Plan** with full `@Test` stubs organized by Robolectric vs instrumentation, with edge cases (empty states, error handling, refresh triggers) as test scenarios
+- **Code snippets** where they clarify non-obvious approaches
+- **Testing Plan** organized by Robolectric vs instrumentation, with edge cases (empty states, error handling, refresh triggers) as named scenarios
 - **Files to Modify/Create** split into New and Modified tables
 - **Future Enhancements** as numbered phases beyond current scope
 - **Notes** with design principles and technical clarifications
@@ -145,7 +145,6 @@ The Non-Goals section is **mandatory** for L/XL plans. Good non-goals are:
 
 - Non-Goals section
 - Key Decisions Summary table
-- Full code snippets in implementation phases
-- Full `@Test` method stubs in Testing Plan (including edge case and error handling scenarios)
+- Testing Plan with named scenarios (including edge cases and error handling), split by Robolectric vs instrumentation
 - Files to Modify/Create split into New and Modified
 - Milestone checkpoints between major phases

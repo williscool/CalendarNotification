@@ -1,6 +1,6 @@
 # Small/Medium Plan Template (S-M)
 
-Use for work touching 1-8 files with no major architecture decisions.
+Use for single-concern work with few or no design decisions.
 
 ## Key Principle
 
