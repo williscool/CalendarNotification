@@ -50,6 +50,7 @@ interface EventListCallback {
     fun onItemRemoved(event: EventAlertRecord)
     fun onItemRestored(event: EventAlertRecord) // e.g. undo
     fun onScrollPositionChange(newPos: Int)
+    fun onPinToggle(event: EventAlertRecord) {}
 }
 
 interface SelectionModeCallback {
@@ -91,6 +92,7 @@ class EventListAdapter(
 
         var undoButton: Button?
 
+        var pinImage: ImageView?
         var muteImage: ImageView?
         var taskImage: ImageView?
         val alarmImage: ImageView?
@@ -114,6 +116,7 @@ class EventListAdapter(
 
             undoButton = itemView.find<Button?>(R.id.card_view_button_undo)
 
+            pinImage = itemView.find<ImageView?>(R.id.imageview_is_pinned_indicator)
             muteImage = itemView.find<ImageView?>(R.id.imageview_is_muted_indicator)
             taskImage = itemView.find<ImageView?>(R.id.imageview_is_task_indicator)
             alarmImage = itemView.find<ImageView?>(R.id.imageview_is_alarm_indicator)
@@ -370,6 +373,12 @@ class EventListAdapter(
 
             holder.eventTitleText.text = event.titleAsOneLine
 
+            holder.pinImage?.visibility = if (event.isPinned) View.VISIBLE else View.GONE
+            holder.pinImage?.setOnClickListener {
+                val ev = getEventAtPosition(holder.adapterPosition)
+                if (ev != null) callback.onPinToggle(ev)
+            }
+
             holder.muteImage?.visibility = if (event.isMuted) View.VISIBLE else View.GONE
 
             holder.taskImage?.visibility = if (event.isTask) View.VISIBLE else View.GONE
@@ -429,6 +438,9 @@ class EventListAdapter(
 
     val hasActiveEvents: Boolean
         get() = events.any { it.snoozedUntil == 0L }
+
+    val hasUnpinnedActiveEvents: Boolean
+        get() = events.any { it.snoozedUntil == 0L && !it.isPinned }
 
     fun setSearchText(query: String?) {
       currentSearchString = query
@@ -588,6 +600,15 @@ class EventListAdapter(
 
     val anyForMute: Boolean
         get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial}
+
+    val anyForPinAll: Boolean
+        get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial && !it.isPinned }
+
+    val anyForUnpinAll: Boolean
+        get() = events.any { it.isPinned }
+
+    val pinnedCount: Int
+        get() = events.count { it.isPinned }
 
     // === Selection Mode Methods ===
     

@@ -294,6 +294,58 @@ class SnoozeRobolectricTest {
         assertEquals("Normal event should NOT be snoozed", 0L, updatedNormal!!.snoozedUntil)
     }
 
+    // === Pinned exclusion from snoozeAll ===
+
+    @Test
+    fun testSnoozeAllEvents_skipsPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 600L, title = "Pinned").apply { isPinned = true }
+        val normalEvent = createTestEvent(eventId = 601L, title = "Normal")
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(normalEvent)
+
+        val snoozeDelay = 30 * 60 * 1000L
+
+        val result = ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, isChange = false, onlySnoozeVisible = false
+        )
+
+        assertNotNull("Snooze result should not be null", result)
+
+        val updatedPinned = mockEventsStorage.getEvent(pinnedEvent.eventId, pinnedEvent.instanceStartTime)
+        val updatedNormal = mockEventsStorage.getEvent(normalEvent.eventId, normalEvent.instanceStartTime)
+
+        assertEquals("Pinned event should NOT be snoozed", 0L, updatedPinned!!.snoozedUntil)
+        assertTrue("Normal event should be snoozed", updatedNormal!!.snoozedUntil > 0)
+    }
+
+    @Test
+    fun testSnoozeAllCollapsedEvents_skipsPinnedEvents() {
+        val pinnedCollapsed = createTestEvent(
+            eventId = 700L,
+            displayStatus = EventDisplayStatus.DisplayedCollapsed
+        ).apply { isPinned = true }
+        val normalCollapsed = createTestEvent(
+            eventId = 701L,
+            displayStatus = EventDisplayStatus.DisplayedCollapsed
+        )
+        mockEventsStorage.addEvent(pinnedCollapsed)
+        mockEventsStorage.addEvent(normalCollapsed)
+
+        val snoozeDelay = 30 * 60 * 1000L
+
+        val result = ApplicationController.snoozeAllCollapsedEvents(
+            context, snoozeDelay, isChange = false, onlySnoozeVisible = false
+        )
+
+        assertNotNull("Snooze result should not be null", result)
+
+        val updatedPinned = mockEventsStorage.getEvent(pinnedCollapsed.eventId, pinnedCollapsed.instanceStartTime)
+        val updatedNormal = mockEventsStorage.getEvent(normalCollapsed.eventId, normalCollapsed.instanceStartTime)
+
+        assertEquals("Pinned collapsed event should NOT be snoozed", 0L, updatedPinned!!.snoozedUntil)
+        assertTrue("Normal collapsed event should be snoozed", updatedNormal!!.snoozedUntil > 0)
+    }
+
     // === onlySnoozeVisible tests ===
 
     @Test

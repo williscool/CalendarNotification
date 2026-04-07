@@ -80,7 +80,8 @@ class EventListAdapterSelectionTest {
     private fun createTestEvent(
         eventId: Long = 1L,
         instanceStartTime: Long = System.currentTimeMillis(),
-        title: String = "Test Event"
+        title: String = "Test Event",
+        snoozedUntil: Long = 0L
     ): EventAlertRecord {
         return EventAlertRecord(
             calendarId = 1L,
@@ -97,6 +98,7 @@ class EventListAdapterSelectionTest {
             instanceEndTime = instanceStartTime + 60 * 60 * 1000,
             location = "",
             lastStatusChangeTime = 0L,
+            snoozedUntil = snoozedUntil,
             displayStatus = com.github.quarck.calnotify.calendar.EventDisplayStatus.Hidden,
             color = 0,
             eventStatus = com.github.quarck.calnotify.calendar.EventStatus.Confirmed,
@@ -347,6 +349,48 @@ class EventListAdapterSelectionTest {
         
         // Special event should not be selected
         assertEquals(1, adapter.getSelectedEvents().size)
+    }
+    
+    // === hasUnpinnedActiveEvents Tests ===
+    
+    @Test
+    fun hasUnpinnedActiveEvents_true_when_unpinned_active_exists() {
+        val event = createTestEvent(eventId = 1L)
+        setAdapterEvents(event)
+        
+        assertTrue(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_false_when_only_pinned_active() {
+        val pinned = createTestEvent(eventId = 1L).apply { isPinned = true }
+        setAdapterEvents(pinned)
+        
+        assertFalse(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_false_when_no_events() {
+        assertFalse(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_true_with_mix_of_pinned_and_unpinned_active() {
+        val pinned = createTestEvent(eventId = 1L).apply { isPinned = true }
+        val unpinned = createTestEvent(eventId = 2L)
+        setAdapterEvents(pinned, unpinned)
+        
+        assertTrue(adapter.hasUnpinnedActiveEvents)
+    }
+    
+    @Test
+    fun hasUnpinnedActiveEvents_false_when_only_active_is_pinned_and_rest_snoozed() {
+        val pinnedActive = createTestEvent(eventId = 1L).apply { isPinned = true }
+        val snoozedUnpinned = createTestEvent(eventId = 2L, snoozedUntil = 1000L)
+        val snoozedUnpinned2 = createTestEvent(eventId = 3L, snoozedUntil = 2000L)
+        setAdapterEvents(pinnedActive, snoozedUnpinned, snoozedUnpinned2)
+        
+        assertFalse(adapter.hasUnpinnedActiveEvents)
     }
     
     // === Mock Callback ===

@@ -181,6 +181,69 @@ class SnoozeAllActivityRobolectricTest {
         scenario.close()
     }
     
+    // === Pinned Event Count Tests ===
+    
+    @Test
+    fun snoozeAllActivity_reads_pinned_event_count_from_intent() {
+        fixture.seedEvents(3)
+        
+        val intent = Intent(fixture.context, SnoozeAllActivity::class.java).apply {
+            putExtra(Consts.INTENT_SNOOZE_ALL_KEY, true)
+            putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, 5)
+            putExtra(Consts.INTENT_PINNED_EVENT_COUNT, 2)
+        }
+        
+        val scenario = fixture.launchSnoozeAllActivityWithIntent(intent)
+        
+        scenario.onActivity { activity ->
+            // Verify the activity stored the pinned count
+            // We test the confirmation message indirectly: click a preset to trigger the dialog
+            val preset1 = activity.findViewById<View>(R.id.snooze_view_snooze_present1)
+            assertNotNull(preset1)
+            preset1.performClick()
+            
+            // The AlertDialog should be shown - check via Robolectric shadow
+            val dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog()
+            assertNotNull("Confirmation dialog should be shown", dialog)
+            
+            val shadow = org.robolectric.Shadows.shadowOf(dialog)
+            val message = shadow.message?.toString() ?: ""
+            assertTrue("Confirmation should mention pinned exclusion", 
+                message.contains("pinned") && message.contains("2"))
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun snoozeAllActivity_no_pinned_suffix_when_count_is_zero() {
+        fixture.seedEvents(3)
+        
+        val intent = Intent(fixture.context, SnoozeAllActivity::class.java).apply {
+            putExtra(Consts.INTENT_SNOOZE_ALL_KEY, true)
+            putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, 5)
+            putExtra(Consts.INTENT_PINNED_EVENT_COUNT, 0)
+        }
+        
+        val scenario = fixture.launchSnoozeAllActivityWithIntent(intent)
+        
+        scenario.onActivity { activity ->
+            val preset1 = activity.findViewById<View>(R.id.snooze_view_snooze_present1)
+            assertNotNull(preset1)
+            preset1.performClick()
+            
+            val dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog()
+            assertNotNull("Confirmation dialog should be shown", dialog)
+            
+            val shadow = org.robolectric.Shadows.shadowOf(dialog)
+            val message = shadow.message?.toString() ?: ""
+            assertFalse("Confirmation should NOT mention pinned when count is 0", 
+                message.contains("pinned"))
+        }
+        
+        scenario.close()
+    }
+    
     // === Preset Buttons Have Text Tests ===
     
     @Test

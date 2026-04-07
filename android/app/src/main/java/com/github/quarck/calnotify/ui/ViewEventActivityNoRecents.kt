@@ -414,6 +414,9 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             menuItemUnMute.isVisible = event.isMuted
         }
 
+        popup.menu.findItem(R.id.action_pin_event)?.isVisible = !event.isPinned
+        popup.menu.findItem(R.id.action_unpin_event)?.isVisible = event.isPinned
+
         // Show "Back to upcoming" for snoozed events whose alert time hasn't passed
         val menuItemUnsnooze = popup.menu.findItem(R.id.action_unsnooze_to_upcoming)
         if (menuItemUnsnooze != null) {
@@ -492,6 +495,16 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                     true
                 }
 
+                R.id.action_pin_event -> {
+                    togglePinForEvent(true)
+                    true
+                }
+
+                R.id.action_unpin_event -> {
+                    togglePinForEvent(false)
+                    true
+                }
+
                 R.id.action_open_in_calendar -> {
                     openEventInCalendar(event)
                     finish()
@@ -511,6 +524,17 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         }
 
         popup.show()
+    }
+
+    private fun togglePinForEvent(pinned: Boolean) {
+        getEventsStorage(this).use { db ->
+            val current = db.getEvent(event.eventId, event.instanceStartTime)
+            if (current != null) {
+                current.isPinned = pinned
+                db.updateEvent(current)
+            }
+        }
+        event.isPinned = pinned
     }
 
     private fun formatPreset(preset: Long): String {

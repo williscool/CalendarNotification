@@ -71,6 +71,7 @@ class FilterStateTest {
     private fun createSnoozedEvent() = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 3600000)
     private fun createMutedEvent() = createEvent(isMuted = true)
     private fun createRecurringEvent() = createEvent(isRepeating = true)
+    private fun createPinnedEvent() = createEvent().apply { isPinned = true }
     
     // === FilterState.matchesStatus() Tests ===
     
@@ -82,6 +83,7 @@ class FilterStateTest {
         assertTrue(filter.matchesStatus(createSnoozedEvent()))
         assertTrue(filter.matchesStatus(createMutedEvent()))
         assertTrue(filter.matchesStatus(createRecurringEvent()))
+        assertTrue(filter.matchesStatus(createPinnedEvent()))
     }
     
     @Test
@@ -123,6 +125,27 @@ class FilterStateTest {
         assertFalse(filter.matchesStatus(createSnoozedEvent()))
         assertFalse(filter.matchesStatus(createMutedEvent()))
         assertTrue(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `single PINNED filter matches only pinned events`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.PINNED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertFalse(filter.matchesStatus(createSnoozedEvent()))
+        assertFalse(filter.matchesStatus(createMutedEvent()))
+        assertFalse(filter.matchesStatus(createRecurringEvent()))
+        assertTrue(filter.matchesStatus(createPinnedEvent()))
+    }
+    
+    @Test
+    fun `multi-select PINNED or SNOOZED matches both`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.PINNED, StatusOption.SNOOZED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertTrue(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createPinnedEvent()))
+        assertFalse(filter.matchesStatus(createMutedEvent()))
     }
     
     @Test
@@ -193,6 +216,15 @@ class FilterStateTest {
         assertFalse(StatusOption.RECURRING.matches(notRecurringEvent))
     }
     
+    @Test
+    fun `StatusOption PINNED matches event with isPinned true`() {
+        val pinnedEvent = createEvent().apply { isPinned = true }
+        val notPinnedEvent = createEvent()
+        
+        assertTrue(StatusOption.PINNED.matches(pinnedEvent))
+        assertFalse(StatusOption.PINNED.matches(notPinnedEvent))
+    }
+    
     // === Edge Cases ===
     
     @Test
@@ -207,6 +239,16 @@ class FilterStateTest {
         assertTrue(StatusOption.MUTED.matches(snoozedMutedEvent))
         assertFalse(StatusOption.ACTIVE.matches(snoozedMutedEvent))
         assertFalse(StatusOption.RECURRING.matches(snoozedMutedEvent))
+    }
+    
+    @Test
+    fun `pinned and muted event matches both PINNED and MUTED`() {
+        val event = createEvent(isMuted = true).apply { isPinned = true }
+        
+        assertTrue(StatusOption.PINNED.matches(event))
+        assertTrue(StatusOption.MUTED.matches(event))
+        assertTrue(StatusOption.ACTIVE.matches(event)) // snoozedUntil=0
+        assertFalse(StatusOption.SNOOZED.matches(event))
     }
     
     @Test
@@ -541,6 +583,13 @@ class FilterStateTest {
             val restored = FilterState.fromBundle(original.toBundle())
             assertEquals(setOf(option), restored.statusFilters)
         }
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip PINNED status filter`() {
+        val original = FilterState(statusFilters = setOf(StatusOption.PINNED, StatusOption.MUTED))
+        val restored = FilterState.fromBundle(original.toBundle())
+        assertEquals(setOf(StatusOption.PINNED, StatusOption.MUTED), restored.statusFilters)
     }
     
     // === hasActiveFilters() Tests ===

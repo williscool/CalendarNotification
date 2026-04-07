@@ -228,13 +228,22 @@ class MainActivityModern : MainActivityBase() {
         dismissAllMenuItem?.isVisible = supportsDismissAll
         dismissAllMenuItem?.isEnabled = currentFragment?.anyForDismissAll() == true
 
+        // Show pin all / unpin all only for fragments that support it
+        val supportsPinAll = currentFragment?.supportsPinAll() == true
+        val pinAllMenuItem = menu.findItem(R.id.action_pin_all)
+        pinAllMenuItem?.isVisible = supportsPinAll
+        pinAllMenuItem?.isEnabled = currentFragment?.anyForPinAll() == true
+        val unpinAllMenuItem = menu.findItem(R.id.action_unpin_all)
+        unpinAllMenuItem?.isVisible = supportsPinAll
+        unpinAllMenuItem?.isEnabled = currentFragment?.anyForUnpinAll() == true
+
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
         val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
         snoozeAllMenuItem?.isVisible = supportsSnoozeAll
         if (supportsSnoozeAll) {
             snoozeAllMenuItem?.title = resources.getString(
-                if (currentFragment?.hasActiveEvents() == true) R.string.snooze_all else R.string.change_all
+                if (currentFragment?.hasUnpinnedActiveEvents() == true) R.string.snooze_all else R.string.change_all
             )
         }
 
@@ -313,7 +322,7 @@ class MainActivityModern : MainActivityBase() {
         when (item.itemId) {
             R.id.action_snooze_all -> {
                 val fragment = getCurrentSearchableFragment()
-                val isChange = fragment?.hasActiveEvents() != true
+                val isChange = fragment?.hasUnpinnedActiveEvents() != true
                 val searchQuery = fragment?.getSearchQuery()
                 val eventCount = fragment?.getDisplayedEventCount() ?: 0
                 val currentFilterState = getCurrentFilterState()
@@ -332,6 +341,8 @@ class MainActivityModern : MainActivityBase() {
                     return true
                 }
 
+                val pinnedCount = fragment?.getPinnedEventCount() ?: 0
+
                 startActivity(
                     Intent(this, SnoozeAllActivity::class.java)
                         .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
@@ -339,11 +350,16 @@ class MainActivityModern : MainActivityBase() {
                         .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
                         .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
                         .putExtra(Consts.INTENT_FILTER_STATE, currentFilterState.toBundle())
+                        .putExtra(Consts.INTENT_PINNED_EVENT_COUNT, pinnedCount)
                         .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 )
             }
 
             R.id.action_mute_all -> onMuteAll()
+
+            R.id.action_pin_all -> onPinAll()
+
+            R.id.action_unpin_all -> onUnpinAll()
 
             R.id.action_dismiss_all -> onDismissAll()
         }
@@ -388,6 +404,42 @@ class MainActivityModern : MainActivityBase() {
     private fun doMuteAll() {
         ApplicationController.muteAllVisibleEvents(this)
         getCurrentSearchableFragment()?.onMuteAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onPinAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.pin_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doPinAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doPinAll() {
+        ApplicationController.pinAllVisibleEvents(this)
+        getCurrentSearchableFragment()?.onPinAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onUnpinAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.unpin_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doUnpinAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doUnpinAll() {
+        ApplicationController.unpinAllVisibleEvents(this)
+        getCurrentSearchableFragment()?.onPinAllComplete()
         invalidateOptionsMenu()
     }
     
@@ -461,6 +513,8 @@ class MainActivityModern : MainActivityBase() {
         StatusOption.ACTIVE -> getString(R.string.filter_status_active)
         StatusOption.MUTED -> getString(R.string.filter_status_muted)
         StatusOption.RECURRING -> getString(R.string.filter_status_recurring)
+        StatusOption.PINNED -> getString(R.string.filter_status_pinned)
+        StatusOption.UNPINNED -> getString(R.string.filter_status_unpinned)
     }
     
     private fun showStatusFilterPopup(anchor: View) {

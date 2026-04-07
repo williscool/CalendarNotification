@@ -350,6 +350,23 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
         updateEmptyState()
     }
 
+    override fun onPinToggle(event: EventAlertRecord) {
+        val ctx = context ?: return
+        background {
+            getEventsStorage(ctx).use { db ->
+                val current = db.getEvent(event.eventId, event.instanceStartTime)
+                if (current != null) {
+                    current.isPinned = !current.isPinned
+                    db.updateEvent(current)
+                }
+            }
+            activity?.runOnUiThread {
+                loadEvents()
+                activity?.invalidateOptionsMenu()
+            }
+        }
+    }
+
     override fun onScrollPositionChange(newPos: Int) {
         // Not needed for fragments - handled within adapter if needed
     }
@@ -371,6 +388,8 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     
     override fun hasActiveEvents(): Boolean = adapter.hasActiveEvents
     
+    override fun hasUnpinnedActiveEvents(): Boolean = adapter.hasUnpinnedActiveEvents
+    
     override fun supportsSnoozeAll(): Boolean = true
     
     override fun supportsMuteAll(): Boolean = true
@@ -381,11 +400,23 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, 
     
     override fun anyForDismissAll(): Boolean = adapter.anyForDismissAllButRecentAndSnoozed
     
+    override fun supportsPinAll(): Boolean = true
+    
+    override fun anyForPinAll(): Boolean = adapter.anyForPinAll
+    
+    override fun anyForUnpinAll(): Boolean = adapter.anyForUnpinAll
+    
+    override fun getPinnedEventCount(): Int = adapter.pinnedCount
+    
     override fun onMuteAllComplete() {
         loadEvents()
     }
     
     override fun onDismissAllComplete() {
+        loadEvents()
+    }
+    
+    override fun onPinAllComplete() {
         loadEvents()
     }
     
