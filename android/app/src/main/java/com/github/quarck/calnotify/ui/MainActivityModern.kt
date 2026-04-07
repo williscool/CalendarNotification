@@ -407,7 +407,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun doMuteAll() {
-        ApplicationController.muteAllVisibleEvents(this)
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.muteAllVisibleEvents(this, searchQuery, currentFilterState)
         getCurrentSearchableFragment()?.onMuteAllComplete()
         invalidateOptionsMenu()
     }
@@ -426,7 +428,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun doPinAll() {
-        ApplicationController.pinAllVisibleEvents(this)
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.pinAllVisibleEvents(this, searchQuery, currentFilterState)
         getCurrentSearchableFragment()?.onPinAllComplete()
         invalidateOptionsMenu()
     }
@@ -444,7 +448,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun doUnpinAll() {
-        ApplicationController.unpinAllVisibleEvents(this)
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.unpinAllVisibleEvents(this, searchQuery, currentFilterState)
         getCurrentSearchableFragment()?.onPinAllComplete()
         invalidateOptionsMenu()
     }

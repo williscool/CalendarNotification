@@ -1122,12 +1122,25 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
-    fun muteAllVisibleEvents(context: Context) {
-
+    fun muteAllVisibleEvents(
+        context: Context,
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ) {
+        val now = clock.currentTimeMillis()
         getEventsStorage(context).use {
             db ->
             val eventsToMute = db.events.filter {
-                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask &&
+                (searchQuery?.let { query ->
+                    event.title.contains(query, ignoreCase = true) ||
+                    event.desc.contains(query, ignoreCase = true)
+                } ?: true) &&
+                (filterState?.let { filter ->
+                    filter.matchesCalendar(event) &&
+                    filter.matchesStatus(event) &&
+                    filter.matchesTime(event, now)
+                } ?: true)
             }
 
             if (eventsToMute.isNotEmpty()) {
@@ -1146,10 +1159,24 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
-    fun pinAllVisibleEvents(context: Context) {
+    fun pinAllVisibleEvents(
+        context: Context,
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ) {
+        val now = clock.currentTimeMillis()
         getEventsStorage(context).use { db ->
             val eventsToPin = db.events.filter {
-                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isPinned
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isPinned &&
+                (searchQuery?.let { query ->
+                    event.title.contains(query, ignoreCase = true) ||
+                    event.desc.contains(query, ignoreCase = true)
+                } ?: true) &&
+                (filterState?.let { filter ->
+                    filter.matchesCalendar(event) &&
+                    filter.matchesStatus(event) &&
+                    filter.matchesTime(event, now)
+                } ?: true)
             }
             if (eventsToPin.isNotEmpty()) {
                 val pinnedEvents = eventsToPin.map { it.isPinned = true; it }
@@ -1158,9 +1185,24 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
-    fun unpinAllVisibleEvents(context: Context) {
+    fun unpinAllVisibleEvents(
+        context: Context,
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ) {
+        val now = clock.currentTimeMillis()
         getEventsStorage(context).use { db ->
-            val eventsToUnpin = db.events.filter { event -> event.isPinned }
+            val eventsToUnpin = db.events.filter { event -> event.isPinned &&
+                (searchQuery?.let { query ->
+                    event.title.contains(query, ignoreCase = true) ||
+                    event.desc.contains(query, ignoreCase = true)
+                } ?: true) &&
+                (filterState?.let { filter ->
+                    filter.matchesCalendar(event) &&
+                    filter.matchesStatus(event) &&
+                    filter.matchesTime(event, now)
+                } ?: true)
+            }
             if (eventsToUnpin.isNotEmpty()) {
                 val unpinnedEvents = eventsToUnpin.map { it.isPinned = false; it }
                 db.updateEvents(unpinnedEvents)

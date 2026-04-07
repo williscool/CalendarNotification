@@ -84,6 +84,7 @@ class ApplicationControllerCoreRobolectricTest {
 
     private fun createTestEvent(
         eventId: Long = 1L,
+        calendarId: Long = 1L,
         instanceStartTime: Long = baseTime,
         snoozedUntil: Long = 0L,
         isMuted: Boolean = false,
@@ -91,7 +92,7 @@ class ApplicationControllerCoreRobolectricTest {
         lastStatusChangeTime: Long = baseTime
     ): EventAlertRecord {
         val event = EventAlertRecord(
-            calendarId = 1L,
+            calendarId = calendarId,
             eventId = eventId,
             isAllDay = false,
             isRepeating = false,
@@ -460,6 +461,87 @@ class ApplicationControllerCoreRobolectricTest {
 
         val events = mockEventsStorage.events
         assertFalse("No events should be pinned after unpin all", events.any { it.isPinned })
+    }
+
+    // === filter-aware muteAllVisibleEvents tests ===
+
+    @Test
+    fun testMuteAllVisibleEvents_respectsSearchQuery() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1).apply { title = "Meeting with Alice" })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).apply { title = "Lunch with Bob" })
+
+        ApplicationController.muteAllVisibleEvents(context, searchQuery = "Alice")
+
+        val events = mockEventsStorage.events
+        assertTrue("Matching event should be muted", events.find { it.eventId == 1L }?.isMuted == true)
+        assertFalse("Non-matching event should NOT be muted", events.find { it.eventId == 2L }?.isMuted == true)
+    }
+
+    @Test
+    fun testMuteAllVisibleEvents_respectsFilterState() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, calendarId = 10L))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, calendarId = 20L))
+
+        val filter = FilterState(selectedCalendarIds = setOf(10L))
+        ApplicationController.muteAllVisibleEvents(context, filterState = filter)
+
+        val events = mockEventsStorage.events
+        assertTrue("Filtered-in event should be muted", events.find { it.eventId == 1L }?.isMuted == true)
+        assertFalse("Filtered-out event should NOT be muted", events.find { it.eventId == 2L }?.isMuted == true)
+    }
+
+    // === filter-aware pinAllVisibleEvents tests ===
+
+    @Test
+    fun testPinAllVisibleEvents_respectsSearchQuery() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1).apply { title = "Meeting with Alice" })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).apply { title = "Lunch with Bob" })
+
+        ApplicationController.pinAllVisibleEvents(context, searchQuery = "Alice")
+
+        val events = mockEventsStorage.events
+        assertTrue("Matching event should be pinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertFalse("Non-matching event should NOT be pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_respectsFilterState() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, calendarId = 10L))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, calendarId = 20L))
+
+        val filter = FilterState(selectedCalendarIds = setOf(10L))
+        ApplicationController.pinAllVisibleEvents(context, filterState = filter)
+
+        val events = mockEventsStorage.events
+        assertTrue("Filtered-in event should be pinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertFalse("Filtered-out event should NOT be pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
+    // === filter-aware unpinAllVisibleEvents tests ===
+
+    @Test
+    fun testUnpinAllVisibleEvents_respectsSearchQuery() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1).apply { isPinned = true; title = "Meeting with Alice" })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).apply { isPinned = true; title = "Lunch with Bob" })
+
+        ApplicationController.unpinAllVisibleEvents(context, searchQuery = "Alice")
+
+        val events = mockEventsStorage.events
+        assertFalse("Matching event should be unpinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertTrue("Non-matching event should stay pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_respectsFilterState() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, calendarId = 10L).apply { isPinned = true })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, calendarId = 20L).apply { isPinned = true })
+
+        val filter = FilterState(selectedCalendarIds = setOf(10L))
+        ApplicationController.unpinAllVisibleEvents(context, filterState = filter)
+
+        val events = mockEventsStorage.events
+        assertFalse("Filtered-in event should be unpinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertTrue("Filtered-out event should stay pinned", events.find { it.eventId == 2L }?.isPinned == true)
     }
 
     // === onEventAlarm tests ===
