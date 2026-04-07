@@ -230,9 +230,11 @@ class MainActivityModern : MainActivityBase() {
 
         // Show pin all / unpin all only for fragments that support it
         val supportsPinAll = currentFragment?.supportsPinAll() == true
+        val hasFilters = filterState.hasActiveFilters() || !currentFragment?.getSearchQuery().isNullOrEmpty()
         val pinAllMenuItem = menu.findItem(R.id.action_pin_all)
         pinAllMenuItem?.isVisible = supportsPinAll
         pinAllMenuItem?.isEnabled = currentFragment?.anyForPinAll() == true
+        pinAllMenuItem?.title = getString(if (hasFilters) R.string.pin_all_filtered else R.string.pin_all)
         val unpinAllMenuItem = menu.findItem(R.id.action_unpin_all)
         unpinAllMenuItem?.isVisible = supportsPinAll
         unpinAllMenuItem?.isEnabled = currentFragment?.anyForUnpinAll() == true
@@ -408,8 +410,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun onPinAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
         AlertDialog.Builder(this)
-            .setMessage(R.string.pin_all_events_question)
+            .setMessage(if (hasFilters) R.string.pin_all_filtered_events_question else R.string.pin_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
                 doPinAll()
