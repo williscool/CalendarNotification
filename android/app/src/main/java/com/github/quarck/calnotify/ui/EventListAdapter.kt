@@ -440,7 +440,7 @@ class EventListAdapter(
         get() = events.any { it.snoozedUntil == 0L }
 
     val hasUnpinnedActiveEvents: Boolean
-        get() = hasActiveEvents && events.any { !it.isPinned }
+        get() = events.any { it.snoozedUntil == 0L && !it.isPinned }
 
     fun setSearchText(query: String?) {
       currentSearchString = query
