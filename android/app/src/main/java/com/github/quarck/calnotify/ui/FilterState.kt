@@ -185,6 +185,7 @@ data class FilterState(
                     StatusOption.MUTED -> context.getString(R.string.filter_status_muted)
                     StatusOption.RECURRING -> context.getString(R.string.filter_status_recurring)
                     StatusOption.PINNED -> context.getString(R.string.filter_status_pinned)
+                    StatusOption.UNPINNED -> context.getString(R.string.filter_status_unpinned)
                 }
             }
             parts.add(names.joinToString(", "))
@@ -276,7 +277,7 @@ data class FilterState(
  * Individual status filter options. Multiple can be selected (OR logic).
  */
 enum class StatusOption {
-    SNOOZED, ACTIVE, MUTED, RECURRING, PINNED;
+    SNOOZED, ACTIVE, MUTED, RECURRING, PINNED, UNPINNED;
     
     /** Check if an event matches this specific option */
     fun matches(event: EventAlertRecord): Boolean = when (this) {
@@ -285,6 +286,7 @@ enum class StatusOption {
         MUTED -> event.isMuted
         RECURRING -> event.isRepeating
         PINNED -> event.isPinned
+        UNPINNED -> !event.isPinned
     }
 }
 

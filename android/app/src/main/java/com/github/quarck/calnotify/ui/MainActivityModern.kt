@@ -514,6 +514,7 @@ class MainActivityModern : MainActivityBase() {
         StatusOption.MUTED -> getString(R.string.filter_status_muted)
         StatusOption.RECURRING -> getString(R.string.filter_status_recurring)
         StatusOption.PINNED -> getString(R.string.filter_status_pinned)
+        StatusOption.UNPINNED -> getString(R.string.filter_status_unpinned)
     }
     
     private fun showStatusFilterPopup(anchor: View) {
