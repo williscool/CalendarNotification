@@ -1139,7 +1139,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 (filterState?.let { filter ->
                     filter.matchesCalendar(event) &&
                     filter.matchesStatus(event) &&
-                    filter.matchesTime(event, now)
+                    filter.matchesTime(event, now) &&
+                    filter.matchesSnoozedUntil(event, now)
                 } ?: true)
             }
 
@@ -1175,7 +1176,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 (filterState?.let { filter ->
                     filter.matchesCalendar(event) &&
                     filter.matchesStatus(event) &&
-                    filter.matchesTime(event, now)
+                    filter.matchesTime(event, now) &&
+                    filter.matchesSnoozedUntil(event, now)
                 } ?: true)
             }
             if (eventsToPin.isNotEmpty()) {
@@ -1200,7 +1202,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 (filterState?.let { filter ->
                     filter.matchesCalendar(event) &&
                     filter.matchesStatus(event) &&
-                    filter.matchesTime(event, now)
+                    filter.matchesTime(event, now) &&
+                    filter.matchesSnoozedUntil(event, now)
                 } ?: true)
             }
             if (eventsToUnpin.isNotEmpty()) {

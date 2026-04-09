@@ -240,6 +240,7 @@ class MainActivityModern : MainActivityBase() {
         val unpinAllMenuItem = menu.findItem(R.id.action_unpin_all)
         unpinAllMenuItem?.isVisible = supportsPinAll
         unpinAllMenuItem?.isEnabled = currentFragment?.anyForUnpinAll() == true
+        unpinAllMenuItem?.title = getString(if (hasFilters) R.string.unpin_all_filtered else R.string.unpin_all)
 
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
@@ -436,8 +437,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun onUnpinAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
         AlertDialog.Builder(this)
-            .setMessage(R.string.unpin_all_events_question)
+            .setMessage(if (hasFilters) R.string.unpin_all_filtered_events_question else R.string.unpin_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
                 doUnpinAll()

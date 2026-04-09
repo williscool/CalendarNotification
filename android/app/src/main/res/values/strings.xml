@@ -405,9 +405,11 @@
     <string name="pin_all">Pin all</string>
     <string name="pin_all_filtered">Pin all filtered</string>
     <string name="unpin_all">Unpin all</string>
+    <string name="unpin_all_filtered">Unpin all filtered</string>
     <string name="pin_all_events_question">Pin all events?\nPinned events are excluded from batch snooze.</string>
     <string name="pin_all_filtered_events_question">Pin all filtered events?\nPinned events are excluded from batch snooze.</string>
     <string name="unpin_all_events_question">Unpin all pinned events?</string>
+    <string name="unpin_all_filtered_events_question">Unpin all filtered pinned events?</string>
     <string name="filter_status_pinned">Pinned</string>
     <string name="filter_status_unpinned">Unpinned</string>
     <plurals name="pinned_events_excluded">
