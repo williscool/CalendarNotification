@@ -90,6 +90,24 @@ data class FilterState(
 ) {
     
     companion object {
+        /**
+         * Checks if an event matches the given search query and filter state.
+         * Handles nullable parameters: null searchQuery or filterState means "match all".
+         */
+        fun matchesSearchAndFilters(
+            event: EventAlertRecord,
+            searchQuery: String?,
+            filterState: FilterState?,
+            now: Long
+        ): Boolean {
+            if (searchQuery != null &&
+                !event.title.contains(searchQuery, ignoreCase = true) &&
+                !event.desc.contains(searchQuery, ignoreCase = true)) {
+                return false
+            }
+            return filterState?.matchesEvent(event, now) ?: true
+        }
+
         private const val BUNDLE_CALENDAR_IDS = "filter_calendar_ids"
         private const val BUNDLE_CALENDAR_NULL = "filter_calendar_null"
         private const val BUNDLE_STATUS_FILTERS = "filter_status"
@@ -232,7 +250,12 @@ data class FilterState(
         if (selectedCalendarIds == null) return true  // No filter = show all
         return event.calendarId in selectedCalendarIds  // Empty set = show none
     }
-    
+
+    /** Check if an event matches all active filters */
+    fun matchesEvent(event: EventAlertRecord, now: Long): Boolean {
+        return filterEvents(listOf(event), now).isNotEmpty()
+    }
+
     /**
      * Filter events by specified filter types.
      * @param events List of events to filter

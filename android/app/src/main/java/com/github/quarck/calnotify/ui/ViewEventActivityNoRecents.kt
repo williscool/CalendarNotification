@@ -527,14 +527,16 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
     }
 
     private fun togglePinForEvent(pinned: Boolean) {
-        getEventsStorage(this).use { db ->
-            val current = db.getEvent(event.eventId, event.instanceStartTime)
-            if (current != null) {
-                current.isPinned = pinned
-                db.updateEvent(current)
+        event.isPinned = pinned
+        background {
+            getEventsStorage(this).use { db ->
+                val current = db.getEvent(event.eventId, event.instanceStartTime)
+                if (current != null) {
+                    current.isPinned = pinned
+                    db.updateEvent(current)
+                }
             }
         }
-        event.isPinned = pinned
     }
 
     private fun formatPreset(preset: Long): String {

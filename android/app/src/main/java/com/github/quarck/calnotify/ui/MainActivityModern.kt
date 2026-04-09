@@ -216,11 +216,14 @@ class MainActivityModern : MainActivityBase() {
         // Custom quiet hours is deprecated
         menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
 
+        val hasFilters = filterState.hasActiveFilters() || !currentFragment?.getSearchQuery().isNullOrEmpty()
+
         // Show mute all only for fragments that support it (Active events)
         val muteAllMenuItem = menu.findItem(R.id.action_mute_all)
         val supportsMuteAll = currentFragment?.supportsMuteAll() == true
         muteAllMenuItem?.isVisible = supportsMuteAll && settings.enableNotificationMute
         muteAllMenuItem?.isEnabled = currentFragment?.anyForMuteAll() == true
+        muteAllMenuItem?.title = getString(if (hasFilters) R.string.mute_all_filtered else R.string.mute_all)
 
         // Show dismiss all only for fragments that support it (Active events)
         val dismissAllMenuItem = menu.findItem(R.id.action_dismiss_all)
@@ -233,9 +236,11 @@ class MainActivityModern : MainActivityBase() {
         val pinAllMenuItem = menu.findItem(R.id.action_pin_all)
         pinAllMenuItem?.isVisible = supportsPinAll
         pinAllMenuItem?.isEnabled = currentFragment?.anyForPinAll() == true
+        pinAllMenuItem?.title = getString(if (hasFilters) R.string.pin_all_filtered else R.string.pin_all)
         val unpinAllMenuItem = menu.findItem(R.id.action_unpin_all)
         unpinAllMenuItem?.isVisible = supportsPinAll
         unpinAllMenuItem?.isEnabled = currentFragment?.anyForUnpinAll() == true
+        unpinAllMenuItem?.title = getString(if (hasFilters) R.string.unpin_all_filtered else R.string.unpin_all)
 
         // Show snooze all only for fragments that support it (Active events)
         val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
@@ -390,8 +395,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun onMuteAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
         AlertDialog.Builder(this)
-            .setMessage(R.string.mute_all_events_question)
+            .setMessage(if (hasFilters) R.string.mute_all_filtered_events_question else R.string.mute_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
                 doMuteAll()
@@ -402,14 +408,17 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun doMuteAll() {
-        ApplicationController.muteAllVisibleEvents(this)
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.muteAllVisibleEvents(this, searchQuery, currentFilterState)
         getCurrentSearchableFragment()?.onMuteAllComplete()
         invalidateOptionsMenu()
     }
 
     private fun onPinAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
         AlertDialog.Builder(this)
-            .setMessage(R.string.pin_all_events_question)
+            .setMessage(if (hasFilters) R.string.pin_all_filtered_events_question else R.string.pin_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
                 doPinAll()
@@ -420,14 +429,17 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun doPinAll() {
-        ApplicationController.pinAllVisibleEvents(this)
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.pinAllVisibleEvents(this, searchQuery, currentFilterState)
         getCurrentSearchableFragment()?.onPinAllComplete()
         invalidateOptionsMenu()
     }
 
     private fun onUnpinAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
         AlertDialog.Builder(this)
-            .setMessage(R.string.unpin_all_events_question)
+            .setMessage(if (hasFilters) R.string.unpin_all_filtered_events_question else R.string.unpin_all_events_question)
             .setCancelable(false)
             .setPositiveButton(android.R.string.yes) { _, _ ->
                 doUnpinAll()
@@ -438,7 +450,9 @@ class MainActivityModern : MainActivityBase() {
     }
 
     private fun doUnpinAll() {
-        ApplicationController.unpinAllVisibleEvents(this)
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.unpinAllVisibleEvents(this, searchQuery, currentFilterState)
         getCurrentSearchableFragment()?.onPinAllComplete()
         invalidateOptionsMenu()
     }
