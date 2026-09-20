@@ -125,7 +125,7 @@ That last point inverts an argument from the earlier revision. Using `s2` was or
 Less than it might appear, because the infrastructure is already in place:
 
 - **No schema migration.** A brand-new database starts at `version = 1` with no legacy predecessor and no copy-migration step — strictly simpler than the existing three, which all carry legacy baggage. `monitorstorage/MonitorDatabase.kt` is the closest template: single entity, `version = 1`, `exportSchema = false`.
-- **Backed up automatically.** `res/xml/backup_rules.xml` includes `<include domain="database" path="." />`, so any new database file is covered with no config change. This is essential — the identity DB is useless unless it restores alongside the events it describes.
+- **Backed up by default today, but this needs care.** Any new database file is currently covered — though on Android 12+ that is because the platform backs up everything when `dataExtractionRules` is absent, *not* because `backup_rules.xml`'s `<include domain="database" path="." />` is read (it isn't; see Phase 3). Once Phase 3 adds a `data-extraction-rules` file, that include must be repeated in **both** the `<cloud-backup>` and `<device-transfer>` sections, or the identity DB silently stops being backed up on one path. This is essential — the identity DB is useless unless it restores alongside the events it describes.
 - **No sync impact.** PowerSync/cr-sqlite is wired to `eventsV9` explicitly (`src/lib/features/SetupSync.tsx`, `src/lib/powersync/Schema.tsx`); a new table is invisible to it.
 
 The real cost is the one inherent to this codebase: **a fourth separate database file means a fourth store with no cross-database transactions.** Identity rows can drift from the events they describe — e.g. an event is deleted but its identity row lingers. This is tolerable because identity rows are pure derived metadata: an orphaned one is harmless, and the resolver ignores identity with no matching event. A periodic cleanup pass can prune orphans opportunistically; correctness never depends on it.
@@ -208,7 +208,18 @@ Title+time heuristics produce false positives on recurring and duplicated events
 
 **Locally-created events that never synced to an account may have a null/empty `UID_2445`.** Those events are also the ones least likely to exist on the new phone at all — a local-only calendar isn't restored by Google. They degrade to unresolved and keep their stale ID: no crash, no data loss.
 
-`_SYNC_ID` is the fallback when `UID_2445` is empty. It's also server-assigned and stable, but it's the sync adapter's own key rather than the portable iCalendar one, so it's second choice.
+`_SYNC_ID` is the fallback when `UID_2445` is empty, but it does **not** stack the way one might assume. AOSP's `CalendarProvider2` notes that *"if this event hasn't been sync'ed with the server yet, the `_sync_id` field will be null"* — so `_SYNC_ID` is null in exactly the never-synced case described above. The fallback covers only the narrower situation where an event *did* sync but the provider populated `_SYNC_ID` without `UID_2445`. Worth having, but the never-synced case degrades to unresolved regardless of it.
+
+#### De-risk before building: confirm `UID_2445` is actually populated
+
+The entire exact-match path assumes this column has values. There is a long-standing Android issue titled ["CalendarContract.Events.UID_2445 column is always null"](https://issuetracker.google.com/issues/37053160) whose resolution is not publicly readable, so the assumption should be tested rather than trusted.
+
+**Do this first, before any of Phase 0.** One throwaway query across a few real calendars — count non-null `UID_2445` against total events, broken down by account type — settles it in minutes.
+
+The result changes the plan materially:
+
+- **Well populated** ⇒ proceed as written; Phase 6 stays an optional safety net.
+- **Sparse or null on common providers** ⇒ the exact path is not viable, and **Phase 6's heuristic becomes the primary mechanism** rather than the fallback. That is a different plan, and better to discover now than after Phases 0–5 are built on it.
 
 **The email tuple is not perfectly unique either** — this is why `findMatchingCalendarId()` already has three tiers. One account can expose several calendars (primary, birthdays, a shared team calendar), all with the same `ACCOUNT_NAME`. That's why the match uses account name + type + owner, and only falls back to display name.
 
@@ -365,6 +376,8 @@ The key insight: the calendar half of this problem was already solved once for s
 
 ### Phase 0: Capture identity at write time
 
+**Before anything else:** confirm `UID_2445` is actually populated on real calendars (see Design Decisions). If it is sparse, the exact-match path is not viable and Phase 6 becomes primary — that determination should happen before writing any of the code below.
+
 **0a — Identity storage.** New `identitystorage/` package following the shape of `monitorstorage/`: `EventIdentityEntity` (the schema in Design Decisions), `EventIdentityDao`, and `EventIdentityDatabase` at `version = 1`, name `RoomEventIdentity`. No legacy predecessor and no copy-migration — this is a fresh database. Use `CrSqliteRoomFactory` for consistency with the existing three.
 
 **0b — Read the UID from the provider.** Add `Events.UID_2445` (with `_SYNC_ID` fallback) to the projection in `CalendarProvider.getEvent()` (`calendar/CalendarProvider.kt:418-439`) and expose it on `EventRecord`. Keep it nullable — not every event has one.
@@ -414,7 +427,47 @@ Consequently Phase 3's detection logic is still a prerequisite for Phase 2, but 
 
 The fingerprint check here feeds Phase 2's gate as a fast path, so build it first even though it is numbered later. Note Phase 2 does not rely on it alone — see the validation-sample check there, which is what allows an old backup restored onto the same device to still backfill.
 
-Store an install fingerprint in its own SharedPreferences file, and **exclude that file from `backup_rules.xml`** so it does not survive a restore — the same trick `EventsStorageState` already relies on. Absent/mismatched fingerprint on launch ⇒ treat as a restore and mark all events pending re-resolution.
+Store an install fingerprint in its own SharedPreferences file that must **not** survive a restore. Absent/mismatched fingerprint on launch ⇒ treat as a restore and mark all events pending re-resolution.
+
+#### Prerequisite: `backup_rules.xml` is not read on Android 12+
+
+This must be fixed **before** Phase 3 works at all, and it is easy to miss because the current setup only appears to work.
+
+The manifest declares the legacy attribute only:
+
+```xml
+android:allowBackup="true"
+android:fullBackupContent="@xml/backup_rules"
+```
+
+but `targetSdkVersion = 36`. `fullBackupContent` applies to **API 30 and below**; API 31+ reads `android:dataExtractionRules`, which is not declared. With it absent the platform falls back to its default — back up everything except no-backup and cache dirs.
+
+That has been harmless so far because `backup_rules.xml` is almost entirely `<include>`, and "include everything" is a superset of that. It stops being harmless here: **Phase 3 is the first thing in this codebase that needs an `<exclude>`.** On any Android 12+ device the fingerprint would be backed up with everything else, always match on launch, and a restore would never be detected — leaving Phases 1, 2 and 5 waiting for a signal that never fires. The feature would fail silently, which is the worst way for it to fail.
+
+The fix, as Phase 3's first step:
+
+1. Add `res/xml/data_extraction_rules.xml` and declare `android:dataExtractionRules` alongside the existing `fullBackupContent` — keep both, since API 24–30 devices still read the old one.
+2. Exclude the fingerprint prefs from `<cloud-backup>`.
+3. Exclude it from `<device-transfer>` as well.
+
+```xml
+<data-extraction-rules>
+  <cloud-backup>
+    <include domain="database" path="." />
+    <exclude domain="sharedpref" path="install_fingerprint.xml" />
+  </cloud-backup>
+  <device-transfer>
+    <include domain="database" path="." />
+    <exclude domain="sharedpref" path="install_fingerprint.xml" />
+  </device-transfer>
+</data-extraction-rules>
+```
+
+**`<device-transfer>` matters on its own.** Android 12 split direct phone-to-phone transfer (the setup-wizard cable flow) from cloud backup, with independent rules. Excluding only from `<cloud-backup>` would leave the cable path undetected — and that path is a very common way to reach exactly the scenario this feature exists for.
+
+**Carry the `<include>` into both sections.** Once a `data-extraction-rules` file exists, the platform default no longer applies, so the database include must be repeated in both blocks. Omitting it from either one would silently stop backing up the identity database on that path, which breaks the feature quietly — the identity DB is useless unless it restores alongside the events it describes.
+
+**Note on the `EventsStorageState` precedent.** Its doc comment claims *"This prefs file is NOT in backup_rules.xml, so it won't be backed up"* — that is no longer true on API 31+, for exactly the reason above. It is a pre-existing bug and out of scope here, but it means the pattern should not be cited as proven. Worth filing separately.
 
 Retry semantics: keep pending events marked until each resolves, re-attempting on app start and after calendar rescans, rather than burning the attempt once. Cap attempts with a backoff so a permanently-unmatchable event doesn't re-query forever.
 
@@ -479,7 +532,9 @@ Those limits are acceptable *because the alternative is nothing*. The failure mo
 | `app/ApplicationController.kt` | Write identity rows on event add/update; **fix `restoreToActive()` (line 1321) to use the stored identity instead of re-querying the stale ID** |
 | `backup/SettingsBackupManager.kt` | Extract calendar-remap logic for reuse in Phase 5 |
 | `prefs/MiscSettingsFragmentX.kt` | Manual re-link action |
-| `res/xml/backup_rules.xml` | Exclude the new fingerprint prefs file (the identity DB is already covered by `domain="database"`) |
+| `res/xml/backup_rules.xml` | Exclude the fingerprint prefs (API 30 and below) |
+| `res/xml/data_extraction_rules.xml` | **New** — API 31+ backup rules; include the databases and exclude the fingerprint in *both* `<cloud-backup>` and `<device-transfer>` |
+| `android/app/src/main/AndroidManifest.xml` | Declare `android:dataExtractionRules` alongside the existing `fullBackupContent` |
 | `res/values/strings.xml` | Strings for the action + result dialog |
 | `eventsstorage/EventAlertDao.kt`, `RoomEventsStorage.kt` | Transactional re-key (delete + insert) for a changed `id` |
 | `monitorstorage/` + `dismissedeventsstorage/` storages | Re-key rows on an `id` change (Phase 1b), with manual rollback across DBs |
@@ -507,6 +562,7 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Backfill**: pre-existing event + live provider → identity row created.
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
+- **Fingerprint is genuinely excluded from backup**: verify on an API 31+ device that a backup/restore cycle does *not* carry the fingerprint across — the failure this guards against is silent, so it needs an explicit check rather than an assumption.
 - **Backfill declines on a new provider**: validation sample disagrees (stored title/start do not match what the `id` returns) → backfill writes no identity rows. The case that would otherwise manufacture identity from meaningless IDs.
 - **Backfill proceeds on the same provider**: fingerprint cleared by a restore, but the validation sample agrees → backfill still runs. Covers restoring an older backup onto the original device, which must not be treated as a new-device restore.
 - **Validation sample on an empty provider**: lookups return nothing → treated as a new provider, not as agreement.
@@ -534,7 +590,13 @@ Per `docs/build/wsl_unison_environment.md`, instrumentation runs from Windows (`
 2. **Instrumentation** (from Windows, after the user runs Unison — *never* run it unprompted):
    `.\gradlew.bat :app:connectedX8664DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.github.quarck.calnotify.calendar.EventIdentityRestoreTest`
 3. **Real end-to-end restore** using the existing harness `scripts/test_cloud_backup.sh com.github.quarck.calnotify` — it drives `bmgr` through a real backup/uninstall/reinstall cycle. Before: restored events are orphaned. After: they re-link. This is the actual acceptance test for the issue.
+   - Run it on an **API 31+** target specifically, since that is where the `dataExtractionRules` gap bites.
+   - It only exercises the **cloud** transport. For device-to-device, list transports with `adb shell bmgr list transports` and switch to `com.google.android.gms/.backup.migrate.service.D2dTransport`. Note you [cannot restore *from* D2D via `bmgr`](https://lucid.co/techblog/2022/11/14/testing-android-device-to-device-transfer), so that half stays manual.
 4. **Manual sanity**: with events snoozed, trigger the manual re-link action and confirm the reported resolved/unresolved counts, filter pills, and "open in calendar" all behave.
+
+## Follow-ups outside this plan
+
+- **`EventsStorageState`'s backup exclusion is broken on API 31+.** Its doc comment says the prefs file is not backed up because it is absent from `backup_rules.xml`, but that file is not read on API 31+, so the value likely *is* being backed up and restored. Pre-existing and out of scope here, but worth filing — the Phase 3 `data_extraction_rules.xml` work is the natural place to fix it.
 
 ## Open Questions
 
