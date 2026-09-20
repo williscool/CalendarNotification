@@ -1,6 +1,6 @@
 # Database Schema Reference
 
-Column-by-column reference for the app's three SQLite databases. Column names are abbreviated for historical reasons (the 2016 schema used short names to save space), so this table is the map between the on-disk name and what it actually means.
+Column-by-column reference for the app's SQLite databases. Column names are abbreviated for historical reasons (the 2016 schema used short names to save space), so this table is the map between the on-disk name and what it actually means.
 
 Authoritative definitions live in the Room entities; this doc is the human-readable index:
 
@@ -13,10 +13,13 @@ Authoritative definitions live in the Room entities; this doc is the human-reada
 | Database | Room file | Legacy file | Table | Primary key |
 |---|---|---|---|---|
 | Events (active/snoozed) | `RoomEvents` | `Events` | `eventsV9` | `(id, istart)` |
+| Portable event identity *(planned)* | `RoomEventIdentity` | — (new) | `eventIdentityV1` | `(eventId, instanceStart)` |
 | Dismissed events | `RoomDismissedEvents` | `DismissedEvents` | `dismissedEventsV2` | `(eventId, instanceStart)` |
 | Calendar monitor | `RoomCalendarMonitor` | `CalendarMonitor` | `manualAlertsV1` | `(eventId, alertTime, instanceStart)` |
 
-All three are **separate database files**. There are no foreign keys between them and cross-database transactions are not possible — code that must stay consistent across two of them does manual rollback (see `ApplicationController.unsnoozeToUpcoming`).
+These are **separate database files**. There are no foreign keys between them and cross-database transactions are not possible — code that must stay consistent across two of them does manual rollback (see `ApplicationController.unsnoozeToUpcoming`).
+
+Note what the shared `(eventId, instanceStart)` key implies: changing an event's `eventId` requires re-keying its rows in *every* one of these databases, with no transaction spanning them.
 
 ## `eventsV9` — active and snoozed events
 
@@ -47,7 +50,7 @@ The short column names here are the ones most likely to confuse. Note especially
 | `oattsts` | **`attendanceStatus`** | Int | `AttendanceStatus` enum — the user's RSVP |
 | `i1` | `flags` | Long | Bitfield: `IS_MUTED=1`, `IS_TASK=2`, `IS_ALARM=4`, `IS_PINNED=8` |
 | `i2`–`i8` | *reserved* | Long | Unused; written as `0` |
-| `s2` | *reserved* | String | Unused; written as `""`. **Claimed by the portable-identity work** — see below |
+| `s2` | *reserved* | String | Unused; written as `""` — the only spare text column in this table |
 
 ## `dismissedEventsV2` — dismissal history
 
@@ -87,9 +90,13 @@ Every table carries spare `iN`/`sN` columns from the original 2016 schema. They 
 
 New claims apply to the **Room entities only** — the legacy `*Impl*` classes are deprecated and scheduled for removal (`../dev_todo/deprecated_features.md`, item 5), so they should not gain new field handling.
 
+**Spend them sparingly.** There is exactly one spare text column per table and claiming one is effectively irreversible once rows are written. Reserve them for data that genuinely *must* live in the row: read on the hot path, needed in the same query as the event, or required to travel with the row through the PowerSync/Supabase pipeline. Anything that is merely *associated* with an event — derived metadata, bookkeeping, anything read only on rare paths — belongs in its own table or database, joined by `(eventId, instanceStart)`.
+
+A worked example of choosing the latter: [portable_event_identity.md](../dev_todo/portable_event_identity.md) initially planned to use `eventsV9.s2` and deliberately moved to a separate Room database instead.
+
 They exist so a field can be added **without a schema migration** — no Room version bump, no new legacy `EventsStorageImplV10`, and no change to the Supabase table (`supabase/migrations/20250301213237_events.sql` already mirrors every column, reserved ones included), which keeps the PowerSync payload working untouched.
 
-The cost is that the name stops describing the content: a column called `s2` holding calendar identity is opaque to anyone reading a raw DB dump. So the rule is:
+The cost is that the name stops describing the content: a column called `i1` holding a flags bitfield is opaque to anyone reading a raw DB dump. So the rule is:
 
 > **When you claim a reserved column, rename the constant to describe its meaning, document it in this file, and leave a comment at the entity declaration. Never leave a live column named "reserved".**
 
@@ -101,7 +108,6 @@ Note the precedent: `i1` was already claimed for `flags`, and `s1` for `descript
 |---|---|---|---|
 | `eventsV9` | `i1` | `flags` bitfield | in use |
 | `eventsV9` | `s1` | `description` | in use |
-| `eventsV9` | `s2` | portable event identity | planned — see [portable_event_identity.md](../dev_todo/portable_event_identity.md) |
 | `dismissedEventsV2` | `i1` | `flags` bitfield | in use |
 | `dismissedEventsV2` | `s1` | `description` | in use |
 

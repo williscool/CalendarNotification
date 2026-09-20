@@ -44,36 +44,67 @@ Store durable, provider-independent identity alongside every stored event so tha
 - **Bidirectional multi-device sync of snooze/mute state** — the second half of #273. This plan makes the *data* portable; it does not make it live-shared.
 - **Changing the PowerSync/Supabase payload** — `cid` still ships raw to Supabase. Worth fixing later (it has no account context), but it's sync-side and out of scope here. See `docs/dev_todo/data_sync_improvements.md`.
 - **A user-facing events export/import file** — this plan rides on the existing Android auto-backup of the DB files. A manual events export is a separate feature.
-- **Schema migration** — explicitly avoided; see Key Decisions.
-- **Storing identity blobs in `MonitorStorage`** — `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so it doesn't need its own identity. **But its rows are keyed on `eventId` and must still be re-keyed when an `id` changes** — see the cross-database note in Design Decisions.
+- **Migrating the existing databases** — no schema change to `eventsV9`, `dismissedEventsV2`, or `manualAlertsV1`. The identity database is new and starts at version 1.
+- **Storing identity for `MonitorStorage` rows** — `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so it doesn't need its own identity. **But its rows are keyed on `eventId` and must still be re-keyed when an `id` changes** — see the cross-database note in Design Decisions.
 
 ## Key Decisions Summary
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Where to store identity | Existing **unused reserved columns** (`eventsV9.s2`, `dismissedEventsV2.s2`) as a small JSON blob | Zero schema migration, zero Room version bump, zero risk to the cr-sqlite/PowerSync column contract. These columns are written as `""` today and read by nothing. |
+| Where to store identity | A **new, dedicated Room database** with typed columns | Keeps the scarce reserved text columns free for data that must live in the event row. Identity is off the hot path, joinable by key, and stays out of the Supabase sync payload by construction. |
 | Calendar identity | Reuse `CalendarBackupInfo` (account name/type, owner, displayName, name) | Already exists, already has a tested 3-tier fallback matcher, already the proven format in settings backup. |
 | Event identity | `Events.UID_2445`, falling back to `Events._SYNC_ID` | `UID_2445` is the iCalendar UID — globally stable and identical across devices for the same Google/CalDAV event. Available since API 17; minSdk is 24. |
 | When identity is captured | On every event write (add/update), best-effort | Cheap, keeps identity fresh, and means any future backup is restorable without a migration pass. |
 | When re-resolution runs | Lazily, on a detected restore, **retrying** until resolved — plus a manual trigger | Calendars often sync onto the phone *after* our first launch, so a one-shot pass would match nothing. |
 | Manual trigger UX | Mirror the existing pull-to-refresh + overflow "Refresh" in `prefs/CalendarsActivity.kt` | That screen already requests a calendar sync then reloads, which is exactly the shape needed here. Reusing a familiar interaction beats inventing a new one. |
-| Unmatched events | Leave the row intact with its stale ID, keep the identity blob, mark unresolved | Matches the existing fail-soft convention (`reloadCalendarEventAlertFromEvent` returns `NoChange` rather than deleting). Never destroy user data because a match failed. |
+| Unmatched events | Leave the event row intact with its stale ID, keep the identity row, mark unresolved | Matches the existing fail-soft convention (`reloadCalendarEventAlertFromEvent` returns `NoChange` rather than deleting). Never destroy user data because a match failed. |
 | Storage scope | **Room implementations only** | Legacy storage is deprecated and scheduled for removal (`deprecated_features.md` item 5). It's a migration-failure fallback; new code there would be written to be deleted. |
 | Restore detection | Compare a stored install fingerprint against the current one | Cheap and reliable. Auto-backup deliberately excludes `events_storage_state.xml`, so a prefs-based marker is a proven pattern here. |
 
 ## Design Decisions
 
-### Why reserved columns rather than a schema migration
+### Why a separate Room database rather than a reserved column
 
-`EventAlertEntity` (`eventsstorage/EventAlertEntity.kt`) declares `i2`–`i8` and `s2` as reserved, and `EventsStorageImplV9` writes them as `0`/`""`. Nothing reads them. Using `s2` means:
+An earlier revision of this plan stored the identity blob in the unused `eventsV9.s2` reserved column. That is rejected in favour of a **new, dedicated Room database**.
 
-- No Room version bump, no new `Migration`, no new legacy `EventsStorageImplV10`.
-- The Supabase table (`supabase/migrations/20250301213237_events.sql`) already has an `s2` column, so the sync payload keeps working unchanged.
-- `installCrsqliteOnTable` in `src/lib/cr-sqlite/install.ts` rewrites the PK but doesn't enumerate columns — unaffected.
+The reserved columns (`i2`–`i8`, `s2`) are a small, finite, one-time resource — there is exactly one spare text column per table, and claiming it is effectively irreversible once rows are written. It should be spent on data that **must** live inside the event row: something read on the app's hot path, needed in the same query as the event, or required to travel with the row through the PowerSync/Supabase pipeline.
 
-The tradeoff is that `s2` becomes semantically meaningful, so it needs a named constant and a comment at the entity declaration rather than staying "reserved". That's a documentation cost, not a correctness one.
+Portable identity is none of those:
 
-There's precedent: `i1` was already claimed for the `flags` bitfield and `s1` for `description`, so this is the third such claim rather than a new practice. To stop the cost compounding, [database_schema_reference.md](../architecture/database_schema_reference.md) now documents every column in all three databases and sets the rule — **when you claim a reserved column, rename the constant to describe its meaning and document it there; never leave a live column named "reserved."**
+- **It is not read on the hot path.** Nothing in normal app runtime touches it. Only `EventIdentityResolver` reads it, and only on a detected restore or a manual re-link.
+- **It does not need to be in the same row.** It is keyed by `(eventId, instanceStartTime)` and can be joined when needed.
+- **It should not travel to Supabase.** The sync layer targets the `eventsV9` table by name, so keeping identity out of that table keeps it out of the sync payload by construction — which is what we want, since the blob contains account emails.
+
+That last point inverts an argument from the earlier revision. Using `s2` was originally justified partly because the Supabase table already mirrors it, so the payload "keeps working unchanged" — but on reflection, silently shipping account identifiers to the remote database is a drawback, not a benefit.
+
+#### What the separate database costs
+
+Less than it might appear, because the infrastructure is already in place:
+
+- **No schema migration.** A brand-new database starts at `version = 1` with no legacy predecessor and no copy-migration step — strictly simpler than the existing three, which all carry legacy baggage. `monitorstorage/MonitorDatabase.kt` is the closest template: single entity, `version = 1`, `exportSchema = false`.
+- **Backed up automatically.** `res/xml/backup_rules.xml` includes `<include domain="database" path="." />`, so any new database file is covered with no config change. This is essential — the identity DB is useless unless it restores alongside the events it describes.
+- **No sync impact.** PowerSync/cr-sqlite is wired to `eventsV9` explicitly (`src/lib/features/SetupSync.tsx`, `src/lib/powersync/Schema.tsx`); a new table is invisible to it.
+
+The real cost is the one inherent to this codebase: **a fourth separate database file means a fourth store with no cross-database transactions.** Identity rows can drift from the events they describe — e.g. an event is deleted but its identity row lingers. This is tolerable because identity rows are pure derived metadata: an orphaned one is harmless, and the resolver ignores identity with no matching event. A periodic cleanup pass can prune orphans opportunistically; correctness never depends on it.
+
+#### Schema
+
+One table, keyed to match `eventsV9`'s primary key so rows join cleanly:
+
+| Column | Type | Notes |
+|---|---|---|
+| `eventId` | Long | PK part 1 — matches `eventsV9.id` |
+| `instanceStart` | Long | PK part 2 — matches `eventsV9.istart` |
+| `acctName` / `acctType` / `owner` / `dispName` / `calName` | String | The `CalendarBackupInfo` tuple, as real columns |
+| `eventUid` | String? | `Events.UID_2445`, fallback `_SYNC_ID`. Nullable — not every event has one |
+| `origCalendarId` | Long | The `cid` in force when captured |
+| `origEventId` | Long | The `id` in force when captured |
+| `capturedAt` | Long | Via `CNPlusClockInterface`, never `System.currentTimeMillis()` |
+| `resolveAttempts` | Int | Backs the Phase 3 retry cap |
+
+**Real typed columns, not a JSON blob.** Once the constraint of squeezing into one text column is gone, there is no reason to serialize. Typed columns are queryable (e.g. "all rows with `resolveAttempts > N`"), enforced by Room at compile time, and need no `SerializationException` handling. The `resolveAttempts` counter in particular is a plain `UPDATE` rather than a decode/mutate/re-encode cycle.
+
+It also means no serialization layer at all: the Room entity *is* the model, with no encode/decode step to test or to fail.
 
 ### The two halves: why the email is necessary but not sufficient
 
@@ -129,48 +160,30 @@ Title+time heuristics produce false positives on recurring and duplicated events
 
 **The email tuple is not perfectly unique either** — this is why `findMatchingCalendarId()` already has three tiers. One account can expose several calendars (primary, birthdays, a shared team calendar), all with the same `ACCOUNT_NAME`. That's why the match uses account name + type + owner, and only falls back to display name.
 
-### What actually goes in the `s2` column
+### What gets stored, and who uses it
 
-`s2` holds one JSON object per event row: a snapshot of **how to find this event again from scratch**, written using only identifiers that mean something on a different device. Concretely:
+One identity row per stored event, holding **everything needed to find that event again from scratch** using only identifiers that are meaningful on a different device. For an event in a Google work calendar:
 
-```json
-{
-  "v": 1,
-  "cal": {
-    "acct": "will@example.com",
-    "type": "com.google",
-    "owner": "will@example.com",
-    "disp": "Work",
-    "name": "will@example.com"
-  },
-  "uid": "abc123def456@google.com",
-  "origCid": 3,
-  "origId": 91427
-}
-```
+| Column | Example value |
+|---|---|
+| `eventId` / `instanceStart` | `91427` / `1764547200000` — the join key back to `eventsV9` |
+| `acctName` / `acctType` | `will@example.com` / `com.google` |
+| `owner` | `will@example.com` |
+| `dispName` / `calName` | `Work` / `will@example.com` |
+| `eventUid` | `abc123def456@google.com` |
+| `origCalendarId` / `origEventId` | `3` / `91427` |
 
-Field by field:
-
-| Field | Source | Why it's there |
-|---|---|---|
-| `v` | constant | Schema version, so a future field can be added without breaking old rows |
-| `cal` | `getCalendarBackupInfo(calendarId)` | The five fields `findMatchingCalendarId()` already matches on — exactly the `CalendarBackupInfo` shape |
-| `uid` | `Events.UID_2445` (fallback `_SYNC_ID`) | Identifies the specific event within that calendar |
-| `origCid` / `origId` | the row's current `cid` / `id` | The IDs in force when the snapshot was taken |
-
-**Why store `origCid`/`origId` when they're already in the row?** They're the staleness check. If `origId` still equals the row's `id`, the row hasn't been re-keyed yet; if they differ, resolution has already run. Without them, there's no way to tell "never resolved" from "already resolved" — which matters because the retry loop re-runs on every launch and must not redo completed work.
-
-**Size:** roughly 150–250 bytes per row. For a typical few-hundred-row database that's well under 100 KB, which is why storing it per-row rather than in a shared side table is acceptable.
+**Why store `origCalendarId`/`origEventId` when they duplicate the event row?** They are the staleness check. If `origEventId` still equals the event's current `id`, resolution has not run for this row; if they differ, it already has. Without them there is no way to distinguish "never resolved" from "already resolved" — which matters because the retry loop re-runs on every launch and must not redo completed work.
 
 **Who writes it:** Phase 0 on every event add/update (fresh rows), Phase 2 backfill (pre-existing rows).
 
-**Who reads it:** only `EventIdentityResolver`. Nothing in the normal app runtime reads `s2` — the app keeps using `cid`/`id` exactly as it does today. The blob is dormant until a restore is detected or the manual re-link action runs, at which point it's the sole input to the resolution below.
+**Who reads it:** only `EventIdentityResolver`. Nothing in normal app runtime reads this database. The app keeps using `cid`/`id` exactly as it does today; these rows lie dormant until a restore is detected or the manual re-link action runs, at which point they are the sole input to the resolution below.
 
-**What it is not:** it is not a cache of event content. Title, times, and location are already stored in their own columns and are refreshed from the provider by the normal reload path. Duplicating them here would create a second source of truth that could drift.
+**What it is not:** not a cache of event content. Title, times, and location live in their own columns in `eventsV9` and are refreshed from the provider by the normal reload path. Duplicating them here would create a second source of truth that could drift.
 
 ### Resolution strategy
 
-Resolution consumes the `s2` blob described above. A restored event needs two lookups, in order:
+Resolution consumes the identity rows described above. A restored event needs two lookups, in order:
 
 1. **Calendar**: `findMatchingCalendarId(context, storedBackupInfo)` → new `cid`. Reuses the existing 3-tier matcher untouched.
 2. **Event**: query `Events.CONTENT_URI` for `UID_2445 = ? AND CALENDAR_ID = ?` (scoped to the just-matched calendar to avoid cross-calendar collisions) → new `id`.
@@ -200,7 +213,7 @@ But "already broken" is only true when the ID is genuinely stale. It is *not* tr
 
 If the new `(id, istart)` already exists, the new device independently re-added the same event. Keep the existing row and drop the restored duplicate: the live row is the one the app has actually been maintaining. This is a genuine merge decision, not an error.
 
-#### Cross-database fallout (found while reviewing this)
+#### Cross-database fallout
 
 `MonitorStorage` lives in a **separate database** and is keyed `(eventId, alertTime, instanceStart)`. Changing `id` in `eventsV9` therefore orphans the matching monitor alert, and there are no cross-database transactions to lean on.
 
@@ -208,13 +221,15 @@ This matters concretely: `restoreToUpcoming` (`ApplicationController.kt:1293-130
 
 The same applies to `dismissedEventsV2`, which is keyed on `eventId` in its own database.
 
-So the resolver must re-key **all three** databases for a given event, in a defined order, with manual rollback on partial failure — the pattern `unsnoozeToUpcoming` already establishes. This is why the `id` re-key is split into its own sub-phase: `eventsV9` lands first, with the other two databases as follow-on steps carrying their own tests.
+The identity database itself is keyed the same way, so it is a fourth store needing the same treatment — its row must move to the new `(eventId, instanceStart)` alongside the event, or the next retry would not find it.
+
+So the resolver must re-key **four** databases for a given event, in a defined order, with manual rollback on partial failure — the pattern `unsnoozeToUpcoming` already establishes. This is why the `id` re-key is split into its own sub-phase: `eventsV9` plus its identity row land first, with the monitor and dismissed databases as follow-on steps carrying their own tests.
 
 Every failure path below leaves the row intact and retryable — nothing is ever deleted because a match failed:
 
 ```mermaid
 flowchart TD
-    A["Stored event row"] --> B{"Identity blob<br/>in s2?"}
+    A["Stored event row"] --> B{"Identity row<br/>exists?"}
     B -->|"no (pre-Phase 0)"| Z["Skip — backfill handles it"]
     B -->|yes| C["findMatchingCalendarId<br/>(account tuple)"]
 
@@ -231,7 +246,7 @@ flowchart TD
     G -->|no| H{"Target (id, istart)<br/>already taken?"}
 
     H -->|yes| V["Keep live row,<br/>drop restored duplicate"]
-    H -->|no| U["Transaction:<br/>delete + re-insert,<br/>re-key monitor + dismissed ✅"]
+    H -->|no| U["Transaction: delete + re-insert,<br/>re-key identity, monitor,<br/>dismissed ✅"]
 ```
 
 ### How far back does the new device's calendar actually go?
@@ -272,24 +287,24 @@ The key insight: the calendar half of this problem was already solved once for s
 
 ### Phase 0: Capture identity at write time
 
-**0a — Identity model.** New `calendar/PortableEventIdentity.kt` implementing the JSON shape specified in "What actually goes in the `s2` column" above. Serialize with kotlinx.serialization (already a dependency, used by `backup/BackupData.kt`), using short `@SerialName`s to keep the per-row cost down. Decoding must return null rather than throw on malformed or empty input, catching `SerializationException` specifically (never broad `Exception`, per `AGENTS.md`).
+**0a — Identity storage.** New `identitystorage/` package following the shape of `monitorstorage/`: `EventIdentityEntity` (the schema in Design Decisions), `EventIdentityDao`, and `EventIdentityDatabase` at `version = 1`, name `RoomEventIdentity`. No legacy predecessor and no copy-migration — this is a fresh database. Use `CrSqliteRoomFactory` for consistency with the existing three.
 
 **0b — Read the UID from the provider.** Add `Events.UID_2445` (with `_SYNC_ID` fallback) to the projection in `CalendarProvider.getEvent()` (`calendar/CalendarProvider.kt:418-439`) and expose it on `EventRecord`. Keep it nullable — not every event has one.
 
-**0c — Persist it.** Map the blob into `EventAlertEntity.s2` / `DismissedEventEntity.s2` in `fromRecord()`/`toRecord()`. Populate on add/update in `ApplicationController` where the record is first built from the provider.
+**0c — Persist it.** Write an identity row whenever an event is added or updated in `ApplicationController`, keyed `(eventId, instanceStartTime)`. Best-effort: a failure to capture identity must never fail the event write itself.
 
 **Room only — do not touch the legacy storage implementations.** Legacy storage (`EventsStorageImplV9`, `DismissedEventsStorageImplV2`, `LegacyEventsStorage`) is deprecated and scheduled for removal (`docs/dev_todo/deprecated_features.md`, item 5). It exists solely as a fallback if Room migration throws. Adding identity handling there would mean writing new code on a path slated for deletion.
 
-The consequence is acceptable: on the legacy fallback path, `s2` stays `""`, every event reports "no identity stored", and the resolver skips it. That path is already a degraded mode — the user is running without Room because migration failed — and it leaves the data no worse than it is today.
+The consequence is acceptable: on the legacy fallback path no identity rows are written, every event reports "no identity stored", and the resolver skips it. That path is already a degraded mode — the user is running without Room because migration failed — and it leaves the data no worse than it is today.
 
-**Checkpoint:** new events written on this device carry a populated `s2`. Existing rows still have `""` — that's expected and handled in Phase 2.
+**Checkpoint:** new events written on this device get an identity row. Pre-existing events have none — expected, and handled in Phase 2.
 
 ### Phase 1: Resolution engine
 
 New `calendar/EventIdentityResolver.kt` — pure orchestration, no UI, constructor-injected `CalendarProviderInterface` and `CNPlusClockInterface` so it's Robolectric-testable (per `docs/testing/dependency_injection_patterns.md`).
 
 Responsibilities:
-- Given a stored record + its identity blob, resolve `(newCalendarId, newEventId)` — **lookup only, no writes**.
+- Given a stored record + its identity row, resolve `(newCalendarId, newEventId)` — **lookup only, no writes**.
 - Report a typed outcome: resolved / unresolved-calendar / unresolved-event / no-identity-stored / already-current.
 - Apply the resolution, in the order established in Design Decisions: commit the safe `cid` update first, then attempt the `id` re-key only when a replacement was positively identified.
 
@@ -303,7 +318,7 @@ This class is the whole substance of the feature; keep it small and free of Andr
 
 ### Phase 2: Backfill for pre-existing rows
 
-Rows written before Phase 0 have an empty `s2`. While the app is still on the *original* device, those rows can be backfilled by reading the identity from the live provider (the stale IDs are still valid here). Run this opportunistically on app start when unbackfilled rows exist.
+Events stored before Phase 0 have no identity row. While the app is still on the *original* device, they can be backfilled by reading identity from the live provider (the stale IDs are still valid there). Run this opportunistically on app start while any event lacks an identity row.
 
 This is what makes the feature useful to the current user rather than only to new installs — without it, today's data is still unrestorable.
 
@@ -327,10 +342,13 @@ On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to thei
 
 | File | Purpose |
 |---|---|
-| `calendar/PortableEventIdentity.kt` | Serializable identity blob + JSON encode/decode |
+| `identitystorage/EventIdentityEntity.kt` | Room entity — the identity schema |
+| `identitystorage/EventIdentityDao.kt` | Queries: get/put by key, find events lacking identity, bump attempts |
+| `identitystorage/EventIdentityDatabase.kt` | Room DB `RoomEventIdentity`, version 1 |
+| `identitystorage/EventIdentityStorage.kt` | Storage facade matching existing conventions |
 | `calendar/EventIdentityResolver.kt` | Resolution engine and typed outcomes |
 | `test/.../calendar/EventIdentityResolverRobolectricTest.kt` | Core resolution logic tests |
-| `test/.../calendar/PortableEventIdentityTest.kt` | Pure serialization round-trip tests |
+| `androidTest/.../identitystorage/EventIdentityStorageTest.kt` | Real-SQLite storage round-trip |
 | `androidTest/.../calendar/EventIdentityRestoreTest.kt` | Real-provider end-to-end |
 
 ### Modified Files
@@ -340,16 +358,14 @@ On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to thei
 | `calendar/CalendarProvider.kt` | Add `UID_2445`/`_SYNC_ID` to `getEvent()` projection; add a lookup-by-UID query |
 | `calendar/CalendarProviderInterface.kt` | Declare the new lookup |
 | `calendar/EventRecord.kt` | Carry nullable `eventUid` |
-| `eventsstorage/EventAlertEntity.kt` | Name `s2` as the identity column; map in `fromRecord`/`toRecord` |
-| `dismissedeventsstorage/DismissedEventEntity.kt` | Same, for dismissed events (Room entity only) |
-| `app/ApplicationController.kt` | Populate identity on write; **fix `restoreToActive()` (line 1321) to use the stored blob instead of re-querying the stale ID** |
+| `app/ApplicationController.kt` | Write identity rows on event add/update; **fix `restoreToActive()` (line 1321) to use the stored identity instead of re-querying the stale ID** |
 | `backup/SettingsBackupManager.kt` | Extract calendar-remap logic for reuse in Phase 5 |
 | `prefs/MiscSettingsFragmentX.kt` | Manual re-link action |
-| `res/xml/backup_rules.xml` | Exclude the new fingerprint prefs file |
+| `res/xml/backup_rules.xml` | Exclude the new fingerprint prefs file (the identity DB is already covered by `domain="database"`) |
 | `res/values/strings.xml` | Strings for the action + result dialog |
 | `eventsstorage/EventAlertDao.kt`, `RoomEventsStorage.kt` | Transactional re-key (delete + insert) for a changed `id` |
 | `monitorstorage/` + `dismissedeventsstorage/` storages | Re-key rows on an `id` change (Phase 1b), with manual rollback across DBs |
-| `docs/architecture/database_schema_reference.md` | Mark `s2` as claimed once implemented |
+| `docs/architecture/database_schema_reference.md` | Document the new identity database |
 
 ## Testing Plan
 
@@ -357,18 +373,18 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 
 ### Unit / Robolectric
 
-- **Serialization**: round-trip; unknown future `version` decodes without throwing; malformed/empty `s2` yields null rather than an exception (no broad `catch (Exception)` — catch `SerializationException` specifically).
+- **Identity storage**: write/read round-trip by `(eventId, instanceStart)`; absent row returns null cleanly.
 - **Resolver happy path**: calendar and event both match → new IDs applied.
 - **Partial match**: calendar matches, UID does not → calendar updated, event left stale, marked unresolved.
 - **No match**: neither matches → row untouched, still marked pending (proves the retry path and the no-data-loss guarantee).
-- **No identity stored**: legacy row with empty `s2` → skipped cleanly.
+- **No identity stored**: event with no identity row → skipped cleanly.
 - **Already current**: IDs unchanged → no write (guards against pointless delete+reinsert churn).
 - **PK collision**: target `(id, istart)` already occupied → existing row kept, duplicate dropped.
 - **`cid` committed independently**: calendar resolves but event does not → the `cid` update is still persisted (proves the safe-write-first ordering, and that a partial resolution is an improvement rather than a rollback).
 - **Transactional re-key**: insert fails mid-re-key → original row still present, nothing lost.
-- **Cross-database re-key**: after an `id` change, the matching `manualAlertsV1` and `dismissedEventsV2` rows are re-keyed too; a failure on either leaves all three consistent via manual rollback.
+- **Cross-database re-key**: after an `id` change, the identity row plus the matching `manualAlertsV1` and `dismissedEventsV2` rows are re-keyed too; a failure on any leaves all four consistent via manual rollback.
 - **Orphaned monitor alert regression guard**: re-keyed event can still `restoreToUpcoming` — i.e. `clearWasHandled` finds its alert. This is the concrete failure the cross-DB work exists to prevent.
-- **Backfill**: pre-existing row + live provider → `s2` populated.
+- **Backfill**: pre-existing event + live provider → identity row created.
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
 
@@ -396,4 +412,4 @@ Per `docs/build/wsl_unison_environment.md`, instrumentation runs from Windows (`
 ## Open Questions
 
 - Should a restored-but-unresolved event be visually marked in the list (e.g. the existing `calendarId = -1` "calendar not found" treatment via `createCalendarNotFoundCal`), or stay silent until it resolves? Leaning silent, since the retry usually resolves it within a sync cycle or two.
-- `DismissedEventsStorage` carries the identity blob for symmetry, but dismissed events are historical. Worth confirming whether re-resolving them is wanted at all, or whether Phase 0's capture is enough there.
+- Dismissed events get identity rows for symmetry, but they are historical. Worth confirming whether re-resolving them is wanted at all, or whether capture alone is enough there.
