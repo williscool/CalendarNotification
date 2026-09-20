@@ -59,7 +59,17 @@ OLD DEVICE                              NEW DEVICE
                                                  found: id=55310 ✅
 ```
 
-**The practical consequence:** this feature works properly only if you still have the old device, or a backup taken from it **after this feature ships**. A backup made before then contains no identity rows, and no amount of cleverness on the new device recovers them.
+**The practical consequence** depends on where the backup is restored, and it is worth being precise because there are three cases, not two:
+
+| Case | Identity rows present? | Can they be created? |
+|---|---|---|
+| Backup taken **after** this ships | Yes — captured at write time | n/a, already there |
+| Older backup, restored onto the **same** device (or one whose provider still holds those IDs) | No | **Yes** — Phase 2 backfill manufactures them from the live provider, because the stored IDs are still valid there |
+| Older backup, restored onto a **new** device | No | **No** — the IDs resolve to nothing or to unrelated events, so Phase 6's content heuristic is the only option |
+
+The middle row is the one worth noticing: **an old backup is not automatically a lost cause.** Restore it onto the original device, let backfill run, and the data becomes identity-bearing — and therefore portable from then on. That is a genuine migration path for data captured before this feature existed: restore old → backfill → re-backup → move.
+
+The case that truly cannot be fixed is the last one: identity was never captured, and the provider that could have supplied it is gone. That is exactly what Phase 6 exists for, and why it is best-effort rather than exact.
 
 ### Two tiers, deliberately
 
@@ -388,19 +398,21 @@ This class is the whole substance of the feature; keep it small and free of Andr
 
 Events stored before Phase 0 have no identity row. On the **original** device they can be backfilled by reading identity from the live provider — this works precisely because nothing is broken yet: the stored IDs are not stale, they are live.
 
-**Backfill must run only when the Phase 3 fingerprint matches.** This is a hard precondition, not an optimization. Phase 2 and Phase 3 make opposite assumptions about which device you are on, and "any event lacks an identity row" is exactly the condition that holds right after a restore.
+**What backfill actually requires.** Not "the original device" as such — it requires the stored `id` to still resolve correctly against whatever provider is present. That holds on the original device, and it also holds for an **older backup restored back onto that same device**, which is why that migration path works (see the three cases in the Goal).
 
-Running backfill on a restored device would take an `id` that now points at nothing — or worse, at an unrelated event the new device happened to assign that number — query the provider with it, and write an identity row from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered instead of skipping it. Best case it never resolves; worst case it points at an unrelated event and the 1b re-key moves the row onto it.
+The danger is running it when the IDs *don't* resolve. On a genuinely new device, backfill would take an `id` that now points at nothing — or worse, at an unrelated event the new device happened to assign that number — query the provider with it, and write an identity row from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered instead of skipping it. Best case it never resolves; worst case it points at an unrelated event and the 1b re-key moves the row onto it.
 
-So the ordering is: detect the install fingerprint first (Phase 3), and only backfill when it matches. Consequently Phase 3's detection logic is a prerequisite for Phase 2 even though it is numbered after it.
+**The gate must therefore distinguish "same provider" from "new provider", not merely "restored or not".** A plain fingerprint-missing check is too blunt: restoring an old backup onto the original device also clears the fingerprint, and that is precisely the case we want backfill to run in.
 
-**What backfill can and cannot recover.** Backfill itself is inoculation for data that has not been restored yet, not a rescue for data already orphaned: it derives identity from the live provider using the stored `id`, which only works while that `id` is still valid. On an already-restored device it is unusable — hence the fingerprint gate above.
+So the check should be a **cheap validation sample** rather than a pure fingerprint test: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. If they agree, the IDs are live and backfill is safe. If they disagree or come back empty, treat it as a new provider and skip to the Phase 6 path. The fingerprint remains useful as a fast path — matching fingerprint means definitely same install, no sampling needed — but a mismatch should trigger validation rather than an outright skip.
 
-That does **not** mean already-restored data is unrecoverable, only that backfill is the wrong tool for it. A separate heuristic pass can recover a useful fraction of it, because an orphaned row is not empty — it still holds `title`, `startTime`, `instanceStartTime`, `location`, and `isAllDay`. See Phase 6.
+Consequently Phase 3's detection logic is still a prerequisite for Phase 2, but as an optimization rather than the sole gate.
+
+**What backfill can and cannot recover.** It creates identity for data whose IDs are still valid, whether that data was written here originally or restored from an older backup onto the same device. It cannot help once the IDs are meaningless — that is Phase 6's job, matching on content (`title`, `startTime`, `instanceStartTime`, `location`, `isAllDay`) rather than identity.
 
 ### Phase 3: Restore detection + retry
 
-The fingerprint check here also gates Phase 2, so build it first even though it is numbered later.
+The fingerprint check here feeds Phase 2's gate as a fast path, so build it first even though it is numbered later. Note Phase 2 does not rely on it alone — see the validation-sample check there, which is what allows an old backup restored onto the same device to still backfill.
 
 Store an install fingerprint in its own SharedPreferences file, and **exclude that file from `backup_rules.xml`** so it does not survive a restore — the same trick `EventsStorageState` already relies on. Absent/mismatched fingerprint on launch ⇒ treat as a restore and mark all events pending re-resolution.
 
@@ -495,7 +507,9 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Backfill**: pre-existing event + live provider → identity row created.
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
-- **Backfill is gated on the fingerprint**: on a mismatched (restored) fingerprint, backfill writes no identity rows at all — the case that would otherwise manufacture identity from meaningless IDs.
+- **Backfill declines on a new provider**: validation sample disagrees (stored title/start do not match what the `id` returns) → backfill writes no identity rows. The case that would otherwise manufacture identity from meaningless IDs.
+- **Backfill proceeds on the same provider**: fingerprint cleared by a restore, but the validation sample agrees → backfill still runs. Covers restoring an older backup onto the original device, which must not be treated as a new-device restore.
+- **Validation sample on an empty provider**: lookups return nothing → treated as a new provider, not as agreement.
 - **Heuristic match, single candidate** (Phase 6): one instance at the stored time with a matching title → resolved, and an identity row written for future restores.
 - **Heuristic match, ambiguous** (Phase 6): two same-titled instances at the same time → declined, row left unresolved. The rule that keeps a heuristic safe.
 - **Heuristic skips recurring** (Phase 6): `isRepeating` row → not attempted at all, regardless of how good the candidate looks.
