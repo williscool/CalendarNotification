@@ -21,6 +21,14 @@ This repo keeps agent configuration in open, cross-harness formats:
 - **Instrumentation tests (`connectedAndroidTest`) must run from Windows**, not WSL. The test runner needs ports that don't work through WSL.
 - **Never sync through the junction** at the old long path — doing so can replace the Linux directory with a symlink and destroy data. Details in the doc above.
 
+## NEVER run Unison without explicit permission
+
+**Do not run `unison` — in any form, for any reason — unless the user has explicitly asked for it in the current request.** This includes "just syncing to check something" or verifying that a change propagated.
+
+A misconfigured or mistimed sync can destroy work in ways that are hard or impossible to restore, and recovering may require restarting the machine. The blast radius is the entire checkout on both sides.
+
+If you believe a sync is needed, **stop and ask.** Say what you want to sync and why, then wait. The user runs it, or tells you to.
+
 # Code Changes
 
 This is a legacy codebase (2016) with a robust test suite added in 2024-25.

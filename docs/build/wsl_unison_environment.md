@@ -18,6 +18,11 @@ This project uses a dual-filesystem setup for development:
 - **`node_modules` is NOT synced** — install separately on each side
 - Run with: `unison non_windows_cnplus`
 
+> **⚠️ Agents: never run `unison` without explicit permission from the user.**
+> A misconfigured or mistimed sync can destroy work in ways that are hard or
+> impossible to restore, and recovery may require a machine restart. If you
+> think a sync is needed, stop and ask — do not run it yourself.
+
 ### ⚠️ CRITICAL: Never sync through the junction!
 
 Unison must point to the **real short path** (`/mnt/c/dev/CN`), NOT the junction path. If you sync through the junction, Unison will replace your Linux directory with a symlink to `/mnt/c/...`, completely defeating the fast-filesystem setup and potentially destroying data.

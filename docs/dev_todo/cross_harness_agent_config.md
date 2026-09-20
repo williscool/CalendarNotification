@@ -78,7 +78,11 @@ Cursor keeps working unchanged; Claude Code gains discovery it didn't have (ther
 
 **Verified before committing to this approach:** git stores symlinks as mode `120000` and they round-trip; symlinks create and resolve correctly on the `/mnt/c/dev/CN` DrvFs mount.
 
-**Still to verify during implementation** — the Unison profile (`~/.unison/non_windows_cnplus.prf`) sets neither `links` nor `follow`, and the repo has zero tracked symlinks today, so this is new ground for the sync setup. After the first sync, confirm the symlinks arrive as symlinks and that Unison did not replace a directory with a link. If Unison mishandles them, the fallback is `.skills/` as the sole location with `AGENTS.md` pointing agents at it explicitly (no symlinks) — a real tradeoff, since it costs auto-discovery. Do not let a broken sync silently degrade the checkout; the `wsl-unison-setup` doc already records how destructive that failure mode is.
+**Still open — Unison round-trip.** The profile (`~/.unison/non_windows_cnplus.prf`) sets neither `links` nor `follow`, and the repo had zero tracked symlinks before this change, so this is new ground for the sync setup. Propagating it requires Unison to delete `.cursor/skills` as a directory and recreate it as a symlink.
+
+**This must be done by the user, not by an agent.** Agents must never run `unison` — see the rule in `AGENTS.md`. When the user next syncs, the things to confirm are that `.claude/skills` and `.cursor/skills` arrive as symlinks (not copied directories or broken files), and that no real directory was replaced by a link to itself.
+
+If Unison mishandles them, the fallback is `.skills/` as the sole location with `AGENTS.md` pointing agents at it explicitly (no symlinks) — a real tradeoff, since it costs auto-discovery. Everything else in this migration is independent of that outcome.
 
 ### Phase 4: Deprecate `.cursor/plans/`
 
@@ -92,7 +96,7 @@ Branch, commit, push, and open with `gh pr create` against `master` (`williscool
 
 | File | Change |
 |------|--------|
-| `AGENTS.md` | **New** — from `main-rules.mdc`, frontmatter dropped, agent-config + orientation + **Development Environment** sections added |
+| `AGENTS.md` | **New** — from `main-rules.mdc`, frontmatter dropped, agent-config + orientation + **Development Environment** + **never-run-Unison** sections added |
 | `.cursor/rules/main-rules.mdc` | Deleted (content → `AGENTS.md`) |
 | `docs/build/wsl_unison_environment.md` | **New** — from `wsl-unison-setup.mdc`, frontmatter dropped |
 | `.cursor/rules/wsl-unison-setup.mdc` | Deleted (content → `docs/build/`) |
@@ -116,7 +120,7 @@ Verification is structural:
 3. Frontmatter validates against the spec — `name` matches its directory, lowercase/hyphen-only, `description` non-empty and under 1024 chars. Optionally `skills-ref validate ./.skills/<name>`.
 4. Every relative link resolves from its new location: `assets/` template links, `docs/` references in `AGENTS.md`, the new `docs/README.md` entry.
 5. Grep for stale `.cursor/rules` or `.cursor/skills` paths.
-6. Unison round-trip per Phase 3 — the one step with real downside if it goes wrong.
+6. Unison round-trip per Phase 3 — **user-run only**, never by an agent.
 
 ## Open Questions
 
