@@ -44,6 +44,7 @@ Store durable, provider-independent identity alongside every stored event so tha
 - **Bidirectional multi-device sync of snooze/mute state** — the second half of #273. This plan makes the *data* portable; it does not make it live-shared.
 - **Changing the PowerSync/Supabase payload** — `cid` still ships raw to Supabase. Worth fixing later (it has no account context), but it's sync-side and out of scope here. See `docs/dev_todo/data_sync_improvements.md`.
 - **A user-facing events export/import file** — this plan rides on the existing Android auto-backup of the DB files. A manual events export is a separate feature.
+- **Guaranteed recovery of already-orphaned data** — Phase 6 offers a best-effort heuristic pass for devices restored before this feature shipped, but it is explicitly partial: recurring, renamed, and duplicate-titled events will not match. Not a guarantee, and gated behind a manual action.
 - **Migrating the existing databases** — no schema change to `eventsV9`, `dismissedEventsV2`, or `manualAlertsV1`. The identity database is new and starts at version 1.
 - **Storing identity for `MonitorStorage` rows** — no identity row of its own, but its rows still need re-keying when an `id` changes. `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so there is nothing to capture; the re-key is covered in the cross-database note in Design Decisions.
 
@@ -296,6 +297,8 @@ A real constraint on how much this feature can ever recover, and worth stating p
 
 So the 12-month floor sits well outside the range this feature actually operates in. The honest framing is that **this is a limit on the tail, not on the feature.**
 
+Note this bounds Phase 6 as well: heuristic matching queries the same provider, so an event outside the sync window has no candidates to match against regardless of how good the heuristic is.
+
 **What happens to an event outside the window:** exactly the unresolved path already specified — the row is kept, marked unresolved, and retried. It never resolves, which is correct: the event genuinely isn't on this device. The app already renders this gracefully via `createCalendarNotFoundCal` (`CalendarProvider.kt:1384`). No crash, no data loss, no special-casing needed.
 
 This does mean the retry cap from Phase 3 matters — without a backoff, permanently-unmatchable old events would re-query the provider forever.
@@ -357,7 +360,9 @@ Running backfill on a restored device would take an `id` that now points at noth
 
 So the ordering is: detect the install fingerprint first (Phase 3), and only backfill when it matches. Consequently Phase 3's detection logic is a prerequisite for Phase 2 even though it is numbered after it.
 
-**What backfill can and cannot recover.** It is inoculation for data that has not been restored yet, not a rescue for data already orphaned. Anyone who has already restored onto a new device is past saving regardless of what ships here — the provider IDs that identity would have been derived from are gone. What backfill buys is that the *current* device's data becomes restorable from this point forward, which is what makes the feature useful to existing users rather than only to new installs.
+**What backfill can and cannot recover.** Backfill itself is inoculation for data that has not been restored yet, not a rescue for data already orphaned: it derives identity from the live provider using the stored `id`, which only works while that `id` is still valid. On an already-restored device it is unusable — hence the fingerprint gate above.
+
+That does **not** mean already-restored data is unrecoverable, only that backfill is the wrong tool for it. A separate heuristic pass can recover a useful fraction of it, because an orphaned row is not empty — it still holds `title`, `startTime`, `instanceStartTime`, `location`, and `isAllDay`. See Phase 6.
 
 ### Phase 3: Restore detection + retry
 
@@ -375,6 +380,32 @@ Mirror `prefs/CalendarsActivity.kt:196-243`: a "Re-link events to calendars" act
 
 On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to their new IDs using the same matcher. `SettingsBackupManager.importCalendarSettings()` (`backup/SettingsBackupManager.kt:388-435`) already does exactly this from a JSON file — the logic should be extracted and shared rather than duplicated.
 
+### Phase 6: Heuristic recovery for already-orphaned data (optional)
+
+Everything above only helps devices that captured identity *before* the restore. This phase is the one path that helps data already sitting orphaned on a restored device — including the maintainer's own, which is the main reason it is worth building.
+
+**Why it is possible at all.** An orphaned row's IDs are meaningless, but the row is not empty. It still carries `title`, `startTime`, `instanceStartTime`, `location`, and `isAllDay`. Crucially, **`instanceStartTime` is UTC epoch millis derived from the event's real start time**, so it is the *same value* on the new device for the same event — it is not device-assigned the way `id` and `cid` are.
+
+**The matching pass.** For each unresolved row with no identity:
+
+1. Query `CalendarContract.Instances.query()` over a narrow window bracketing the stored `instanceStartTime` (the existing instance-scan code at `CalendarProvider.kt:1594` already uses this API, so the query shape is proven).
+2. Filter candidates by exact `title` match, then `isAllDay`, then `location` where present.
+3. Accept **only when exactly one candidate survives.** Two or more ⇒ ambiguous ⇒ leave unresolved.
+
+Once matched, the row yields both a real `eventId` and its `calendarId`, and can be re-keyed through the same Phase 1b machinery — and an identity row can be written for it, so it is protected against the *next* restore.
+
+**Why this is Phase 6 and marked optional.** It is a genuine heuristic, unlike the UID match, which is exact:
+
+- **Recurring events are the weak case.** A weekly standup has many instances with identical titles; only the instance start time separates them, so a slightly shifted series produces either no match or an ambiguous one. Correct behaviour there is to decline.
+- **Renamed or moved events will not match**, since both signals are content-based.
+- **Requires a one-to-one survivor.** Duplicate-titled events at the same time are declined outright.
+
+Those limits are acceptable *because the alternative is nothing*. The failure mode is "still unresolved", exactly where the row already is — this pass can only improve matters, never worsen them, provided the single-candidate rule is strict.
+
+**Safety.** Same rules as everywhere else: resolve before writing, never write on ambiguity, and reuse the transactional re-key from Phase 1b. Given it is heuristic, it should be **opt-in via the manual re-link action rather than automatic**, so a mis-match is a user-initiated action with a visible report (`matched / ambiguous / unmatched`) rather than a silent background rewrite.
+
+**Verification.** `scripts/test_cloud_backup.sh` already drives a real backup/uninstall/reinstall cycle, so the honest measurement is available: restore, count how many rows this pass resolves, and report the rate. That number decides whether Phase 6 is worth keeping, and it should be measured rather than assumed.
+
 ## Files to Modify/Create
 
 ### New Files
@@ -386,6 +417,7 @@ On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to thei
 | `identitystorage/EventIdentityDatabase.kt` | Room DB `RoomEventIdentity`, version 1 |
 | `identitystorage/EventIdentityStorage.kt` | Storage facade matching existing conventions |
 | `calendar/EventIdentityResolver.kt` | Resolution engine and typed outcomes |
+| `calendar/HeuristicEventMatcher.kt` | Phase 6 content-based matching (optional phase) |
 | `test/.../calendar/EventIdentityResolverRobolectricTest.kt` | Core resolution logic tests |
 | `androidTest/.../identitystorage/EventIdentityStorageTest.kt` | Real-SQLite storage round-trip |
 | `androidTest/.../calendar/EventIdentityRestoreTest.kt` | Real-provider end-to-end |
@@ -429,6 +461,9 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
 - **Backfill is gated on the fingerprint**: on a mismatched (restored) fingerprint, backfill writes no identity rows at all — the case that would otherwise manufacture identity from meaningless IDs.
+- **Heuristic match, single candidate** (Phase 6): one instance at the stored time with a matching title → resolved, and an identity row written for future restores.
+- **Heuristic match, ambiguous** (Phase 6): two same-titled instances at the same time → declined, row left unresolved. The rule that keeps a heuristic safe.
+- **Heuristic match, renamed event** (Phase 6): title differs → no match, row untouched.
 
 Follow the existing pattern in `test/.../calendar/CalendarBackupRestoreRobolectricTest.kt` (injected storage, no native SQLite).
 
