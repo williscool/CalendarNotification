@@ -38,13 +38,45 @@ It looks up the **old** calendar ID against the **new** device's provider — wh
 
 Store durable, provider-independent identity alongside every stored event so that a database restored onto a new phone can re-resolve itself to the correct local calendar and event rows. After this, restoring a backup (or just letting Android auto-backup do its thing) yields a working event list: correct calendar attribution, working filter pills, working "open in calendar", and correct per-calendar handled settings.
 
+### The precondition: identity must be captured *before* the move
+
+This is the single most important thing to understand about the design, and it is easy to misread.
+
+`UID_2445` is **not** something that can be looked up from an orphaned row. The app has no way to ask the new device "what is the UID of event `91427`?", because `91427` is a row number that means nothing there. The UID has to be read from the provider on the **old** device, while the IDs are still valid, and stored.
+
+So the mechanism is a snapshot, not a lookup:
+
+```
+OLD DEVICE                              NEW DEVICE
+  event id=91427  ──read UID from──►  provider
+        │              provider
+        ▼
+  identity row                        (restore)
+  uid=abc123@google.com  ────────────────────►  search provider for
+                                                 uid=abc123@google.com
+                                                        │
+                                                        ▼
+                                                 found: id=55310 ✅
+```
+
+**The practical consequence:** this feature works properly only if you still have the old device, or a backup taken from it **after this feature ships**. A backup made before then contains no identity rows, and no amount of cleverness on the new device recovers them.
+
+### Two tiers, deliberately
+
+| | Requires | Accuracy | Covers |
+|---|---|---|---|
+| **Exact** (Phases 0–5) | A backup taken after this ships | Exact — UID match, no guessing | The intended path |
+| **Best-effort** (Phase 6) | Nothing; works on any orphaned row | Heuristic — may decline | Older backups, already-restored devices |
+
+Phase 6 exists precisely because the precondition above will not always hold — including for data already sitting orphaned today. It matches on content that survives a restore (title + instance start time) rather than on identity, so it is partial by nature and declines rather than guesses. It is a safety net under the main mechanism, not a substitute for it.
+
 ## Non-Goals
 
 - **Login / accounts (Google, Zitadel)** — the other half of #273; tracked separately.
 - **Bidirectional multi-device sync of snooze/mute state** — the second half of #273. This plan makes the *data* portable; it does not make it live-shared.
 - **Changing the PowerSync/Supabase payload** — `cid` still ships raw to Supabase. Worth fixing later (it has no account context), but it's sync-side and out of scope here. See `docs/dev_todo/data_sync_improvements.md`.
 - **A user-facing events export/import file** — this plan rides on the existing Android auto-backup of the DB files. A manual events export is a separate feature.
-- **Guaranteed recovery of already-orphaned data** — Phase 6 offers a best-effort heuristic pass for devices restored before this feature shipped, but it is explicitly partial: recurring, renamed, and duplicate-titled events will not match. Not a guarantee, and gated behind a manual action.
+- **Guaranteed recovery when identity was never captured** — Phase 6 is a best-effort heuristic for older backups and already-restored devices. It is explicitly partial: recurring events are skipped by design, and renamed or duplicate-titled events will not match. Not a guarantee, and gated behind a manual action.
 - **Migrating the existing databases** — no schema change to `eventsV9`, `dismissedEventsV2`, or `manualAlertsV1`. The identity database is new and starts at version 1.
 - **Storing identity for `MonitorStorage` rows** — no identity row of its own, but its rows still need re-keying when an `id` changes. `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so there is nothing to capture; the re-key is covered in the cross-database note in Design Decisions.
 
@@ -147,6 +179,8 @@ It's the [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.
 or, on Google Calendar, typically something closer to `abc123def456@google.com`.
 
 The key property: **the server assigns it, so it's the same string on every device that syncs that event.** `_ID` is assigned locally by whichever device happened to insert the row first, which is exactly why it doesn't survive a restore.
+
+To be explicit, since this is the easy misreading: the UID is useful only because we **stored it on the old device**. It is a value we carry with us, not one the new device can derive from an orphaned row — see the precondition in the Goal.
 
 ```mermaid
 flowchart LR
@@ -380,27 +414,28 @@ Mirror `prefs/CalendarsActivity.kt:196-243`: a "Re-link events to calendars" act
 
 On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to their new IDs using the same matcher. `SettingsBackupManager.importCalendarSettings()` (`backup/SettingsBackupManager.kt:388-435`) already does exactly this from a JSON file — the logic should be extracted and shared rather than duplicated.
 
-### Phase 6: Heuristic recovery for already-orphaned data (optional)
+### Phase 6: Best-effort recovery when there is no identity (optional)
 
-Everything above only helps devices that captured identity *before* the restore. This phase is the one path that helps data already sitting orphaned on a restored device — including the maintainer's own, which is the main reason it is worth building.
+Phases 0–5 all depend on the precondition in the Goal: identity was captured on the old device. Phase 6 is the fallback for when it was not — an older backup, or data already sitting orphaned on a restored device today. That last case is the main reason it is worth building.
 
 **Why it is possible at all.** An orphaned row's IDs are meaningless, but the row is not empty. It still carries `title`, `startTime`, `instanceStartTime`, `location`, and `isAllDay`. Crucially, **`instanceStartTime` is UTC epoch millis derived from the event's real start time**, so it is the *same value* on the new device for the same event — it is not device-assigned the way `id` and `cid` are.
 
 **The matching pass.** For each unresolved row with no identity:
 
-1. Query `CalendarContract.Instances.query()` over a narrow window bracketing the stored `instanceStartTime` (the existing instance-scan code at `CalendarProvider.kt:1594` already uses this API, so the query shape is proven).
-2. Filter candidates by exact `title` match, then `isAllDay`, then `location` where present.
-3. Accept **only when exactly one candidate survives.** Two or more ⇒ ambiguous ⇒ leave unresolved.
+1. **Skip recurring events outright** (`isRepeating`). They are the known weak case — a weekly standup has many identically-titled instances, so the signals cannot separate them reliably. Not worth the risk for the fraction it would recover; decline and move on.
+2. Query `CalendarContract.Instances.query()` over a narrow window bracketing the stored `instanceStartTime` (the existing instance-scan code at `CalendarProvider.kt:1594` already uses this API, so the query shape is proven).
+3. Filter candidates by exact `title` match, then `isAllDay`, then `location` where present.
+4. Accept **only when exactly one candidate survives.** Two or more ⇒ ambiguous ⇒ leave unresolved.
 
 Once matched, the row yields both a real `eventId` and its `calendarId`, and can be re-keyed through the same Phase 1b machinery — and an identity row can be written for it, so it is protected against the *next* restore.
 
-**Why this is Phase 6 and marked optional.** It is a genuine heuristic, unlike the UID match, which is exact:
+**Why this is optional and best-effort.** Unlike the UID match, which is exact, this is a genuine heuristic with known gaps:
 
-- **Recurring events are the weak case.** A weekly standup has many instances with identical titles; only the instance start time separates them, so a slightly shifted series produces either no match or an ambiguous one. Correct behaviour there is to decline.
+- **Recurring events are skipped by design** (step 1 above).
 - **Renamed or moved events will not match**, since both signals are content-based.
 - **Requires a one-to-one survivor.** Duplicate-titled events at the same time are declined outright.
 
-Those limits are acceptable *because the alternative is nothing*. The failure mode is "still unresolved", exactly where the row already is — this pass can only improve matters, never worsen them, provided the single-candidate rule is strict.
+Those limits are acceptable *because the alternative is nothing*. The failure mode is "still unresolved" — exactly where the row already sits — so this pass can only improve matters, never worsen them, provided the skip and single-candidate rules stay strict. Best-effort is the goal here, not completeness.
 
 **Safety.** Same rules as everywhere else: resolve before writing, never write on ambiguity, and reuse the transactional re-key from Phase 1b. Given it is heuristic, it should be **opt-in via the manual re-link action rather than automatic**, so a mis-match is a user-initiated action with a visible report (`matched / ambiguous / unmatched`) rather than a silent background rewrite.
 
@@ -463,6 +498,7 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Backfill is gated on the fingerprint**: on a mismatched (restored) fingerprint, backfill writes no identity rows at all — the case that would otherwise manufacture identity from meaningless IDs.
 - **Heuristic match, single candidate** (Phase 6): one instance at the stored time with a matching title → resolved, and an identity row written for future restores.
 - **Heuristic match, ambiguous** (Phase 6): two same-titled instances at the same time → declined, row left unresolved. The rule that keeps a heuristic safe.
+- **Heuristic skips recurring** (Phase 6): `isRepeating` row → not attempted at all, regardless of how good the candidate looks.
 - **Heuristic match, renamed event** (Phase 6): title differs → no match, row untouched.
 
 Follow the existing pattern in `test/.../calendar/CalendarBackupRestoreRobolectricTest.kt` (injected storage, no native SQLite).
