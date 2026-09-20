@@ -89,20 +89,27 @@ The real cost is the one inherent to this codebase: **a fourth separate database
 
 #### Schema
 
-One table, keyed to match `eventsV9`'s primary key so rows join cleanly:
+One table, keyed to match `eventsV9`'s primary key so rows join cleanly. One column per row — no slash-combined entries, no abbreviations.
 
 | Column | Type | Notes |
 |---|---|---|
-| `eventId` | Long | PK part 1 — matches `eventsV9.id` |
-| `instanceStart` | Long | PK part 2 — matches `eventsV9.istart` |
-| `acctName` / `acctType` / `owner` / `dispName` / `calName` | String | The `CalendarBackupInfo` tuple, as real columns |
+| `eventId` | Long | PK part 1. Joins to `eventsV9.id` |
+| `instanceStartTime` | Long | PK part 2. Joins to `eventsV9.istart` |
+| `calendarAccountName` | String | `Calendars.ACCOUNT_NAME` — usually the account email |
+| `calendarAccountType` | String | `Calendars.ACCOUNT_TYPE` — e.g. `com.google` |
+| `calendarOwnerAccount` | String | `Calendars.OWNER_ACCOUNT` |
+| `calendarDisplayName` | String | `Calendars.CALENDAR_DISPLAY_NAME` — e.g. "Work" |
+| `calendarName` | String | `Calendars.NAME` |
 | `eventUid` | String? | `Events.UID_2445`, fallback `_SYNC_ID`. Nullable — not every event has one |
-| `origCalendarId` | Long | The `cid` in force when captured |
-| `origEventId` | Long | The `id` in force when captured |
-| `capturedAt` | Long | Via `CNPlusClockInterface`, never `System.currentTimeMillis()` |
-| `resolveAttempts` | Int | Backs the Phase 3 retry cap |
+| `originalCalendarId` | Long | The `cid` in force when this row was captured |
+| `originalEventId` | Long | The `id` in force when this row was captured |
+| `capturedAtTime` | Long | Via `CNPlusClockInterface`, never `System.currentTimeMillis()` |
+| `resolutionAttemptCount` | Int | Backs the Phase 3 retry cap |
+| `lastResolutionAttemptTime` | Long | Backs the retry backoff |
 
-**Real typed columns, not a JSON blob.** Once the constraint of squeezing into one text column is gone, there is no reason to serialize. Typed columns are queryable (e.g. "all rows with `resolveAttempts > N`"), enforced by Room at compile time, and need no `SerializationException` handling. The `resolveAttempts` counter in particular is a plain `UPDATE` rather than a decode/mutate/re-encode cycle.
+**Spell the names out.** The `eventsV9` abbreviations (`cid`, `istart`, `dsts`, `attsts`) are a 2016 inheritance that is now costly to change and easy to misread — `attsts` vs `oattsts` being the worst case. This table is new, so it carries no such constraint: the five calendar columns map one-to-one onto the `CalendarContract.Calendars` columns they come from and are named to make that obvious. The storage cost of long column names is per-schema, not per-row.
+
+**Real typed columns, not a JSON blob.** Once the constraint of squeezing into one text column is gone, there is no reason to serialize. Typed columns are queryable (e.g. "rows where `resolutionAttemptCount` exceeds the cap"), enforced by Room at compile time, and need no `SerializationException` handling. `resolutionAttemptCount` in particular becomes a plain `UPDATE` rather than a decode/mutate/re-encode cycle.
 
 It also means no serialization layer at all: the Room entity *is* the model, with no encode/decode step to test or to fail.
 
@@ -166,14 +173,20 @@ One identity row per stored event, holding **everything needed to find that even
 
 | Column | Example value |
 |---|---|
-| `eventId` / `instanceStart` | `91427` / `1764547200000` — the join key back to `eventsV9` |
-| `acctName` / `acctType` | `will@example.com` / `com.google` |
-| `owner` | `will@example.com` |
-| `dispName` / `calName` | `Work` / `will@example.com` |
+| `eventId` | `91427` |
+| `instanceStartTime` | `1764547200000` |
+| `calendarAccountName` | `will@example.com` |
+| `calendarAccountType` | `com.google` |
+| `calendarOwnerAccount` | `will@example.com` |
+| `calendarDisplayName` | `Work` |
+| `calendarName` | `will@example.com` |
 | `eventUid` | `abc123def456@google.com` |
-| `origCalendarId` / `origEventId` | `3` / `91427` |
+| `originalCalendarId` | `3` |
+| `originalEventId` | `91427` |
 
-**Why store `origCalendarId`/`origEventId` when they duplicate the event row?** They are the staleness check. If `origEventId` still equals the event's current `id`, resolution has not run for this row; if they differ, it already has. Without them there is no way to distinguish "never resolved" from "already resolved" — which matters because the retry loop re-runs on every launch and must not redo completed work.
+`eventId` + `instanceStartTime` are the join key back to `eventsV9`.
+
+**Why store `originalCalendarId`/`originalEventId` when they duplicate the event row?** They are the staleness check. If `originalEventId` still equals the event's current `id`, resolution has not run for this row; if they differ, it already has. Without them there is no way to distinguish "never resolved" from "already resolved" — which matters because the retry loop re-runs on every launch and must not redo completed work.
 
 **Who writes it:** Phase 0 on every event add/update (fresh rows), Phase 2 backfill (pre-existing rows).
 
@@ -221,7 +234,7 @@ This matters concretely: `restoreToUpcoming` (`ApplicationController.kt:1293-130
 
 The same applies to `dismissedEventsV2`, which is keyed on `eventId` in its own database.
 
-The identity database itself is keyed the same way, so it is a fourth store needing the same treatment — its row must move to the new `(eventId, instanceStart)` alongside the event, or the next retry would not find it.
+The identity database itself is keyed the same way, so it is a fourth store needing the same treatment — its row must move to the new `(eventId, instanceStartTime)` alongside the event, or the next retry would not find it.
 
 So the resolver must re-key **four** databases for a given event, in a defined order, with manual rollback on partial failure — the pattern `unsnoozeToUpcoming` already establishes. This is why the `id` re-key is split into its own sub-phase: `eventsV9` plus its identity row land first, with the monitor and dismissed databases as follow-on steps carrying their own tests.
 
@@ -312,7 +325,7 @@ Split into two sub-phases, because the risk profile is very different:
 
 **1a — `cid` only.** Plain column update, no PK change, no cross-database fallout. This alone fixes calendar attribution, filter pills, and per-calendar settings. Independently shippable and independently testable.
 
-**1b — `id` re-key.** The delete+re-insert, transactional per event. Must also re-key the matching rows in `manualAlertsV1` and `dismissedEventsV2`, which live in separate databases with no shared transaction — follow the manual-rollback pattern in `ApplicationController.unsnoozeToUpcoming`. Land this only once 1a is solid.
+**1b — `id` re-key.** The delete+re-insert, transactional per event. Must also re-key the event's own identity row plus the matching rows in `manualAlertsV1` and `dismissedEventsV2` — four databases, no shared transaction, so follow the manual-rollback pattern in `ApplicationController.unsnoozeToUpcoming`. Land this only once 1a is solid.
 
 This class is the whole substance of the feature; keep it small and free of Android UI dependencies.
 
@@ -373,7 +386,7 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 
 ### Unit / Robolectric
 
-- **Identity storage**: write/read round-trip by `(eventId, instanceStart)`; absent row returns null cleanly.
+- **Identity storage**: write/read round-trip by `(eventId, instanceStartTime)`; absent row returns null cleanly.
 - **Resolver happy path**: calendar and event both match → new IDs applied.
 - **Partial match**: calendar matches, UID does not → calendar updated, event left stale, marked unresolved.
 - **No match**: neither matches → row untouched, still marked pending (proves the retry path and the no-data-loss guarantee).

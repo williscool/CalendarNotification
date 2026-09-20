@@ -13,13 +13,19 @@ Authoritative definitions live in the Room entities; this doc is the human-reada
 | Database | Room file | Legacy file | Table | Primary key |
 |---|---|---|---|---|
 | Events (active/snoozed) | `RoomEvents` | `Events` | `eventsV9` | `(id, istart)` |
-| Portable event identity *(planned)* | `RoomEventIdentity` | — (new) | `eventIdentityV1` | `(eventId, instanceStart)` |
+| Portable event identity *(planned)* | `RoomEventIdentity` | — (new) | `eventIdentityV1` | `(eventId, instanceStartTime)` |
 | Dismissed events | `RoomDismissedEvents` | `DismissedEvents` | `dismissedEventsV2` | `(eventId, instanceStart)` |
 | Calendar monitor | `RoomCalendarMonitor` | `CalendarMonitor` | `manualAlertsV1` | `(eventId, alertTime, instanceStart)` |
 
 These are **separate database files**. There are no foreign keys between them and cross-database transactions are not possible — code that must stay consistent across two of them does manual rollback (see `ApplicationController.unsnoozeToUpcoming`).
 
-Note what the shared `(eventId, instanceStart)` key implies: changing an event's `eventId` requires re-keying its rows in *every* one of these databases, with no transaction spanning them.
+Note what the shared event key implies: changing an event's `eventId` requires re-keying its rows in *every* one of these databases, with no transaction spanning them.
+
+## A note on column naming
+
+The three original tables use abbreviated column names (`cid`, `istart`, `dsts`, `attsts`) inherited from the 2016 schema. They are now costly to change — the names are baked into the legacy `*Impl*` classes, the Supabase mirror table, and the PowerSync payload — so they stay as they are, and this document exists largely to decode them.
+
+**New tables should not copy that style.** Column names are stored once in the schema, not per row, so abbreviating them buys nothing and costs readability. `attsts` vs `oattsts` is the cautionary case: two adjacent columns whose abbreviated names give no hint that one is the event's status and the other is the user's RSVP. Spell new columns out, and name them after the source they come from where one exists (e.g. a column holding `Calendars.ACCOUNT_NAME` should read `calendarAccountName`).
 
 ## `eventsV9` — active and snoozed events
 
