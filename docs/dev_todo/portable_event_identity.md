@@ -214,7 +214,16 @@ Title+time heuristics produce false positives on recurring and duplicated events
 
 The entire exact-match path assumes this column has values. There is a long-standing Android issue titled ["CalendarContract.Events.UID_2445 column is always null"](https://issuetracker.google.com/issues/37053160) whose resolution is not publicly readable, so the assumption should be tested rather than trusted.
 
-**Do this first, before any of Phase 0.** One throwaway query across a few real calendars — count non-null `UID_2445` against total events, broken down by account type — settles it in minutes.
+**Do this first, before any of Phase 0.** One query across a few real calendars — count non-null `UID_2445` against total events, broken down by account type — settles it in minutes.
+
+Implemented as `androidTest/.../calendar/Uid2445PopulationProbeTest.kt`. It is a **diagnostic, not an assertion**: it reports and never fails on low coverage, since "this device has no synced calendars" is a property of the device rather than a bug. It also tallies `_SYNC_ID` alongside `UID_2445` so the fallback's real value gets measured rather than assumed, and counts events carrying *neither* — those are the ones the exact path can never recover.
+
+```
+.\gradlew.bat :app:connectedX8664DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.github.quarck.calnotify.calendar.Uid2445PopulationProbeTest
+adb logcat -s Uid2445Probe:* | grep UID2445_PROBE
+```
+
+Run it against a device with **real, Google-synced calendars** — a clean emulator has no synced events and will report `INCONCLUSIVE`, which is not evidence either way.
 
 The result changes the plan materially:
 
