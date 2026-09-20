@@ -85,6 +85,8 @@ Short-lived bookkeeping for alerts the app discovered by scanning, rebuilt from 
 
 Every table carries spare `iN`/`sN` columns from the original 2016 schema. They are written as `0`/`""` and read by nothing.
 
+New claims apply to the **Room entities only** — the legacy `*Impl*` classes are deprecated and scheduled for removal (`../dev_todo/deprecated_features.md`, item 5), so they should not gain new field handling.
+
 They exist so a field can be added **without a schema migration** — no Room version bump, no new legacy `EventsStorageImplV10`, and no change to the Supabase table (`supabase/migrations/20250301213237_events.sql` already mirrors every column, reserved ones included), which keeps the PowerSync payload working untouched.
 
 The cost is that the name stops describing the content: a column called `s2` holding calendar identity is opaque to anyone reading a raw DB dump. So the rule is:
