@@ -58,3 +58,4 @@ gh api graphql -f query='
     }
   }
 ' -f owner=OWNER -f repo=REPO -F prNumber=PR_NUMBER
+```

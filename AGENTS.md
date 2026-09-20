@@ -1,9 +1,25 @@
----
-description: 
-globs: 
-alwaysApply: true
----
+# Calendar Notifications Plus — Agent Guide
 
+Android calendar notification app (Kotlin) with a React Native / Expo layer. Originally written in 2016; a robust test suite was added in 2024-25.
+
+## Agent Configuration
+
+This repo keeps agent configuration in open, cross-harness formats:
+
+- **This file** (`AGENTS.md`) — project rules, always applicable. See [agents.md](https://agents.md/).
+- **`.skills/`** — reusable skills following the [Agent Skills specification](https://agentskills.io/specification). Symlinked as `.claude/skills` and `.cursor/skills` so both harnesses discover them.
+  - `plan-making` — writing development plans into `docs/dev_todo/`
+  - `github-pr-comments` — fetching PR review threads with line numbers and resolution status
+- **`docs/`** — architecture, build, and testing documentation. Start at [docs/README.md](docs/README.md).
+
+## Development Environment
+
+**This project uses a dual-filesystem WSL setup.** Read [docs/build/wsl_unison_environment.md](docs/build/wsl_unison_environment.md) before building or running tests — these constraints will bite you otherwise:
+
+- **Edits happen on Linux; Android builds happen on Windows.** Source lives at `/home/william/not_connected_to_windows/CalendarNotification` (Linux) and syncs to `C:\dev\CN` (Windows). Build from the Windows short path to avoid the 260-char path limit.
+- **Unison syncs every 10 seconds.** Wait ~15s after changing files before running anything on the Windows side — there is no inotify on Windows mounts.
+- **Instrumentation tests (`connectedAndroidTest`) must run from Windows**, not WSL. The test runner needs ports that don't work through WSL.
+- **Never sync through the junction** at the old long path — doing so can replace the Linux directory with a symlink and destroy data. Details in the doc above.
 
 # Code Changes
 
@@ -70,3 +86,9 @@ Use `CNPlusClockInterface` instead - it enables testable time-dependent code.
 **Test code:** Use `TestTimeConstants.STANDARD_TEST_TIME` or `CNPlusTestClock`
 
 See `docs/architecture/clock_implementation.md` and `docs/dev_todo/system_current_time_millis_removal.md` for details.
+
+# Planning
+
+Use the `plan-making` skill in `.skills/plan-making/` when a task warrants a written plan. Plans live in `docs/dev_todo/` (active) and move to `docs/dev_completed/` when done.
+
+**Do not use an editor's built-in Plan Mode** or create `.cursor/plans/*.plan.md` files — that directory is deprecated and retained for historical reference only.

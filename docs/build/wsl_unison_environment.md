@@ -1,6 +1,3 @@
----
-alwaysApply: false
----
 # Development Environment Setup - WSL/Unison Sync
 
 This project uses a dual-filesystem setup for development:
