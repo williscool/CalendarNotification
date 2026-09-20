@@ -72,11 +72,59 @@ Store durable, provider-independent identity alongside every stored event so tha
 
 The tradeoff is that `s2` becomes semantically meaningful, so it needs a named constant and a comment at the entity declaration rather than staying "reserved". That's a documentation cost, not a correctness one.
 
-### Why `UID_2445` and not just re-matching on title+time
+### The two halves: why the email is necessary but not sufficient
 
-Title+time heuristics produce false positives on recurring and duplicated events, and break when the user edits a title. `UID_2445` is the iCalendar UID that Google/CalDAV sync assigns; it is the same string on every device that syncs that event. It's the only genuinely stable event identifier Android exposes.
+There are **two** broken IDs, and the account email only fixes one of them.
 
-Caveat worth stating up front: **locally-created events that have never synced to an account may have a null/empty `UID_2445`.** Those events are also the ones least likely to exist on the new phone at all (a local-only calendar isn't restored by Google). They degrade to unresolved and keep their stale ID — no crash, no data loss.
+| What's stale | Example | What identifies it durably |
+|---|---|---|
+| `cid` — *which calendar* | `3` | the account tuple (email + type + owner) |
+| `id` — *which event in it* | `91427` | the event's iCalendar UID |
+
+The email answers *"which calendar is this?"* — that's `findMatchingCalendarId()`, already written and already used by settings backup. It does **not** answer *"which of the 800 events in that calendar is this row?"* Every event in your work calendar shares the same email, so the email narrows 800 events down to 800 events.
+
+```mermaid
+flowchart TD
+    A["Restored row<br/>cid=3, id=91427"] --> B{"Which calendar?"}
+    B -->|"account tuple<br/>(the email)"| C["cid = 12 ✅"]
+    C --> D{"Which event<br/>inside it?"}
+    D -->|"the email again"| E["800 candidates ❌<br/>they all share it"]
+    D -->|"UID_2445"| F["id = 55310 ✅<br/>exactly one"]
+```
+
+So the plan uses **both**: the email tuple to find the calendar, then the UID to find the event within it.
+
+### What `UID_2445` actually is
+
+It's the [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.7) iCalendar `UID` property — the identifier the calendar *format* uses, as opposed to `_ID`, which is just a row number in the local SQLite database. The `2445` is a fossil: RFC 2445 was the original iCalendar spec, obsoleted by 5545, but Android kept the constant name. It's `CalendarContract.Events.UID_2445`, present since API 17 (your minSdk is 24), and holds a string like:
+
+```
+040000008200E00074C5B7101A82E00800000000B0F2C8B5A1D9DA01000000000000000
+```
+
+or, on Google Calendar, typically something closer to `abc123def456@google.com`.
+
+The key property: **the server assigns it, so it's the same string on every device that syncs that event.** `_ID` is assigned locally by whichever device happened to insert the row first, which is exactly why it doesn't survive a restore.
+
+```mermaid
+flowchart LR
+    G["Google Calendar<br/>UID abc123@google.com"] --> P1["Old phone<br/>_ID 91427"]
+    G --> P2["New phone<br/>_ID 55310"]
+    P1 -.->|"backup restores<br/>_ID 91427"| P2
+    P2 --> X["91427 doesn't exist here ❌<br/>UID abc123 does ✅"]
+```
+
+### Why not title + time instead
+
+Title+time heuristics produce false positives on recurring and duplicated events (a weekly standup is many rows with identical titles), and break the moment the user edits a title. The UID survives renames, reschedules, and recurrence.
+
+### Caveats
+
+**Locally-created events that never synced to an account may have a null/empty `UID_2445`.** Those events are also the ones least likely to exist on the new phone at all — a local-only calendar isn't restored by Google. They degrade to unresolved and keep their stale ID: no crash, no data loss.
+
+`_SYNC_ID` is the fallback when `UID_2445` is empty. It's also server-assigned and stable, but it's the sync adapter's own key rather than the portable iCalendar one, so it's second choice.
+
+**The email tuple is not perfectly unique either** — this is why `findMatchingCalendarId()` already has three tiers. One account can expose several calendars (primary, birthdays, a shared team calendar), all with the same `ACCOUNT_NAME`. That's why the match uses account name + type + owner, and only falls back to display name.
 
 ### Resolution strategy
 
@@ -88,6 +136,29 @@ A restored event needs two lookups, in order:
 Because `(id, istart)` is the primary key of `eventsV9`, changing `id` is a **delete + re-insert**, not an update. That is the single riskiest operation in this plan, so it must be transactional per-event and must not run while the row is being mutated elsewhere. `instanceStartTime` is derived from the event's actual start time and is stable across devices for the same instance, so it carries over unchanged.
 
 A PK collision is possible if the new `(id, istart)` already exists (e.g. the new device independently re-added the same event). In that case, keep the existing row and drop the restored duplicate — the live row is the more trustworthy one.
+
+Every failure path below leaves the row intact and retryable — nothing is ever deleted because a match failed:
+
+```mermaid
+flowchart TD
+    A["Stored event row"] --> B{"Identity blob<br/>in s2?"}
+    B -->|"no (pre-Phase 0)"| Z["Skip — backfill handles it"]
+    B -->|yes| C["findMatchingCalendarId<br/>(account tuple)"]
+
+    C --> D{"Calendar<br/>matched?"}
+    D -->|no| Y["Unresolved — keep row,<br/>retry next launch"]
+    D -->|yes| E["Query Events for<br/>UID_2445 in that calendar"]
+
+    E --> F{"Event<br/>matched?"}
+    F -->|no| X["Update cid only,<br/>mark unresolved, retry"]
+    F -->|yes| G{"IDs already<br/>current?"}
+
+    G -->|yes| W["No write — done"]
+    G -->|no| H{"Target (id, istart)<br/>already taken?"}
+
+    H -->|yes| V["Keep live row,<br/>drop restored duplicate"]
+    H -->|no| U["Delete + re-insert<br/>under new id ✅"]
+```
 
 ## Current Architecture
 
