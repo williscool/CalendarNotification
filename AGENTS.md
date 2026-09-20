@@ -12,14 +12,9 @@ This repo keeps agent configuration in open, cross-harness formats:
   - `github-pr-comments` — fetching PR review threads with line numbers and resolution status
 - **`docs/`** — architecture, build, and testing documentation. Start at [docs/README.md](docs/README.md).
 
-## Development Environment
+# Development Environment
 
-**This project uses a dual-filesystem WSL setup.** Read [docs/build/wsl_unison_environment.md](docs/build/wsl_unison_environment.md) before building or running tests — these constraints will bite you otherwise:
-
-- **Edits happen on Linux; Android builds happen on Windows.** Source lives at `/home/william/not_connected_to_windows/CalendarNotification` (Linux) and syncs to `C:\dev\CN` (Windows). Build from the Windows short path to avoid the 260-char path limit.
-- **Unison syncs every 10 seconds.** Wait ~15s after changing files before running anything on the Windows side — there is no inotify on Windows mounts.
-- **Instrumentation tests (`connectedAndroidTest`) must run from Windows**, not WSL. The test runner needs ports that don't work through WSL.
-- **Never sync through the junction** at the old long path — doing so can replace the Linux directory with a symlink and destroy data. Details in the doc above.
+**This project's core maintainer uses a dual-filesystem WSL setup.** Read [docs/build/wsl_unison_environment.md](docs/build/wsl_unison_environment.md) before building or running tests — take care of these constraints when working on Windows or WSL:
 
 ## NEVER run Unison without explicit permission
 
@@ -28,6 +23,12 @@ This repo keeps agent configuration in open, cross-harness formats:
 A misconfigured or mistimed sync can destroy work in ways that are hard or impossible to restore, and recovering may require restarting the machine. The blast radius is the entire checkout on both sides.
 
 If you believe a sync is needed, **stop and ask.** Say what you want to sync and why, then wait. The user runs it, or tells you to.
+
+# Planning
+
+Use the `plan-making` skill in `.skills/plan-making/` when a task warrants a written plan. Plans live in `docs/dev_todo/` (active) and move to `docs/dev_completed/` when done.
+
+**Do not use an editor's built-in Plan Mode** or create `.cursor/plans/*.plan.md` files — that directory is deprecated and retained for historical reference only.
 
 # Code Changes
 
@@ -94,9 +95,3 @@ Use `CNPlusClockInterface` instead - it enables testable time-dependent code.
 **Test code:** Use `TestTimeConstants.STANDARD_TEST_TIME` or `CNPlusTestClock`
 
 See `docs/architecture/clock_implementation.md` and `docs/dev_todo/system_current_time_millis_removal.md` for details.
-
-# Planning
-
-Use the `plan-making` skill in `.skills/plan-making/` when a task warrants a written plan. Plans live in `docs/dev_todo/` (active) and move to `docs/dev_completed/` when done.
-
-**Do not use an editor's built-in Plan Mode** or create `.cursor/plans/*.plan.md` files — that directory is deprecated and retained for historical reference only.
