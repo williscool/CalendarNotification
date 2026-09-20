@@ -45,7 +45,9 @@ Two additions on top of the straight port:
 
 `wsl-unison-setup.mdc` is `alwaysApply: false` — reference material, not a standing rule. It belongs in the docs tree, not `AGENTS.md`.
 
-Move to `docs/build/wsl_unison_environment.md`, drop frontmatter, keep content intact (short path `C:\dev\CN`, the never-sync-through-the-junction warning, NativeWind pre-bundle workaround, instrumentation-tests-from-Windows instructions). Link it from `AGENTS.md` and add it to the `docs/README.md` **Build & Development** section.
+Move to `docs/build/wsl_unison_environment.md`, drop frontmatter, keep content intact (short path `C:\dev\CN`, the never-sync-through-the-junction warning, NativeWind pre-bundle workaround, instrumentation-tests-from-Windows instructions). Add it to the `docs/README.md` **Build & Development** section.
+
+**`AGENTS.md` must call this out explicitly, not just link it.** A bare link is too easy to skip past, and the consequences of not knowing about this setup are real: builds run from a different filesystem than edits, instrumentation tests only work from Windows, and there's a sync path that can destroy the Linux checkout if used wrong. `AGENTS.md` gets a short **Development Environment** section naming the dual-filesystem setup, the ~15s sync delay after edits, and the Windows-only instrumentation-test constraint — each in a line or two, pointing at the full doc for detail. Enough that an agent knows the constraint exists before it trips over it.
 
 This one is genuinely machine-specific (it hardcodes `/home/william/...`), but it's already committed and other agents benefit from it, so it moves rather than being dropped.
 
@@ -90,7 +92,7 @@ Branch, commit, push, and open with `gh pr create` against `master` (`williscool
 
 | File | Change |
 |------|--------|
-| `AGENTS.md` | **New** — from `main-rules.mdc`, frontmatter dropped, agent-config + orientation sections added |
+| `AGENTS.md` | **New** — from `main-rules.mdc`, frontmatter dropped, agent-config + orientation + **Development Environment** sections added |
 | `.cursor/rules/main-rules.mdc` | Deleted (content → `AGENTS.md`) |
 | `docs/build/wsl_unison_environment.md` | **New** — from `wsl-unison-setup.mdc`, frontmatter dropped |
 | `.cursor/rules/wsl-unison-setup.mdc` | Deleted (content → `docs/build/`) |
