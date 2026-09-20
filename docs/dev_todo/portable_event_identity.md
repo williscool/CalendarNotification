@@ -45,7 +45,7 @@ Store durable, provider-independent identity alongside every stored event so tha
 - **Changing the PowerSync/Supabase payload** — `cid` still ships raw to Supabase. Worth fixing later (it has no account context), but it's sync-side and out of scope here. See `docs/dev_todo/data_sync_improvements.md`.
 - **A user-facing events export/import file** — this plan rides on the existing Android auto-backup of the DB files. A manual events export is a separate feature.
 - **Migrating the existing databases** — no schema change to `eventsV9`, `dismissedEventsV2`, or `manualAlertsV1`. The identity database is new and starts at version 1.
-- **Storing identity for `MonitorStorage` rows** — `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so it doesn't need its own identity. **But its rows are keyed on `eventId` and must still be re-keyed when an `id` changes** — see the cross-database note in Design Decisions.
+- **Storing identity for `MonitorStorage` rows** — no identity row of its own, but its rows still need re-keying when an `id` changes. `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so there is nothing to capture; the re-key is covered in the cross-database note in Design Decisions.
 
 ## Key Decisions Summary
 
@@ -201,6 +201,24 @@ Resolution consumes the identity rows described above. A restored event needs tw
 1. **Calendar**: `findMatchingCalendarId(context, storedBackupInfo)` → new `cid`. Reuses the existing 3-tier matcher untouched.
 2. **Event**: query `Events.CONTENT_URI` for `UID_2445 = ? AND CALENDAR_ID = ?` (scoped to the just-matched calendar to avoid cross-calendar collisions) → new `id`.
 
+#### The `-1L` sentinel must be guarded explicitly
+
+`findMatchingCalendarId()` signals "no match" by returning **`-1L`, not `null`** (`CalendarProvider.kt:1851`), after all three fallback tiers miss.
+
+That is not a neutral "unknown" in this schema. As the schema reference records, `cid = -1` means *unknown, treated as handled* — it is fail-open. So writing an unguarded matcher result would convert a stale-but-plausible calendar ID into `-1`, which the app then reads as handled. The row would get quieter rather than better, inverting the premise that rewriting a broken row can only move it toward working.
+
+**Every use of the matcher's result must check `!= -1L` before writing it.** A no-match is the unresolved path: leave `cid` untouched and retry later.
+
+The same trap already exists in shipping code. `restoreToActive()` (`ApplicationController.kt:1324-1326`) uses an elvis operator that catches a `null` from `getCalendarBackupInfo()` but passes a `-1L` from the matcher straight through into the event copy:
+
+```kotlin
+val newCalendarId = calendarBackupInfo?.let { backupInfo ->
+    calendarProvider.findMatchingCalendarId(context, backupInfo)
+} ?: event.calendarId // catches null, but not -1L
+```
+
+Since "Files to Modify" already commits to fixing that line, the guard belongs in both places.
+
 #### Which write is actually dangerous
 
 Worth separating, because the two updates carry very different risk:
@@ -246,8 +264,8 @@ flowchart TD
     B -->|"no (pre-Phase 0)"| Z["Skip — backfill handles it"]
     B -->|yes| C["findMatchingCalendarId<br/>(account tuple)"]
 
-    C --> D{"Calendar<br/>matched?"}
-    D -->|no| Y["Unresolved — keep row,<br/>retry next launch"]
+    C --> D{"Calendar matched?<br/>(result != -1L)"}
+    D -->|"no / -1L"| Y["Unresolved — keep row,<br/>cid untouched, retry"]
     D -->|yes| S["UPDATE cid — safe,<br/>commit now ✅"]
 
     S --> E["Query Events for<br/>UID_2445 in that calendar"]
@@ -331,11 +349,19 @@ This class is the whole substance of the feature; keep it small and free of Andr
 
 ### Phase 2: Backfill for pre-existing rows
 
-Events stored before Phase 0 have no identity row. While the app is still on the *original* device, they can be backfilled by reading identity from the live provider (the stale IDs are still valid there). Run this opportunistically on app start while any event lacks an identity row.
+Events stored before Phase 0 have no identity row. On the **original** device they can be backfilled by reading identity from the live provider — this works precisely because nothing is broken yet: the stored IDs are not stale, they are live.
 
-This is what makes the feature useful to the current user rather than only to new installs — without it, today's data is still unrestorable.
+**Backfill must run only when the Phase 3 fingerprint matches.** This is a hard precondition, not an optimization. Phase 2 and Phase 3 make opposite assumptions about which device you are on, and "any event lacks an identity row" is exactly the condition that holds right after a restore.
+
+Running backfill on a restored device would take an `id` that now points at nothing — or worse, at an unrelated event the new device happened to assign that number — query the provider with it, and write an identity row from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered instead of skipping it. Best case it never resolves; worst case it points at an unrelated event and the 1b re-key moves the row onto it.
+
+So the ordering is: detect the install fingerprint first (Phase 3), and only backfill when it matches. Consequently Phase 3's detection logic is a prerequisite for Phase 2 even though it is numbered after it.
+
+**What backfill can and cannot recover.** It is inoculation for data that has not been restored yet, not a rescue for data already orphaned. Anyone who has already restored onto a new device is past saving regardless of what ships here — the provider IDs that identity would have been derived from are gone. What backfill buys is that the *current* device's data becomes restorable from this point forward, which is what makes the feature useful to existing users rather than only to new installs.
 
 ### Phase 3: Restore detection + retry
+
+The fingerprint check here also gates Phase 2, so build it first even though it is numbered later.
 
 Store an install fingerprint in its own SharedPreferences file, and **exclude that file from `backup_rules.xml`** so it does not survive a restore — the same trick `EventsStorageState` already relies on. Absent/mismatched fingerprint on launch ⇒ treat as a restore and mark all events pending re-resolution.
 
@@ -394,12 +420,15 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Already current**: IDs unchanged → no write (guards against pointless delete+reinsert churn).
 - **PK collision**: target `(id, istart)` already occupied → existing row kept, duplicate dropped.
 - **`cid` committed independently**: calendar resolves but event does not → the `cid` update is still persisted (proves the safe-write-first ordering, and that a partial resolution is an improvement rather than a rollback).
+- **No calendar match writes nothing**: matcher returns `-1L` → `cid` left untouched, *not* set to `-1`. Guards the fail-open sentinel described in Design Decisions.
+- **`restoreToActive` sentinel guard**: matcher returns `-1L` during an un-dismiss → the event keeps its original `calendarId` rather than being written to `-1`.
 - **Transactional re-key**: insert fails mid-re-key → original row still present, nothing lost.
 - **Cross-database re-key**: after an `id` change, the identity row plus the matching `manualAlertsV1` and `dismissedEventsV2` rows are re-keyed too; a failure on any leaves all four consistent via manual rollback.
 - **Orphaned monitor alert regression guard**: re-keyed event can still `restoreToUpcoming` — i.e. `clearWasHandled` finds its alert. This is the concrete failure the cross-DB work exists to prevent.
 - **Backfill**: pre-existing event + live provider → identity row created.
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
+- **Backfill is gated on the fingerprint**: on a mismatched (restored) fingerprint, backfill writes no identity rows at all — the case that would otherwise manufacture identity from meaningless IDs.
 
 Follow the existing pattern in `test/.../calendar/CalendarBackupRestoreRobolectricTest.kt` (injected storage, no native SQLite).
 
