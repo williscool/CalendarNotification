@@ -16,6 +16,7 @@
 - [CR-SQLite Build](build/CR_SQLITE_BUILD.md) - Building cr-sqlite native library
 - [Debug Guide](build/DEBUG.md) - Debugging tips (Chrome/Hermes limitations)
 - [WSL Log Cleaning](build/wsl_test_log_clean.md) - Log cleaning scripts for sharing
+- [WSL/Unison Environment](build/wsl_unison_environment.md) - Dual-filesystem dev setup, sync, Windows-only instrumentation tests
 
 ## Data & Sync
 

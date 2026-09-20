@@ -1,6 +1,3 @@
----
-alwaysApply: false
----
 # Development Environment Setup - WSL/Unison Sync
 
 This project uses a dual-filesystem setup for development:
@@ -20,6 +17,11 @@ This project uses a dual-filesystem setup for development:
 - Syncs directly: `/mnt/c/dev/CN` ↔ `/home/william/not_connected_to_windows/CalendarNotification`
 - **`node_modules` is NOT synced** — install separately on each side
 - Run with: `unison non_windows_cnplus`
+
+> **⚠️ Agents: never run `unison` without explicit permission from the user.**
+> A misconfigured or mistimed sync can destroy work in ways that are hard or
+> impossible to restore, and recovery may require a machine restart. If you
+> think a sync is needed, stop and ask — do not run it yourself.
 
 ### ⚠️ CRITICAL: Never sync through the junction!
 

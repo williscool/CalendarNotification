@@ -5,9 +5,11 @@ description: Creates development plan documents in docs/dev_todo/ using size-app
 
 # Plan Making
 
-## CRITICAL: Never Use Cursor Plan Mode
+## CRITICAL: Never Use Editor Plan Mode
 
-**Do NOT use Cursor's built-in Plan Mode or create `.cursor/plans/*.plan.md` files.** That format is proprietary, throwaway-oriented, and not suitable for long-lived documentation. Plans in this project are learning artifacts kept in `docs/dev_todo/` (active) and `docs/dev_completed/` (done).
+**Do NOT use an editor's built-in Plan Mode (e.g. Cursor's) or create `.cursor/plans/*.plan.md` files.** Those formats are proprietary, throwaway-oriented, and not suitable for long-lived documentation. Plans in this project are learning artifacts kept in `docs/dev_todo/` (active) and `docs/dev_completed/` (done).
+
+The `.cursor/plans/` directory is retained for historical reference only and is deprecated — see its `README.md`.
 
 ## Workflow
 
@@ -36,8 +38,8 @@ Pick the size that matches the majority of signals. When borderline, size down �
 
 ### Step 3: Select Template
 
-- **S or M** → Read [template-small.md](template-small.md) and follow it
-- **L or XL** → Read [template-large.md](template-large.md) and follow it
+- **S or M** → Read [template-small.md](assets/template-small.md) and follow it
+- **L or XL** → Read [template-large.md](assets/template-large.md) and follow it
 
 ### Step 4: Write the Plan
 
