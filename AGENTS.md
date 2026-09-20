@@ -30,6 +30,16 @@ Use the `plan-making` skill in `.skills/plan-making/` when a task warrants a wri
 
 **Do not use an editor's built-in Plan Mode** or create `.cursor/plans/*.plan.md` files — that directory is deprecated and retained for historical reference only.
 
+# Don't try to boil the ocean. Dont try to make big sweeping changes when more focused ones will do
+
+Always think of the minimum viable solution to a problem or change to make. make sure that works and then build on top of it. break things down into small testable pieces first. That said 
+
+**NO CHEATING!** I.e. don't comment out or skip a test to solve a problem unless its just a temporary bandaid while working on something more important.
+
+# keep all code implementations as consise as possible.
+
+Everything it needs nothing it doesn't. Every new line of code is one that potentially doesn't work 😄
+
 # Code Changes
 
 This is a legacy codebase (2016) with a robust test suite added in 2024-25.
@@ -47,18 +57,6 @@ When in doubt, add tests first.
 # Work to make tests as faithful to the real code as possible
 
 its ok to mock out core android apis that the instrumentation testsuite doesn't work well with i.e. making push notifications but try to use the real original code for anything that exists in this codebase
-
-
-# Don't try to boil the ocean. Dont try to make big sweeping changes when more focused ones will do
-
-Always think of the minimum viable solution to a problem or change to make. make sure that works and then build on top of it. break things down into small testable pieces first. That said 
-
-**NO CHEATING!** I.e. don't comment out or skip a test to solve a problem unless its just a temporary bandaid while working on something more important.
-
-# keep all code implementations as consise as possible.
-
-Everything it needs nothing it doesn't. Every new line of code is one that potentially doesn't work 😄
-
 
 # Check documentation if implementing something potentially complex or nonstandard.
 
