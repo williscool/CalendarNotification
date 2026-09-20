@@ -45,7 +45,7 @@ Store durable, provider-independent identity alongside every stored event so tha
 - **Changing the PowerSync/Supabase payload** — `cid` still ships raw to Supabase. Worth fixing later (it has no account context), but it's sync-side and out of scope here. See `docs/dev_todo/data_sync_improvements.md`.
 - **A user-facing events export/import file** — this plan rides on the existing Android auto-backup of the DB files. A manual events export is a separate feature.
 - **Schema migration** — explicitly avoided; see Key Decisions.
-- **Re-resolving `MonitorStorage` alerts** — `MonitorAlertEntity.toAlertEntry()` already drops `calendarId` entirely and the monitor table is short-lived scan state, rebuilt from the provider. Not worth carrying identity there.
+- **Storing identity blobs in `MonitorStorage`** — `MonitorAlertEntity.toAlertEntry()` drops `calendarId` entirely and the table is short-lived scan state rebuilt from the provider, so it doesn't need its own identity. **But its rows are keyed on `eventId` and must still be re-keyed when an `id` changes** — see the cross-database note in Design Decisions. (Corrected on review; the original plan wrongly treated the monitor DB as entirely out of scope.)
 
 ## Key Decisions Summary
 
@@ -71,6 +71,8 @@ Store durable, provider-independent identity alongside every stored event so tha
 - `installCrsqliteOnTable` in `src/lib/cr-sqlite/install.ts` rewrites the PK but doesn't enumerate columns — unaffected.
 
 The tradeoff is that `s2` becomes semantically meaningful, so it needs a named constant and a comment at the entity declaration rather than staying "reserved". That's a documentation cost, not a correctness one.
+
+There's precedent: `i1` was already claimed for the `flags` bitfield and `s1` for `description`, so this is the third such claim rather than a new practice. To stop the cost compounding, [database_schema_reference.md](../architecture/database_schema_reference.md) now documents every column in all three databases and sets the rule — **when you claim a reserved column, rename the constant to describe its meaning and document it there; never leave a live column named "reserved."**
 
 ### The two halves: why the email is necessary but not sufficient
 
@@ -133,9 +135,40 @@ A restored event needs two lookups, in order:
 1. **Calendar**: `findMatchingCalendarId(context, storedBackupInfo)` → new `cid`. Reuses the existing 3-tier matcher untouched.
 2. **Event**: query `Events.CONTENT_URI` for `UID_2445 = ? AND CALENDAR_ID = ?` (scoped to the just-matched calendar to avoid cross-calendar collisions) → new `id`.
 
-Because `(id, istart)` is the primary key of `eventsV9`, changing `id` is a **delete + re-insert**, not an update. That is the single riskiest operation in this plan, so it must be transactional per-event and must not run while the row is being mutated elsewhere. `instanceStartTime` is derived from the event's actual start time and is stable across devices for the same instance, so it carries over unchanged.
+#### Which write is actually dangerous
 
-A PK collision is possible if the new `(id, istart)` already exists (e.g. the new device independently re-added the same event). In that case, keep the existing row and drop the restored duplicate — the live row is the more trustworthy one.
+Worth separating, because the two updates carry very different risk:
+
+- **`cid` is a plain column.** Changing it is an ordinary in-place `UPDATE` — not destructive, not a PK change. Nothing is deleted.
+- **`id` is half the primary key.** Room's `@Update` matches *on* the PK, so it structurally cannot change it. Changing `id` means **delete + re-insert**, and that's the one genuinely dangerous operation here.
+
+So the sequencing rule is: **update `cid` first and commit it.** Even if the event lookup then fails, the row has strictly improved — the calendar is now correct, filter pills work, and per-calendar settings apply. Nothing is risked to gain that.
+
+#### Why we can afford to be bold about it
+
+Your instinct that a restored row is "already broken" is the right frame, and it's what makes this tractable. A row whose `id` points at a nonexistent event is already inert: it can't be opened, it can't be reloaded, `reloadCalendarEventAlertFromEvent` degrades it to `NoChange` forever. **Rewriting it can only move it from broken toward working.**
+
+But "already broken" is only true when the ID is genuinely stale. It is *not* true if we're wrong about that — and a false positive would delete a live, working row. So the delete+re-insert is gated on having positively identified the replacement first:
+
+1. Resolve the new `id` **before touching storage**. No match → no write at all; the row stays exactly as it is.
+2. Only if a new `id` is found, and it differs from the current one, perform delete+insert **inside a single transaction** (`RoomEventsStorage` already uses `runInTransaction`/`beginTransaction` throughout).
+3. Never delete without a successful insert in the same transaction. A crash mid-way rolls back to the original row.
+
+`instanceStartTime` carries over unchanged — it's derived from the event's actual start time and is stable across devices for the same instance.
+
+#### The collision case
+
+If the new `(id, istart)` already exists, the new device independently re-added the same event. Keep the existing row and drop the restored duplicate: the live row is the one the app has actually been maintaining. This is a genuine merge decision, not an error.
+
+#### Cross-database fallout (found while reviewing this)
+
+`MonitorStorage` lives in a **separate database** and is keyed `(eventId, alertTime, instanceStart)`. Changing `id` in `eventsV9` therefore orphans the matching monitor alert, and there are no cross-database transactions to lean on.
+
+This matters concretely: `restoreToUpcoming` (`ApplicationController.kt:1293-1300`) aborts when `clearWasHandled` can't find the alert, specifically to prevent data loss. An orphaned monitor row would make un-dismissing such an event fail.
+
+The same applies to `dismissedEventsV2`, which is keyed on `eventId` in its own database.
+
+So the resolver must re-key **all three** databases for a given event, in a defined order, with manual rollback on partial failure — the pattern `unsnoozeToUpcoming` already establishes. This is the main thing that grew in scope on review, and it argues for doing `eventsV9` first and treating the other two as follow-on steps with their own tests.
 
 Every failure path below leaves the row intact and retryable — nothing is ever deleted because a match failed:
 
@@ -147,18 +180,39 @@ flowchart TD
 
     C --> D{"Calendar<br/>matched?"}
     D -->|no| Y["Unresolved — keep row,<br/>retry next launch"]
-    D -->|yes| E["Query Events for<br/>UID_2445 in that calendar"]
+    D -->|yes| S["UPDATE cid — safe,<br/>commit now ✅"]
 
+    S --> E["Query Events for<br/>UID_2445 in that calendar"]
     E --> F{"Event<br/>matched?"}
-    F -->|no| X["Update cid only,<br/>mark unresolved, retry"]
-    F -->|yes| G{"IDs already<br/>current?"}
+    F -->|no| X["Stop — cid gain kept,<br/>mark unresolved, retry"]
+    F -->|yes| G{"id already<br/>current?"}
 
     G -->|yes| W["No write — done"]
     G -->|no| H{"Target (id, istart)<br/>already taken?"}
 
     H -->|yes| V["Keep live row,<br/>drop restored duplicate"]
-    H -->|no| U["Delete + re-insert<br/>under new id ✅"]
+    H -->|no| U["Transaction:<br/>delete + re-insert,<br/>re-key monitor + dismissed ✅"]
 ```
+
+### How far back does the new device's calendar actually go?
+
+A real constraint on how much this feature can ever recover, and worth stating plainly because it bounds expectations.
+
+**Google Calendar syncs roughly the past 12 months and the next 12 months** to the device's Calendar Provider. Older events exist on the server but are simply not present locally — they're reachable only via calendar.google.com. ([Google Calendar Help](https://support.google.com/calendar/answer/6261951?hl=en&co=GENIE.Platform%3DAndroid), [aCalendar's writeup](https://acalendar.tapirapps.de/en/support/solutions/articles/36000013393-past-future-events-are-missing-in-google-calendars))
+
+**Can we widen that window?** No. `ContentResolver.requestSync()` takes extras like `SYNC_EXTRAS_MANUAL` / `SYNC_EXTRAS_EXPEDITED` — which is exactly what `CalendarsActivity.requestCalendarSyncAndRefresh()` already does — but there is **no API to request a date range**. The window is the sync adapter's own policy; a third-party app cannot parameterize or extend it. There's no service to call to backfill older events into the provider.
+
+**How much does this actually cost us?** Very little in practice, because of what this app stores:
+
+- `MAX_SCAN_BACKWARD_DAYS = 31` (`Consts.kt:177`) — the app itself only looks back a month.
+- Active and snoozed events are, by their nature, recent or upcoming. An event snoozed from 14 months ago is not a realistic case.
+- Dismissed-event history is the only store that reaches far back, and it's historical: it doesn't need to reopen in the calendar app.
+
+So the 12-month floor sits well outside the range this feature actually operates in. The honest framing is that **this is a limit on the tail, not on the feature.**
+
+**What happens to an event outside the window:** exactly the unresolved path already specified — the row is kept, marked unresolved, and retried. It never resolves, which is correct: the event genuinely isn't on this device. The app already renders this gracefully via `createCalendarNotFoundCal` (`CalendarProvider.kt:1384`). No crash, no data loss, no special-casing needed.
+
+This does mean the retry cap from Phase 3 matters — without a backoff, permanently-unmatchable old events would re-query the provider forever.
 
 ## Current Architecture
 
@@ -191,9 +245,15 @@ The key insight: the calendar half of this problem was already solved once for s
 New `calendar/EventIdentityResolver.kt` — pure orchestration, no UI, constructor-injected `CalendarProviderInterface` and `CNPlusClockInterface` so it's Robolectric-testable (per `docs/testing/dependency_injection_patterns.md`).
 
 Responsibilities:
-- Given a stored record + its identity blob, resolve `(newCalendarId, newEventId)`.
+- Given a stored record + its identity blob, resolve `(newCalendarId, newEventId)` — **lookup only, no writes**.
 - Report a typed outcome: resolved / unresolved-calendar / unresolved-event / no-identity-stored / already-current.
-- Apply the resolution to storage, handling the delete+reinsert for a changed PK and the collision case from Design Decisions.
+- Apply the resolution, in the order established in Design Decisions: commit the safe `cid` update first, then attempt the `id` re-key only when a replacement was positively identified.
+
+Split into two sub-phases, because the risk profile is very different:
+
+**1a — `cid` only.** Plain column update, no PK change, no cross-database fallout. This alone fixes calendar attribution, filter pills, and per-calendar settings. Independently shippable and independently testable.
+
+**1b — `id` re-key.** The delete+re-insert, transactional per event. Must also re-key the matching rows in `manualAlertsV1` and `dismissedEventsV2`, which live in separate databases with no shared transaction — follow the manual-rollback pattern in `ApplicationController.unsnoozeToUpcoming`. Land this only once 1a is solid.
 
 This class is the whole substance of the feature; keep it small and free of Android UI dependencies.
 
@@ -244,6 +304,9 @@ On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to thei
 | `prefs/MiscSettingsFragmentX.kt` | Manual re-link action |
 | `res/xml/backup_rules.xml` | Exclude the new fingerprint prefs file |
 | `res/values/strings.xml` | Strings for the action + result dialog |
+| `eventsstorage/EventAlertDao.kt`, `RoomEventsStorage.kt` | Transactional re-key (delete + insert) for a changed `id` |
+| `monitorstorage/` + `dismissedeventsstorage/` storages | Re-key rows on an `id` change (Phase 1b), with manual rollback across DBs |
+| `docs/architecture/database_schema_reference.md` | Mark `s2` as claimed once implemented |
 
 ## Testing Plan
 
@@ -258,6 +321,10 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **No identity stored**: legacy row with empty `s2` → skipped cleanly.
 - **Already current**: IDs unchanged → no write (guards against pointless delete+reinsert churn).
 - **PK collision**: target `(id, istart)` already occupied → existing row kept, duplicate dropped.
+- **`cid` committed independently**: calendar resolves but event does not → the `cid` update is still persisted (proves the safe-write-first ordering, and that a partial resolution is an improvement rather than a rollback).
+- **Transactional re-key**: insert fails mid-re-key → original row still present, nothing lost.
+- **Cross-database re-key**: after an `id` change, the matching `manualAlertsV1` and `dismissedEventsV2` rows are re-keyed too; a failure on either leaves all three consistent via manual rollback.
+- **Orphaned monitor alert regression guard**: re-keyed event can still `restoreToUpcoming` — i.e. `clearWasHandled` finds its alert. This is the concrete failure the cross-DB work exists to prevent.
 - **Backfill**: pre-existing row + live provider → `s2` populated.
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
