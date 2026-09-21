@@ -27,6 +27,7 @@ import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventRecord
+import com.github.quarck.calnotify.testutils.MockEventsStorage
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -103,6 +104,9 @@ class EventIdentityCaptureRobolectricTest {
     private lateinit var context: Context
     private lateinit var identityStorage: RecordingIdentityStorage
 
+    /** What EventsStorage returns for this test. */
+    private var storedEvents: List<EventAlertRecord> = emptyList()
+
     /** Counts provider calls, so redundant lookups are visible. */
     private var backupInfoLookups = 0
     private var getEventLookups = 0
@@ -138,11 +142,15 @@ class EventIdentityCaptureRobolectricTest {
         }
 
         ApplicationController.eventIdentityStorageProvider = { identityStorage.storage }
+        ApplicationController.eventsStorageProvider = {
+            MockEventsStorage().apply { storedEvents.forEach { addEvent(it) } }
+        }
     }
 
     @After
     fun teardown() {
         ApplicationController.eventIdentityStorageProvider = null
+        ApplicationController.eventsStorageProvider = null
         unmockkAll()
     }
 
@@ -185,15 +193,10 @@ class EventIdentityCaptureRobolectricTest {
         lastStatusChangeTime = 0L
     )
 
-    /**
-     * Calls capture the way the reload pass does: stored events paired with the
-     * provider rows it has already read for them.
-     */
+    /** Seeds EventsStorage, then runs capture the way the reload pass does. */
     private fun capture(events: List<EventAlertRecord>) {
-        val pairs = events.map { stored ->
-            stored to eventRecord(stored.eventId, stored.calendarId)
-        }
-        ApplicationController.captureEventIdentities(context, pairs)
+        storedEvents = events
+        ApplicationController.captureEventIdentities(context)
     }
 
     @Test
@@ -226,8 +229,8 @@ class EventIdentityCaptureRobolectricTest {
         assertEquals(10, identityStorage.stored.size)
         assertEquals("one backup-info lookup per calendar", 2, backupInfoLookups)
         assertEquals(
-            "capture must not re-query events -- the caller already read them",
-            0, getEventLookups
+            "capture reads each event itself, so it stays independent of the reload",
+            10, getEventLookups
         )
     }
 

@@ -200,7 +200,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     /**
-     * Record portable identity for events already fetched from the provider.
+     * Record portable identity for stored events.
      *
      * `eventsV9` keys events by `cid`/`id`, which are row numbers local to this
      * device's Calendar Provider -- restore the database onto a new phone and
@@ -208,50 +208,42 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
      * they are still resolvable, so a restored database can find these events
      * again. See docs/dev_todo/portable_event_identity.md.
      *
-     * **Takes provider data the caller already has.** Callers reach this from
-     * the calendar reload pass, which has just queried the provider for every
-     * stored event, so identity costs no additional IPC. Deliberately not
-     * called from `registerNewEvent`: that runs on the EVENT_REMINDER path
-     * where a notification is about to fire, and identity is never urgent --
-     * it only matters at restore time.
+     * Runs after a calendar reload, on the wake-locked background service --
+     * never on the EVENT_REMINDER path, where a notification is about to fire.
+     * Identity is only ever needed at restore time, so it is never urgent.
      *
-     * **Best-effort.** A failure here must never disturb the reload it rides
-     * along with. [EventIdentityStorage] already swallows SQLException; the
-     * calendar lookups are guarded here.
-     *
-     * @param events stored event paired with the [EventRecord] just read for it
+     * **Entirely self-contained and best-effort.** Nothing here can affect the
+     * reload that precedes it: it takes no arguments from it, returns nothing,
+     * and swallows its own failures.
      */
-    fun captureEventIdentities(
-        context: Context,
-        events: Collection<Pair<EventAlertRecord, EventRecord>>
-    ) {
-        if (events.isEmpty())
-            return
-
-        val capturedAt = clock.currentTimeMillis()
-
+    fun captureEventIdentities(context: Context) {
         try {
+            val events = getEventsStorage(context).use { db -> db.events }
+            if (events.isEmpty())
+                return
+
+            val capturedAt = clock.currentTimeMillis()
+
             // One backup-info lookup per calendar rather than per event -- a
             // reload pass is usually dominated by a handful of calendars.
             val backupInfoByCalendar = HashMap<Long, CalendarBackupInfo?>()
 
-            val identities = events.mapNotNull { (stored, fetched) ->
-                val backupInfo = backupInfoByCalendar.getOrPut(stored.calendarId) {
-                    calendarProvider.getCalendarBackupInfo(context, stored.calendarId)
+            val identities = events.mapNotNull { event ->
+                val providerEvent = calendarProvider.getEvent(context, event.eventId)
+                val backupInfo = backupInfoByCalendar.getOrPut(event.calendarId) {
+                    calendarProvider.getCalendarBackupInfo(context, event.calendarId)
                 }
 
-                if (fetched.syncId == null && fetched.uid2445 == null && backupInfo == null) {
-                    DevLog.debug(LOG_TAG, "No identity available for event ${stored.eventId}, skipping capture")
+                if (providerEvent?.syncId == null && providerEvent?.uid2445 == null && backupInfo == null)
                     return@mapNotNull null
-                }
 
                 EventIdentityEntity.create(
-                    eventId = stored.eventId,
-                    instanceStartTime = stored.instanceStartTime,
-                    calendarId = stored.calendarId,
+                    eventId = event.eventId,
+                    instanceStartTime = event.instanceStartTime,
+                    calendarId = event.calendarId,
                     backupInfo = backupInfo,
-                    eventSyncId = fetched.syncId,
-                    eventUid = fetched.uid2445,
+                    eventSyncId = providerEvent?.syncId,
+                    eventUid = providerEvent?.uid2445,
                     capturedAtTime = capturedAt
                 )
             }
@@ -272,13 +264,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             DevLog.error(LOG_TAG, "Identity capture failed (provider state): ${ex.message}")
         }
         catch (ex: LinkageError) {
-            // Opening the identity database loads cr-sqlite's native library.
-            // Where that library is absent the first attempt throws
-            // UnsatisfiedLinkError and every later one throws
-            // NoClassDefFoundError, because the JVM caches the failed class
-            // initialization -- LinkageError is their common supertype and
-            // catches both. Identity is an optional extra riding along with the
-            // reload; it must never take the reload down with it.
+            // The identity database loads cr-sqlite's native library. Where that
+            // is absent the first attempt throws UnsatisfiedLinkError and later
+            // ones throw NoClassDefFoundError from the cached failed class init;
+            // LinkageError is their common supertype.
             DevLog.error(LOG_TAG, "Identity capture unavailable (native SQLite missing): ${ex.message}")
         }
     }
@@ -438,6 +427,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
 
         DevLog.debug(LOG_TAG, "calendarReloadFromService: ${changes}")
+
+        // Separate pass, after the reload is completely done. Cannot affect it.
+        captureEventIdentities(context)
 
         if (changes) {
             notificationManager.postEventNotifications(
