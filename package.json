@@ -13,6 +13,7 @@
     "android:sign:debug-apks": "node scripts/sign_android.js",
     "android:build:debug:signed": "yarn android:build:debug && yarn android:sign:debug-apks",
     "clean-logs": "npx ts-node scripts/clean_clipboard_logs.ts",
+    "watch:tests": "node scripts/watch_test_progress.js",
     "test": "jest"
   },
   "dependencies": {
