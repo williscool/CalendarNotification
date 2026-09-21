@@ -227,6 +227,8 @@ Run it against a device with **real, Google-synced calendars** — a clean emula
 
 There is also a no-build version, `scripts/probe_uid2445.sh`, which reads the provider over `adb shell content query` and prints the same table and verdict. Prefer it for a quick answer; it needs no compile, install, or instrumentation run.
 
+Its tallying logic lives in `scripts/lib/uid2445_tally.awk` and is covered by `scripts/lib/test_uid2445_tally.sh`, which runs against captured provider output in `scripts/lib/testdata/` — so the parsing can be verified without a device.
+
 #### Can this run against a backup instead of a live device?
 
 **No, and the reason is worth recording because it constrains more than this probe.**

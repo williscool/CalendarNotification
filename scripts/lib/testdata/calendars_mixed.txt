@@ -1,0 +1,2 @@
+Row: 0 _id=1, account_type=com.google, account_name=will@example.com
+Row: 1 _id=2, account_type=LOCAL, account_name=local
