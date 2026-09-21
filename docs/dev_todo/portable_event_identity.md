@@ -248,6 +248,8 @@ The 6 whose *instance* had vanished are snoozed occurrences of deleted recurring
 
 **The calendar matcher was also validated.** All 16 calendars on this device produce a **unique** tier-1 key (`account_name` + `account_type` + `ownerAccount`) — zero ambiguity, despite only two distinct account names across them. `ownerAccount` is what disambiguates, which confirms `findMatchingCalendarId`'s existing three-tier design is right for this setup rather than merely plausible.
 
+`./scripts/capture_calendar_snapshot.sh` saves all of this to `./tmp/` (gitignored — it is real calendar data) so the analysis can be re-run without a device. Verified equivalent: replaying the backfill simulation from a snapshot reproduces the same 368/368.
+
 Reproduce with `./scripts/probe_uid2445.sh`. The app-database checks used `adb exec-out run-as com.github.quarck.calnotify cat databases/RoomEvents` — note `exec-out`, not `shell`, or the binary is corrupted in transit, and pull the `-wal` file too or the DB reads as malformed.
 
 #### How that was measured
