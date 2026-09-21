@@ -225,6 +225,18 @@ adb logcat -s Uid2445Probe:* | grep UID2445_PROBE
 
 Run it against a device with **real, Google-synced calendars** — a clean emulator has no synced events and will report `INCONCLUSIVE`, which is not evidence either way.
 
+There is also a no-build version, `scripts/probe_uid2445.sh`, which reads the provider over `adb shell content query` and prints the same table and verdict. Prefer it for a quick answer; it needs no compile, install, or instrumentation run.
+
+#### Can this run against a backup instead of a live device?
+
+**No, and the reason is worth recording because it constrains more than this probe.**
+
+`UID_2445` lives in the **Calendar Provider's** database (`com.android.providers.calendar`) — a different app. This app's backup covers only its own data: per `res/xml/backup_rules.xml`, the `eventsV9` databases and two prefs files. It contains no calendar-provider rows at all, so there is nothing in a CNPlus backup to measure.
+
+Reading the provider's own database directly is also not available: `adb shell run-as` only works on your own debuggable package, so `com.android.providers.calendar` is out of reach without root.
+
+The wider consequence for this plan: **the provider is only ever readable live.** That is exactly why identity must be captured at write time (Phases 0/2) rather than reconstructed later, and why an already-restored device has nothing but row content to match on (Phase 6).
+
 The result changes the plan materially:
 
 - **Well populated** ⇒ proceed as written; Phase 6 stays an optional safety net.
