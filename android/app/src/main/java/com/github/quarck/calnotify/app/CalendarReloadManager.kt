@@ -70,10 +70,22 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
         val eventsToUpdate = arrayListOf<ReloadCalendarResult>()
         val eventsToUpdateWithTime = arrayListOf<ReloadCalendarResult>()
 
+        // Portable identity for each event, captured from the provider read
+        // this loop is already doing. See docs/dev_todo/portable_event_identity.md.
+        val identityPairs = arrayListOf<Pair<EventAlertRecord, EventRecord>>()
+
         for (event in events) {
 
             try {
-                val reloadResult = reloadCalendarEventAlert(context, calendar, event, currentTime, movedHandler)
+                // Single provider read, used for both identity capture and the
+                // reload below -- reloadCalendarEventAlert would otherwise
+                // repeat it for the non-repeating + movedHandler case.
+                val providerEvent = calendar.getEvent(context, event.eventId)
+                if (providerEvent != null)
+                    identityPairs.add(event to providerEvent)
+
+                val reloadResult = reloadCalendarEventAlert(
+                        context, calendar, event, currentTime, movedHandler, providerEvent)
 
                 DevLog.debug(LOG_TAG, "reloadCalendarInternal: Event ${event.eventId} - reloadResult.code ${reloadResult.code} ")
 
@@ -99,6 +111,10 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
                 DevLog.error(LOG_TAG, "Got exception while trying to re-load event data for ${event.eventId}: ${ex.detailed}");
             }
         }
+
+        // Riding this pass rather than the EVENT_REMINDER path: identity is
+        // never urgent, and every provider read it needs already happened above.
+        ApplicationController.captureEventIdentities(context, identityPairs)
 
         var changedDetected = false
 
@@ -237,7 +253,13 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
             calendarProvider: CalendarProviderInterface,
             event: EventAlertRecord,
             currentTime: Long,
-            movedHandler: EventMovedHandler?
+            movedHandler: EventMovedHandler?,
+            /**
+             * The provider row for this event, when the caller has already read
+             * it. Passed in so the reload loop's lookup is reused rather than
+             * repeated here -- null means "fetch it if needed".
+             */
+            prefetchedEvent: EventRecord? = null
     ): ReloadCalendarResult {
 
         // Quick short-cut for non-repeating requests: quickly check if instance time is different now
@@ -245,7 +267,7 @@ object CalendarReloadManager : CalendarReloadManagerInterface {
         if (movedHandler != null &&
                 !event.isRepeating) {
 
-            val newEvent = calendarProvider.getEvent(context, event.eventId)
+            val newEvent = prefetchedEvent ?: calendarProvider.getEvent(context, event.eventId)
 
             if (newEvent != null) {
                 val newAlertTime = newEvent.nextAlarmTime(currentTime)

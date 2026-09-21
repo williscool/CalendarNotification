@@ -53,6 +53,10 @@ import com.github.quarck.calnotify.calendareditor.CalendarChangeManagerInterface
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManager
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
+import android.database.SQLException
+import com.github.quarck.calnotify.calendar.CalendarBackupInfo
+import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
+import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
@@ -186,6 +190,97 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface {
         return dismissedEventsStorageProvider?.invoke(ctx) ?: DismissedEventsStorage(ctx)
+    }
+
+    /** Injectable EventIdentityStorage provider for testing - when null, uses real storage */
+    var eventIdentityStorageProvider: ((Context) -> EventIdentityStorage)? = null
+
+    private fun getEventIdentityStorage(ctx: Context): EventIdentityStorage {
+        return eventIdentityStorageProvider?.invoke(ctx) ?: EventIdentityStorage(ctx)
+    }
+
+    /**
+     * Record portable identity for events already fetched from the provider.
+     *
+     * `eventsV9` keys events by `cid`/`id`, which are row numbers local to this
+     * device's Calendar Provider -- restore the database onto a new phone and
+     * both point at nothing. This stores the server-assigned identifiers while
+     * they are still resolvable, so a restored database can find these events
+     * again. See docs/dev_todo/portable_event_identity.md.
+     *
+     * **Takes provider data the caller already has.** Callers reach this from
+     * the calendar reload pass, which has just queried the provider for every
+     * stored event, so identity costs no additional IPC. Deliberately not
+     * called from `registerNewEvent`: that runs on the EVENT_REMINDER path
+     * where a notification is about to fire, and identity is never urgent --
+     * it only matters at restore time.
+     *
+     * **Best-effort.** A failure here must never disturb the reload it rides
+     * along with. [EventIdentityStorage] already swallows SQLException; the
+     * calendar lookups are guarded here.
+     *
+     * @param events stored event paired with the [EventRecord] just read for it
+     */
+    fun captureEventIdentities(
+        context: Context,
+        events: Collection<Pair<EventAlertRecord, EventRecord>>
+    ) {
+        if (events.isEmpty())
+            return
+
+        val capturedAt = clock.currentTimeMillis()
+
+        try {
+            // One backup-info lookup per calendar rather than per event -- a
+            // reload pass is usually dominated by a handful of calendars.
+            val backupInfoByCalendar = HashMap<Long, CalendarBackupInfo?>()
+
+            val identities = events.mapNotNull { (stored, fetched) ->
+                val backupInfo = backupInfoByCalendar.getOrPut(stored.calendarId) {
+                    calendarProvider.getCalendarBackupInfo(context, stored.calendarId)
+                }
+
+                if (fetched.syncId == null && fetched.uid2445 == null && backupInfo == null) {
+                    DevLog.debug(LOG_TAG, "No identity available for event ${stored.eventId}, skipping capture")
+                    return@mapNotNull null
+                }
+
+                EventIdentityEntity.create(
+                    eventId = stored.eventId,
+                    instanceStartTime = stored.instanceStartTime,
+                    calendarId = stored.calendarId,
+                    backupInfo = backupInfo,
+                    eventSyncId = fetched.syncId,
+                    eventUid = fetched.uid2445,
+                    capturedAtTime = capturedAt
+                )
+            }
+
+            if (identities.isEmpty())
+                return
+
+            getEventIdentityStorage(context).putAll(identities)
+            DevLog.info(LOG_TAG, "Captured identity for ${identities.size} of ${events.size} event(s)")
+        }
+        catch (ex: SQLException) {
+            DevLog.error(LOG_TAG, "Identity capture failed (SQL): ${ex.message}")
+        }
+        catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "Identity capture failed (calendar permission): ${ex.message}")
+        }
+        catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Identity capture failed (provider state): ${ex.message}")
+        }
+        catch (ex: LinkageError) {
+            // Opening the identity database loads cr-sqlite's native library.
+            // Where that library is absent the first attempt throws
+            // UnsatisfiedLinkError and every later one throws
+            // NoClassDefFoundError, because the JVM caches the failed class
+            // initialization -- LinkageError is their common supertype and
+            // catches both. Identity is an optional extra riding along with the
+            // reload; it must never take the reload down with it.
+            DevLog.error(LOG_TAG, "Identity capture unavailable (native SQLite missing): ${ex.message}")
+        }
     }
 
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
