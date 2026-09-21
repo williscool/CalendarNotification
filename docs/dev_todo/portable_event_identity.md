@@ -42,7 +42,7 @@ Store durable, provider-independent identity alongside every stored event so tha
 
 This is the single most important thing to understand about the design, and it is easy to misread.
 
-`UID_2445` is **not** something that can be looked up from an orphaned row. The app has no way to ask the new device "what is the UID of event `91427`?", because `91427` is a row number that means nothing there. The UID has to be read from the provider on the **old** device, while the IDs are still valid, and stored.
+The event UID (in practice `_SYNC_ID` — see the probe results below) is **not** something that can be looked up from an orphaned row. The app has no way to ask the new device "what is the sync id of event `91427`?", because `91427` is a row number that means nothing there. It has to be read from the provider on the **old** device, while the IDs are still valid, and stored.
 
 So the mechanism is a snapshot, not a lookup:
 
@@ -96,7 +96,7 @@ Phase 6 exists precisely because the precondition above will not always hold —
 |---|---|---|
 | Where to store identity | A **new, dedicated Room database** with typed columns | Keeps the scarce reserved text columns free for data that must live in the event row. Identity is off the hot path, joinable by key, and stays out of the Supabase sync payload by construction. |
 | Calendar identity | Reuse `CalendarBackupInfo` (account name/type, owner, displayName, name) | Already exists, already has a tested 3-tier fallback matcher, already the proven format in settings backup. |
-| Event identity | `Events.UID_2445`, falling back to `Events._SYNC_ID` | `UID_2445` is the iCalendar UID — globally stable and identical across devices for the same Google/CalDAV event. Available since API 17; minSdk is 24. |
+| Event identity | **`Events._SYNC_ID`**, with `Events.UID_2445` read opportunistically | **Measured, not assumed:** on a real device `UID_2445` was null for all 4761 events while `_SYNC_ID` was populated and unique for 100% of them. See the probe results below. |
 | When identity is captured | On every event write (add/update), best-effort | Cheap, keeps identity fresh, and means any future backup is restorable without a migration pass. |
 | When re-resolution runs | Lazily, on a detected restore, **retrying** until resolved — plus a manual trigger | Calendars often sync onto the phone *after* our first launch, so a one-shot pass would match nothing. |
 | Manual trigger UX | Mirror the existing pull-to-refresh + overflow "Refresh" in `prefs/CalendarsActivity.kt` | That screen already requests a calendar sync then reloads, which is exactly the shape needed here. Reusing a familiar interaction beats inventing a new one. |
@@ -143,7 +143,8 @@ One table, keyed to match `eventsV9`'s primary key so rows join cleanly. One col
 | `calendarOwnerAccount` | String | `Calendars.OWNER_ACCOUNT` |
 | `calendarDisplayName` | String | `Calendars.CALENDAR_DISPLAY_NAME` — e.g. "Work" |
 | `calendarName` | String | `Calendars.NAME` |
-| `eventUid` | String? | `Events.UID_2445`, fallback `_SYNC_ID`. Nullable — not every event has one |
+| `eventSyncId` | String? | `Events._SYNC_ID` — the primary identifier, populated for 100% of events measured |
+| `eventUid` | String? | `Events.UID_2445` — opportunistic; null on Google, may be populated by other providers |
 | `originalCalendarId` | Long | The `cid` in force when this row was captured |
 | `originalEventId` | Long | The `id` in force when this row was captured |
 | `capturedAtTime` | Long | Via `CNPlusClockInterface`, never `System.currentTimeMillis()` |
@@ -173,48 +174,72 @@ flowchart TD
     B -->|"account tuple<br/>(the email)"| C["cid = 12 ✅"]
     C --> D{"Which event<br/>inside it?"}
     D -->|"the email again"| E["800 candidates ❌<br/>they all share it"]
-    D -->|"UID_2445"| F["id = 55310 ✅<br/>exactly one"]
+    D -->|"_SYNC_ID"| F["id = 55310 ✅<br/>exactly one"]
 ```
 
 So the plan uses **both**: the email tuple to find the calendar, then the UID to find the event within it.
 
-### What `UID_2445` actually is
+### What these identifiers actually are
 
-It's the [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.7) iCalendar `UID` property — the identifier the calendar *format* uses, as opposed to `_ID`, which is just a row number in the local SQLite database. The `2445` is a fossil: RFC 2445 was the original iCalendar spec, obsoleted by 5545, but Android kept the constant name. It's `CalendarContract.Events.UID_2445`, present since API 17 (your minSdk is 24), and holds a string like:
+Two columns carry a server-assigned identifier, and the distinction turned out to matter — see the measured result below.
 
-```
-040000008200E00074C5B7101A82E00800000000B0F2C8B5A1D9DA01000000000000000
-```
+**`UID_2445`** is the [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.7) iCalendar `UID` property — the identifier the calendar *format* uses, as opposed to `_ID`, which is just a row number in the local SQLite database. The `2445` is a fossil: RFC 2445 was the original iCalendar spec, obsoleted by 5545, but Android kept the constant name. It is the *correct* identifier in principle, and **empty in practice on Google calendars.**
 
-or, on Google Calendar, typically something closer to `abc123def456@google.com`.
+**`_SYNC_ID`** is the sync adapter's own key for the event. On Google it holds values like `nekuken5tb3bvpoj8ncg4er7f0` or `20261031_jg75kt4ps505q4u01pbpictp2o` — Google's event-id encoding. Less standard than the iCalendar UID, but it is the one that is actually populated.
 
-The key property: **the server assigns it, so it's the same string on every device that syncs that event.** `_ID` is assigned locally by whichever device happened to insert the row first, which is exactly why it doesn't survive a restore.
+The key property, which both share: **the server assigns it, so it is the same string on every device that syncs that event.** `_ID` is assigned locally by whichever device happened to insert the row first, which is exactly why it does not survive a restore.
 
-To be explicit, since this is the easy misreading: the UID is useful only because we **stored it on the old device**. It is a value we carry with us, not one the new device can derive from an orphaned row — see the precondition in the Goal.
+To be explicit, since this is the easy misreading: the identifier is useful only because we **stored it on the old device**. It is a value we carry with us, not one the new device can derive from an orphaned row — see the precondition in the Goal.
 
 ```mermaid
 flowchart LR
-    G["Google Calendar<br/>UID abc123@google.com"] --> P1["Old phone<br/>_ID 91427"]
+    G["Google Calendar<br/>_SYNC_ID nekuken5tb3bv..."] --> P1["Old phone<br/>_ID 91427"]
     G --> P2["New phone<br/>_ID 55310"]
     P1 -.->|"backup restores<br/>_ID 91427"| P2
-    P2 --> X["91427 doesn't exist here ❌<br/>UID abc123 does ✅"]
+    P2 --> X["91427 doesn't exist here ❌<br/>sync id nekuken5tb3bv... does ✅"]
 ```
 
 ### Why not title + time instead
 
-Title+time heuristics produce false positives on recurring and duplicated events (a weekly standup is many rows with identical titles), and break the moment the user edits a title. The UID survives renames, reschedules, and recurrence.
+Title+time heuristics produce false positives on recurring and duplicated events (a weekly standup is many rows with identical titles), and break the moment the user edits a title. A server-assigned id survives renames, reschedules, and recurrence.
 
 ### Caveats
 
-**Locally-created events that never synced to an account may have a null/empty `UID_2445`.** Those events are also the ones least likely to exist on the new phone at all — a local-only calendar isn't restored by Google. They degrade to unresolved and keep their stale ID: no crash, no data loss.
+**Locally-created events that never synced to an account have neither identifier.** AOSP's `CalendarProvider2` notes that *"if this event hasn't been sync'ed with the server yet, the `_sync_id` field will be null"*, and `UID_2445` is empty on Google regardless. Such events are also the least likely to exist on the new phone at all — a local-only calendar is not restored by Google. They degrade to unresolved and keep their stale ID: no crash, no data loss.
 
-`_SYNC_ID` is the fallback when `UID_2445` is empty, but it does **not** stack the way one might assume. AOSP's `CalendarProvider2` notes that *"if this event hasn't been sync'ed with the server yet, the `_sync_id` field will be null"* — so `_SYNC_ID` is null in exactly the never-synced case described above. The fallback covers only the narrower situation where an event *did* sync but the provider populated `_SYNC_ID` without `UID_2445`. Worth having, but the never-synced case degrades to unresolved regardless of it.
+#### RESULT: `UID_2445` is empty; `_SYNC_ID` is the real identifier
 
-#### De-risk before building: confirm `UID_2445` is actually populated
+**Measured 2026-09-20, Pixel 10 Pro Fold (API 37), 16 Google calendars across two accounts:**
 
-The entire exact-match path assumes this column has values. There is a long-standing Android issue titled ["CalendarContract.Events.UID_2445 column is always null"](https://issuetracker.google.com/issues/37053160) whose resolution is not publicly readable, so the assumption should be tested rather than trusted.
+```
+accountType                  total     uid    pct   syncId   neither
+com.google                    4761       0     0%     4761         0
+----------------------------------------------------------------------
+OVERALL                       4761       0     0%     4761         0
+```
 
-**Do this first, before any of Phase 0.** One query across a few real calendars — count non-null `UID_2445` against total events, broken down by account type — settles it in minutes.
+The long-standing Android issue is real and current: **`UID_2445` is null for every single event.** The column exists and is queryable, but Google's sync adapter never populates it.
+
+`_SYNC_ID` is the opposite — populated for 100% of events, and **4761 unique values across 4761 events**, i.e. perfectly unique with no collisions. Values look like `nekuken5tb3bvpoj8ncg4er7f0` and `20261031_jg75kt4ps505q4u01pbpictp2o`, which is Google's own event-id encoding.
+
+**Consequences for this plan:**
+
+1. **`_SYNC_ID` becomes the primary event identifier, not the fallback.** Read `UID_2445` opportunistically — it costs one column and may be populated by non-Google providers (CalDAV, Exchange) — but nothing should depend on it.
+2. **The exact-match path survives intact.** This was the real risk the probe existed to check, and it came back fine: there *is* a stable, server-assigned, unique per-event identifier. Only its name changes.
+3. **Phase 6 stays optional.** It is still the fallback for missing identity, not the primary mechanism.
+
+**Recurring events behave well**, which matters for the Phase 1b re-key:
+
+- A recurring series has **one** `_SYNC_ID` for the parent event, not one per instance — so `(sync_id, instanceStartTime)` identifies a specific occurrence.
+- Recurrence **exceptions** (1021 of them here) carry `original_sync_id` pointing at the parent series, so a modified single occurrence stays traceable.
+
+**Caveat carried forward:** this is one device with one provider type (`com.google`). The never-synced local-event case still degrades to unresolved, exactly as the Caveats section describes — this device simply has no local-only calendars to demonstrate it. Re-run the probe on a device with Exchange or CalDAV accounts before assuming the same holds there.
+
+Reproduce with `./scripts/probe_uid2445.sh`.
+
+#### How that was measured
+
+The exact-match path assumes a stable per-event identifier exists. A long-standing Android issue titled ["CalendarContract.Events.UID_2445 column is always null"](https://issuetracker.google.com/issues/37053160) put that in doubt, so it was tested rather than trusted — and the issue turned out to be accurate.
 
 Implemented as `androidTest/.../calendar/Uid2445PopulationProbeTest.kt`. It is a **diagnostic, not an assertion**: it reports and never fails on low coverage, since "this device has no synced calendars" is a property of the device rather than a bug. It also tallies `_SYNC_ID` alongside `UID_2445` so the fallback's real value gets measured rather than assumed, and counts events carrying *neither* — those are the ones the exact path can never recover.
 
@@ -239,10 +264,7 @@ Reading the provider's own database directly is also not available: `adb shell r
 
 The wider consequence for this plan: **the provider is only ever readable live.** That is exactly why identity must be captured at write time (Phases 0/2) rather than reconstructed later, and why an already-restored device has nothing but row content to match on (Phase 6).
 
-The result changes the plan materially:
-
-- **Well populated** ⇒ proceed as written; Phase 6 stays an optional safety net.
-- **Sparse or null on common providers** ⇒ the exact path is not viable, and **Phase 6's heuristic becomes the primary mechanism** rather than the fallback. That is a different plan, and better to discover now than after Phases 0–5 are built on it.
+Re-run it on any device with a non-Google provider (Exchange, CalDAV) before assuming these numbers generalize — the measurement so far covers `com.google` only.
 
 **The email tuple is not perfectly unique either** — this is why `findMatchingCalendarId()` already has three tiers. One account can expose several calendars (primary, birthdays, a shared team calendar), all with the same `ACCOUNT_NAME`. That's why the match uses account name + type + owner, and only falls back to display name.
 
@@ -278,7 +300,7 @@ One identity row per stored event, holding **everything needed to find that even
 Resolution consumes the identity rows described above. A restored event needs two lookups, in order:
 
 1. **Calendar**: `findMatchingCalendarId(context, storedBackupInfo)` → new `cid`. Reuses the existing 3-tier matcher untouched.
-2. **Event**: query `Events.CONTENT_URI` for `UID_2445 = ? AND CALENDAR_ID = ?` (scoped to the just-matched calendar to avoid cross-calendar collisions) → new `id`.
+2. **Event**: query `Events.CONTENT_URI` for `_sync_id = ? AND CALENDAR_ID = ?` (scoped to the just-matched calendar to avoid cross-calendar collisions) → new `id`. Fall back to `UID_2445` where the stored row has one.
 
 #### The `-1L` sentinel must be guarded explicitly
 
@@ -347,7 +369,7 @@ flowchart TD
     D -->|"no / -1L"| Y["Unresolved — keep row,<br/>cid untouched, retry"]
     D -->|yes| S["UPDATE cid — safe,<br/>commit now ✅"]
 
-    S --> E["Query Events for<br/>UID_2445 in that calendar"]
+    S --> E["Query Events for<br/>_SYNC_ID in that calendar"]
     E --> F{"Event<br/>matched?"}
     F -->|no| X["Stop — cid gain kept,<br/>mark unresolved, retry"]
     F -->|yes| G{"id already<br/>current?"}
@@ -399,11 +421,11 @@ The key insight: the calendar half of this problem was already solved once for s
 
 ### Phase 0: Capture identity at write time
 
-**Before anything else:** confirm `UID_2445` is actually populated on real calendars (see Design Decisions). If it is sparse, the exact-match path is not viable and Phase 6 becomes primary — that determination should happen before writing any of the code below.
+**Prerequisite met.** The probe has run (see Design Decisions): `UID_2445` is null on Google calendars, but `_SYNC_ID` is populated and unique for 100% of events, so the exact-match path stands with `_SYNC_ID` as the identifier.
 
 **0a — Identity storage.** New `identitystorage/` package following the shape of `monitorstorage/`: `EventIdentityEntity` (the schema in Design Decisions), `EventIdentityDao`, and `EventIdentityDatabase` at `version = 1`, name `RoomEventIdentity`. No legacy predecessor and no copy-migration — this is a fresh database. Use `CrSqliteRoomFactory` for consistency with the existing three.
 
-**0b — Read the UID from the provider.** Add `Events.UID_2445` (with `_SYNC_ID` fallback) to the projection in `CalendarProvider.getEvent()` (`calendar/CalendarProvider.kt:418-439`) and expose it on `EventRecord`. Keep it nullable — not every event has one.
+**0b — Read the identifiers from the provider.** Add `Events._SYNC_ID` (primary) and `Events.UID_2445` (opportunistic) to the projection in `CalendarProvider.getEvent()` (`calendar/CalendarProvider.kt:418-439`) and expose both on `EventRecord`. Keep both nullable — never-synced events have neither.
 
 **0c — Persist it.** Write an identity row whenever an event is added or updated in `ApplicationController`, keyed `(eventId, instanceStartTime)`. Best-effort: a failure to capture identity must never fail the event write itself.
 
@@ -510,7 +532,7 @@ Phases 0–5 all depend on the precondition in the Goal: identity was captured o
 
 **The matching pass.** For each unresolved row with no identity:
 
-1. **Skip recurring events outright** (`isRepeating`). They are the known weak case — a weekly standup has many identically-titled instances, so the signals cannot separate them reliably. Not worth the risk for the fraction it would recover; decline and move on.
+1. **Skip recurring events outright** (`isRepeating`). They are the known weak case — a weekly standup has many identically-titled instances, so the signals cannot separate them reliably. Not worth the risk for the fraction it would recover; decline and move on. (Note this limitation applies only to Phase 6's content heuristic — the exact path handles recurrence fine, since a series has a single `_SYNC_ID` and exceptions carry `original_sync_id`.)
 2. Query `CalendarContract.Instances.query()` over a narrow window bracketing the stored `instanceStartTime` (the existing instance-scan code at `CalendarProvider.kt:1594` already uses this API, so the query shape is proven).
 3. Filter candidates by exact `title` match, then `isAllDay`, then `location` where present.
 4. Accept **only when exactly one candidate survives.** Two or more ⇒ ambiguous ⇒ leave unresolved.
@@ -549,9 +571,9 @@ Those limits are acceptable *because the alternative is nothing*. The failure mo
 
 | File | Changes |
 |---|---|
-| `calendar/CalendarProvider.kt` | Add `UID_2445`/`_SYNC_ID` to `getEvent()` projection; add a lookup-by-UID query |
+| `calendar/CalendarProvider.kt` | Add `_SYNC_ID`/`UID_2445` to `getEvent()` projection; add a lookup-by-sync-id query |
 | `calendar/CalendarProviderInterface.kt` | Declare the new lookup |
-| `calendar/EventRecord.kt` | Carry nullable `eventUid` |
+| `calendar/EventRecord.kt` | Carry nullable `eventSyncId` and `eventUid` |
 | `app/ApplicationController.kt` | Write identity rows on event add/update; **fix `restoreToActive()` (line 1321) to use the stored identity instead of re-querying the stale ID** |
 | `backup/SettingsBackupManager.kt` | Extract calendar-remap logic for reuse in Phase 5 |
 | `prefs/MiscSettingsFragmentX.kt` | Manual re-link action |
