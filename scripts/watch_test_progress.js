@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { XMLParser } = require('fast-xml-parser');
 
 const DEFAULT_RESULTS =
   '/mnt/c/dev/CN/android/app/build/test-results/testX8664DebugUnitTest';
@@ -46,39 +47,33 @@ function parseArgs(argv) {
   return options;
 }
 
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+
 /**
  * Pull the counts off a JUnit `<testsuite>` element.
  *
- * Deliberately regex rather than an XML library: the only thing needed is a
- * handful of attributes on the root element, and this repo has no direct XML
- * parser dependency worth adding for it. Files being written concurrently are
- * expected and simply yield null until complete.
+ * Gradle writes these files while the build runs, so a partially-written file
+ * is normal rather than exceptional -- both the read and the parse are allowed
+ * to fail, yielding null until the file is complete.
  *
  * @returns {{name: string, tests: number, failures: number, time: string}|null}
  */
 function readSuite(file) {
-  let xml;
+  let suite;
   try {
-    xml = fs.readFileSync(file, 'utf8');
+    suite = parser.parse(fs.readFileSync(file, 'utf8')).testsuite;
   } catch {
-    return null;                       // vanished or unreadable mid-write
+    return null;                       // unreadable or half-written
   }
+  if (!suite) return null;
 
-  // Skip the leading `<?xml ...?>` declaration; the element we want is next.
-  const start = xml.indexOf('<testsuite');
-  if (start === -1) return null;                       // still being written
-  const header = xml.slice(start, xml.indexOf('>', start) + 1);
-
-  const attr = (key) => {
-    const match = header.match(new RegExp(`${key}="([^"]*)"`));
-    return match ? match[1] : '';
-  };
+  const num = (key) => Number(suite[key]) || 0;
 
   return {
-    name: (attr('name').split('.').pop()) || '?',
-    tests: Number(attr('tests')) || 0,
-    failures: (Number(attr('failures')) || 0) + (Number(attr('errors')) || 0),
-    time: attr('time'),
+    name: String(suite['@_name'] || '').split('.').pop() || '?',
+    tests: num('@_tests'),
+    failures: num('@_failures') + num('@_errors'),
+    time: suite['@_time'],
   };
 }
 
