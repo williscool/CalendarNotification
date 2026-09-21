@@ -84,5 +84,24 @@ interface CalendarProviderInterface {
 
     fun findMatchingCalendarId(context: Context, backupInfo: CalendarBackupInfo): Long
 
+    /**
+     * Find an event by its server-assigned id within a specific calendar.
+     *
+     * The event half of restore re-association: after the calendar has been
+     * matched, this maps a stored `_SYNC_ID` (or `UID_2445`) back to the local
+     * event id this device assigned.
+     *
+     * Scoped to [calendarId] deliberately — searching provider-wide could match
+     * the same event in a different calendar the user also subscribes to.
+     *
+     * @return the local event id, or -1 if no unambiguous match exists.
+     */
+    fun findEventIdBySyncId(
+        context: Context,
+        calendarId: Long,
+        syncId: String?,
+        uid2445: String? = null
+    ): Long
+
     fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int = 7): Map<Long, Int>
 }

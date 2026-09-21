@@ -360,11 +360,19 @@ runs:
           ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-
 
     # Setup Android SDK for emulator if needed and not cached
+    #
+    # NOTE: do not add the legacy 'tools' package here. Google removed it from
+    # the SDK repository (superseded by cmdline-tools), so sdkmanager exits 1
+    # with "Failed to find package 'tools'" and the whole setup step dies --
+    # which shows up downstream as "No test result XML files found" because the
+    # emulator never starts. Nothing in this repo uses the old tools/ binaries;
+    # avdmanager and emulator come from cmdline-tools and the emulator package,
+    # and reactivecircus/android-emulator-runner installs what else it needs.
     - name: Setup Android SDK
       if: inputs.run_emulator_setup == 'true' && steps.android-cache.outputs.cache-hit != 'true'
       uses: android-actions/setup-android@v3
       with:
-        packages: 'tools platform-tools system-images;android-${{ inputs.android_api_level }};${{ inputs.android_target }};${{ inputs.arch }}'
+        packages: 'platform-tools system-images;android-${{ inputs.android_api_level }};${{ inputs.android_target }};${{ inputs.arch }}'
         accept-android-sdk-licenses: true
         log-accepted-android-sdk-licenses: false
 

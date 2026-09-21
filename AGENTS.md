@@ -30,6 +30,28 @@ Use the `plan-making` skill in `.skills/plan-making/` when a task warrants a wri
 
 **Do not use an editor's built-in Plan Mode** or create `.cursor/plans/*.plan.md` files — that directory is deprecated and retained for historical reference only.
 
+# Branching and PRs
+
+**The default branch is `master`.** There is no `main`.
+
+Branches are **long-lived and named after the plan** they implement, not per-commit or per-task. Work accumulates on the branch; when it reaches a coherent stopping point the PR gets merged and a new branch starts for the next stage. A small plan lands on one branch; a large one spans several sequential branches.
+
+**How to size a PR:** if it is getting onerous to review in the GitHub UI, it is too large. That is the signal — there is no commit or line-count rule. Suggest merging when a branch reaches a natural stopping point, rather than letting it grow until review is painful.
+
+**Never merge a PR yourself.** Say when something is ready and let the maintainer decide.
+
+## Never push to `master`
+
+Always push with an explicit refspec:
+
+```bash
+git push origin HEAD:refs/heads/<branch>
+```
+
+This is not hypothetical. `git checkout -b <new> origin/master` sets the new branch's upstream to **`master`**, so a subsequent `git push -u origin <new-branch>` resolves to the tracked ref and pushes to `master` instead of creating the branch. Branch protection reported failing checks but the push still landed.
+
+After branching from `origin/master`, run `git branch --unset-upstream` before pushing, and verify afterwards with `git ls-remote origin master`.
+
 # Don't try to boil the ocean. Dont try to make big sweeping changes when more focused ones will do
 
 Always think of the minimum viable solution to a problem or change to make. make sure that works and then build on top of it. break things down into small testable pieces first. That said 

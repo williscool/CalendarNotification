@@ -121,6 +121,45 @@ powershell.exe -Command 'cd C:\dev\CN\android; $env:JAVA_HOME = "C:\Program File
 powershell.exe -Command 'cd C:\dev\CN\android; $env:JAVA_HOME = "C:\Program Files\Android\Android_Studio\jbr"; .\gradlew.bat :app:connectedX8664DebugAndroidTest'
 ```
 
+### Seeing progress during a long test run
+
+Gradle's `Test` task prints **nothing per-test by default**, so a run that is
+working looks identical to one that is hung: `--console=plain` shows
+`> Task :app:testX8664DebugUnitTest` and then silence for many minutes. Three
+ways to get visibility, in order of how much they cost:
+
+**1. Watch the result XMLs (no config change, works on a build already running)**
+
+```bash
+./scripts/watch_test_progress.sh
+```
+
+Each test class writes its JUnit XML as it finishes, so this reports
+`classes=N tests=N` plus the last classes completed. Useful when a build is
+already in flight and you just want to know whether it is moving.
+
+**2. Add `--info` at launch**
+
+```bash
+powershell.exe -Command 'cd C:\dev\CN\android; $env:JAVA_HOME = "C:\Program Files\Android\Android_Studio\jbr"; .\gradlew.bat :app:testX8664DebugUnitTest --console=plain --info'
+```
+
+Prints each test as it runs. Also very noisy — everything else Gradle does gets
+logged too, so prefer piping to a file rather than watching the terminal.
+
+**3. Confirm it is alive without any log at all**
+
+```bash
+powershell.exe -Command "(Get-Process java -EA SilentlyContinue | Measure-Object CPU -Sum).Sum"
+```
+
+Run twice ~20s apart. A rising total means the JVMs are burning CPU, i.e. the
+build is working. This settles "hung or slow?" in seconds.
+
+For permanently nicer output, `testLogging` can be configured on the `Test`
+task in `android/app/build.gradle` (`events "passed", "failed", "skipped"`),
+which would make option 1 unnecessary — not currently set up.
+
 ### Important Notes
 
 1. **Wait for sync**: Unison syncs every 10 seconds (no inotify on Windows mounts). Wait 15s after file changes before running tests.

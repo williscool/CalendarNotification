@@ -966,8 +966,11 @@ jobs:
             android/app/build/test-results/
           retention-days: 90
 
+      # v1.15+ is required: earlier images lack findutils, so the action's own
+      # script dies with "xargs is not available" and produces no report.
+      # See https://github.com/simple-elf/allure-report-action/pull/78
       - name: Generate Allure HTML Report
-        uses: simple-elf/allure-report-action@v1.13
+        uses: simple-elf/allure-report-action@v1.15
         if: always()
         with:
           allure_results: android/app/build/outputs/allure-results

@@ -943,6 +943,7 @@ class UITestFixture {
         override fun deleteEvent(context: Context, eventId: Long) = false
         override fun getCalendarBackupInfo(context: Context, calendarId: Long) = null
         override fun findMatchingCalendarId(context: Context, backupInfo: com.github.quarck.calnotify.calendar.CalendarBackupInfo) = -1L
+        override fun findEventIdBySyncId(context: Context, calendarId: Long, syncId: String?, uid2445: String?) = -1L
         override fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int) = mapOf<Long, Int>()
     }
     
