@@ -188,6 +188,30 @@ class EventIdentityStorageRobolectricTest {
         assertEquals(0, storage.count())
     }
 
+    @Test
+    fun putAllWritesEveryRow() {
+        // Distinct from the empty-list case above, which short-circuits before
+        // reaching the DAO at all.
+        storage.putAll((1L..3L).map { identity(eventId = it) })
+
+        assertEquals(3, storage.count())
+        assertEquals("sync-abc", storage.get(2L, 1_700_000_000_000L)?.eventSyncId)
+    }
+
+    @Test
+    fun putAllReportsFailure() {
+        dao.failWith = SQLException("disk full")
+
+        assertFalse(storage.putAll(listOf(identity())))
+    }
+
+    @Test
+    fun getAllReturnsEveryStoredRow() {
+        storage.putAll((1L..3L).map { identity(eventId = it) })
+
+        assertEquals(3, storage.getAll().size)
+    }
+
     // --- The point of the facade: capture must never break the event write ---
 
     @Test
