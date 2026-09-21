@@ -131,7 +131,8 @@ ways to get visibility, in order of how much they cost:
 **1. Watch the result XMLs (no config change, works on a build already running)**
 
 ```bash
-./scripts/watch_test_progress.sh
+yarn watch:tests
+# or: node scripts/watch_test_progress.js --results <dir> --interval 15
 ```
 
 Each test class writes its JUnit XML as it finishes, so this reports
