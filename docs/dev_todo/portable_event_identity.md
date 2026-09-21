@@ -64,10 +64,10 @@ OLD DEVICE                              NEW DEVICE
 | Case | Identity rows present? | Can they be created? |
 |---|---|---|
 | Backup taken **after** this ships | Yes — captured at write time | n/a, already there |
-| Older backup, restored onto the **same** device (or one whose provider still holds those IDs) | No | **Yes** — Phase 2 backfill manufactures them from the live provider, because the stored IDs are still valid there |
+| Older backup, restored onto the **same** device (or one whose provider still holds those IDs) | No | **Yes** — the next calendar reload captures them from the live provider, because the stored IDs are still valid there |
 | Older backup, restored onto a **new** device | No | **No** — the IDs resolve to nothing or to unrelated events, so Phase 6's content heuristic is the only option |
 
-The middle row is the one worth noticing: **an old backup is not automatically a lost cause.** Restore it onto the original device, let backfill run, and the data becomes identity-bearing — and therefore portable from then on. That is a genuine migration path for data captured before this feature existed: restore old → backfill → re-backup → move.
+The middle row is the one worth noticing: **an old backup is not automatically a lost cause.** Restore it onto the original device, let a calendar reload run, and the data becomes identity-bearing — and therefore portable from then on. That is a genuine migration path for data captured before this feature existed: restore old → reload → re-backup → move.
 
 The case that truly cannot be fixed is the last one: identity was never captured, and the provider that could have supplied it is gone. That is exactly what Phase 6 exists for, and why it is best-effort rather than exact.
 
@@ -304,7 +304,7 @@ One identity row per stored event, holding **everything needed to find that even
 
 **Why store `originalCalendarId`/`originalEventId` when they duplicate the event row?** They are the staleness check. If `originalEventId` still equals the event's current `id`, resolution has not run for this row; if they differ, it already has. Without them there is no way to distinguish "never resolved" from "already resolved" — which matters because the retry loop re-runs on every launch and must not redo completed work.
 
-**Who writes it:** Phase 0 on every event add/update (fresh rows), Phase 2 backfill (pre-existing rows).
+**Who writes it:** Phase 0c, during every calendar reload. Because installing this version triggers a reload, that single mechanism covers both fresh and pre-existing events.
 
 **Who reads it:** only `EventIdentityResolver`. Nothing in normal app runtime reads this database. The app keeps using `cid`/`id` exactly as it does today; these rows lie dormant until a restore is detected or the manual re-link action runs, at which point they are the sole input to the resolution below.
 
@@ -377,7 +377,7 @@ Every failure path below leaves the row intact and retryable — nothing is ever
 ```mermaid
 flowchart TD
     A["Stored event row"] --> B{"Identity row<br/>exists?"}
-    B -->|"no (pre-Phase 0)"| Z["Skip — backfill handles it"]
+    B -->|"no (pre-Phase 0)"| Z["Skip — next reload captures it"]
     B -->|yes| C["findMatchingCalendarId<br/>(account tuple)"]
 
     C --> D{"Calendar matched?<br/>(result != -1L)"}
@@ -442,7 +442,13 @@ The key insight: the calendar half of this problem was already solved once for s
 
 **0b — Read the identifiers from the provider.** Add `Events._SYNC_ID` (primary) and `Events.UID_2445` (opportunistic) to the projection in `CalendarProvider.getEvent()` (`calendar/CalendarProvider.kt:418-439`) and expose both on `EventRecord`. Keep both nullable — never-synced events have neither.
 
-**0c — Persist it.** Write an identity row whenever an event is added or updated in `ApplicationController`, keyed `(eventId, instanceStartTime)`. Best-effort: a failure to capture identity must never fail the event write itself.
+**0c — Persist it, during the calendar reload.** Write identity rows from `CalendarReloadManager.reloadCalendarInternal`, keyed `(eventId, instanceStartTime)`.
+
+**Not from `registerNewEvent`.** That is the `EVENT_REMINDER` path, where a notification is about to fire, and identity is never urgent — it only matters at restore time, which is months away. The reload pass instead runs on a wake-locked background `IntentService`, and it *already* walks every stored event and reads each one from the provider. Since 0b put `syncId`/`uid2445` on `EventRecord`, capture needs no provider read of its own: `reloadCalendarEventAlert` takes an optional `prefetchedEvent` so the loop's single lookup serves both.
+
+Five existing triggers reach this pass — `MY_PACKAGE_REPLACED`, `PROVIDER_CHANGED`, `BOOT_COMPLETED`, `TIME_SET`, and the periodic rescan (see `docs/architecture/calendar_monitoring.md`). The first of those matters most: **installing the version with this feature is itself a trigger**, so the upgrade sweeps every pre-existing event without a separate backfill mechanism.
+
+Best-effort: a capture failure must never disturb the reload it rides along with. That includes `LinkageError` — opening the identity database loads cr-sqlite's native library, and where that is absent the first attempt throws `UnsatisfiedLinkError` while later ones throw `NoClassDefFoundError` from the cached failed class init.
 
 **Room only — do not touch the legacy storage implementations.** Legacy storage (`EventsStorageImplV9`, `DismissedEventsStorageImplV2`, `LegacyEventsStorage`) is deprecated and scheduled for removal (`docs/dev_todo/deprecated_features.md`, item 5). It exists solely as a fallback if Room migration throws. Adding identity handling there would mean writing new code on a path slated for deletion.
 
@@ -467,21 +473,17 @@ Split into two sub-phases, because the risk profile is very different:
 
 This class is the whole substance of the feature; keep it small and free of Android UI dependencies.
 
-### Phase 2: Backfill for pre-existing rows
+### Phase 2: Validating that captured identity is trustworthy
 
-Events stored before Phase 0 have no identity row. On the **original** device they can be backfilled by reading identity from the live provider — this works precisely because nothing is broken yet: the stored IDs are not stale, they are live.
+**Mostly absorbed into 0c.** Capture runs on every calendar reload, and installing this version triggers one, so pre-existing events are swept without a dedicated backfill pass. What remains is the *correctness* question that made backfill delicate in the first place.
 
-**What backfill actually requires.** Not "the original device" as such — it requires the stored `id` to still resolve correctly against whatever provider is present. That holds on the original device, and it also holds for an **older backup restored back onto that same device**, which is why that migration path works (see the three cases in the Goal).
+The hazard: capture reads the provider using the stored `id`. That is correct while the id still resolves — on the original device, or an older backup restored back onto it. On a genuinely **new** device the id points at nothing, or worse at an unrelated event the new device happened to assign that number, and capture would write identity from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered rather than skipping it.
 
-The danger is running it when the IDs *don't* resolve. On a genuinely new device, backfill would take an `id` that now points at nothing — or worse, at an unrelated event the new device happened to assign that number — query the provider with it, and write an identity row from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered instead of skipping it. Best case it never resolves; worst case it points at an unrelated event and the 1b re-key moves the row onto it.
+**So capture needs a gate that distinguishes "same provider" from "new provider"** — not merely "restored or not". A plain fingerprint-missing check is too blunt, since restoring an old backup onto the original device also clears the fingerprint, and that is exactly the case where capture should run.
 
-**The gate must therefore distinguish "same provider" from "new provider", not merely "restored or not".** A plain fingerprint-missing check is too blunt: restoring an old backup onto the original device also clears the fingerprint, and that is precisely the case we want backfill to run in.
+Use a **cheap validation sample**: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. Agreement means the ids are live and capture is safe; disagreement or empty results mean a new provider, so skip capture and leave resolution to Phases 1 and 6. The Phase 3 fingerprint stays useful as a fast path — a match means definitely the same install, no sampling needed — but a mismatch should trigger validation rather than an outright skip.
 
-So the check should be a **cheap validation sample** rather than a pure fingerprint test: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. If they agree, the IDs are live and backfill is safe. If they disagree or come back empty, treat it as a new provider and skip to the Phase 6 path. The fingerprint remains useful as a fast path — matching fingerprint means definitely same install, no sampling needed — but a mismatch should trigger validation rather than an outright skip.
-
-Consequently Phase 3's detection logic is still a prerequisite for Phase 2, but as an optimization rather than the sole gate.
-
-**What backfill can and cannot recover.** It creates identity for data whose IDs are still valid, whether that data was written here originally or restored from an older backup onto the same device. It cannot help once the IDs are meaningless — that is Phase 6's job, matching on content (`title`, `startTime`, `instanceStartTime`, `location`, `isAllDay`) rather than identity.
+**Not yet implemented.** 0c currently captures unconditionally. That is harmless until the resolver exists, since nothing reads the rows yet, but the gate must land before Phase 1 starts acting on them.
 
 ### Phase 3: Restore detection + retry
 
@@ -623,8 +625,8 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
 - **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
 - **Fingerprint is genuinely excluded from backup**: verify on an API 31+ device that a backup/restore cycle does *not* carry the fingerprint across — the failure this guards against is silent, so it needs an explicit check rather than an assumption.
-- **Backfill declines on a new provider**: validation sample disagrees (stored title/start do not match what the `id` returns) → backfill writes no identity rows. The case that would otherwise manufacture identity from meaningless IDs.
-- **Backfill proceeds on the same provider**: fingerprint cleared by a restore, but the validation sample agrees → backfill still runs. Covers restoring an older backup onto the original device, which must not be treated as a new-device restore.
+- **Capture declines on a new provider**: validation sample disagrees (stored title/start do not match what the `id` returns) → no identity rows written. The case that would otherwise manufacture identity from meaningless IDs.
+- **Capture proceeds on the same provider**: fingerprint cleared by a restore, but the validation sample agrees → capture still runs. Covers restoring an older backup onto the original device, which must not be treated as a new-device restore.
 - **Validation sample on an empty provider**: lookups return nothing → treated as a new provider, not as agreement.
 - **Heuristic match, single candidate** (Phase 6): one instance at the stored time with a matching title → resolved, and an identity row written for future restores.
 - **Heuristic match, ambiguous** (Phase 6): two same-titled instances at the same time → declined, row left unresolved. The rule that keeps a heuristic safe.
