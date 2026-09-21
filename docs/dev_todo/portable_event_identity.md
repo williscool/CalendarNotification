@@ -235,7 +235,20 @@ The long-standing Android issue is real and current: **`UID_2445` is null for ev
 
 **Caveat carried forward:** this is one device with one provider type (`com.google`). The never-synced local-event case still degrades to unresolved, exactly as the Caveats section describes — this device simply has no local-only calendars to demonstrate it. Re-run the probe on a device with Exchange or CalDAV accounts before assuming the same holds there.
 
-Reproduce with `./scripts/probe_uid2445.sh`.
+**Validated against the live app database on the same device** (368 stored events, Room active):
+
+| Check | Result |
+|---|---|
+| Stored `cid` values | 2 calendars (6, 16), both still present |
+| Stored `id` resolves in provider | 362 / 368 |
+| **Phase 2 backfill would capture `_SYNC_ID`** | **368 / 368 (100%)** |
+| Reserved `s2` column empty | 368 / 368 — the plan's premise holds |
+
+The 6 whose *instance* had vanished are snoozed occurrences of deleted recurring series; their parent event rows still exist, so backfill still reaches a `_SYNC_ID` for them. That is why backfill scores 100% while direct instance resolution scores 362.
+
+**The calendar matcher was also validated.** All 16 calendars on this device produce a **unique** tier-1 key (`account_name` + `account_type` + `ownerAccount`) — zero ambiguity, despite only two distinct account names across them. `ownerAccount` is what disambiguates, which confirms `findMatchingCalendarId`'s existing three-tier design is right for this setup rather than merely plausible.
+
+Reproduce with `./scripts/probe_uid2445.sh`. The app-database checks used `adb exec-out run-as com.github.quarck.calnotify cat databases/RoomEvents` — note `exec-out`, not `shell`, or the binary is corrupted in transit, and pull the `-wal` file too or the DB reads as malformed.
 
 #### How that was measured
 
