@@ -98,11 +98,11 @@ Phase 6 exists precisely because the precondition above will not always hold —
 | Calendar identity | Reuse `CalendarBackupInfo` (account name/type, owner, displayName, name) | Already exists, already has a tested 3-tier fallback matcher, already the proven format in settings backup. |
 | Event identity | **`Events._SYNC_ID`**, with `Events.UID_2445` read opportunistically | **Measured, not assumed:** on a real device `UID_2445` was null for all 4761 events while `_SYNC_ID` was populated and unique for 100% of them. See the probe results below. |
 | When identity is captured | On every event write (add/update), best-effort | Cheap, keeps identity fresh, and means any future backup is restorable without a migration pass. |
-| When re-resolution runs | Lazily, on a detected restore, **retrying** until resolved — plus a manual trigger | Calendars often sync onto the phone *after* our first launch, so a one-shot pass would match nothing. |
+| When re-resolution runs | On every calendar rescan, driven by a **per-event self-check** — plus a manual trigger | Each row carries the `_SYNC_ID` needed to tell on its own whether it is still pointing at the right event. No device-level restore detection is involved, so there is nothing to detect wrongly. Rescans repeat, which gives retry for free as calendars finish syncing. |
 | Manual trigger UX | Mirror the existing pull-to-refresh + overflow "Refresh" in `prefs/CalendarsActivity.kt` | That screen already requests a calendar sync then reloads, which is exactly the shape needed here. Reusing a familiar interaction beats inventing a new one. |
 | Unmatched events | Leave the event row intact with its stale ID, keep the identity row, mark unresolved | Matches the existing fail-soft convention (`reloadCalendarEventAlertFromEvent` returns `NoChange` rather than deleting). Never destroy user data because a match failed. |
 | Storage scope | **Room implementations only** | Legacy storage is deprecated and scheduled for removal (`deprecated_features.md` item 5). It's a migration-failure fallback; new code there would be written to be deleted. |
-| Restore detection | Compare a stored install fingerprint against the current one | Cheap and reliable. Auto-backup deliberately excludes `events_storage_state.xml`, so a prefs-based marker is a proven pattern here. |
+| Restore detection | **None — deliberately removed.** Staleness is a per-event property, established by comparing the stored `_SYNC_ID` against the provider | Two attempts at device-level detection were built and reverted; both mistook "legitimately absent" for "wrong device" (see below). The comparison is direct evidence about one row, and cannot be poisoned by another row. |
 
 ## Design Decisions
 
@@ -114,7 +114,7 @@ The reserved columns (`i2`–`i8`, `s2`) are a small, finite, one-time resource 
 
 Portable identity is none of those:
 
-- **It is not read on the hot path.** Nothing in normal app runtime touches it. Only `EventIdentityResolver` reads it, and only on a detected restore or a manual re-link.
+- **It is not read on the hot path.** Nothing in normal app runtime touches it. It is read by the self-check on the background rescan pass, and by `EventIdentityResolver` for the rows that pass reports stale.
 - **It does not need to be in the same row.** It is keyed by `(eventId, instanceStartTime)` and can be joined when needed.
 - **It should not travel to Supabase.** The sync layer targets the `eventsV9` table by name, so keeping identity out of that table keeps it out of the sync payload by construction — which is what we want, since the blob contains account emails.
 
@@ -310,9 +310,52 @@ One identity row per stored event, holding **everything needed to find that even
 
 **What it is not:** not a cache of event content. Title, times, and location live in their own columns in `eventsV9` and are refreshed from the provider by the normal reload path. Duplicating them here would create a second source of truth that could drift.
 
+### How staleness is detected: the per-event self-check
+
+This is the mechanism the whole feature turns on, and it replaces two earlier designs that were built and reverted.
+
+**The question to answer is not "is this device restored?"** It is "does this row still point at the right event?" — which is narrower, answerable from data the row already carries, and answerable independently for each row.
+
+Each stored event is checked against the provider using its own stored identity:
+
+```
+stored row:  cid=6  id=4291        identity row:  syncId="abc123xyz"
+
+provider.getEvent(4291) returns:
+  null                       -> stale     (id no longer exists here)
+  an event, syncId differs   -> stale     (id now belongs to a different event)
+  an event, syncId matches   -> current   (nothing to do)
+  no stored syncId           -> skip      (nothing to compare, nothing to resolve)
+```
+
+On the original device every row reports *current*, and the check costs one provider read per event — the same read capture already performs today, so this replaces that cost rather than adding to it. On a restored device every row reports *stale*, and resolution proceeds.
+
+#### Why device-level restore detection was abandoned
+
+Two mechanisms were implemented and reverted. Both tried to infer a device-wide fact from indirect evidence, and both failed the same way — by treating a legitimately absent value as proof the device was wrong:
+
+| Attempt | Inference | Failed on |
+|---|---|---|
+| Install fingerprint | "fingerprint missing ⇒ restored" | ordinary app upgrade, OS update — a long-time user with 368 events and no fingerprint yet would have had capture disabled permanently |
+| Validation sample | "provider does not recognise these ids ⇒ restored" | a single local-only event returns null from `getEvent()`, poisoning the sample and disabling capture for every event on a perfectly healthy device |
+
+The self-check has no equivalent failure mode because the blast radius of a wrong answer is one row. A row with no stored `syncId` is skipped; it cannot cause a neighbouring row to be misjudged.
+
+#### `BackupAgent.onRestoreFinished()` is not the mechanism
+
+`BackupAgent.onRestoreFinished()` is the platform's own "a restore just happened" callback, and it was considered as ground truth to replace the two failed heuristics. It is **not** part of this design, for a reason specific to how this app is distributed:
+
+This app is not on the Play Store, so Pixel-to-Pixel transfer does not install it. The real-world path is: transfer stages the data, the user sideloads the APK, and the data appears at install time. Whether `onRestoreFinished()` fires for a restore-at-install of a sideloaded package is **unverified**, and that path is not an edge case here — it is the primary one. A callback that silently never fires would be worse than a heuristic, because the feature would look implemented while doing nothing.
+
+`adb backup`/`adb restore` is similarly unreliable: API 31+ excludes app data from `adb backup` altogether unless the app is `debuggable`, so there may be no data to restore and no callback to fire.
+
+The self-check needs none of this. It works identically for cloud restore, cable transfer, sideload-then-restore, `adb`, and a manually copied database file, because it never asks how the data arrived.
+
+If verification later shows the callback does fire on the sideload path, it can be added as a pure **optimisation** — a hint that lets the app skip straight to resolution instead of discovering staleness row by row. It must never become the thing resolution depends on.
+
 ### Resolution strategy
 
-Resolution consumes the identity rows described above. A restored event needs two lookups, in order:
+Resolution consumes the identity rows described above. An event the self-check reported as *stale* needs two lookups, in order:
 
 1. **Calendar**: `findMatchingCalendarId(context, storedBackupInfo)` → new `cid`. Reuses the existing 3-tier matcher untouched.
 2. **Event**: query `Events.CONTENT_URI` for `_sync_id = ? AND CALENDAR_ID = ?` (scoped to the just-matched calendar to avoid cross-calendar collisions) → new `id`. Fall back to `UID_2445` where the stored row has one.
@@ -378,7 +421,11 @@ Every failure path below leaves the row intact and retryable — nothing is ever
 flowchart TD
     A["Stored event row"] --> B{"Identity row<br/>exists?"}
     B -->|"no (pre-Phase 0)"| Z["Skip — next reload captures it"]
-    B -->|yes| C["findMatchingCalendarId<br/>(account tuple)"]
+    B -->|yes| SC{"Self-check:<br/>provider syncId for<br/>stored id"}
+
+    SC -->|"matches"| CUR["Current — refresh<br/>identity, done"]
+    SC -->|"no stored syncId"| Z2["Skip — nothing<br/>to resolve against"]
+    SC -->|"differs / id gone"| C["findMatchingCalendarId<br/>(account tuple)"]
 
     C --> D{"Calendar matched?<br/>(result != -1L)"}
     D -->|"no / -1L"| Y["Unresolved — keep row,<br/>cid untouched, retry"]
@@ -439,12 +486,14 @@ Phases are numbered in the order they should be built. Each depends on the ones 
 | Phase | Status |
 |---|---|
 | **0** — capture identity | ✅ merged (#277, #279) |
-| **1** — validate stored ids before capture | in review (#280) |
-| **2** — validate captured identity | next |
+| **1** — backup rules for Android 12+ | in review (#280) |
+| **2** — per-event self-check | next |
 | **3** — resolution engine | |
 | **4** — per-calendar settings repair | |
 | **5** — manual trigger | |
 | **6** — best-effort heuristic | optional |
+
+**Phases 1 and 2 were previously "restore detection" and "validate captured identity".** Both were built on device-level restore detection, which is no longer part of the design — see *How staleness is detected* above. Phase 1 keeps only the backup-rules fix, which is still needed on its own merits; Phase 2 is now the self-check.
 
 ### Phase 0: Capture identity at write time
 
@@ -468,15 +517,13 @@ The consequence is acceptable: on the legacy fallback path no identity rows are 
 
 **Checkpoint:** new events written on this device get an identity row. Pre-existing events have none — expected, and handled in Phase 2.
 
-### Phase 1: Restore detection + retry
+### Phase 1: Make the identity database actually survive a restore on Android 12+
 
-The fingerprint check here feeds Phase 2's gate as a fast path. Note Phase 2 does not rely on it alone — see the validation-sample check there, which is what allows an old backup restored onto the same device to still backfill.
+No restore *detection* here — that idea is gone. What remains is a real prerequisite that has to be right before anything downstream can work: **the identity database must be included in the backup on modern Android**, on both the cloud and cable paths.
 
-Store an install fingerprint in its own SharedPreferences file that must **not** survive a restore. Absent/mismatched fingerprint on launch ⇒ treat as a restore and mark all events pending re-resolution.
+#### `backup_rules.xml` is not read on Android 12+
 
-#### Prerequisite: `backup_rules.xml` is not read on Android 12+
-
-This must be fixed **before** restore detection works at all, and it is easy to miss because the current setup only appears to work.
+This is easy to miss because the current setup happens to work by accident rather than by declaration.
 
 The manifest declares the legacy attribute only:
 
@@ -487,46 +534,63 @@ android:fullBackupContent="@xml/backup_rules"
 
 but `targetSdkVersion = 36`. `fullBackupContent` applies to **API 30 and below**; API 31+ reads `android:dataExtractionRules`, which is not declared. With it absent the platform falls back to its default — back up everything except no-backup and cache dirs.
 
-That has been harmless so far because `backup_rules.xml` is almost entirely `<include>`, and "include everything" is a superset of that. It stops being harmless here: **Phase 3 is the first thing in this codebase that needs an `<exclude>`.** On any Android 12+ device the fingerprint would be backed up with everything else, always match on launch, and a restore would never be detected — leaving Phases 1, 2 and 5 waiting for a signal that never fires. The feature would fail silently, which is the worst way for it to fail.
+That has been harmless so far, because `backup_rules.xml` is entirely `<include>` and the platform default ("everything except no-backup and cache dirs") is a superset of it. The identity database is therefore *already* being backed up on Android 12+ today — by default rather than by declaration.
 
-The fix, as Phase 3's first step:
+Relying on that default is still the wrong place to leave this feature. The whole design assumes the identity database arrives beside the events it describes; that assumption belongs in the manifest, not inherited from a platform default that can change and that no test covers. Declaring it also makes the cable-transfer path explicit, which is the path the user actually used.
+
+The fix:
 
 1. Add `res/xml/data_extraction_rules.xml` and declare `android:dataExtractionRules` alongside the existing `fullBackupContent` — keep both, since API 24–30 devices still read the old one.
-2. Exclude the fingerprint prefs from `<cloud-backup>`.
-3. Exclude it from `<device-transfer>` as well.
+2. Include the databases in `<cloud-backup>`.
+3. Include them in `<device-transfer>` too.
 
 ```xml
 <data-extraction-rules>
   <cloud-backup>
     <include domain="database" path="." />
-    <exclude domain="sharedpref" path="install_fingerprint.xml" />
+    <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
   </cloud-backup>
   <device-transfer>
     <include domain="database" path="." />
-    <exclude domain="sharedpref" path="install_fingerprint.xml" />
+    <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
   </device-transfer>
 </data-extraction-rules>
 ```
 
-**`<device-transfer>` matters on its own.** Android 12 split direct phone-to-phone transfer (the setup-wizard cable flow) from cloud backup, with independent rules. Excluding only from `<cloud-backup>` would leave the cable path undetected — and that path is a very common way to reach exactly the scenario this feature exists for.
+**`<device-transfer>` matters on its own.** Android 12 split direct phone-to-phone transfer (the setup-wizard cable flow) from cloud backup, with independent rule sets. That is the path the user took, and it is the common way to reach exactly the scenario this feature exists for.
 
-**Carry the `<include>` into both sections.** Once a `data-extraction-rules` file exists, the platform default no longer applies, so the database include must be repeated in both blocks. Omitting it from either one would silently stop backing up the identity database on that path, which breaks the feature quietly — the identity DB is useless unless it restores alongside the events it describes.
+**Carry every `<include>` into both sections.** Once a `data-extraction-rules` file exists the platform default no longer applies, so each include must be repeated in both blocks. Omitting one would silently stop backing up the identity database on that path — and the identity database is useless unless it restores alongside the events it describes.
 
-**Note on the `EventsStorageState` precedent.** Its doc comment claims *"This prefs file is NOT in backup_rules.xml, so it won't be backed up"* — that is no longer true on API 31+, for exactly the reason above. It is a pre-existing bug and out of scope here, but it means the pattern should not be cited as proven. Worth filing separately.
+**No `<exclude>` entries.** Earlier drafts needed one, to stop an install fingerprint from surviving a restore. That mechanism is gone, and with it the only reason this app had to exclude anything.
 
-Retry semantics: keep pending events marked until each resolves, re-attempting on app start and after calendar rescans, rather than burning the attempt once. Cap attempts with a backoff so a permanently-unmatchable event doesn't re-query forever.
+**Note on the `EventsStorageState` precedent.** Its doc comment claims *"This prefs file is NOT in backup_rules.xml, so it won't be backed up"* — no longer true on API 31+, for exactly the reason above. Adding a rules file that does not exclude it makes nothing worse (the default was already backing it up), but it does leave a misleading comment in place. Pre-existing bug, out of scope, worth filing separately.
 
-### Phase 2: Validating that captured identity is trustworthy
+#### One caveat this app cannot fix
 
-**Mostly absorbed into 0c.** Capture runs on every calendar reload, and installing this version triggers one, so pre-existing events are swept without a dedicated backfill pass. What remains is the *correctness* question that made backfill delicate in the first place.
+The app is not on the Play Store, so a Pixel-to-Pixel transfer stages the data but does not install the APK. The user sideloads it afterwards, and the data appears at that point. That works — it is what happened on the user's own transfer — but it depends on the staged data still being present when the APK is installed. If the staging window has expired, no identity data arrives, and Phase 6's heuristic is the only remaining recourse. Nothing in the manifest changes this.
 
-The hazard: capture reads the provider using the stored `id`. That is correct while the id still resolves — on the original device, or an older backup restored back onto it. On a genuinely **new** device the id points at nothing, or worse at an unrelated event the new device happened to assign that number, and capture would write identity from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered rather than skipping it.
+### Phase 2: Per-event self-check
 
-**So capture needs a gate that distinguishes "same provider" from "new provider"** — not merely "restored or not". A plain fingerprint-missing check is too blunt, since restoring an old backup onto the original device also clears the fingerprint, and that is exactly the case where capture should run.
+The mechanism described in *How staleness is detected* above. This is what tells the resolver which rows to act on, and it replaces both reverted restore-detection attempts.
 
-Use a **cheap validation sample**: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. Agreement means the ids are live and capture is safe; disagreement or empty results mean a new provider, so skip capture and leave resolution to Phases 3 and 6. 
+For each stored event, compare the provider's answer for the stored `id` against the stored `_SYNC_ID`:
 
-**Implemented in Phase 1** (#280) as a validation sample rather than a fingerprint check; see `storedIdsBelongToThisProvider`. Originally 0c captured unconditionally. That is harmless until the resolver exists, since nothing reads the rows yet, but the gate must land before Phase 3 starts acting on them.
+| Provider returns | Stored syncId | Verdict |
+|---|---|---|
+| nothing | any | **stale** — re-resolve |
+| an event | differs | **stale** — re-resolve |
+| an event | matches | current — no action |
+| anything | absent | skip — nothing to compare or resolve against |
+
+**Where it runs.** The same place capture runs today: the end of `CalendarMonitorService.onHandleIntent`, inside the existing wake lock. That pass already walks every stored event, so the self-check replaces capture's provider read rather than adding a second one.
+
+**Capture and self-check are the same walk.** A row that reports *current* gets its identity refreshed (cheap, keeps the account tuple fresh if a calendar is renamed). A row that reports *stale* must **not** be captured — its `id` resolves to the wrong event, and writing identity from that would be actively harmful: the row would then carry a plausible-looking identity that points at someone else's event. Stale rows are handed to the resolver instead.
+
+That replaces the "gate" the two failed attempts were trying to build. There is no device-wide decision to make — each row decides for itself, in the same loop, from direct evidence.
+
+**Expected outcome on the user's device:** 368 rows, all with a populated `_SYNC_ID`, all reporting *current*. On a restored device: all reporting *stale*, all resolvable.
+
+**Testable without any hardware.** Feed a mock provider that returns a different `syncId` for the stored ids and assert every row reports *stale*; return matching ones and assert all report *current*. Neither needs a real restore, which is what makes this phase verifiable now rather than whenever a phone is free.
 
 ### Phase 3: Resolution engine
 
@@ -547,7 +611,7 @@ This class is the whole substance of the feature; keep it small and free of Andr
 
 ### Phase 4: Per-calendar settings repair
 
-On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to their new IDs using the same matcher. `SettingsBackupManager.importCalendarSettings()` (`backup/SettingsBackupManager.kt:388-435`) already does exactly this from a JSON file — the logic should be extracted and shared rather than duplicated.
+When the self-check reports stale rows, rewrite the orphaned `calendar_handled_.<oldId>` keys to their new IDs using the same matcher. Driven by the calendar half of resolution (Phase 3a), which is where the old→new calendar id mapping is already computed. `SettingsBackupManager.importCalendarSettings()` (`backup/SettingsBackupManager.kt:388-435`) already does exactly this from a JSON file — the logic should be extracted and shared rather than duplicated.
 
 ### Phase 5: Manual trigger
 
@@ -606,8 +670,8 @@ Those limits are acceptable *because the alternative is nothing*. The failure mo
 | `app/ApplicationController.kt` | Write identity rows on event add/update; **fix `restoreToActive()` (line 1321) to use the stored identity instead of re-querying the stale ID** |
 | `backup/SettingsBackupManager.kt` | Extract calendar-remap logic for reuse in Phase 5 |
 | `prefs/MiscSettingsFragmentX.kt` | Manual re-link action |
-| `res/xml/backup_rules.xml` | Exclude the fingerprint prefs (API 30 and below) |
-| `res/xml/data_extraction_rules.xml` | **New** — API 31+ backup rules; include the databases and exclude the fingerprint in *both* `<cloud-backup>` and `<device-transfer>` |
+| `res/xml/data_extraction_rules.xml` | **New** — API 31+ backup rules; include the databases in *both* `<cloud-backup>` and `<device-transfer>`. No excludes. |
+| `AndroidManifest.xml` | Declare `android:dataExtractionRules` alongside the existing `fullBackupContent` |
 | `android/app/src/main/AndroidManifest.xml` | Declare `android:dataExtractionRules` alongside the existing `fullBackupContent` |
 | `res/values/strings.xml` | Strings for the action + result dialog |
 | `eventsstorage/EventAlertDao.kt`, `RoomEventsStorage.kt` | Transactional re-key (delete + insert) for a changed `id` |
@@ -635,11 +699,12 @@ Tests first, per `AGENTS.md`. `MockCalendarProvider` (`test/.../testutils/MockCa
 - **Orphaned monitor alert regression guard**: re-keyed event can still `restoreToUpcoming` — i.e. `clearWasHandled` finds its alert. This is the concrete failure the cross-DB work exists to prevent.
 - **Backfill**: pre-existing event + live provider → identity row created.
 - **Settings repair**: orphaned `calendar_handled_.N` keys remapped; unmatched ones reported.
-- **Restore detection**: fingerprint absent/mismatched ⇒ restore; matching ⇒ no-op.
-- **Fingerprint is genuinely excluded from backup**: verify on an API 31+ device that a backup/restore cycle does *not* carry the fingerprint across — the failure this guards against is silent, so it needs an explicit check rather than an assumption.
-- **Capture declines on a new provider**: validation sample disagrees (stored title/start do not match what the `id` returns) → no identity rows written. The case that would otherwise manufacture identity from meaningless IDs.
-- **Capture proceeds on the same provider**: fingerprint cleared by a restore, but the validation sample agrees → capture still runs. Covers restoring an older backup onto the original device, which must not be treated as a new-device restore.
-- **Validation sample on an empty provider**: lookups return nothing → treated as a new provider, not as agreement.
+- **Self-check, healthy device**: provider returns the stored `syncId` for every stored `id` → every row reports *current*, no resolution attempted, identity refreshed in place.
+- **Self-check, restored device**: provider returns a *different* `syncId` for the stored ids → every row reports *stale*. The whole feature's trigger condition, with no restore detection involved.
+- **Self-check, id gone**: provider returns nothing for the stored `id` → *stale*. Distinct from the case above because it takes a different branch.
+- **Self-check declines to capture a stale row**: a row reporting *stale* must not have identity written from what its `id` currently returns. The regression guard against manufacturing identity that points at an unrelated event.
+- **Self-check skips a row with no stored syncId**: reports *skip*, and — critically — **the rows around it still report normally**. This is the exact failure that killed the validation-sample attempt, so it is asserted directly: one unidentifiable row must not change any other row's verdict.
+- **Mixed batch**: current, stale, and skip rows in one pass → each gets its own verdict and only the stale ones are handed to the resolver.
 - **Heuristic match, single candidate** (Phase 6): one instance at the stored time with a matching title → resolved, and an identity row written for future restores.
 - **Heuristic match, ambiguous** (Phase 6): two same-titled instances at the same time → declined, row left unresolved. The rule that keeps a heuristic safe.
 - **Heuristic skips recurring** (Phase 6): `isRepeating` row → not attempted at all, regardless of how good the candidate looks.
@@ -676,3 +741,4 @@ Per `docs/build/wsl_unison_environment.md`, instrumentation runs from Windows (`
 
 - Should a restored-but-unresolved event be visually marked in the list (e.g. the existing `calendarId = -1` "calendar not found" treatment via `createCalendarNotFoundCal`), or stay silent until it resolves? Leaning silent, since the retry usually resolves it within a sync cycle or two.
 - Dismissed events get identity rows for symmetry, but they are historical. Worth confirming whether re-resolving them is wanted at all, or whether capture alone is enough there.
+- **Does `BackupAgent.onRestoreFinished()` fire when a sideloaded APK picks up staged transfer data?** Unanswered, and answering it needs real hardware. Nothing in this plan depends on the answer — the self-check works either way. A "yes" would only buy an optimisation: skip straight to resolution instead of discovering staleness row by row. Deferred until a phone is free; see *`BackupAgent.onRestoreFinished()` is not the mechanism*.
