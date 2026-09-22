@@ -428,9 +428,6 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         DevLog.debug(LOG_TAG, "calendarReloadFromService: ${changes}")
 
-        // Separate pass, after the reload is completely done. Cannot affect it.
-        captureEventIdentities(context)
-
         if (changes) {
             notificationManager.postEventNotifications(
                     context,
@@ -446,6 +443,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         else {
             DevLog.debug(LOG_TAG, "No calendar changes detected")
         }
+
     }
 
   override fun onCalendarEventMovedWithinApp(context: Context, oldEvent: EventRecord, newEvent: EventRecord) {
