@@ -125,7 +125,7 @@ That last point inverts an argument from the earlier revision. Using `s2` was or
 Less than it might appear, because the infrastructure is already in place:
 
 - **No schema migration.** A brand-new database starts at `version = 1` with no legacy predecessor and no copy-migration step — strictly simpler than the existing three, which all carry legacy baggage. `monitorstorage/MonitorDatabase.kt` is the closest template: single entity, `version = 1`, `exportSchema = false`.
-- **Backed up by default today, but this needs care.** Any new database file is currently covered — though on Android 12+ that is because the platform backs up everything when `dataExtractionRules` is absent, *not* because `backup_rules.xml`'s `<include domain="database" path="." />` is read (it isn't; see Phase 3). Once Phase 3 adds a `data-extraction-rules` file, that include must be repeated in **both** the `<cloud-backup>` and `<device-transfer>` sections, or the identity DB silently stops being backed up on one path. This is essential — the identity DB is useless unless it restores alongside the events it describes.
+- **Backed up by default today, but this needs care.** Any new database file is currently covered — though on Android 12+ that is because the platform backs up everything when `dataExtractionRules` is absent, *not* because `backup_rules.xml`'s `<include domain="database" path="." />` is read (it isn't; see Phase 1). Once Phase 1 adds a `data-extraction-rules` file, that include must be repeated in **both** the `<cloud-backup>` and `<device-transfer>` sections, or the identity DB silently stops being backed up on one path. This is essential — the identity DB is useless unless it restores alongside the events it describes.
 - **No sync impact.** PowerSync/cr-sqlite is wired to `eventsV9` explicitly (`src/lib/features/SetupSync.tsx`, `src/lib/powersync/Schema.tsx`); a new table is invisible to it.
 
 The real cost is the one inherent to this codebase: **a fourth separate database file means a fourth store with no cross-database transactions.** Identity rows can drift from the events they describe — e.g. an event is deleted but its identity row lingers. This is tolerable because identity rows are pure derived metadata: an orphaned one is harmless, and the resolver ignores identity with no matching event. A periodic cleanup pass can prune orphans opportunistically; correctness never depends on it.
@@ -148,7 +148,7 @@ One table, keyed to match `eventsV9`'s primary key so rows join cleanly. One col
 | `originalCalendarId` | Long | The `cid` in force when this row was captured |
 | `originalEventId` | Long | The `id` in force when this row was captured |
 | `capturedAtTime` | Long | Via `CNPlusClockInterface`, never `System.currentTimeMillis()` |
-| `resolutionAttemptCount` | Int | Backs the Phase 3 retry cap |
+| `resolutionAttemptCount` | Int | Backs the Phase 1 retry cap |
 | `lastResolutionAttemptTime` | Long | Backs the retry backoff |
 
 **Spell the names out.** The `eventsV9` abbreviations (`cid`, `istart`, `dsts`, `attsts`) are a 2016 inheritance that is now costly to change and easy to misread — `attsts` vs `oattsts` being the worst case. This table is new, so it carries no such constraint: the five calendar columns map one-to-one onto the `CalendarContract.Calendars` columns they come from and are named to make that obvious. The storage cost of long column names is per-schema, not per-row.
@@ -228,7 +228,7 @@ The long-standing Android issue is real and current: **`UID_2445` is null for ev
 2. **The exact-match path survives intact.** This was the real risk the probe existed to check, and it came back fine: there *is* a stable, server-assigned, unique per-event identifier. Only its name changes.
 3. **Phase 6 stays optional.** It is still the fallback for missing identity, not the primary mechanism.
 
-**Recurring events behave well**, which matters for the Phase 1b re-key:
+**Recurring events behave well**, which matters for the re-key in Phase 3:
 
 - A recurring series has **one** `_SYNC_ID` for the parent event, not one per instance — so `(sync_id, instanceStartTime)` identifies a specific occurrence.
 - Recurrence **exceptions** (1021 of them here) carry `original_sync_id` pointing at the parent series, so a modified single occurrence stays traceable.
@@ -241,7 +241,7 @@ The long-standing Android issue is real and current: **`UID_2445` is null for ev
 |---|---|
 | Stored `cid` values | 2 calendars (6, 16), both still present |
 | Stored `id` resolves in provider | 362 / 368 |
-| **Phase 2 backfill would capture `_SYNC_ID`** | **368 / 368 (100%)** |
+| **Capture would reach `_SYNC_ID`** | **368 / 368 (100%)** |
 | Reserved `s2` column empty | 368 / 368 — the plan's premise holds |
 
 The 6 whose *instance* had vanished are snoozed occurrences of deleted recurring series; their parent event rows still exist, so backfill still reaches a `_SYNC_ID` for them. That is why backfill scores 100% while direct instance resolution scores 362.
@@ -434,19 +434,17 @@ The key insight: the calendar half of this problem was already solved once for s
 
 ## Implementation Plan
 
-**Build order is not phase order.** The numbers below were assigned by conceptual flow when this plan was first written; review since then reshaped the dependencies twice. Build in this order:
+Phases are numbered in the order they should be built. Each depends on the ones before it.
 
-| Order | Phase | Why here |
-|---|---|---|
-| 1 | **3** — backup rules + restore detection | `backup_rules.xml` is not read on API 31+, so *nothing* downstream can detect a restore until this lands |
-| 2 | **2** — validation gate on capture | Capture is currently unconditional; the resolver must not act on identity captured against a foreign provider |
-| 3 | **1** — resolution engine | Needs both of the above to be correct |
-| 4 | **5** — per-calendar settings repair | Reuses Phase 1's matcher |
-| 5 | **4** — manual trigger | Wants something observable to report |
-| 6 | **6** — best-effort heuristic (optional) | Independent; decide after measuring how much Phase 1 recovers |
-
-Phase 0 is **complete and merged** (#277, #279).
-
+| Phase | Status |
+|---|---|
+| **0** — capture identity | ✅ merged (#277, #279) |
+| **1** — restore detection | in review (#280) |
+| **2** — validate captured identity | next |
+| **3** — resolution engine | |
+| **4** — per-calendar settings repair | |
+| **5** — manual trigger | |
+| **6** — best-effort heuristic | optional |
 
 ### Phase 0: Capture identity at write time
 
@@ -470,44 +468,15 @@ The consequence is acceptable: on the legacy fallback path no identity rows are 
 
 **Checkpoint:** new events written on this device get an identity row. Pre-existing events have none — expected, and handled in Phase 2.
 
-### Phase 1: Resolution engine
+### Phase 1: Restore detection + retry
 
-New `calendar/EventIdentityResolver.kt` — pure orchestration, no UI, constructor-injected `CalendarProviderInterface` and `CNPlusClockInterface` so it's Robolectric-testable (per `docs/testing/dependency_injection_patterns.md`).
-
-Responsibilities:
-- Given a stored record + its identity row, resolve `(newCalendarId, newEventId)` — **lookup only, no writes**.
-- Report a typed outcome: resolved / unresolved-calendar / unresolved-event / no-identity-stored / already-current.
-- Apply the resolution, in the order established in Design Decisions: commit the safe `cid` update first, then attempt the `id` re-key only when a replacement was positively identified.
-
-Split into two sub-phases, because the risk profile is very different:
-
-**1a — `cid` only.** Plain column update, no PK change, no cross-database fallout. This alone fixes calendar attribution, filter pills, and per-calendar settings. Independently shippable and independently testable.
-
-**1b — `id` re-key.** The delete+re-insert, transactional per event. Must also re-key the event's own identity row plus the matching rows in `manualAlertsV1` and `dismissedEventsV2` — four databases, no shared transaction, so follow the manual-rollback pattern in `ApplicationController.unsnoozeToUpcoming`. Land this only once 1a is solid.
-
-This class is the whole substance of the feature; keep it small and free of Android UI dependencies.
-
-### Phase 2: Validating that captured identity is trustworthy
-
-**Mostly absorbed into 0c.** Capture runs on every calendar reload, and installing this version triggers one, so pre-existing events are swept without a dedicated backfill pass. What remains is the *correctness* question that made backfill delicate in the first place.
-
-The hazard: capture reads the provider using the stored `id`. That is correct while the id still resolves — on the original device, or an older backup restored back onto it. On a genuinely **new** device the id points at nothing, or worse at an unrelated event the new device happened to assign that number, and capture would write identity from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered rather than skipping it.
-
-**So capture needs a gate that distinguishes "same provider" from "new provider"** — not merely "restored or not". A plain fingerprint-missing check is too blunt, since restoring an old backup onto the original device also clears the fingerprint, and that is exactly the case where capture should run.
-
-Use a **cheap validation sample**: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. Agreement means the ids are live and capture is safe; disagreement or empty results mean a new provider, so skip capture and leave resolution to Phases 1 and 6. The Phase 3 fingerprint stays useful as a fast path — a match means definitely the same install, no sampling needed — but a mismatch should trigger validation rather than an outright skip.
-
-**Not yet implemented.** 0c currently captures unconditionally. That is harmless until the resolver exists, since nothing reads the rows yet, but the gate must land before Phase 1 starts acting on them.
-
-### Phase 3: Restore detection + retry
-
-The fingerprint check here feeds Phase 2's gate as a fast path, so build it first even though it is numbered later. Note Phase 2 does not rely on it alone — see the validation-sample check there, which is what allows an old backup restored onto the same device to still backfill.
+The fingerprint check here feeds Phase 2's gate as a fast path. Note Phase 2 does not rely on it alone — see the validation-sample check there, which is what allows an old backup restored onto the same device to still backfill.
 
 Store an install fingerprint in its own SharedPreferences file that must **not** survive a restore. Absent/mismatched fingerprint on launch ⇒ treat as a restore and mark all events pending re-resolution.
 
 #### Prerequisite: `backup_rules.xml` is not read on Android 12+
 
-This must be fixed **before** Phase 3 works at all, and it is easy to miss because the current setup only appears to work.
+This must be fixed **before** restore detection works at all, and it is easy to miss because the current setup only appears to work.
 
 The manifest declares the legacy attribute only:
 
@@ -547,13 +516,42 @@ The fix, as Phase 3's first step:
 
 Retry semantics: keep pending events marked until each resolves, re-attempting on app start and after calendar rescans, rather than burning the attempt once. Cap attempts with a backoff so a permanently-unmatchable event doesn't re-query forever.
 
-### Phase 4: Manual trigger
+### Phase 2: Validating that captured identity is trustworthy
 
-Mirror `prefs/CalendarsActivity.kt:196-243`: a "Re-link events to calendars" action that requests a calendar sync, waits, then runs the resolver and reports counts (`resolved / unresolved`), reusing the `ImportStats`-style feedback shape from `backup/SettingsBackupManager.kt`. Placement next to the existing export/import entries in `prefs/MiscSettingsFragmentX.kt` is the natural home.
+**Mostly absorbed into 0c.** Capture runs on every calendar reload, and installing this version triggers one, so pre-existing events are swept without a dedicated backfill pass. What remains is the *correctness* question that made backfill delicate in the first place.
 
-### Phase 5: Per-calendar settings repair
+The hazard: capture reads the provider using the stored `id`. That is correct while the id still resolves — on the original device, or an older backup restored back onto it. On a genuinely **new** device the id points at nothing, or worse at an unrelated event the new device happened to assign that number, and capture would write identity from whatever came back. That is worse than doing nothing: the event would then *have* an identity row, so the resolver treats it as covered rather than skipping it.
+
+**So capture needs a gate that distinguishes "same provider" from "new provider"** — not merely "restored or not". A plain fingerprint-missing check is too blunt, since restoring an old backup onto the original device also clears the fingerprint, and that is exactly the case where capture should run.
+
+Use a **cheap validation sample**: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. Agreement means the ids are live and capture is safe; disagreement or empty results mean a new provider, so skip capture and leave resolution to Phases 3 and 6. The Phase 1 fingerprint stays useful as a fast path — a match means definitely the same install, no sampling needed — but a mismatch should trigger validation rather than an outright skip.
+
+**Implemented in Phase 1** (#280) as a validation sample rather than a fingerprint check; see `storedIdsBelongToThisProvider`. Originally 0c captured unconditionally. That is harmless until the resolver exists, since nothing reads the rows yet, but the gate must land before Phase 3 starts acting on them.
+
+### Phase 3: Resolution engine
+
+New `calendar/EventIdentityResolver.kt` — pure orchestration, no UI, constructor-injected `CalendarProviderInterface` and `CNPlusClockInterface` so it's Robolectric-testable (per `docs/testing/dependency_injection_patterns.md`).
+
+Responsibilities:
+- Given a stored record + its identity row, resolve `(newCalendarId, newEventId)` — **lookup only, no writes**.
+- Report a typed outcome: resolved / unresolved-calendar / unresolved-event / no-identity-stored / already-current.
+- Apply the resolution, in the order established in Design Decisions: commit the safe `cid` update first, then attempt the `id` re-key only when a replacement was positively identified.
+
+Split into two sub-phases, because the risk profile is very different:
+
+**3a — `cid` only.** Plain column update, no PK change, no cross-database fallout. This alone fixes calendar attribution, filter pills, and per-calendar settings. Independently shippable and independently testable.
+
+**3b — `id` re-key.** The delete+re-insert, transactional per event. Must also re-key the event's own identity row plus the matching rows in `manualAlertsV1` and `dismissedEventsV2` — four databases, no shared transaction, so follow the manual-rollback pattern in `ApplicationController.unsnoozeToUpcoming`. Land this only once 3a is solid.
+
+This class is the whole substance of the feature; keep it small and free of Android UI dependencies.
+
+### Phase 4: Per-calendar settings repair
 
 On a detected restore, rewrite orphaned `calendar_handled_.<oldId>` keys to their new IDs using the same matcher. `SettingsBackupManager.importCalendarSettings()` (`backup/SettingsBackupManager.kt:388-435`) already does exactly this from a JSON file — the logic should be extracted and shared rather than duplicated.
+
+### Phase 5: Manual trigger
+
+Mirror `prefs/CalendarsActivity.kt:196-243`: a "Re-link events to calendars" action that requests a calendar sync, waits, then runs the resolver and reports counts (`resolved / unresolved`), reusing the `ImportStats`-style feedback shape from `backup/SettingsBackupManager.kt`. Placement next to the existing export/import entries in `prefs/MiscSettingsFragmentX.kt` is the natural home.
 
 ### Phase 6: Best-effort recovery when there is no identity (optional)
 
@@ -568,7 +566,7 @@ Phases 0–5 all depend on the precondition in the Goal: identity was captured o
 3. Filter candidates by exact `title` match, then `isAllDay`, then `location` where present.
 4. Accept **only when exactly one candidate survives.** Two or more ⇒ ambiguous ⇒ leave unresolved.
 
-Once matched, the row yields both a real `eventId` and its `calendarId`, and can be re-keyed through the same Phase 1b machinery — and an identity row can be written for it, so it is protected against the *next* restore.
+Once matched, the row yields both a real `eventId` and its `calendarId`, and can be re-keyed through the same Phase 3b machinery — and an identity row can be written for it, so it is protected against the *next* restore.
 
 **Why this is optional and best-effort.** Unlike the UID match, which is exact, this is a genuine heuristic with known gaps:
 
@@ -578,7 +576,7 @@ Once matched, the row yields both a real `eventId` and its `calendarId`, and can
 
 Those limits are acceptable *because the alternative is nothing*. The failure mode is "still unresolved" — exactly where the row already sits — so this pass can only improve matters, never worsen them, provided the skip and single-candidate rules stay strict. Best-effort is the goal here, not completeness.
 
-**Safety.** Same rules as everywhere else: resolve before writing, never write on ambiguity, and reuse the transactional re-key from Phase 1b. Given it is heuristic, it should be **opt-in via the manual re-link action rather than automatic**, so a mis-match is a user-initiated action with a visible report (`matched / ambiguous / unmatched`) rather than a silent background rewrite.
+**Safety.** Same rules as everywhere else: resolve before writing, never write on ambiguity, and reuse the transactional re-key from Phase 3b. Given it is heuristic, it should be **opt-in via the manual re-link action rather than automatic**, so a mis-match is a user-initiated action with a visible report (`matched / ambiguous / unmatched`) rather than a silent background rewrite.
 
 **Verification.** `scripts/test_cloud_backup.sh` already drives a real backup/uninstall/reinstall cycle, so the honest measurement is available: restore, count how many rows this pass resolves, and report the rate. That number decides whether Phase 6 is worth keeping, and it should be measured rather than assumed.
 
@@ -613,7 +611,7 @@ Those limits are acceptable *because the alternative is nothing*. The failure mo
 | `android/app/src/main/AndroidManifest.xml` | Declare `android:dataExtractionRules` alongside the existing `fullBackupContent` |
 | `res/values/strings.xml` | Strings for the action + result dialog |
 | `eventsstorage/EventAlertDao.kt`, `RoomEventsStorage.kt` | Transactional re-key (delete + insert) for a changed `id` |
-| `monitorstorage/` + `dismissedeventsstorage/` storages | Re-key rows on an `id` change (Phase 1b), with manual rollback across DBs |
+| `monitorstorage/` + `dismissedeventsstorage/` storages | Re-key rows on an `id` change (Phase 3b), with manual rollback across DBs |
 | `docs/architecture/database_schema_reference.md` | Document the new identity database |
 
 ## Testing Plan

@@ -25,24 +25,58 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.PersistentStorageBase
 
 /**
- * Detects that this app's data arrived from somewhere else.
+ * Remembers which OS installation this app's data was created by.
  *
- * Works by *absence*: the fingerprint is written on first run and deliberately
- * excluded from backup, so a restored database arrives without it. A missing or
- * mismatched value therefore means "this data did not originate here".
+ * ## What problem this solves
  *
- * **The exclusion is what makes this work, and it is easy to get wrong.**
- * `backup_rules.xml` is not read on API 31+; `data_extraction_rules.xml` is,
- * and Android 12 split cloud backup from device-to-device transfer into
- * separate rule sets. The fingerprint must be excluded from *both*, or a
- * restore over the missing path goes undetected and nothing downstream ever
- * runs. See docs/dev_todo/portable_event_identity.md.
+ * The events database stores Calendar Provider row ids (`cid`, `id`). Those
+ * numbers are assigned by whichever device inserted the row, so a database
+ * restored onto a different phone contains ids that belong to a provider that
+ * no longer exists. Identity capture reads the provider *by* those ids, so it
+ * has to know whether they are still ours before trusting what comes back.
  *
- * Note this is a strictly weaker signal than it looks: a matching fingerprint
- * proves the same install, but a mismatch only proves "not the same install" --
- * it does not distinguish a new device from an old backup restored onto this
- * one. Callers that care about that difference must verify separately; see the
- * validation sample in the plan.
+ * ## How it works: detection by absence
+ *
+ * The fingerprint is written once the ids have been verified, and is
+ * deliberately **excluded from backup**. A restored database therefore arrives
+ * without it. There is nothing clever here -- the signal is simply that a value
+ * we always write is missing, which can only happen if this data came from
+ * elsewhere (or if this is a first run).
+ *
+ * The exclusion is the whole mechanism, and it is easy to break silently:
+ *
+ * - `backup_rules.xml` is **not read on API 31+**. `data_extraction_rules.xml`
+ *   is. Both must carry the exclusion, or it is ignored on modern devices.
+ * - Android 12 split cloud backup from device-to-device transfer into
+ *   **independent** rule sets. Excluding from `<cloud-backup>` alone leaves the
+ *   cable-transfer path wide open.
+ *
+ * Get either wrong and the fingerprint is restored along with everything else,
+ * always matches, and no restore is ever detected. Nothing fails loudly; the
+ * feature just never runs. That is why this is verified with an actual
+ * backup/restore cycle (`scripts/test_cloud_backup.sh`) rather than by reading
+ * the XML.
+ *
+ * ## Why `Build.FINGERPRINT`
+ *
+ * `ANDROID_ID` is the more obvious identifier but survives a restore onto the
+ * same device, which is precisely the case that needs distinguishing.
+ * `Build.FINGERPRINT` identifies the OS build, so it changes when the device
+ * does. It also changes on an OS update, which reads as a false "restored" --
+ * acceptable, because the only consequence is re-verifying ids that were
+ * already correct.
+ *
+ * ## What this does NOT tell you
+ *
+ * A match proves the same install, so the stored ids are ours. A **mismatch
+ * proves only "not this install"** -- it cannot distinguish a new device from
+ * an old backup restored here, nor from an existing user upgrading to the
+ * version that introduced this file. Treating a mismatch as "restored" would
+ * disable capture for every existing user, so callers must verify separately;
+ * see `storedIdsBelongToThisProvider`, which samples real events against the
+ * provider and uses this only as a fast path.
+ *
+ * See docs/dev_todo/portable_event_identity.md.
  */
 open class InstallFingerprint(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) {
 

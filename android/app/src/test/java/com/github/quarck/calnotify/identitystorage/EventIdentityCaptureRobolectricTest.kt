@@ -329,48 +329,56 @@ class EventIdentityCaptureRobolectricTest {
     // --- The restore gate: capture must not trust a foreign provider ---
 
     @Test
-    fun skipsCaptureWhenFingerprintDoesNotMatchAndEventsExist() {
-        fingerprint.matches = false
-
-        capture(listOf(alertRecord(100L)))
-
-        assertTrue(
-            "stored ids may belong to another provider, so nothing may be written",
-            identityStorage.stored.isEmpty()
-        )
-    }
-
-    @Test
-    fun claimsInstallWhenThereAreNoEventsToMisattribute() {
-        fingerprint.matches = false
-
-        capture(emptyList())
-
-        assertTrue(
-            "a fresh install is indistinguishable by fingerprint, but has no events",
-            fingerprint.marked
-        )
-    }
-
-    @Test
-    fun doesNotClaimInstallWhileEventsAreUnverified() {
-        fingerprint.matches = false
-
-        capture(listOf(alertRecord(100L)))
-
-        assertFalse(
-            "claiming here would make the next run capture against ids it never verified",
-            fingerprint.marked
-        )
-    }
-
-    @Test
-    fun capturesNormallyWhenFingerprintMatches() {
+    fun capturesWhenFingerprintMatchesWithoutSampling() {
         fingerprint.matches = true
 
         capture(listOf(alertRecord(100L)))
 
         assertEquals(1, identityStorage.stored.size)
+    }
+
+    @Test
+    fun capturesForAnUpgradingUserWhoseIdsStillResolve() {
+        // The case that matters most: an existing user with a populated event
+        // list upgrading to this version. No fingerprint yet, but the ids are
+        // perfectly good -- gating on the fingerprint alone would have left
+        // capture permanently disabled for exactly these people.
+        fingerprint.matches = false
+
+        capture((1L..3L).map { alertRecord(it) })
+
+        assertEquals(3, identityStorage.stored.size)
+        assertTrue("ids verified, so the install is claimed", fingerprint.marked)
+    }
+
+    @Test
+    fun skipsCaptureWhenTheProviderDoesNotKnowTheStoredIds() {
+        fingerprint.matches = false
+        every { CalendarProvider.getEvent(any(), any<Long>()) } answers {
+            getEventLookups++
+            null                       // restored database: ids mean nothing here
+        }
+
+        capture(listOf(alertRecord(100L)))
+
+        assertTrue(identityStorage.stored.isEmpty())
+        assertFalse("must not claim an install it could not verify", fingerprint.marked)
+    }
+
+    @Test
+    fun skipsCaptureWhenASampledEventDisagrees() {
+        // An id that resolves to a DIFFERENT event is the dangerous case: the
+        // new device numbered an unrelated event the same.
+        fingerprint.matches = false
+        every { CalendarProvider.getEvent(any(), any<Long>()) } answers {
+            getEventLookups++
+            eventRecord(secondArg<Long>()).let { it.copy(details = it.details.copy(title = "Something else")) }
+        }
+
+        capture(listOf(alertRecord(100L)))
+
+        assertTrue(identityStorage.stored.isEmpty())
+        assertFalse(fingerprint.marked)
     }
 
     companion object {
