@@ -102,6 +102,13 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
                     DevLog.error(LOG_TAG, "Exception while re-scanning calendar: ${ex.detailed}")
                 }
             }
+
+            // Last, and unconditional: the periodic rescan is the most reliable
+            // trigger this app has -- the OS calendar intents are not -- but it
+            // arrives with reloadCalendar=false, so hanging capture off the
+            // reload alone would miss it. Runs after both scanners so it cannot
+            // delay either, and swallows its own failures.
+            ApplicationController.captureEventIdentities(this)
         }
     }
 
