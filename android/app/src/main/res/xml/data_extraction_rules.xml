@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup rules for API 31+ (Android 12 and later).
+
+    android:fullBackupContent / backup_rules.xml is only read on API 30 and
+    below. Both are declared in the manifest: this file governs modern devices,
+    backup_rules.xml the older ones; they must be kept in agreement.
+
+    Android 12 also split direct device-to-device transfer from cloud backup,
+    with independent rule sets, hence the two near-identical blocks. Anything
+    excluded from only one of them still travels by the other path.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="." />
+        <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
+        <include domain="sharedpref" path="car_mode_state.xml" />
+
+        <!--
+            Must NOT be backed up: its absence is how a restore is detected.
+            If this survived, it would always match on the new device and the
+            app would never know its database came from somewhere else.
+            See docs/dev_todo/portable_event_identity.md.
+        -->
+        <exclude domain="sharedpref" path="install_fingerprint.xml" />
+    </cloud-backup>
+
+    <device-transfer>
+        <include domain="database" path="." />
+        <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
+        <include domain="sharedpref" path="car_mode_state.xml" />
+
+        <exclude domain="sharedpref" path="install_fingerprint.xml" />
+    </device-transfer>
+</data-extraction-rules>

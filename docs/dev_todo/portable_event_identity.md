@@ -434,6 +434,20 @@ The key insight: the calendar half of this problem was already solved once for s
 
 ## Implementation Plan
 
+**Build order is not phase order.** The numbers below were assigned by conceptual flow when this plan was first written; review since then reshaped the dependencies twice. Build in this order:
+
+| Order | Phase | Why here |
+|---|---|---|
+| 1 | **3** — backup rules + restore detection | `backup_rules.xml` is not read on API 31+, so *nothing* downstream can detect a restore until this lands |
+| 2 | **2** — validation gate on capture | Capture is currently unconditional; the resolver must not act on identity captured against a foreign provider |
+| 3 | **1** — resolution engine | Needs both of the above to be correct |
+| 4 | **5** — per-calendar settings repair | Reuses Phase 1's matcher |
+| 5 | **4** — manual trigger | Wants something observable to report |
+| 6 | **6** — best-effort heuristic (optional) | Independent; decide after measuring how much Phase 1 recovers |
+
+Phase 0 is **complete and merged** (#277, #279).
+
+
 ### Phase 0: Capture identity at write time
 
 **Prerequisite met.** The probe has run (see Design Decisions): `UID_2445` is null on Google calendars, but `_SYNC_ID` is populated and unique for 100% of events, so the exact-match path stands with `_SYNC_ID` as the identifier.
