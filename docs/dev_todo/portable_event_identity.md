@@ -125,7 +125,7 @@ That last point inverts an argument from the earlier revision. Using `s2` was or
 Less than it might appear, because the infrastructure is already in place:
 
 - **No schema migration.** A brand-new database starts at `version = 1` with no legacy predecessor and no copy-migration step — strictly simpler than the existing three, which all carry legacy baggage. `monitorstorage/MonitorDatabase.kt` is the closest template: single entity, `version = 1`, `exportSchema = false`.
-- **Backed up by default today, but this needs care.** Any new database file is currently covered — though on Android 12+ that is because the platform backs up everything when `dataExtractionRules` is absent, *not* because `backup_rules.xml`'s `<include domain="database" path="." />` is read (it isn't; see Phase 1). Once Phase 1 adds a `data-extraction-rules` file, that include must be repeated in **both** the `<cloud-backup>` and `<device-transfer>` sections, or the identity DB silently stops being backed up on one path. This is essential — the identity DB is useless unless it restores alongside the events it describes.
+- **Backed up by default, and deliberately left that way.** Any new database file is covered — though on Android 12+ that is because the platform backs up everything when `dataExtractionRules` is absent, *not* because `backup_rules.xml`'s `<include domain="database" path="." />` is read (it isn't). Declaring a `data-extraction-rules` file to make this explicit was tried and reverted: it breaks `adb backup` with no way to opt back in. See Phase 1.
 - **No sync impact.** PowerSync/cr-sqlite is wired to `eventsV9` explicitly (`src/lib/features/SetupSync.tsx`, `src/lib/powersync/Schema.tsx`); a new table is invisible to it.
 
 The real cost is the one inherent to this codebase: **a fourth separate database file means a fourth store with no cross-database transactions.** Identity rows can drift from the events they describe — e.g. an event is deleted but its identity row lingers. This is tolerable because identity rows are pure derived metadata: an orphaned one is harmless, and the resolver ignores identity with no matching event. A periodic cleanup pass can prune orphans opportunistically; correctness never depends on it.
@@ -148,7 +148,7 @@ One table, keyed to match `eventsV9`'s primary key so rows join cleanly. One col
 | `originalCalendarId` | Long | The `cid` in force when this row was captured |
 | `originalEventId` | Long | The `id` in force when this row was captured |
 | `capturedAtTime` | Long | Via `CNPlusClockInterface`, never `System.currentTimeMillis()` |
-| `resolutionAttemptCount` | Int | Backs the Phase 1 retry cap |
+| `resolutionAttemptCount` | Int | Caps retries so a permanently unmatchable event stops re-querying |
 | `lastResolutionAttemptTime` | Long | Backs the retry backoff |
 
 **Spell the names out.** The `eventsV9` abbreviations (`cid`, `istart`, `dsts`, `attsts`) are a 2016 inheritance that is now costly to change and easy to misread — `attsts` vs `oattsts` being the worst case. This table is new, so it carries no such constraint: the five calendar columns map one-to-one onto the `CalendarContract.Calendars` columns they come from and are named to make that obvious. The storage cost of long column names is per-schema, not per-row.
@@ -486,14 +486,14 @@ Phases are numbered in the order they should be built. Each depends on the ones 
 | Phase | Status |
 |---|---|
 | **0** — capture identity | ✅ merged (#277, #279) |
-| **1** — backup rules for Android 12+ | in review (#280) |
+| **1** — backup rules for Android 12+ | ❌ abandoned (breaks `adb backup`; see below) |
 | **2** — per-event self-check | in review (#280) |
 | **3** — resolution engine | next |
 | **4** — per-calendar settings repair | |
 | **5** — manual trigger | |
 | **6** — best-effort heuristic | optional |
 
-**Phases 1 and 2 were previously "restore detection" and "validate captured identity".** Both were built on device-level restore detection, which is no longer part of the design — see *How staleness is detected* above. Phase 1 keeps only the backup-rules fix, which is still needed on its own merits; Phase 2 is now the self-check.
+**Phases 1 and 2 were previously "restore detection" and "validate captured identity".** Both were built on device-level restore detection, which is no longer part of the design — see *How staleness is detected* above. Phase 1 then became a backup-rules fix, which was built, measured, and abandoned: declaring `dataExtractionRules` breaks `adb backup`, and the platform default already covered what it was meant to declare. Phase 2 is now the self-check, and is the real content of #280.
 
 ### Phase 0: Capture identity at write time
 
@@ -517,57 +517,58 @@ The consequence is acceptable: on the legacy fallback path no identity rows are 
 
 **Checkpoint:** new events written on this device get an identity row. Pre-existing events have none — expected, and handled in Phase 2.
 
-### Phase 1: Make the identity database actually survive a restore on Android 12+
+### Phase 1: Do NOT declare `dataExtractionRules` (measured: it breaks `adb backup`)
 
-No restore *detection* here — that idea is gone. What remains is a real prerequisite that has to be right before anything downstream can work: **the identity database must be included in the backup on modern Android**, on both the cloud and cable paths.
+**This phase was attempted and abandoned.** It shipped on the PR branch, was tested on a real device, broke a tool we depend on, and was reverted. Nothing from it remains in the code. What follows is why, so nobody tries it again.
 
-#### `backup_rules.xml` is not read on Android 12+
+#### What was attempted
 
-This is easy to miss because the current setup happens to work by accident rather than by declaration.
+`android:fullBackupContent` is read only on API 30 and below. `targetSdkVersion` is 36, and `android:dataExtractionRules` was never declared, so on Android 12+ the platform falls back to its default: back up everything except no-backup and cache dirs.
 
-The manifest declares the legacy attribute only:
+That default is a *superset* of `backup_rules.xml`, which is entirely `<include>`. So the identity database was **already** being backed up on modern devices. The intent was merely to make that explicit rather than inherited — and to declare `<device-transfer>`, since cable transfer is the path this feature exists for.
 
-```xml
-android:allowBackup="true"
-android:fullBackupContent="@xml/backup_rules"
+#### Why it was reverted
+
+Declaring `android:dataExtractionRules` makes a `targetSdk` 31+ app **ineligible for `adb backup`**, and there is no way to opt back in.
+
+Measured on a Pixel 10 Pro Fold (Android 17 / SDK 37), with two builds whose manifests differed by that attribute alone:
+
+| Build | `dataExtractionRules` | `adb backup` result |
+|---|---|---|
+| 9.22.1 | absent | 8.2 MB — every database present |
+| 9.24.0 | declared | **47 bytes** — valid header, empty payload |
+
+`logcat` gives the whole story, and gives it only there:
+
+```
+BackupManagerService: --- Performing adb backup ---
+BackupManagerService: Package com.github.quarck.calnotify is not eligible for backup, removing.
+BackupManagerService: Full backup pass complete.
 ```
 
-but `targetSdkVersion = 36`. `fullBackupContent` applies to **API 30 and below**; API 31+ reads `android:dataExtractionRules`, which is not declared. With it absent the platform falls back to its default — back up everything except no-backup and cache dirs.
+`adb backup` prompts normally, the user confirms, the command reports success, and it writes a 47-byte file. **Nothing fails loudly.** 47 bytes is the signature of this specific failure — an unencrypted `.ab` with a valid header and a zero-file payload.
 
-That has been harmless so far, because `backup_rules.xml` is entirely `<include>` and the platform default ("everything except no-backup and cache dirs") is a superset of it. The identity database is therefore *already* being backed up on Android 12+ today — by default rather than by declaration.
+#### There is no `<adb-backup>` element
 
-Relying on that default is still the wrong place to leave this feature. The whole design assumes the identity database arrives beside the events it describes; that assumption belongs in the manifest, not inherited from a platform default that can change and that no test covers. Declaring it also makes the cable-transfer path explicit, which is the path the user actually used.
+An `<adb-backup>` block was written to opt back in. It does not exist: `aapt2` **silently drops** unknown children of `<data-extraction-rules>`, so the build succeeded and the compiled resource simply lacked the block. Verified with `aapt2 dump xmltree` against the APK — only `cloud-backup` and `device-transfer` survived compilation. A green build proves nothing here.
 
-The fix:
+The valid children, per the [Auto Backup docs](https://developer.android.com/identity/data/autobackup), are `<cloud-backup>`, `<device-transfer>`, and `<cross-platform-transfer>`. `disableIfNoEncryptionCapabilities` exists but applies only to `<cloud-backup>` and is unrelated. Android 12 [excludes app data from `adb backup`](https://developer.android.com/about/versions/12/behavior-changes-12#adb-backup-restrictions) for `targetSdk` 31+; `android:debuggable` is what restores it, and this app is debuggable — which is why `adb backup` worked at all before the attribute was added.
 
-1. Add `res/xml/data_extraction_rules.xml` and declare `android:dataExtractionRules` alongside the existing `fullBackupContent` — keep both, since API 24–30 devices still read the old one.
-2. Include the databases in `<cloud-backup>`.
-3. Include them in `<device-transfer>` too.
+#### Why dropping it costs nothing
 
-```xml
-<data-extraction-rules>
-  <cloud-backup>
-    <include domain="database" path="." />
-    <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
-  </cloud-backup>
-  <device-transfer>
-    <include domain="database" path="." />
-    <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
-  </device-transfer>
-</data-extraction-rules>
-```
+- The platform default already backs up every database, including the identity DB. Proven empirically: a real `.ab` from a build with no rules file contained all of them.
+- `adb backup` is how this project snapshots real devices. Trading a working tool for a declaration that changes no behaviour is a straight loss.
+- The `<device-transfer>` path is covered by the same default.
 
-**`<device-transfer>` matters on its own.** Android 12 split direct phone-to-phone transfer (the setup-wizard cable flow) from cloud backup, with independent rule sets. That is the path the user took, and it is the common way to reach exactly the scenario this feature exists for.
+**If this is ever revisited**, the acceptance test is not "does it build" — it is `adb backup -f out.ab -noapk <pkg>` on a real API 31+ device, followed by checking that the file is megabytes rather than 47 bytes.
 
-**Carry every `<include>` into both sections.** Once a `data-extraction-rules` file exists the platform default no longer applies, so each include must be repeated in both blocks. Omitting one would silently stop backing up the identity database on that path — and the identity database is useless unless it restores alongside the events it describes.
+#### Pre-existing bug, still unfixed
 
-**No `<exclude>` entries.** Earlier drafts needed one, to stop an install fingerprint from surviving a restore. That mechanism is gone, and with it the only reason this app had to exclude anything.
-
-**Note on the `EventsStorageState` precedent.** Its doc comment claims *"This prefs file is NOT in backup_rules.xml, so it won't be backed up"* — no longer true on API 31+, for exactly the reason above. Adding a rules file that does not exclude it makes nothing worse (the default was already backing it up), but it does leave a misleading comment in place. Pre-existing bug, out of scope, worth filing separately.
+`EventsStorageState`'s doc comment claims *"This prefs file is NOT in backup_rules.xml, so it won't be backed up."* Confirmed false: `sp/events_storage_state.xml` is present in a real `.ab`. On API 31+ the permissive default backs it up regardless of what `backup_rules.xml` says. Out of scope here; worth filing.
 
 #### One caveat this app cannot fix
 
-The app is not on the Play Store, so a Pixel-to-Pixel transfer stages the data but does not install the APK. The user sideloads it afterwards, and the data appears at that point. That works — it is what happened on the user's own transfer — but it depends on the staged data still being present when the APK is installed. If the staging window has expired, no identity data arrives, and Phase 6's heuristic is the only remaining recourse. Nothing in the manifest changes this.
+The app is not on the Play Store, so a Pixel-to-Pixel transfer stages the data but does not install the APK. The user sideloads it afterwards and the data appears then — that is what happened on the user's own transfer. It depends on the staged data still being present at install time. If that window has expired, no identity data arrives, and Phase 6's heuristic is the only recourse. No manifest change affects this.
 
 ### Phase 2: Per-event self-check
 
