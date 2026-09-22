@@ -57,6 +57,7 @@ import android.database.SQLException
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
 import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
+import com.github.quarck.calnotify.identitystorage.InstallFingerprint
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
@@ -195,6 +196,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     /** Injectable EventIdentityStorage provider for testing - when null, uses real storage */
     var eventIdentityStorageProvider: ((Context) -> EventIdentityStorage)? = null
 
+    /** Injectable InstallFingerprint provider for testing - when null, uses real prefs */
+    var installFingerprintProvider: ((Context) -> InstallFingerprint)? = null
+
+    private fun getInstallFingerprint(ctx: Context): InstallFingerprint {
+        return installFingerprintProvider?.invoke(ctx) ?: InstallFingerprint(ctx)
+    }
+
     private fun getEventIdentityStorage(ctx: Context): EventIdentityStorage {
         return eventIdentityStorageProvider?.invoke(ctx) ?: EventIdentityStorage(ctx)
     }
@@ -218,9 +226,35 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
      */
     fun captureEventIdentities(context: Context) {
         try {
+            val fingerprint = getInstallFingerprint(context)
+
+            // Capture reads the provider using each event's stored id. That is
+            // only meaningful while those ids still belong to this provider.
+            // On a restored database they may point at nothing, or worse at an
+            // unrelated event the new device happened to number the same, and
+            // writing identity from that would be worse than writing none: the
+            // resolver would treat the event as covered rather than skipping it.
+            //
+            // A matching fingerprint proves the same install, so the ids are
+            // sound. A mismatch does NOT prove a new device -- restoring an old
+            // backup onto this one also clears it -- so this only defers the
+            // decision to the resolver; it does not conclude anything.
             val events = getEventsStorage(context).use { db -> db.events }
-            if (events.isEmpty())
+            if (events.isEmpty()) {
+                // No events means nothing to misattribute, so this is a safe
+                // moment to claim the install: a fresh install and a restored
+                // one are indistinguishable by fingerprint alone, but only the
+                // restored one arrives with events already in the database.
+                fingerprint.markCurrentInstall()
                 return
+            }
+
+            if (!fingerprint.matchesCurrentInstall()) {
+                DevLog.info(LOG_TAG,
+                    "Install fingerprint absent or changed with ${events.size} event(s) already " +
+                    "stored - skipping capture, their ids may belong to another provider")
+                return
+            }
 
             val capturedAt = clock.currentTimeMillis()
 

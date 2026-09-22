@@ -33,6 +33,7 @@ import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -107,6 +108,18 @@ class EventIdentityCaptureRobolectricTest {
     /** What EventsStorage returns for this test. */
     private var storedEvents: List<EventAlertRecord> = emptyList()
 
+    /** Stand-in for the install fingerprint, so tests control the verdict. */
+    private lateinit var fingerprint: FakeInstallFingerprint
+
+    private class FakeInstallFingerprint(
+        context: Context,
+        var matches: Boolean
+    ) : InstallFingerprint(context) {
+        var marked = false
+        override fun matchesCurrentInstall() = matches
+        override fun markCurrentInstall() { marked = true; matches = true }
+    }
+
     /** Counts provider calls, so redundant lookups are visible. */
     private var backupInfoLookups = 0
     private var getEventLookups = 0
@@ -141,6 +154,8 @@ class EventIdentityCaptureRobolectricTest {
             else eventRecord(eventId)
         }
 
+        fingerprint = FakeInstallFingerprint(context, matches = true)
+        ApplicationController.installFingerprintProvider = { fingerprint }
         ApplicationController.eventIdentityStorageProvider = { identityStorage.storage }
         ApplicationController.eventsStorageProvider = {
             MockEventsStorage().apply { storedEvents.forEach { addEvent(it) } }
@@ -151,6 +166,7 @@ class EventIdentityCaptureRobolectricTest {
     fun teardown() {
         ApplicationController.eventIdentityStorageProvider = null
         ApplicationController.eventsStorageProvider = null
+        ApplicationController.installFingerprintProvider = null
         unmockkAll()
     }
 
@@ -308,6 +324,53 @@ class EventIdentityCaptureRobolectricTest {
                 "capture must swallow provider failures, but threw: ${ex.cause}"
             )
         }
+    }
+
+    // --- The restore gate: capture must not trust a foreign provider ---
+
+    @Test
+    fun skipsCaptureWhenFingerprintDoesNotMatchAndEventsExist() {
+        fingerprint.matches = false
+
+        capture(listOf(alertRecord(100L)))
+
+        assertTrue(
+            "stored ids may belong to another provider, so nothing may be written",
+            identityStorage.stored.isEmpty()
+        )
+    }
+
+    @Test
+    fun claimsInstallWhenThereAreNoEventsToMisattribute() {
+        fingerprint.matches = false
+
+        capture(emptyList())
+
+        assertTrue(
+            "a fresh install is indistinguishable by fingerprint, but has no events",
+            fingerprint.marked
+        )
+    }
+
+    @Test
+    fun doesNotClaimInstallWhileEventsAreUnverified() {
+        fingerprint.matches = false
+
+        capture(listOf(alertRecord(100L)))
+
+        assertFalse(
+            "claiming here would make the next run capture against ids it never verified",
+            fingerprint.marked
+        )
+    }
+
+    @Test
+    fun capturesNormallyWhenFingerprintMatches() {
+        fingerprint.matches = true
+
+        capture(listOf(alertRecord(100L)))
+
+        assertEquals(1, identityStorage.stored.size)
     }
 
     companion object {

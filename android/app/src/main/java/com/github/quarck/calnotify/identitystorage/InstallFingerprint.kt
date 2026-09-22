@@ -44,7 +44,7 @@ import com.github.quarck.calnotify.utils.PersistentStorageBase
  * one. Callers that care about that difference must verify separately; see the
  * validation sample in the plan.
  */
-class InstallFingerprint(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) {
+open class InstallFingerprint(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) {
 
     /** Identifies the install this data was created by. Empty until first run. */
     var value by StringProperty("", PREF_VALUE)
@@ -52,17 +52,18 @@ class InstallFingerprint(ctx: Context) : PersistentStorageBase(ctx, PREFS_NAME) 
     /**
      * Whether the stored fingerprint matches this install.
      *
-     * False on a genuinely fresh install too -- there is nothing stored yet.
-     * [markCurrentInstall] resolves both cases identically, so callers should
-     * check this before recording, not after.
+     * False on a genuinely fresh install too, since nothing is stored yet --
+     * so this alone cannot tell a first run from a restore. Callers separate
+     * the two by looking at whether any data already exists: only a restore
+     * arrives with events in the database.
      */
-    fun matchesCurrentInstall(): Boolean {
+    open fun matchesCurrentInstall(): Boolean {
         val stored = value
         return stored.isNotEmpty() && stored == currentInstall()
     }
 
     /** Record this install as the origin of the current data. */
-    fun markCurrentInstall() {
+    open fun markCurrentInstall() {
         val current = currentInstall()
         if (value != current) {
             DevLog.info(LOG_TAG, "Recording install fingerprint")
