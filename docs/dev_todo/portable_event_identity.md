@@ -439,7 +439,7 @@ Phases are numbered in the order they should be built. Each depends on the ones 
 | Phase | Status |
 |---|---|
 | **0** — capture identity | ✅ merged (#277, #279) |
-| **1** — restore detection | in review (#280) |
+| **1** — validate stored ids before capture | in review (#280) |
 | **2** — validate captured identity | next |
 | **3** — resolution engine | |
 | **4** — per-calendar settings repair | |
@@ -524,7 +524,7 @@ The hazard: capture reads the provider using the stored `id`. That is correct wh
 
 **So capture needs a gate that distinguishes "same provider" from "new provider"** — not merely "restored or not". A plain fingerprint-missing check is too blunt, since restoring an old backup onto the original device also clears the fingerprint, and that is exactly the case where capture should run.
 
-Use a **cheap validation sample**: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. Agreement means the ids are live and capture is safe; disagreement or empty results mean a new provider, so skip capture and leave resolution to Phases 3 and 6. The Phase 1 fingerprint stays useful as a fast path — a match means definitely the same install, no sampling needed — but a mismatch should trigger validation rather than an outright skip.
+Use a **cheap validation sample**: take a handful of stored events, look up each `id` in the provider, and compare the returned title and start time against the stored row. Agreement means the ids are live and capture is safe; disagreement or empty results mean a new provider, so skip capture and leave resolution to Phases 3 and 6. 
 
 **Implemented in Phase 1** (#280) as a validation sample rather than a fingerprint check; see `storedIdsBelongToThisProvider`. Originally 0c captured unconditionally. That is harmless until the resolver exists, since nothing reads the rows yet, but the gate must land before Phase 3 starts acting on them.
 

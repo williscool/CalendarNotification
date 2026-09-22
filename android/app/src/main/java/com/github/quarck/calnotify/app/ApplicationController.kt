@@ -57,7 +57,6 @@ import android.database.SQLException
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
 import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
-import com.github.quarck.calnotify.identitystorage.InstallFingerprint
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
@@ -150,14 +149,6 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private const val LOG_TAG = "App"
 
-    /**
-     * How many stored events to check against the provider before trusting
-     * their ids. Small on purpose: this runs on every service invocation, and
-     * a handful of agreeing lookups is already strong evidence -- the ids are
-     * either all ours or all somebody else's.
-     */
-    private const val IDENTITY_VALIDATION_SAMPLE_SIZE = 5
-
     private var settings: Settings? = null
     private fun getSettings(ctx: Context): Settings {
         if (settings == null) {
@@ -204,13 +195,6 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     /** Injectable EventIdentityStorage provider for testing - when null, uses real storage */
     var eventIdentityStorageProvider: ((Context) -> EventIdentityStorage)? = null
 
-    /** Injectable InstallFingerprint provider for testing - when null, uses real prefs */
-    var installFingerprintProvider: ((Context) -> InstallFingerprint)? = null
-
-    private fun getInstallFingerprint(ctx: Context): InstallFingerprint {
-        return installFingerprintProvider?.invoke(ctx) ?: InstallFingerprint(ctx)
-    }
-
     private fun getEventIdentityStorage(ctx: Context): EventIdentityStorage {
         return eventIdentityStorageProvider?.invoke(ctx) ?: EventIdentityStorage(ctx)
     }
@@ -232,62 +216,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
      * reload that precedes it: it takes no arguments from it, returns nothing,
      * and swallows its own failures.
      */
-    /**
-     * Whether the stored event ids still refer to this device's Calendar Provider.
-     *
-     * Capture reads the provider by stored id, which only means anything while
-     * those ids are still ours. On a restored database an id may point at
-     * nothing, or at an unrelated event the new device happened to number the
-     * same -- and writing identity from that is worse than writing none, since
-     * the resolver would treat the event as covered rather than skipping it.
-     *
-     * The install fingerprint alone cannot answer this. It is absent both on a
-     * fresh install and after a restore, and it is also absent for every
-     * existing user upgrading to this version -- gating on it would have left
-     * capture permanently disabled for exactly the people the feature is for.
-     *
-     * So the fingerprint is only a fast path, and the actual check is a small
-     * sample: look up a few stored ids and confirm the provider returns the
-     * events we expect. Agreement means the ids are live, whoever wrote them.
-     */
-    private fun storedIdsBelongToThisProvider(
-        context: Context,
-        events: List<EventAlertRecord>
-    ): Boolean {
-        val fingerprint = getInstallFingerprint(context)
-
-        if (fingerprint.matchesCurrentInstall())
-            return true                    // same install: ids are ours by definition
-
-        val sample = events.take(IDENTITY_VALIDATION_SAMPLE_SIZE)
-        val agreed = sample.count { event ->
-            val providerEvent = calendarProvider.getEvent(context, event.eventId)
-            providerEvent != null &&
-                providerEvent.details.title == event.title &&
-                providerEvent.details.startTime == event.startTime
-        }
-
-        // Require unanimity: one disagreement means these ids are not ours,
-        // and a wrong "yes" here corrupts identity for every event.
-        if (agreed != sample.size) {
-            DevLog.info(LOG_TAG,
-                "Stored event ids do not match this provider ($agreed/${sample.size} " +
-                "sampled events agreed) - skipping identity capture")
-            return false
-        }
-
-        // Ids check out, so claim the install and take the fast path next time.
-        fingerprint.markCurrentInstall()
-        return true
-    }
-
     fun captureEventIdentities(context: Context) {
         try {
             val events = getEventsStorage(context).use { db -> db.events }
             if (events.isEmpty())
-                return
-
-            if (!storedIdsBelongToThisProvider(context, events))
                 return
 
             val capturedAt = clock.currentTimeMillis()

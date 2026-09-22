@@ -2,10 +2,4 @@
     <include domain="database" path="." />
     <include domain="sharedpref" path="com.github.quarck.calnotify_preferences.xml" />
     <include domain="sharedpref" path="car_mode_state.xml" />
-
-    <!--
-        Must NOT be backed up: its absence is how a restore is detected.
-        Mirrored in data_extraction_rules.xml, which is what API 31+ reads.
-    -->
-    <exclude domain="sharedpref" path="install_fingerprint.xml" />
 </full-backup-content>

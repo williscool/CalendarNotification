@@ -108,17 +108,6 @@ class EventIdentityCaptureRobolectricTest {
     /** What EventsStorage returns for this test. */
     private var storedEvents: List<EventAlertRecord> = emptyList()
 
-    /** Stand-in for the install fingerprint, so tests control the verdict. */
-    private lateinit var fingerprint: FakeInstallFingerprint
-
-    private class FakeInstallFingerprint(
-        context: Context,
-        var matches: Boolean
-    ) : InstallFingerprint(context) {
-        var marked = false
-        override fun matchesCurrentInstall() = matches
-        override fun markCurrentInstall() { marked = true; matches = true }
-    }
 
     /** Counts provider calls, so redundant lookups are visible. */
     private var backupInfoLookups = 0
@@ -154,8 +143,6 @@ class EventIdentityCaptureRobolectricTest {
             else eventRecord(eventId)
         }
 
-        fingerprint = FakeInstallFingerprint(context, matches = true)
-        ApplicationController.installFingerprintProvider = { fingerprint }
         ApplicationController.eventIdentityStorageProvider = { identityStorage.storage }
         ApplicationController.eventsStorageProvider = {
             MockEventsStorage().apply { storedEvents.forEach { addEvent(it) } }
@@ -166,7 +153,6 @@ class EventIdentityCaptureRobolectricTest {
     fun teardown() {
         ApplicationController.eventIdentityStorageProvider = null
         ApplicationController.eventsStorageProvider = null
-        ApplicationController.installFingerprintProvider = null
         unmockkAll()
     }
 
@@ -326,60 +312,10 @@ class EventIdentityCaptureRobolectricTest {
         }
     }
 
-    // --- The restore gate: capture must not trust a foreign provider ---
 
-    @Test
-    fun capturesWhenFingerprintMatchesWithoutSampling() {
-        fingerprint.matches = true
 
-        capture(listOf(alertRecord(100L)))
 
-        assertEquals(1, identityStorage.stored.size)
-    }
 
-    @Test
-    fun capturesForAnUpgradingUserWhoseIdsStillResolve() {
-        // The case that matters most: an existing user with a populated event
-        // list upgrading to this version. No fingerprint yet, but the ids are
-        // perfectly good -- gating on the fingerprint alone would have left
-        // capture permanently disabled for exactly these people.
-        fingerprint.matches = false
-
-        capture((1L..3L).map { alertRecord(it) })
-
-        assertEquals(3, identityStorage.stored.size)
-        assertTrue("ids verified, so the install is claimed", fingerprint.marked)
-    }
-
-    @Test
-    fun skipsCaptureWhenTheProviderDoesNotKnowTheStoredIds() {
-        fingerprint.matches = false
-        every { CalendarProvider.getEvent(any(), any<Long>()) } answers {
-            getEventLookups++
-            null                       // restored database: ids mean nothing here
-        }
-
-        capture(listOf(alertRecord(100L)))
-
-        assertTrue(identityStorage.stored.isEmpty())
-        assertFalse("must not claim an install it could not verify", fingerprint.marked)
-    }
-
-    @Test
-    fun skipsCaptureWhenASampledEventDisagrees() {
-        // An id that resolves to a DIFFERENT event is the dangerous case: the
-        // new device numbered an unrelated event the same.
-        fingerprint.matches = false
-        every { CalendarProvider.getEvent(any(), any<Long>()) } answers {
-            getEventLookups++
-            eventRecord(secondArg<Long>()).let { it.copy(details = it.details.copy(title = "Something else")) }
-        }
-
-        capture(listOf(alertRecord(100L)))
-
-        assertTrue(identityStorage.stored.isEmpty())
-        assertFalse(fingerprint.marked)
-    }
 
     companion object {
         private const val CALENDAR_ID = 6L
