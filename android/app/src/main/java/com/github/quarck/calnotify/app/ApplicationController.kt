@@ -57,6 +57,8 @@ import android.database.SQLException
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
 import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
+import com.github.quarck.calnotify.identitystorage.EventIdentityVerdict
+import com.github.quarck.calnotify.identitystorage.checkEventIdentity
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
@@ -200,13 +202,22 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     /**
-     * Record portable identity for stored events.
+     * Record portable identity for stored events, and flag any whose stored ids
+     * have gone stale.
      *
      * `eventsV9` keys events by `cid`/`id`, which are row numbers local to this
      * device's Calendar Provider -- restore the database onto a new phone and
      * both point at nothing. This stores the server-assigned identifiers while
      * they are still resolvable, so a restored database can find these events
      * again. See docs/dev_todo/portable_event_identity.md.
+     *
+     * The same walk does double duty. For each event it already reads the
+     * provider, so it can compare what came back against the identity captured
+     * earlier ([checkEventIdentity]) and tell whether the stored id still means
+     * what it used to. A stale row is **not** re-captured: its id resolves to
+     * someone else's event, and writing identity from that would leave the row
+     * carrying a plausible-looking pointer to the wrong event -- worse than
+     * carrying none. Those rows are left for the resolver.
      *
      * Runs after a calendar reload, on the wake-locked background service --
      * never on the EVENT_REMINDER path, where a notification is about to fire.
@@ -223,13 +234,32 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 return
 
             val capturedAt = clock.currentTimeMillis()
+            val identityStorage = getEventIdentityStorage(context)
 
             // One backup-info lookup per calendar rather than per event -- a
             // reload pass is usually dominated by a handful of calendars.
             val backupInfoByCalendar = HashMap<Long, CalendarBackupInfo?>()
 
+            // Read every identity row once, not once per event: this table has
+            // one row per stored event, so it is the same size as the list
+            // being walked.
+            val storedSyncIds = identityStorage.getAll()
+                .associate { (it.eventId to it.instanceStartTime) to it.eventSyncId }
+
+            var staleCount = 0
+
             val identities = events.mapNotNull { event ->
                 val providerEvent = calendarProvider.getEvent(context, event.eventId)
+
+                // Self-check first: if this row is stale, capturing from the
+                // provider would record the wrong event's identity.
+                val storedSyncId = storedSyncIds[event.eventId to event.instanceStartTime]
+
+                if (checkEventIdentity(storedSyncId, providerEvent?.syncId) == EventIdentityVerdict.STALE) {
+                    staleCount++
+                    return@mapNotNull null
+                }
+
                 val backupInfo = backupInfoByCalendar.getOrPut(event.calendarId) {
                     calendarProvider.getCalendarBackupInfo(context, event.calendarId)
                 }
@@ -248,10 +278,18 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 )
             }
 
+            if (staleCount > 0) {
+                // Expected on a restored device, and on nothing else. Logged
+                // rather than acted on: resolution is Phase 3.
+                DevLog.warn(LOG_TAG,
+                    "$staleCount of ${events.size} event(s) no longer match their stored identity " +
+                    "-- stored ids look stale, capture skipped for those")
+            }
+
             if (identities.isEmpty())
                 return
 
-            getEventIdentityStorage(context).putAll(identities)
+            identityStorage.putAll(identities)
             DevLog.info(LOG_TAG, "Captured identity for ${identities.size} of ${events.size} event(s)")
         }
         catch (ex: SQLException) {

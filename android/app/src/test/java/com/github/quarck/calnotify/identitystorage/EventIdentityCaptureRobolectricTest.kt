@@ -312,8 +312,127 @@ class EventIdentityCaptureRobolectricTest {
         }
     }
 
+    // --- The self-check: stale rows must not be re-captured ---
+    //
+    // Capture reads the provider using the stored event id. That is right while
+    // the id still resolves; after a restore it points at an unrelated event,
+    // and capturing from it would leave the row holding a plausible-looking
+    // pointer to the wrong event. See docs/dev_todo/portable_event_identity.md.
 
+    /** Pre-seeds an identity row, as an earlier capture pass would have. */
+    private fun seedIdentity(eventId: Long, syncId: String?) {
+        identityStorage.storage.put(
+            EventIdentityEntity.create(
+                eventId = eventId,
+                instanceStartTime = INSTANCE_START,
+                calendarId = CALENDAR_ID,
+                backupInfo = null,
+                eventSyncId = syncId,
+                eventUid = null,
+                capturedAtTime = 1L
+            )
+        )
+    }
 
+    @Test
+    fun captureRefreshesIdentityWhenTheSyncIdStillMatches() {
+        // Healthy device: the provider agrees, so the row is re-captured and
+        // its calendar half is refreshed.
+        seedIdentity(100L, "sync-100")
+
+        capture(listOf(alertRecord(100L)))
+
+        val stored = identityStorage.stored[100L to INSTANCE_START]
+        assertEquals("sync-100", stored!!.eventSyncId)
+        assertEquals(
+            "a matching row should have its calendar details refreshed",
+            "user@example.com", stored.calendarAccountName
+        )
+    }
+
+    @Test
+    fun captureSkipsRowWhoseStoredSyncIdNoLongerMatches() {
+        // The restored-device case. Event 100 is now some other event as far as
+        // the provider is concerned, so the stale identity must be left exactly
+        // as captured rather than overwritten with the wrong event's details.
+        seedIdentity(100L, "sync-from-the-old-phone")
+
+        capture(listOf(alertRecord(100L)))
+
+        val stored = identityStorage.stored[100L to INSTANCE_START]
+        assertEquals(
+            "stale row must keep its original sync id for the resolver to use",
+            "sync-from-the-old-phone", stored!!.eventSyncId
+        )
+        assertEquals(
+            "capture must not overwrite it with what the stale id returned",
+            "", stored.calendarAccountName
+        )
+    }
+
+    @Test
+    fun captureSkipsRowWhoseEventIsGoneFromTheProvider() {
+        // Same verdict by the other branch: the id resolves to nothing. Uses
+        // the event the mock provider returns null for.
+        seedIdentity(EVENT_WITHOUT_IDENTITY, "sync-from-the-old-phone")
+
+        capture(listOf(alertRecord(EVENT_WITHOUT_IDENTITY)))
+
+        assertEquals(
+            "sync-from-the-old-phone",
+            identityStorage.stored[EVENT_WITHOUT_IDENTITY to INSTANCE_START]!!.eventSyncId
+        )
+    }
+
+    @Test
+    fun oneUnidentifiableEventDoesNotAffectItsNeighbours() {
+        // The exact failure that killed the earlier validation-sample design: a
+        // single event with no stored identity was read as proof the *device*
+        // was wrong, which disabled capture for every event on it.
+        //
+        // Event 999 returns null from the provider and has no stored identity,
+        // so it has no verdict. Every other event must still be captured.
+        capture(listOf(alertRecord(EVENT_WITHOUT_IDENTITY)) + (1L..4L).map { alertRecord(it) })
+
+        assertEquals(
+            "an unidentifiable event must not suppress capture for the others",
+            5, identityStorage.stored.size
+        )
+        assertEquals("sync-1", identityStorage.stored[1L to INSTANCE_START]!!.eventSyncId)
+    }
+
+    @Test
+    fun aMixedBatchGivesEachRowItsOwnVerdict() {
+        // Stale, current, and never-captured rows in one pass.
+        seedIdentity(1L, "stale-value")      // provider says "sync-1" -> STALE
+        seedIdentity(2L, "sync-2")           // provider agrees        -> CURRENT
+        // event 3 has no seeded identity                              -> UNKNOWN
+
+        capture((1L..3L).map { alertRecord(it) })
+
+        assertEquals(
+            "stale row keeps what it had",
+            "stale-value", identityStorage.stored[1L to INSTANCE_START]!!.eventSyncId
+        )
+        assertEquals(
+            "current row is refreshed",
+            "user@example.com",
+            identityStorage.stored[2L to INSTANCE_START]!!.calendarAccountName
+        )
+        assertEquals(
+            "never-captured row is captured for the first time",
+            "sync-3", identityStorage.stored[3L to INSTANCE_START]!!.eventSyncId
+        )
+    }
+
+    @Test
+    fun firstEverCaptureIsNotTreatedAsStale() {
+        // Nothing stored yet, on every event, which is what installing this
+        // version looks like. Must capture, not skip.
+        capture((1L..3L).map { alertRecord(it) })
+
+        assertEquals(3, identityStorage.stored.size)
+    }
 
 
 

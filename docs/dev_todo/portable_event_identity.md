@@ -487,8 +487,8 @@ Phases are numbered in the order they should be built. Each depends on the ones 
 |---|---|
 | **0** — capture identity | ✅ merged (#277, #279) |
 | **1** — backup rules for Android 12+ | in review (#280) |
-| **2** — per-event self-check | next |
-| **3** — resolution engine | |
+| **2** — per-event self-check | in review (#280) |
+| **3** — resolution engine | next |
 | **4** — per-calendar settings repair | |
 | **5** — manual trigger | |
 | **6** — best-effort heuristic | optional |
@@ -591,6 +591,14 @@ That replaces the "gate" the two failed attempts were trying to build. There is 
 **Expected outcome on the user's device:** 368 rows, all with a populated `_SYNC_ID`, all reporting *current*. On a restored device: all reporting *stale*, all resolvable.
 
 **Testable without any hardware.** Feed a mock provider that returns a different `syncId` for the stored ids and assert every row reports *stale*; return matching ones and assert all report *current*. Neither needs a real restore, which is what makes this phase verifiable now rather than whenever a phone is free.
+
+#### As built
+
+`identitystorage/EventIdentityCheck.kt` — `checkEventIdentity(storedSyncId, providerSyncId)` returning `CURRENT` / `STALE` / `UNKNOWN`. A pure function of the two strings it compares: no context, no storage, no provider. The rule that the whole feature turns on is therefore readable in one screen and testable in plain JUnit, separate from the walk that calls it.
+
+Blank is treated as absent on both sides. That matters: provider columns come back as `""` as readily as null, and comparing two blanks as equal would report `CURRENT` for two unrelated events.
+
+Folded into `ApplicationController.captureEventIdentities` rather than added as a second pass — that walk already reads the provider for each event, so the check costs one extra identity-row read and no extra provider query. A row reporting `STALE` is skipped, leaving its captured identity intact for the resolver; `CURRENT` and `UNKNOWN` are captured as before.
 
 ### Phase 3: Resolution engine
 
