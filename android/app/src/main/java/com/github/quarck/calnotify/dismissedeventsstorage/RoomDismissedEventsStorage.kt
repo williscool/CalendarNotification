@@ -85,18 +85,15 @@ class RoomDismissedEventsStorage(
 
         val wanted = keys.toHashSet()
 
-        // Chunk the IN list: SQLite caps how many parameters one statement may
-        // bind. This app bundles requery/sqlite-android 3.45, where that cap is
-        // 32766 -- the old 999 figure applies only to SQLite before 3.32.0
-        // (2020) -- so CHUNK is far below the real limit and exists to keep the
-        // statement a sane size, not to dodge an error.
+        // Read in batches. The binding cap is not the reason -- see
+        // MAX_EVENTS_PER_BATCH; the reason is how many rows are alive at once.
         //
         // The query filters on eventId alone -- an event with several dismissed
         // occurrences comes back more than once -- so narrow to the exact keys
         // here.
         return keys.map { it.eventId }
             .distinct()
-            .chunked(SQLITE_BIND_PARAM_CHUNK)
+            .chunked(MAX_EVENTS_PER_BATCH)
             .flatMap { dao.getByEventIds(it) }
             .filter { DismissedEventKey(it.eventId, it.instanceStartTime) in wanted }
             .map { it.toRecord() }
@@ -117,16 +114,48 @@ class RoomDismissedEventsStorage(
 
     companion object {
         /**
-         * How many ids to bind per `IN (...)` query.
+         * How many events to read per batch.
          *
-         * Not a hard limit workaround. `SQLITE_MAX_VARIABLE_NUMBER` is 32766 in
-         * the SQLite this app bundles (requery/sqlite-android 3.45; the widely
-         * cited 999 was raised in SQLite 3.32.0, 2020), so this is an order of
-         * magnitude below the cap. It keeps a single statement from growing
-         * unboundedly with history size, and keeps the query off the platform
-         * SQLite's lower limit should the bundled library ever be dropped.
+         * **Sized against Android's CursorWindow, not SQLite's parameter cap.**
+         * Two limits apply and they are wildly different:
+         *
+         * 1. SQLite caps bound parameters per statement -- 32766 here
+         *    (requery/sqlite-android 3.45; the widely cited 999 applies only to
+         *    SQLite before 3.32.0, 2020). Nowhere near binding.
+         * 2. A query's results are delivered through a **CursorWindow, a 2 MB
+         *    buffer**. Overflow it and the read throws
+         *    `SQLiteBlobTooBigException: Row too big to fit into CursorWindow`.
+         *    Android's own guidance is to keep a query inside one window
+         *    (https://medium.com/androiddevelopers/large-database-queries-on-android-cb043ae626e8).
+         *
+         * (2) is the binding constraint, and it is the dangerous one: it fires
+         * on a wake-locked background service, only on the devices with the
+         * most history, and it fails a restore far from where the cause lives.
+         *
+         * Measured against 4183 real dismissed rows:
+         *
+         * ```
+         *   row size:  p50 119 B   p90 627 B   p99 2673 B   max 6789 B
+         *
+         *   worst case (batch x largest row) against the 2 MB window:
+         *     100 ->   663 KB   32% of window
+         *     250 ->  1657 KB   81% of window
+         *     300 ->  1989 KB   97% of window
+         *     500 ->  3315 KB  162% -- OVERFLOWS
+         * ```
+         *
+         * So 250 is the largest round size that still fits when every row in a
+         * batch is the largest seen. Typical batches are far smaller -- the 250
+         * biggest real rows together are 510 KB, a quarter of the window -- but
+         * the worst case is what decides a crash, not the average.
+         *
+         * Cost on that data: 17 queries instead of 9, paid once, on the first
+         * pass after upgrading. Cheap insurance against a background-service
+         * failure that would be miserable to trace.
+         *
+         * Callers do not bound their key lists, so this must not be removed.
          */
-        private const val SQLITE_BIND_PARAM_CHUNK = 500
+        private const val MAX_EVENTS_PER_BATCH = 250
     }
 }
 

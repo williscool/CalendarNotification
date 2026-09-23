@@ -79,10 +79,14 @@ interface DismissedEventDao {
      * Full rows for a set of keys.
      *
      * The companion to [getAllKeys]: having decided which dismissed events are
-     * of interest, read only those. Room expands `IN (:eventIds)` into a bound
-     * parameter list; callers chunk it (see `RoomDismissedEventsStorage`) to
-     * keep a single statement bounded, not because the cap is near -- it is
-     * 32766 in the SQLite this app bundles.
+     * of interest, read only those.
+     *
+     * **Callers must batch.** Results come back through a CursorWindow, a 2 MB
+     * buffer; overflow it and the read throws `SQLiteBlobTooBigException: Row
+     * too big to fit into CursorWindow`. An unbounded key list would therefore
+     * fail on exactly the devices with the most history, from a background
+     * service. `RoomDismissedEventsStorage` batches at `MAX_EVENTS_PER_BATCH`
+     * -- see that constant for the row-size measurements it is derived from.
      *
      * Filters on `eventId` alone rather than the full key; an event with several
      * dismissed occurrences returns all of them, which the caller narrows. That
