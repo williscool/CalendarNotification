@@ -455,7 +455,7 @@ A real constraint on how much this feature can ever recover, and worth stating p
 
 - `MAX_SCAN_BACKWARD_DAYS = 31` (`Consts.kt:177`) — the app itself only looks back a month.
 - Active and snoozed events are, by their nature, recent or upcoming. An event snoozed from 14 months ago is not a realistic case.
-- Dismissed-event history is the only store that reaches far back, and it's historical: it doesn't need to reopen in the calendar app.
+- Dismissed-event history is the only store that reaches far back, and it is the one the window actually bites. **Measured on a real device: 2709 of 4183 dismissed rows (64.8%) still resolved in the provider; the other 1474 had been pruned.** So roughly a third of dismissed history is beyond recovery on any device — but two thirds is not, which is why capture covers dismissed events rather than skipping them.
 
 So the 12-month floor sits well outside the range this feature actually operates in. The honest framing is that **this is a limit on the tail, not on the feature.**
 
@@ -515,7 +515,17 @@ Best-effort: a capture failure must never disturb the reload it rides along with
 
 The consequence is acceptable: on the legacy fallback path no identity rows are written, every event reports "no identity stored", and the resolver skips it. That path is already a degraded mode — the user is running without Room because migration failed — and it leaves the data no worse than it is today.
 
-**Checkpoint:** new events written on this device get an identity row. Pre-existing events have none — expected, and handled in Phase 2.
+**Both stores, not just the active one.** Capture walks `eventsV9` *and* `dismissedEventsV2`, concatenated and deduplicated on `(eventId, instanceStartTime)` with the active row winning — dismiss-then-restore can leave the same key in both, and the active row is the authoritative one. Deduplicating also keeps it to one provider lookup per key.
+
+Dismissed rows are history, but *restorable* history: the un-dismiss path returns them to the active list and needs a `cid`/`id` that still resolve. The measurement is what settles it — see the sync-window section above: **2709 of 4183 dismissed rows still resolved in the provider.** Capturing only active events would have written 373 rows and discarded 2709 recoverable ones.
+
+The ~35% that no longer resolve are counted and logged, not treated as failures. The provider prunes old events; that is the expected end state for history, and those rows simply stay unresolvable.
+
+**Dismissed rows are captured once, not re-read every pass.** Naively walking both stores would have cost 4556 provider queries every 30 minutes on a wake-locked service — 12× the previous cost, for data that does not change. Dismissed identity is immutable history, so rows that already have an identity row are filtered out before the provider is touched. Steady state stays at roughly the active-event count; the dismissed backlog is paid once, on the first pass after upgrading.
+
+Active events are still re-read every pass. That list is small and its events genuinely move — reschedules, edits, calendar renames — so refreshing it is worth the queries.
+
+**Checkpoint:** every stored event, active or dismissed, gets an identity row where the provider can still supply one. On the measured device that is 373 active + 2709 dismissed.
 
 ### Phase 1: Do NOT declare `dataExtractionRules` (measured: it breaks `adb backup`)
 
@@ -749,5 +759,5 @@ Per `docs/build/wsl_unison_environment.md`, instrumentation runs from Windows (`
 ## Open Questions
 
 - Should a restored-but-unresolved event be visually marked in the list (e.g. the existing `calendarId = -1` "calendar not found" treatment via `createCalendarNotFoundCal`), or stay silent until it resolves? Leaning silent, since the retry usually resolves it within a sync cycle or two.
-- Dismissed events get identity rows for symmetry, but they are historical. Worth confirming whether re-resolving them is wanted at all, or whether capture alone is enough there.
+- ~~Dismissed events get identity rows for symmetry, but they are historical. Worth confirming whether re-resolving them is wanted at all.~~ **Resolved: yes, capture them.** They are restorable history — the un-dismiss path returns them to the active list and needs a `cid`/`id` that resolve. Measurement settled it: 2709 of 4183 were still resolvable, so skipping them would have discarded most of what was recoverable. Whether the *resolver* should re-key them is a separate question, answered by the cross-database re-key work (Phase 3b), which has to touch `dismissedEventsV2` anyway.
 - **Does `BackupAgent.onRestoreFinished()` fire when a sideloaded APK picks up staged transfer data?** Unanswered, and answering it needs real hardware. Nothing in this plan depends on the answer — the self-check works either way. A "yes" would only buy an optimisation: skip straight to resolution instead of discovering staleness row by row. Deferred until a phone is free; see *`BackupAgent.onRestoreFinished()` is not the mechanism*.

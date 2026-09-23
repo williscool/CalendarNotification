@@ -219,6 +219,15 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
      * carrying a plausible-looking pointer to the wrong event -- worse than
      * carrying none. Those rows are left for the resolver.
      *
+     * **Covers dismissed events as well as active ones.** Dismissed rows are
+     * history, but they are restorable history -- the un-dismiss path puts them
+     * back into the active list, and it needs a `cid`/`id` that still resolve.
+     * Their identity has the same shelf life as anything else: measured on a
+     * real device, 2709 of 4183 dismissed rows still resolved in the provider,
+     * so skipping them would have discarded most of what was recoverable. The
+     * rest are old enough that the provider has pruned them, which is expected
+     * for history and reported rather than treated as a failure.
+     *
      * Runs after a calendar reload, on the wake-locked background service --
      * never on the EVENT_REMINDER path, where a notification is about to fire.
      * Identity is only ever needed at restore time, so it is never urgent.
@@ -229,16 +238,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
      */
     fun captureEventIdentities(context: Context) {
         try {
-            val events = getEventsStorage(context).use { db -> db.events }
-            if (events.isEmpty())
-                return
-
             val capturedAt = clock.currentTimeMillis()
             val identityStorage = getEventIdentityStorage(context)
-
-            // One backup-info lookup per calendar rather than per event -- a
-            // reload pass is usually dominated by a handful of calendars.
-            val backupInfoByCalendar = HashMap<Long, CalendarBackupInfo?>()
 
             // Read every identity row once, not once per event: this table has
             // one row per stored event, so it is the same size as the list
@@ -246,7 +247,30 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             val storedSyncIds = identityStorage.getAll()
                 .associate { (it.eventId to it.instanceStartTime) to it.eventSyncId }
 
+            val active = getEventsStorage(context).use { db -> db.events }
+
+            // Dismissed events outnumber active ones by an order of magnitude
+            // (measured: 4183 vs 373), and this runs every 30 minutes on a
+            // wake-locked service. Their identity is immutable history, so once
+            // a dismissed row has been captured it never needs re-reading --
+            // only the ones with nothing stored yet are worth a provider query.
+            val dismissed = getDismissedEventsStorage(context)
+                .use { db -> db.events.map { it.event } }
+                .filter { (it.eventId to it.instanceStartTime) !in storedSyncIds }
+
+            // Active first: where the same event appears in both stores, the
+            // active row is the one whose identity has to be right, and
+            // distinctBy keeps the first occurrence of each key.
+            val events = (active + dismissed).distinctBy { it.eventId to it.instanceStartTime }
+            if (events.isEmpty())
+                return
+
+            // One backup-info lookup per calendar rather than per event -- a
+            // reload pass is usually dominated by a handful of calendars.
+            val backupInfoByCalendar = HashMap<Long, CalendarBackupInfo?>()
+
             var staleCount = 0
+            var goneCount = 0
 
             val identities = events.mapNotNull { event ->
                 val providerEvent = calendarProvider.getEvent(context, event.eventId)
@@ -264,8 +288,12 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                     calendarProvider.getCalendarBackupInfo(context, event.calendarId)
                 }
 
-                if (providerEvent?.syncId == null && providerEvent?.uid2445 == null && backupInfo == null)
+                if (providerEvent?.syncId == null && providerEvent?.uid2445 == null && backupInfo == null) {
+                    // Nothing to store. Overwhelmingly a dismissed event the
+                    // provider has aged out, which is normal for history.
+                    goneCount++
                     return@mapNotNull null
+                }
 
                 EventIdentityEntity.create(
                     eventId = event.eventId,
@@ -280,7 +308,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
             if (staleCount > 0) {
                 // Expected on a restored device, and on nothing else. Logged
-                // rather than acted on: resolution is Phase 3.
+                // rather than acted on: resolution is the resolver's job.
                 DevLog.warn(LOG_TAG,
                     "$staleCount of ${events.size} event(s) no longer match their stored identity " +
                     "-- stored ids look stale, capture skipped for those")
@@ -290,7 +318,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 return
 
             identityStorage.putAll(identities)
-            DevLog.info(LOG_TAG, "Captured identity for ${identities.size} of ${events.size} event(s)")
+            DevLog.info(LOG_TAG,
+                "Captured identity for ${identities.size} of ${events.size} event(s) " +
+                "(${active.size} active, ${dismissed.size} dismissed needing capture, " +
+                "$goneCount no longer in provider)")
         }
         catch (ex: SQLException) {
             DevLog.error(LOG_TAG, "Identity capture failed (SQL): ${ex.message}")

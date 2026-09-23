@@ -27,6 +27,8 @@ import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
+import com.github.quarck.calnotify.testutils.MockDismissedEventsStorage
 import com.github.quarck.calnotify.testutils.MockEventsStorage
 import io.mockk.every
 import io.mockk.mockkObject
@@ -108,6 +110,9 @@ class EventIdentityCaptureRobolectricTest {
     /** What EventsStorage returns for this test. */
     private var storedEvents: List<EventAlertRecord> = emptyList()
 
+    /** What DismissedEventsStorage returns for this test. */
+    private var dismissedEvents: List<EventAlertRecord> = emptyList()
+
 
     /** Counts provider calls, so redundant lookups are visible. */
     private var backupInfoLookups = 0
@@ -147,12 +152,18 @@ class EventIdentityCaptureRobolectricTest {
         ApplicationController.eventsStorageProvider = {
             MockEventsStorage().apply { storedEvents.forEach { addEvent(it) } }
         }
+        ApplicationController.dismissedEventsStorageProvider = {
+            MockDismissedEventsStorage().apply {
+                dismissedEvents.forEach { addEvent(EventDismissType.ManuallyDismissedFromActivity, it) }
+            }
+        }
     }
 
     @After
     fun teardown() {
         ApplicationController.eventIdentityStorageProvider = null
         ApplicationController.eventsStorageProvider = null
+        ApplicationController.dismissedEventsStorageProvider = null
         unmockkAll()
     }
 
@@ -195,9 +206,13 @@ class EventIdentityCaptureRobolectricTest {
         lastStatusChangeTime = 0L
     )
 
-    /** Seeds EventsStorage, then runs capture the way the reload pass does. */
-    private fun capture(events: List<EventAlertRecord>) {
+    /** Seeds both stores, then runs capture the way the reload pass does. */
+    private fun capture(
+        events: List<EventAlertRecord>,
+        dismissed: List<EventAlertRecord> = emptyList()
+    ) {
         storedEvents = events
+        dismissedEvents = dismissed
         ApplicationController.captureEventIdentities(context)
     }
 
@@ -423,6 +438,98 @@ class EventIdentityCaptureRobolectricTest {
             "never-captured row is captured for the first time",
             "sync-3", identityStorage.stored[3L to INSTANCE_START]!!.eventSyncId
         )
+    }
+
+    // --- Dismissed events get identity too ---
+    //
+    // They are history, but restorable history: the un-dismiss path puts them
+    // back into the active list and needs a cid/id that still resolve. Measured
+    // on a real device, 2709 of 4183 dismissed rows were still resolvable in the
+    // provider, so skipping them discarded most of what was recoverable.
+
+    @Test
+    fun capturesIdentityForDismissedEvents() {
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
+
+        val stored = identityStorage.stored[700L to INSTANCE_START]
+        assertNotNull("a dismissed event still needs portable identity", stored)
+        assertEquals("sync-700", stored!!.eventSyncId)
+        assertEquals("user@example.com", stored.calendarAccountName)
+    }
+
+    @Test
+    fun capturesBothActiveAndDismissedInOnePass() {
+        capture(events = (1L..3L).map { alertRecord(it) },
+                dismissed = (10L..14L).map { alertRecord(it) })
+
+        assertEquals("all 8 rows across both stores", 8, identityStorage.stored.size)
+        assertEquals("sync-2", identityStorage.stored[2L to INSTANCE_START]!!.eventSyncId)
+        assertEquals("sync-12", identityStorage.stored[12L to INSTANCE_START]!!.eventSyncId)
+    }
+
+    @Test
+    fun anEventInBothStoresIsCapturedOnceFromTheActiveRow() {
+        // Dismiss-then-restore can leave the same key in both stores. It must
+        // not be looked up twice, and the active row is the authoritative one.
+        capture(events = listOf(alertRecord(100L)), dismissed = listOf(alertRecord(100L)))
+
+        assertEquals("deduplicated by (eventId, instanceStartTime)", 1, identityStorage.stored.size)
+        assertEquals(
+            "one provider lookup, not two",
+            1, getEventLookups
+        )
+    }
+
+    @Test
+    fun dismissedEventAgedOutOfTheProviderIsSkippedNotFailed() {
+        // The common case for old history: the provider has pruned the event.
+        // Nothing to store, and it must not disturb the rows that do resolve.
+        capture(events = listOf(alertRecord(100L)),
+                dismissed = listOf(alertRecord(EVENT_WITHOUT_IDENTITY, calendarId = UNKNOWN_CALENDAR_ID)))
+
+        assertEquals("only the resolvable row is stored", 1, identityStorage.stored.size)
+        assertNotNull(identityStorage.stored[100L to INSTANCE_START])
+    }
+
+    @Test
+    fun dismissedOnlyDatabaseStillCaptures() {
+        // No active events at all -- capture must not bail out early on an
+        // empty active list while dismissed rows are still worth recording.
+        capture(events = emptyList(), dismissed = (1L..4L).map { alertRecord(it) })
+
+        assertEquals(4, identityStorage.stored.size)
+    }
+
+    @Test
+    fun alreadyCapturedDismissedEventsAreNotReReadEveryPass() {
+        // Dismissed rows outnumber active ones ~11:1 on a real device and this
+        // runs every 30 minutes on a wake-locked service. Their identity is
+        // immutable history, so a captured dismissed row must cost nothing on
+        // subsequent passes.
+        seedIdentity(700L, "sync-700")
+
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
+
+        assertEquals(
+            "an already-captured dismissed event must not be queried again",
+            0, getEventLookups
+        )
+        assertEquals(
+            "and its stored identity is left alone",
+            "sync-700", identityStorage.stored[700L to INSTANCE_START]!!.eventSyncId
+        )
+    }
+
+    @Test
+    fun activeEventsAreStillReReadEvenWhenAlreadyCaptured() {
+        // The active list is small and its events move -- reschedules, edits,
+        // calendar renames -- so it keeps being refreshed. Only the dismissed
+        // side is skipped.
+        seedIdentity(100L, "sync-100")
+
+        capture(events = listOf(alertRecord(100L)))
+
+        assertEquals("active events are re-read every pass", 1, getEventLookups)
     }
 
     @Test
