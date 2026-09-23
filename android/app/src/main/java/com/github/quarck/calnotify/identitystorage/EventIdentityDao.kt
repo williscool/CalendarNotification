@@ -40,6 +40,26 @@ interface EventIdentityDao {
     @Query("SELECT COUNT(*) FROM ${EventIdentityEntity.TABLE_NAME}")
     fun count(): Int
 
+    /**
+     * Key plus sync id, without the other eleven columns.
+     *
+     * This is everything the capture pass needs from this table: which events
+     * already have identity, and what sync id was recorded so the self-check can
+     * compare it against the provider. Reading full rows for that costs eleven
+     * unused columns per row, on a table that grows to roughly one row per
+     * stored event -- measured at ~3082 once dismissed history is captured --
+     * re-read every 30 minutes on a wake-locked service.
+     *
+     * See docs/dev_todo/portable_event_identity.md.
+     */
+    @Query(
+        "SELECT ${EventIdentityEntity.COL_EVENT_ID} AS eventId, " +
+        "${EventIdentityEntity.COL_INSTANCE_START_TIME} AS instanceStartTime, " +
+        "${EventIdentityEntity.COL_EVENT_SYNC_ID} AS eventSyncId " +
+        "FROM ${EventIdentityEntity.TABLE_NAME}"
+    )
+    fun getAllSyncIds(): List<EventIdentitySyncId>
+
     @Query(
         "SELECT * FROM ${EventIdentityEntity.TABLE_NAME} " +
         "WHERE ${EventIdentityEntity.COL_EVENT_ID} = :eventId " +
@@ -111,3 +131,15 @@ interface EventIdentityDao {
     )
     fun recordResolutionAttempt(eventId: Long, instanceStartTime: Long, attemptTime: Long): Int
 }
+
+/**
+ * The key of an identity row plus its captured sync id.
+ *
+ * Room maps [EventIdentityDao.getAllSyncIds]'s projection onto this; the column
+ * aliases in that query must match these property names.
+ */
+data class EventIdentitySyncId(
+    val eventId: Long,
+    val instanceStartTime: Long,
+    val eventSyncId: String?
+)

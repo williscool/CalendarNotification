@@ -241,10 +241,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             val capturedAt = clock.currentTimeMillis()
             val identityStorage = getEventIdentityStorage(context)
 
-            // Read every identity row once, not once per event: this table has
-            // one row per stored event, so it is the same size as the list
-            // being walked.
-            val storedSyncIds = identityStorage.getAll()
+            // Key plus sync id only. This table holds roughly one row per
+            // stored event -- ~3082 once dismissed history is captured -- and
+            // the pass needs just two things from it: which events are already
+            // captured, and what sync id to compare against the provider.
+            // Reading full rows would carry eleven unused columns apiece, every
+            // 30 minutes, on a wake-locked service.
+            val storedSyncIds = identityStorage.getAllSyncIds()
                 .associate { (it.eventId to it.instanceStartTime) to it.eventSyncId }
 
             val active = getEventsStorage(context).use { db -> db.events }

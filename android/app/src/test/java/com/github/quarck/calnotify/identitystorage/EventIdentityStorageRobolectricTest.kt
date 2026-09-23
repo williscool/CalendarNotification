@@ -59,6 +59,13 @@ class EventIdentityStorageRobolectricTest {
             return rows.values.toList()
         }
 
+        override fun getAllSyncIds(): List<EventIdentitySyncId> {
+            checkFailure()
+            return rows.values.map {
+                EventIdentitySyncId(it.eventId, it.instanceStartTime, it.eventSyncId)
+            }
+        }
+
         override fun count(): Int {
             checkFailure()
             return rows.size

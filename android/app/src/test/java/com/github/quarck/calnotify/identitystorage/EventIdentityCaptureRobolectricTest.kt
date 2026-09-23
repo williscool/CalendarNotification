@@ -76,6 +76,10 @@ class EventIdentityCaptureRobolectricTest {
             var throwOnWrite: android.database.SQLException? = null
 
             override fun getAll() = rows.values.toList()
+            override fun getAllSyncIds() =
+                rows.values.map {
+                    EventIdentitySyncId(it.eventId, it.instanceStartTime, it.eventSyncId)
+                }
             override fun count() = rows.size
             override fun getByKey(eventId: Long, instanceStartTime: Long) =
                 rows[eventId to instanceStartTime]
