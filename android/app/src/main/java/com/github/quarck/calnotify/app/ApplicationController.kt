@@ -289,7 +289,15 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             val storedSyncIds = identityStorage.getAllSyncIds()
                 .associate { (it.eventId to it.instanceStartTime) to it.eventSyncId }
 
-            val events = eventsNeedingCapture(context, storedSyncIds.keys)
+            // Skip only rows that are *fully* captured. A row with a sync id
+            // but no calendar (its calendar was gone when capture ran) stays on
+            // the list, so a dismissed event gets another chance if the
+            // calendar returns -- otherwise it would be retired permanently.
+            val events = eventsNeedingCapture(
+                context,
+                identityStorage.getFullyCapturedKeys()
+                    .mapTo(HashSet()) { it.eventId to it.instanceStartTime }
+            )
             if (events.isEmpty())
                 return
 

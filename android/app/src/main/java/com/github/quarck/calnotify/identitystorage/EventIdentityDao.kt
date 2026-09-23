@@ -53,12 +53,36 @@ interface EventIdentityDao {
      * See docs/dev_todo/portable_event_identity.md.
      */
     @Query(
-        "SELECT ${EventIdentityEntity.COL_EVENT_ID} AS eventId, " +
-        "${EventIdentityEntity.COL_INSTANCE_START_TIME} AS instanceStartTime, " +
-        "${EventIdentityEntity.COL_EVENT_SYNC_ID} AS eventSyncId " +
+        "SELECT ${EventIdentityEntity.COL_EVENT_ID}, " +
+        "${EventIdentityEntity.COL_INSTANCE_START_TIME}, " +
+        "${EventIdentityEntity.COL_EVENT_SYNC_ID} " +
         "FROM ${EventIdentityEntity.TABLE_NAME}"
     )
     fun getAllSyncIds(): List<EventIdentitySyncId>
+
+    /**
+     * Keys of rows that are fully captured -- both an event identifier and a
+     * calendar to attach it to.
+     *
+     * A row missing the calendar half is deliberately **not** listed. Capture
+     * writes empty account columns when the provider could not describe the
+     * calendar (it was removed between the event being stored and the pass
+     * running), and such a row can never resolve: `CalendarIdentityMatcher` has
+     * no account to search for. Reporting it as captured would retire it from
+     * the dismissed-event skip list forever, so the calendar would never be
+     * picked up even once it returns.
+     *
+     * Active events are re-read every pass regardless, so this only changes
+     * behaviour for dismissed events -- which are skipped once captured.
+     */
+    @Query(
+        "SELECT ${EventIdentityEntity.COL_EVENT_ID}, " +
+        "${EventIdentityEntity.COL_INSTANCE_START_TIME} " +
+        "FROM ${EventIdentityEntity.TABLE_NAME} " +
+        "WHERE ${EventIdentityEntity.COL_CALENDAR_ACCOUNT_NAME} != '' " +
+        "AND ${EventIdentityEntity.COL_CALENDAR_ACCOUNT_TYPE} != ''"
+    )
+    fun getFullyCapturedKeys(): List<EventIdentityKey>
 
     @Query(
         "SELECT * FROM ${EventIdentityEntity.TABLE_NAME} " +
@@ -135,11 +159,23 @@ interface EventIdentityDao {
 /**
  * The key of an identity row plus its captured sync id.
  *
- * Room maps [EventIdentityDao.getAllSyncIds]'s projection onto this; the column
- * aliases in that query must match these property names.
+ * Room matches the projection's columns onto these properties by name. The
+ * columns are already called eventId/instanceStartTime/eventSyncId, so the
+ * query needs no aliases -- add one only if a column is ever renamed away from
+ * its property.
  */
 data class EventIdentitySyncId(
     val eventId: Long,
     val instanceStartTime: Long,
     val eventSyncId: String?
+)
+
+/**
+ * The primary key of an identity row, with nothing else.
+ *
+ * Room matches the projection's columns onto these properties by name.
+ */
+data class EventIdentityKey(
+    val eventId: Long,
+    val instanceStartTime: Long
 )

@@ -52,8 +52,8 @@ interface DismissedEventDao {
      * wake-locked service and only needs the keys it has not captured yet.
      * See docs/dev_todo/portable_event_identity.md.
      */
-    @Query("SELECT ${DismissedEventEntity.COL_EVENT_ID} AS eventId, " +
-           "${DismissedEventEntity.COL_INSTANCE_START} AS instanceStart " +
+    @Query("SELECT ${DismissedEventEntity.COL_EVENT_ID}, " +
+           "${DismissedEventEntity.COL_INSTANCE_START} " +
            "FROM ${DismissedEventEntity.TABLE_NAME}")
     fun getAllKeys(): List<DismissedEventKey>
 
@@ -100,8 +100,9 @@ interface DismissedEventDao {
 /**
  * A dismissed event's primary key, without the rest of the row.
  *
- * Room maps the projection in [DismissedEventDao.getAllKeys] onto this; the
- * column aliases in that query have to match these property names.
+ * Room matches the projection's columns onto these properties by name. The
+ * columns are already called eventId/instanceStart, so the query needs no
+ * aliases -- add one only if a column is renamed away from its property.
  */
 data class DismissedEventKey(
     val eventId: Long,

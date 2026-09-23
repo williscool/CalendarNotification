@@ -91,6 +91,9 @@ class EventIdentityCaptureRobolectricTest {
                 throwOnWrite?.let { throw it }
                 rows[entity.eventId to entity.instanceStartTime] = entity
             }
+            override fun getFullyCapturedKeys() =
+                rows.values.filter { it.hasUsableCalendar() }
+                    .map { EventIdentityKey(it.eventId, it.instanceStartTime) }
             override fun putAll(entities: List<EventIdentityEntity>) {
                 throwOnWrite?.let { throw it }
                 entities.forEach { rows[it.eventId to it.instanceStartTime] = it }
@@ -342,13 +345,24 @@ class EventIdentityCaptureRobolectricTest {
     // pointer to the wrong event. See docs/dev_todo/portable_event_identity.md.
 
     /** Pre-seeds an identity row, as an earlier capture pass would have. */
-    private fun seedIdentity(eventId: Long, syncId: String?) {
+    private fun seedIdentity(
+        eventId: Long,
+        syncId: String?,
+        withCalendar: Boolean = false
+    ) {
         identityStorage.storage.put(
             EventIdentityEntity.create(
                 eventId = eventId,
                 instanceStartTime = INSTANCE_START,
                 calendarId = CALENDAR_ID,
-                backupInfo = null,
+                backupInfo = if (withCalendar) CalendarBackupInfo(
+                    calendarId = CALENDAR_ID,
+                    accountName = "user@example.com",
+                    accountType = "com.google",
+                    ownerAccount = "user@example.com",
+                    displayName = "Calendar $CALENDAR_ID",
+                    name = "user@example.com"
+                ) else null,
                 eventSyncId = syncId,
                 eventUid = null,
                 capturedAtTime = 1L
@@ -513,8 +527,8 @@ class EventIdentityCaptureRobolectricTest {
         // active), and this runs every 30 minutes on a wake-locked service.
         // Once everything is captured, a pass must cost a key projection and
         // nothing more -- no full row read, no sort, no entity mapping.
-        seedIdentity(700L, "sync-700")
-        seedIdentity(701L, "sync-701")
+        seedIdentity(700L, "sync-700", withCalendar = true)
+        seedIdentity(701L, "sync-701", withCalendar = true)
 
         capture(events = emptyList(), dismissed = listOf(alertRecord(700L), alertRecord(701L)))
 
@@ -528,8 +542,8 @@ class EventIdentityCaptureRobolectricTest {
     @Test
     fun onlyTheUncapturedDismissedRowsAreFetched() {
         // One of three needs capturing, so the row read must ask for that one.
-        seedIdentity(700L, "sync-700")
-        seedIdentity(701L, "sync-701")
+        seedIdentity(700L, "sync-700", withCalendar = true)
+        seedIdentity(701L, "sync-701", withCalendar = true)
 
         capture(
             events = emptyList(),
@@ -550,7 +564,7 @@ class EventIdentityCaptureRobolectricTest {
         // runs every 30 minutes on a wake-locked service. Their identity is
         // immutable history, so a captured dismissed row must cost nothing on
         // subsequent passes.
-        seedIdentity(700L, "sync-700")
+        seedIdentity(700L, "sync-700", withCalendar = true)
 
         capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
 
@@ -574,6 +588,45 @@ class EventIdentityCaptureRobolectricTest {
         capture(events = listOf(alertRecord(100L)))
 
         assertEquals("active events are re-read every pass", 1, getEventLookups)
+    }
+
+    @Test
+    fun aDismissedRowMissingItsCalendarIsRetriedNotRetiredForever() {
+        // Capture can record a sync id but no calendar, when the calendar was
+        // removed between the event being stored and the pass running. Such a
+        // row cannot resolve -- the matcher has no account to search for -- so
+        // it must stay on the list and get another chance if the calendar
+        // comes back. Dismissed rows are skipped once captured, so without this
+        // the event would be retired permanently.
+        seedIdentity(700L, "sync-700", withCalendar = false)
+
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
+
+        assertEquals(
+            "an incomplete row must be re-read, not skipped",
+            1, lastDismissedStorage!!.fullReadCount
+        )
+        assertEquals(
+            "and this time the calendar is recorded",
+            "user@example.com",
+            identityStorage.stored[700L to INSTANCE_START]!!.calendarAccountName
+        )
+    }
+
+    @Test
+    fun anIncompleteRowDoesNotCauseCompleteOnesToBeReRead() {
+        // The retry is per row: one incomplete neighbour must not drag the
+        // whole dismissed table back into a full read every pass.
+        seedIdentity(700L, "sync-700", withCalendar = false)
+        seedIdentity(701L, "sync-701", withCalendar = true)
+
+        capture(events = emptyList(),
+                dismissed = listOf(alertRecord(700L), alertRecord(701L)))
+
+        assertEquals(
+            "only the incomplete row is fetched",
+            1, getEventLookups
+        )
     }
 
     @Test

@@ -75,6 +75,16 @@ class EventIdentityStorage(
     fun getAllSyncIds(): List<EventIdentitySyncId> =
         runCatchingRead("getAllSyncIds", emptyList()) { dao.getAllSyncIds() }
 
+    /**
+     * Keys of rows holding both halves of an identity: an event identifier and
+     * a calendar to attach it to.
+     *
+     * Rows missing the calendar half are excluded so they keep being retried --
+     * see [EventIdentityDao.getFullyCapturedKeys].
+     */
+    fun getFullyCapturedKeys(): List<EventIdentityKey> =
+        runCatchingRead("getFullyCapturedKeys", emptyList()) { dao.getFullyCapturedKeys() }
+
     /** Rows still awaiting resolution, below the retry cap. */
     fun getUnresolved(maxAttempts: Int = DEFAULT_MAX_RESOLUTION_ATTEMPTS): List<EventIdentityEntity> =
         runCatchingRead("getUnresolved", emptyList()) { dao.getUnresolved(maxAttempts) }

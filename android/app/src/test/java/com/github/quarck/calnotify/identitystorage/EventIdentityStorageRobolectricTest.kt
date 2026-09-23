@@ -66,6 +66,12 @@ class EventIdentityStorageRobolectricTest {
             }
         }
 
+        override fun getFullyCapturedKeys(): List<EventIdentityKey> {
+            checkFailure()
+            return rows.values.filter { it.hasUsableCalendar() }
+                .map { EventIdentityKey(it.eventId, it.instanceStartTime) }
+        }
+
         override fun count(): Int {
             checkFailure()
             return rows.size
