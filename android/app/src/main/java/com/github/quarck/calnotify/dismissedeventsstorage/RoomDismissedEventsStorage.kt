@@ -85,7 +85,12 @@ class RoomDismissedEventsStorage(
 
         val wanted = keys.toHashSet()
 
-        // SQLite caps bound parameters (999 by default), so chunk the IN list.
+        // Chunk the IN list: SQLite caps how many parameters one statement may
+        // bind. This app bundles requery/sqlite-android 3.45, where that cap is
+        // 32766 -- the old 999 figure applies only to SQLite before 3.32.0
+        // (2020) -- so CHUNK is far below the real limit and exists to keep the
+        // statement a sane size, not to dodge an error.
+        //
         // The query filters on eventId alone -- an event with several dismissed
         // occurrences comes back more than once -- so narrow to the exact keys
         // here.
@@ -114,8 +119,12 @@ class RoomDismissedEventsStorage(
         /**
          * How many ids to bind per `IN (...)` query.
          *
-         * SQLite's default `SQLITE_MAX_VARIABLE_NUMBER` is 999; staying well
-         * under it leaves room for any other bindings the query grows.
+         * Not a hard limit workaround. `SQLITE_MAX_VARIABLE_NUMBER` is 32766 in
+         * the SQLite this app bundles (requery/sqlite-android 3.45; the widely
+         * cited 999 was raised in SQLite 3.32.0, 2020), so this is an order of
+         * magnitude below the cap. It keeps a single statement from growing
+         * unboundedly with history size, and keeps the query off the platform
+         * SQLite's lower limit should the bundled library ever be dropped.
          */
         private const val SQLITE_BIND_PARAM_CHUNK = 500
     }

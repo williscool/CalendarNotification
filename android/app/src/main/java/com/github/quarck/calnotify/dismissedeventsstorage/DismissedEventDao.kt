@@ -80,8 +80,9 @@ interface DismissedEventDao {
      *
      * The companion to [getAllKeys]: having decided which dismissed events are
      * of interest, read only those. Room expands `IN (:eventIds)` into a bound
-     * parameter list, and SQLite caps that at 999 by default, so callers must
-     * chunk -- [DismissedEventsStorageInterface] does.
+     * parameter list; callers chunk it (see `RoomDismissedEventsStorage`) to
+     * keep a single statement bounded, not because the cap is near -- it is
+     * 32766 in the SQLite this app bundles.
      *
      * Filters on `eventId` alone rather than the full key; an event with several
      * dismissed occurrences returns all of them, which the caller narrows. That
