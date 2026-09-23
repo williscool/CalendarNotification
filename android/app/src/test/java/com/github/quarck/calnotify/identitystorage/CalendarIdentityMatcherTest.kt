@@ -99,7 +99,7 @@ class CalendarIdentityMatcherTest {
 
         assertEquals(
             CalendarIdentityMatcher.Result.Matched(
-                11L, CalendarIdentityMatcher.Tier.ACCOUNT_TRIPLE
+                11L, CalendarIdentityMatcher.MatchStrength.UNIQUE_ACCOUNT
             ),
             result
         )
@@ -116,7 +116,7 @@ class CalendarIdentityMatcherTest {
 
         assertEquals(
             CalendarIdentityMatcher.Result.Matched(
-                31L, CalendarIdentityMatcher.Tier.ACCOUNT_TRIPLE
+                31L, CalendarIdentityMatcher.MatchStrength.UNIQUE_ACCOUNT
             ),
             result
         )
@@ -171,8 +171,12 @@ class CalendarIdentityMatcherTest {
     }
 
     @Test
-    fun differentOwnerOnTheSameAccountIsNotATier1Match() {
-        // Shared/delegated calendars: same account, different owner.
+    fun aCalendarSharedFromAnotherAccountIsNotConfusedWithYourOwn() {
+        // The real case this protects: a calendar shared from one account into
+        // another. Your account name is on the row, but the owner is theirs --
+        // measured on a real device, where a calendar is shared between two
+        // accounts to keep Calendly blocks consistent. Matching without the
+        // owner would merge it with a calendar you actually own.
         val result = CalendarIdentityMatcher.match(
             identity(accountName = ACCOUNT_A, owner = ACCOUNT_A),
             listOf(calendar(11L, ACCOUNT_A, owner = "someone.else@example.com"))
@@ -196,7 +200,7 @@ class CalendarIdentityMatcherTest {
 
         assertEquals(
             CalendarIdentityMatcher.Result.Matched(
-                12L, CalendarIdentityMatcher.Tier.ACCOUNT_TRIPLE_AND_NAME
+                12L, CalendarIdentityMatcher.MatchStrength.ACCOUNT_PLUS_CALENDAR_NAME
             ),
             result
         )
@@ -216,7 +220,7 @@ class CalendarIdentityMatcherTest {
 
         assertEquals(
             CalendarIdentityMatcher.Result.Matched(
-                12L, CalendarIdentityMatcher.Tier.ACCOUNT_TRIPLE_AND_DISPLAY_NAME
+                12L, CalendarIdentityMatcher.MatchStrength.ACCOUNT_PLUS_DISPLAY_NAME
             ),
             result
         )
@@ -311,7 +315,7 @@ class CalendarIdentityMatcherTest {
             assertEquals(
                 "calendar ${cal.calendarId} must resolve on the account triple",
                 CalendarIdentityMatcher.Result.Matched(
-                    cal.calendarId, CalendarIdentityMatcher.Tier.ACCOUNT_TRIPLE
+                    cal.calendarId, CalendarIdentityMatcher.MatchStrength.UNIQUE_ACCOUNT
                 ),
                 result
             )

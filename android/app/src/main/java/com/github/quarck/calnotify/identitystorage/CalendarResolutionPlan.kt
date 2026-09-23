@@ -63,7 +63,7 @@ data class CalendarResolutionPlan(
         val identity: EventIdentityEntity,
         val oldCalendarId: Long,
         val newCalendarId: Long,
-        val tier: CalendarIdentityMatcher.Tier
+        val strength: CalendarIdentityMatcher.MatchStrength
     )
 
     data class AmbiguousCalendar(
@@ -135,7 +135,7 @@ data class CalendarResolutionPlan(
                                 identity = identity,
                                 oldCalendarId = now,
                                 newCalendarId = result.calendarId,
-                                tier = result.tier
+                                strength = result.strength
                             ))
                     }
                 }

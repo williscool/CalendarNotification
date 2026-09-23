@@ -106,7 +106,7 @@ class CalendarResolutionPlanTest {
         val change = plan.changes.first()
         assertEquals(6L, change.oldCalendarId)
         assertEquals(31L, change.newCalendarId)
-        assertEquals(CalendarIdentityMatcher.Tier.ACCOUNT_TRIPLE, change.tier)
+        assertEquals(CalendarIdentityMatcher.MatchStrength.UNIQUE_ACCOUNT, change.strength)
     }
 
     @Test
