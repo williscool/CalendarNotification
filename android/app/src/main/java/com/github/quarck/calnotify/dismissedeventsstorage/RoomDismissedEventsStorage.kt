@@ -75,6 +75,28 @@ class RoomDismissedEventsStorage(
             .map { it.toRecord() }
             .sortedByDescending { it.dismissTime }
 
+    override fun getAllKeys(): List<DismissedEventKey> = dao.getAllKeys()
+
+    override fun getEventsByKeys(
+        keys: Collection<DismissedEventKey>
+    ): List<DismissedEventAlertRecord> {
+        if (keys.isEmpty())
+            return emptyList()
+
+        val wanted = keys.toHashSet()
+
+        // SQLite caps bound parameters (999 by default), so chunk the IN list.
+        // The query filters on eventId alone -- an event with several dismissed
+        // occurrences comes back more than once -- so narrow to the exact keys
+        // here.
+        return keys.map { it.eventId }
+            .distinct()
+            .chunked(SQLITE_BIND_PARAM_CHUNK)
+            .flatMap { dao.getByEventIds(it) }
+            .filter { DismissedEventKey(it.eventId, it.instanceStartTime) in wanted }
+            .map { it.toRecord() }
+    }
+
     /**
      * No-op for Room storage.
      * 
@@ -86,6 +108,16 @@ class RoomDismissedEventsStorage(
      * from DismissedEventsStorageInterface and dropping .use {} calls.
      */
     override fun close() {
+    }
+
+    companion object {
+        /**
+         * How many ids to bind per `IN (...)` query.
+         *
+         * SQLite's default `SQLITE_MAX_VARIABLE_NUMBER` is 999; staying well
+         * under it leaves room for any other bindings the query grows.
+         */
+        private const val SQLITE_BIND_PARAM_CHUNK = 500
     }
 }
 

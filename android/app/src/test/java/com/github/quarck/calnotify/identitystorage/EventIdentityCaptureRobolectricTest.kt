@@ -113,6 +113,9 @@ class EventIdentityCaptureRobolectricTest {
     /** What DismissedEventsStorage returns for this test. */
     private var dismissedEvents: List<EventAlertRecord> = emptyList()
 
+    /** The mock handed to the controller, for asserting how it was read. */
+    private var lastDismissedStorage: MockDismissedEventsStorage? = null
+
 
     /** Counts provider calls, so redundant lookups are visible. */
     private var backupInfoLookups = 0
@@ -155,7 +158,7 @@ class EventIdentityCaptureRobolectricTest {
         ApplicationController.dismissedEventsStorageProvider = {
             MockDismissedEventsStorage().apply {
                 dismissedEvents.forEach { addEvent(EventDismissType.ManuallyDismissedFromActivity, it) }
-            }
+            }.also { lastDismissedStorage = it }
         }
     }
 
@@ -498,6 +501,43 @@ class EventIdentityCaptureRobolectricTest {
         capture(events = emptyList(), dismissed = (1L..4L).map { alertRecord(it) })
 
         assertEquals(4, identityStorage.stored.size)
+    }
+
+    @Test
+    fun steadyStateReadsDismissedKeysWithoutLoadingTheRows() {
+        // dismissedEventsV2 is the largest table the app keeps (4183 rows vs 373
+        // active), and this runs every 30 minutes on a wake-locked service.
+        // Once everything is captured, a pass must cost a key projection and
+        // nothing more -- no full row read, no sort, no entity mapping.
+        seedIdentity(700L, "sync-700")
+        seedIdentity(701L, "sync-701")
+
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L), alertRecord(701L)))
+
+        assertEquals("keys are read", 1, lastDismissedStorage!!.keyReadCount)
+        assertEquals(
+            "no full rows read when nothing needs capturing",
+            0, lastDismissedStorage!!.fullReadCount
+        )
+    }
+
+    @Test
+    fun onlyTheUncapturedDismissedRowsAreFetched() {
+        // One of three needs capturing, so the row read must ask for that one.
+        seedIdentity(700L, "sync-700")
+        seedIdentity(701L, "sync-701")
+
+        capture(
+            events = emptyList(),
+            dismissed = listOf(alertRecord(700L), alertRecord(701L), alertRecord(702L))
+        )
+
+        assertEquals(1, lastDismissedStorage!!.fullReadCount)
+        assertEquals(
+            "the uncaptured one is now stored",
+            "sync-702", identityStorage.stored[702L to INSTANCE_START]!!.eventSyncId
+        )
+        assertEquals("and only it was queried from the provider", 1, getEventLookups)
     }
 
     @Test

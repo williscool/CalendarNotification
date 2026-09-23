@@ -39,6 +39,24 @@ interface DismissedEventDao {
     @Query("SELECT COUNT(*) FROM ${DismissedEventEntity.TABLE_NAME}")
     fun count(): Int
 
+    /**
+     * Primary keys only, unsorted.
+     *
+     * For callers that need to know *which* dismissed events exist without
+     * reading them. [getAll] is `SELECT *` plus an `ORDER BY`, and this table is
+     * the largest the app keeps -- measured at 4183 rows against 373 active
+     * events -- so reading whole rows to look at two columns costs a full row
+     * scan, a sort, and an entity mapping per row, most of it then discarded.
+     *
+     * Used by portable-identity capture, which runs every 30 minutes on a
+     * wake-locked service and only needs the keys it has not captured yet.
+     * See docs/dev_todo/portable_event_identity.md.
+     */
+    @Query("SELECT ${DismissedEventEntity.COL_EVENT_ID} AS eventId, " +
+           "${DismissedEventEntity.COL_INSTANCE_START} AS instanceStart " +
+           "FROM ${DismissedEventEntity.TABLE_NAME}")
+    fun getAllKeys(): List<DismissedEventKey>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(entity: DismissedEventEntity)
 
@@ -56,5 +74,32 @@ interface DismissedEventDao {
 
     @Query("DELETE FROM ${DismissedEventEntity.TABLE_NAME} WHERE ${DismissedEventEntity.COL_DISMISS_TIME} < :cutoffTime")
     fun deleteOlderThan(cutoffTime: Long)
+
+    /**
+     * Full rows for a set of keys.
+     *
+     * The companion to [getAllKeys]: having decided which dismissed events are
+     * of interest, read only those. Room expands `IN (:eventIds)` into a bound
+     * parameter list, and SQLite caps that at 999 by default, so callers must
+     * chunk -- [DismissedEventsStorageInterface] does.
+     *
+     * Filters on `eventId` alone rather than the full key; an event with several
+     * dismissed occurrences returns all of them, which the caller narrows. That
+     * keeps the query to one bound list instead of a synthesised `OR` chain.
+     */
+    @Query("SELECT * FROM ${DismissedEventEntity.TABLE_NAME} " +
+           "WHERE ${DismissedEventEntity.COL_EVENT_ID} IN (:eventIds)")
+    fun getByEventIds(eventIds: List<Long>): List<DismissedEventEntity>
 }
+
+/**
+ * A dismissed event's primary key, without the rest of the row.
+ *
+ * Room maps the projection in [DismissedEventDao.getAllKeys] onto this; the
+ * column aliases in that query have to match these property names.
+ */
+data class DismissedEventKey(
+    val eventId: Long,
+    val instanceStart: Long
+)
 

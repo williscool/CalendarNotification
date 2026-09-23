@@ -252,11 +252,19 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             // Dismissed events outnumber active ones by an order of magnitude
             // (measured: 4183 vs 373), and this runs every 30 minutes on a
             // wake-locked service. Their identity is immutable history, so once
-            // a dismissed row has been captured it never needs re-reading --
-            // only the ones with nothing stored yet are worth a provider query.
-            val dismissed = getDismissedEventsStorage(context)
-                .use { db -> db.events.map { it.event } }
-                .filter { (it.eventId to it.instanceStartTime) !in storedSyncIds }
+            // a dismissed row has been captured it never needs re-reading.
+            //
+            // Read the keys first and filter in SQL-sized terms, then fetch only
+            // the rows that still need capturing. Reading every row to discard
+            // 99% of them would cost a full table scan, a sort and an entity
+            // mapping per row on the largest table the app keeps.
+            val dismissed = getDismissedEventsStorage(context).use { db ->
+                val uncaptured = db.getAllKeys().filter {
+                    (it.eventId to it.instanceStart) !in storedSyncIds
+                }
+                if (uncaptured.isEmpty()) emptyList()
+                else db.getEventsByKeys(uncaptured).map { it.event }
+            }
 
             // Active first: where the same event appears in both stores, the
             // active row is the one whose identity has to be right, and
