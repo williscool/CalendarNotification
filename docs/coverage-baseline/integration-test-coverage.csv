@@ -1,0 +1,335 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+app,com.github.quarck.calnotify.maps,MapsIntents,23,0,0,0,2,0,2,0,2,0
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertDao_Impl,451,1206,57,45,126,295,54,28,8,23
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertDao_Impl.Companion,0,2,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.monitorstorage,MonitorDatabase_Impl,12,84,0,0,2,17,1,8,1,8
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertEntity,24,172,6,10,0,22,6,15,0,13
+app,com.github.quarck.calnotify.monitorstorage,RoomMonitorStorage,234,0,6,0,32,0,21,0,18,0
+app,com.github.quarck.calnotify.monitorstorage,MonitorDatabase_Impl.createOpenDelegate._openDelegate.new RoomOpenDelegate() {...},25,250,1,1,8,27,4,5,3,5
+app,com.github.quarck.calnotify.monitorstorage,MigrationException,18,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.monitorstorage,MonitorStorageImplV1,754,181,63,11,181,44,48,9,15,5
+app,com.github.quarck.calnotify.monitorstorage,MonitorDatabase.Companion.LoggingCallback,0,29,0,0,0,7,0,3,0,3
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertEntity.Companion,0,44,0,6,0,10,0,4,0,1
+app,com.github.quarck.calnotify.monitorstorage,MonitorDatabase,0,3,0,0,0,2,0,1,0,1
+app,com.github.quarck.calnotify.monitorstorage,LegacyMonitorStorage,444,0,2,0,25,0,20,0,19,0
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertDao_Impl.new EntityDeleteOrUpdateAdapter() {...},28,115,7,7,7,30,7,3,0,3
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertDao_Impl.new EntityDeleteOrUpdateAdapter() {...},0,27,0,0,0,6,0,3,0,3
+app,com.github.quarck.calnotify.monitorstorage,MonitorAlertDao_Impl.new EntityInsertAdapter() {...},28,100,7,7,7,27,7,3,0,3
+app,com.github.quarck.calnotify.monitorstorage,MonitorStorage,5,42,2,2,0,7,3,3,1,3
+app,com.github.quarck.calnotify.monitorstorage,MonitorStorage.Companion,18,26,0,0,2,6,0,1,0,1
+app,com.github.quarck.calnotify.monitorstorage,MD5,396,0,25,0,66,0,17,0,2,0
+app,com.github.quarck.calnotify.monitorstorage,MD5Kt,104,0,2,0,7,0,5,0,4,0
+app,com.github.quarck.calnotify.monitorstorage,MonitorDatabase.Companion,257,81,16,4,59,23,11,4,2,3
+app,com.github.quarck.calnotify.reminders,ReminderState,249,0,2,0,21,0,16,0,15,0
+app,com.github.quarck.calnotify.permissions,PermissionsManager,160,86,21,11,33,13,25,11,12,8
+app,com.github.quarck.calnotify.react,ThemePackage,17,0,0,0,3,0,3,0,3,0
+app,com.github.quarck.calnotify.react,ThemeModule,86,0,5,0,21,0,7,0,4,0
+app,com.github.quarck.calnotify.prefs,CalendarListEntryType,27,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.prefs,MaxRemindersPreferenceX.Dialog,58,0,4,0,13,0,5,0,3,0
+app,com.github.quarck.calnotify.prefs,SnoozePresetPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,TimeOfDayPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,MaxNotificationsPreferenceX,42,86,2,2,5,13,6,5,4,5
+app,com.github.quarck.calnotify.prefs,CalendarsActivity,484,0,25,0,97,0,30,0,17,0
+app,com.github.quarck.calnotify.prefs,SnoozePresetPreferenceX,45,85,2,2,5,13,6,5,4,5
+app,com.github.quarck.calnotify.prefs,ReminderSettingsFragmentX,137,0,16,0,30,0,14,0,6,0
+app,com.github.quarck.calnotify.prefs,LEDColorPickerPreferenceX.Dialog,225,0,20,0,44,0,16,0,6,0
+app,com.github.quarck.calnotify.prefs,ListPreference,118,0,6,0,18,0,12,0,9,0
+app,com.github.quarck.calnotify.prefs,TimeOfDayPreferenceX.Dialog,86,0,4,0,16,0,5,0,3,0
+app,com.github.quarck.calnotify.prefs,CalendarsActivity.loadCalendars..inlined.sortedBy.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,ReminderPatternPreferenceX,134,0,6,0,18,0,12,0,9,0
+app,com.github.quarck.calnotify.prefs,PreferenceHeadersFragment,77,71,6,4,11,13,8,3,3,3
+app,com.github.quarck.calnotify.prefs,QuietHoursSettingsFragmentX,38,0,2,0,9,0,4,0,3,0
+app,com.github.quarck.calnotify.prefs,DefaultManualAllDayNotificationPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,DefaultManualAllDayNotificationPreferenceX.Dialog,151,0,8,0,28,0,7,0,3,0
+app,com.github.quarck.calnotify.prefs,CarModeActivity,362,0,27,0,61,0,25,0,11,0
+app,com.github.quarck.calnotify.prefs,TimeOfDayPreferenceX,182,0,4,0,24,0,12,0,10,0
+app,com.github.quarck.calnotify.prefs,ReminderPatternPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,BlueboothDeviceListEntry,22,0,0,0,3,0,4,0,4,0
+app,com.github.quarck.calnotify.prefs,ReminderPatternPreferenceX.Dialog,446,0,42,0,97,0,31,0,10,0
+app,com.github.quarck.calnotify.prefs,MaxRemindersPreferenceX,45,87,3,3,6,12,7,5,4,5
+app,com.github.quarck.calnotify.prefs,CalendarListAdapter.ViewHolder,162,0,6,0,25,0,19,0,16,0
+app,com.github.quarck.calnotify.prefs,BehaviorSettingsFragmentX,47,8,4,0,10,3,3,2,1,2
+app,com.github.quarck.calnotify.prefs,MaxRemindersPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,PreferenceUtils,122,137,6,13,16,30,8,9,4,2
+app,com.github.quarck.calnotify.prefs,LEDPatternPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,SnoozePresetPreferenceX.Dialog,163,0,22,0,32,0,16,0,5,0
+app,com.github.quarck.calnotify.prefs,CalendarListAdapter,195,0,17,0,28,0,18,0,9,0
+app,com.github.quarck.calnotify.prefs,DefaultManualNotificationPreferenceX.Dialog,59,0,4,0,13,0,5,0,3,0
+app,com.github.quarck.calnotify.prefs,DefaultManualNotificationPreferenceX,42,86,2,2,5,13,6,5,4,5
+app,com.github.quarck.calnotify.prefs,MaxNotificationsPreferenceX.Dialog,69,0,6,0,14,0,6,0,3,0
+app,com.github.quarck.calnotify.prefs,LEDColorPickerPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,MiscSettingsFragmentX,532,64,36,2,104,10,31,2,12,2
+app,com.github.quarck.calnotify.prefs,LEDColorPickerPreferenceX,89,62,6,0,13,10,10,3,7,3
+app,com.github.quarck.calnotify.prefs,DefaultManualNotificationPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,NumberPickerController,68,0,0,0,12,0,9,0,9,0
+app,com.github.quarck.calnotify.prefs,NotificationSettingsFragmentX,152,33,21,1,32,8,14,3,3,3
+app,com.github.quarck.calnotify.prefs,MaxNotificationsPreferenceX.Dialog.Companion,21,0,0,0,5,0,1,0,1,0
+app,com.github.quarck.calnotify.prefs,NavigationSettingsFragmentX,204,0,12,0,49,0,18,0,12,0
+app,com.github.quarck.calnotify.prefs,DefaultManualAllDayNotificationPreferenceX,42,86,2,2,5,13,6,5,4,5
+app,com.github.quarck.calnotify.prefs,CalendarListEntry,68,0,0,0,7,0,8,0,8,0
+app,com.github.quarck.calnotify.prefs,BlueboothDeviceListAdapter,96,0,4,0,13,0,11,0,9,0
+app,com.github.quarck.calnotify.prefs,NotificationSoundPreference,216,112,30,2,32,20,26,5,10,5
+app,com.github.quarck.calnotify.prefs,LEDPatternPreferenceX,45,85,2,2,5,13,6,5,4,5
+app,com.github.quarck.calnotify.prefs,SnoozeSettingsFragmentX,30,8,2,0,6,3,2,2,1,2
+app,com.github.quarck.calnotify.prefs,LEDPatternPreferenceX.Dialog,259,0,12,0,50,0,15,0,9,0
+app,com.github.quarck.calnotify.prefs,BlueboothDeviceListAdapter.ViewHolder,121,0,4,0,16,0,12,0,10,0
+app,com.github.quarck.calnotify.ui,UpcomingEventsFragment.dataUpdatedReceiver.new BroadcastReceiver() {...},4,6,0,0,2,1,1,1,1,1
+app,com.github.quarck.calnotify.ui,DismissedEventListAdapter.ViewHolder,47,121,2,2,1,27,11,11,9,11
+app,com.github.quarck.calnotify.ui,EditEventActivityTextReceiver,3,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.ui,EventListAdapter.onRecycleViewRegistered.new RecyclerView.OnScrollListener() {...},0,25,0,0,0,4,0,2,0,2
+app,com.github.quarck.calnotify.ui,MainActivityLegacy,729,706,63,43,148,129,81,21,31,16
+app,com.github.quarck.calnotify.ui,PrivacyPolicyActivity,37,0,4,0,8,0,4,0,2,0
+app,com.github.quarck.calnotify.ui,EditEventActivity,3717,0,348,0,599,0,230,0,56,0
+app,com.github.quarck.calnotify.ui,ViewEventActivityStateCode.Companion,4,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.ui,UINotifier,1,16,1,1,1,5,1,1,0,1
+app,com.github.quarck.calnotify.ui,ReportABugActivity,159,0,10,0,26,0,9,0,4,0
+app,com.github.quarck.calnotify.ui,DismissedEventsActivity.Companion,7,19,3,1,0,2,3,2,1,2
+app,com.github.quarck.calnotify.ui,AboutActivity.Companion,6,0,0,0,3,0,3,0,3,0
+app,com.github.quarck.calnotify.ui,ViewEventActivityState,14,66,0,0,0,9,4,5,4,5
+app,com.github.quarck.calnotify.ui,MainActivity,60,0,4,0,13,0,4,0,2,0
+app,com.github.quarck.calnotify.ui,DismissedEventListAdapter,104,415,23,25,19,69,25,19,7,13
+app,com.github.quarck.calnotify.ui,DismissedEventsFragment.Companion,5,26,3,1,0,4,2,4,0,4
+app,com.github.quarck.calnotify.ui,TimeIntervalPickerController,301,157,32,8,65,42,41,4,21,4
+app,com.github.quarck.calnotify.ui,MyReactActivity,15,0,0,0,3,0,3,0,3,0
+app,com.github.quarck.calnotify.ui,SnoozeAllActivity,590,886,57,47,113,175,81,27,35,19
+app,com.github.quarck.calnotify.ui,EditEventActivityState,248,0,0,0,28,0,28,0,28,0
+app,com.github.quarck.calnotify.ui,MainActivityBase.Companion,32,131,6,8,4,19,6,10,2,7
+app,com.github.quarck.calnotify.ui,UpcomingEventsFragment.Companion,5,43,4,4,0,7,3,8,0,7
+app,com.github.quarck.calnotify.ui,DismissedEventListAdapterKt,130,46,4,1,4,3,4,1,0,1
+app,com.github.quarck.calnotify.ui,DataUpdatedReceiverLegacy,18,9,2,0,3,1,3,1,2,1
+app,com.github.quarck.calnotify.ui,DismissedEventsActivity,58,229,4,4,7,55,11,11,7,11
+app,com.github.quarck.calnotify.ui,EditEventActivityKt,226,0,9,0,25,0,7,0,1,0
+app,com.github.quarck.calnotify.ui,AboutActivity,158,0,8,0,20,0,12,0,8,0
+app,com.github.quarck.calnotify.ui,SettingsActivityX,62,155,9,13,12,37,9,9,1,6
+app,com.github.quarck.calnotify.ui,SearchableFragment.DefaultImpls,4,13,0,0,3,6,3,6,3,6
+app,com.github.quarck.calnotify.ui,EventListAdapter.setUpItemTouchHelper.itemTouchCallback.new ItemTouchHelper.Callback() {...},308,41,19,1,50,8,24,1,14,1
+app,com.github.quarck.calnotify.ui,EventListAdapter,566,537,74,46,82,87,62,29,13,18
+app,com.github.quarck.calnotify.ui,ViewEventActivityNoRecents.Companion,8,16,3,1,0,2,3,2,1,2
+app,com.github.quarck.calnotify.ui,DismissedEventsFragment.setupMenu.new MenuProvider() {...},0,31,0,2,0,8,0,4,0,3
+app,com.github.quarck.calnotify.ui,MainActivityModern,267,584,64,76,54,87,71,24,14,9
+app,com.github.quarck.calnotify.ui,ViewEventActivityNoRecents,1180,1216,119,66,226,221,133,42,47,30
+app,com.github.quarck.calnotify.ui,MainActivity.Companion,28,7,0,0,6,1,6,1,6,1
+app,com.github.quarck.calnotify.ui,ViewEventActivityState.Companion,27,0,0,0,4,0,1,0,1,0
+app,com.github.quarck.calnotify.ui,ActiveEventsFragment,274,365,30,16,63,75,36,23,14,22
+app,com.github.quarck.calnotify.ui,DismissedEventsFragment,81,311,12,10,19,70,18,17,8,16
+app,com.github.quarck.calnotify.ui,EditEventActivity.ReminderWrapper,34,0,0,0,1,0,5,0,5,0
+app,com.github.quarck.calnotify.ui,DismissedEventListAdapter.setUpItemTouchHelper.itemTouchCallback.new ItemTouchHelper.Callback() {...},313,41,19,1,44,8,24,1,14,1
+app,com.github.quarck.calnotify.ui,ActiveEventsFragment.dataUpdatedReceiver.new BroadcastReceiver() {...},4,6,0,0,2,1,1,1,1,1
+app,com.github.quarck.calnotify.ui,ActiveEventsFragment.Companion,5,23,3,1,0,4,2,4,0,4
+app,com.github.quarck.calnotify.ui,DismissedEventsFragment.dataUpdatedReceiver.new BroadcastReceiver() {...},4,6,0,0,2,1,1,1,1,1
+app,com.github.quarck.calnotify.ui,UpcomingEventsFragment,81,254,9,7,15,53,14,13,7,12
+app,com.github.quarck.calnotify.ui,HorizontalSwipeAwareRefreshLayout,56,35,7,2,6,9,6,3,2,2
+app,com.github.quarck.calnotify.ui,EventListAdapter.ViewHolder,62,156,1,1,2,35,14,14,13,14
+app,com.github.quarck.calnotify.ui,ViewEventActivity,0,3,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.ui,ViewEventActivityStateCode,2,51,0,0,1,5,1,3,1,3
+app,com.github.quarck.calnotify.ui,MainActivityBase,267,199,22,6,73,48,27,19,11,19
+app,com.github.quarck.calnotify.ui,EditEventActivityState.Companion,97,0,0,0,27,0,1,0,1,0
+app,com.github.quarck.calnotify.ui,MainActivityLegacy.onCreateOptionsMenu.new SearchView.OnQueryTextListener() {...},35,22,4,0,5,4,3,2,1,2
+app,com.github.quarck.calnotify.ui,MainActivityModern.onCreateOptionsMenu.new SearchView.OnQueryTextListener() {...},31,16,7,1,4,3,5,2,1,2
+app,com.github.quarck.calnotify.ui,MainActivityModern.onCreateOptionsMenu.new MenuItem.OnActionExpandListener() {...},15,35,6,4,2,5,5,3,0,3
+app,com.github.quarck.calnotify.ui,MainActivityLegacy.onCreateOptionsMenu.new MenuItem.OnActionExpandListener() {...},17,65,9,7,2,8,8,3,0,3
+app,com.github.quarck.calnotify.textutils,NextNotificationType,2,19,0,0,1,2,1,1,1,1
+app,com.github.quarck.calnotify.textutils,EventFormatterInterface.DefaultImpls,0,30,0,0,0,3,0,3,0,3
+app,com.github.quarck.calnotify.textutils,EventFormatter,400,805,59,61,67,175,50,36,7,19
+app,com.github.quarck.calnotify.textutils,EventFormatter.Companion,82,101,16,14,7,18,12,6,0,3
+app,com.github.quarck.calnotify.textutils,EventFormatterKt,5,76,0,2,0,13,0,4,0,3
+app,com.github.quarck.calnotify.textutils,NextNotificationInfo,0,24,0,0,0,4,0,4,0,4
+app,com.github.quarck.calnotify.upcoming,UpcomingEventsProvider.getUpcomingEvents..inlined.sortedBy.new Comparator() {...},0,15,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.upcoming,UpcomingEventsLookahead,47,40,3,1,10,9,3,3,1,3
+app,com.github.quarck.calnotify.upcoming,UpcomingEventsProvider,14,152,4,4,2,41,4,3,0,3
+app,com.github.quarck.calnotify.eventsstorage,EventsDatabase.Companion.LoggingCallback,0,29,0,0,0,7,0,3,0,3
+app,com.github.quarck.calnotify.eventsstorage,EventsStorageState,8,86,0,0,0,3,1,5,1,5
+app,com.github.quarck.calnotify.eventsstorage,EventAlertDao_Impl,382,1794,87,93,111,448,94,23,8,19
+app,com.github.quarck.calnotify.eventsstorage,EventsMigrationException,18,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.eventsstorage,EventsDatabase_Impl,12,84,0,0,2,17,1,8,1,8
+app,com.github.quarck.calnotify.eventsstorage,EventsStorageImplV7,950,0,42,0,200,0,41,0,20,0
+app,com.github.quarck.calnotify.eventsstorage,EventsStorageImplV8,1081,0,66,0,239,0,54,0,21,0
+app,com.github.quarck.calnotify.eventsstorage,EventsStorageImplV6,771,0,34,0,163,0,37,0,20,0
+app,com.github.quarck.calnotify.eventsstorage,EventsStorageImplV9,823,314,59,7,187,70,46,8,16,5
+app,com.github.quarck.calnotify.eventsstorage,EventAlertEntity,99,505,21,23,0,56,21,34,0,33
+app,com.github.quarck.calnotify.eventsstorage,EventsStorage,3,73,3,3,1,14,3,4,0,4
+app,com.github.quarck.calnotify.eventsstorage,EventWithNewInstanceTime,9,15,0,0,0,4,3,1,3,1
+app,com.github.quarck.calnotify.eventsstorage,EventAlertDao_Impl.Companion,0,2,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.eventsstorage,EventsDatabase,0,3,0,0,0,2,0,1,0,1
+app,com.github.quarck.calnotify.eventsstorage,EventAlertEntity.Companion,0,90,0,4,0,24,0,3,0,1
+app,com.github.quarck.calnotify.eventsstorage,EventsDatabase_Impl.createOpenDelegate._openDelegate.new RoomOpenDelegate() {...},25,502,1,1,8,47,4,5,3,5
+app,com.github.quarck.calnotify.eventsstorage,EventsStorage.Companion,18,26,0,0,2,6,0,1,0,1
+app,com.github.quarck.calnotify.eventsstorage,LegacyEventsStorage,821,45,64,0,83,9,52,4,19,4
+app,com.github.quarck.calnotify.eventsstorage,EventsDatabase.Companion,258,81,16,4,59,23,11,4,2,3
+app,com.github.quarck.calnotify.eventsstorage,EventsStorageInterface.DefaultImpls,64,70,0,0,11,12,1,1,1,1
+app,com.github.quarck.calnotify.eventsstorage,EventAlertDao_Impl.new EntityDeleteOrUpdateAdapter() {...},19,3,0,0,4,1,2,1,2,1
+app,com.github.quarck.calnotify.eventsstorage,EventAlertDao_Impl.new EntityDeleteOrUpdateAdapter() {...},112,316,28,28,28,91,28,3,0,3
+app,com.github.quarck.calnotify.eventsstorage,EventAlertDao_Impl.new EntityInsertAdapter() {...},112,306,28,28,28,89,28,3,0,3
+app,com.github.quarck.calnotify.eventsstorage,RoomEventsStorage,1079,0,100,0,156,0,78,0,28,0
+app,com.github.quarck.calnotify.utils,RGB,56,0,0,0,3,0,6,0,6,0
+app,com.github.quarck.calnotify.utils,AsyncUtilsKt,15,5,0,0,2,2,1,2,1,2
+app,com.github.quarck.calnotify.utils,PersistentStorageBase.LongProperty,22,48,2,2,0,8,5,3,3,3
+app,com.github.quarck.calnotify.utils,CNPlusSystemClock,3,16,0,0,1,5,1,3,1,3
+app,com.github.quarck.calnotify.utils,PersistentStorageBase,79,141,3,3,12,27,9,11,7,10
+app,com.github.quarck.calnotify.utils,DateTimeUtils,47,177,4,6,14,26,6,15,2,14
+app,com.github.quarck.calnotify.utils,PersistentStorageBase.StringProperty,22,54,2,2,0,8,5,3,3,3
+app,com.github.quarck.calnotify.utils,PersistentStorageBase.FloatProperty,70,0,4,0,8,0,8,0,6,0
+app,com.github.quarck.calnotify.utils,ViewUtilsKt,49,32,8,2,2,4,7,4,2,4
+app,com.github.quarck.calnotify.utils,ColorUtilsKt,170,180,12,12,23,23,9,7,1,3
+app,com.github.quarck.calnotify.utils,PersistentStorageBase.BooleanProperty,22,48,2,2,0,8,5,3,3,3
+app,com.github.quarck.calnotify.utils,DateTimeUtilsKt,114,0,0,0,18,0,15,0,15,0
+app,com.github.quarck.calnotify.utils,AsyncOperation,29,40,4,2,3,10,7,4,4,4
+app,com.github.quarck.calnotify.utils,SystemUtilsKt,50,259,2,4,8,41,8,11,6,10
+app,com.github.quarck.calnotify.utils,PersistentStorageBase.StringSetProperty,76,0,4,0,8,0,8,0,6,0
+app,com.github.quarck.calnotify.utils,StringUtilsKt,19,13,0,0,8,4,1,1,1,1
+app,com.github.quarck.calnotify.utils,PersistentStorageBase.IntProperty,22,48,2,2,0,8,5,3,3,3
+app,com.github.quarck.calnotify,PersistentStateKt,0,8,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify,GlobalStateKt,2,12,1,1,1,3,1,1,0,1
+app,com.github.quarck.calnotify,Consts,2,179,0,0,0,8,1,3,1,3
+app,com.github.quarck.calnotify,GlobalState.reactNativeHost.new DefaultReactNativeHost() {...},28,14,0,0,3,3,5,1,5,1
+app,com.github.quarck.calnotify,NotificationSettings,9,118,0,0,0,22,3,13,3,13
+app,com.github.quarck.calnotify,PersistentState,17,113,0,0,0,4,2,6,2,6
+app,com.github.quarck.calnotify,VibrationSettings,52,25,10,0,9,4,7,4,2,4
+app,com.github.quarck.calnotify,PebbleSettings,9,27,0,0,0,6,3,3,3,3
+app,com.github.quarck.calnotify,Settings,227,595,29,23,37,118,49,58,23,58
+app,com.github.quarck.calnotify,GlobalState,24,53,1,1,4,16,4,6,3,6
+app,com.github.quarck.calnotify,LedSettings,65,24,12,0,10,4,9,4,3,4
+app,com.github.quarck.calnotify,NotificationBehaviorSettings,0,27,0,0,0,5,0,5,0,5
+app,com.github.quarck.calnotify.calendareditor,EventChangeStatus,50,0,0,0,6,0,5,0,5,0
+app,com.github.quarck.calnotify.calendareditor,CalendarChangeManager,715,0,36,0,141,0,28,0,10,0
+app,com.github.quarck.calnotify.calendareditor,CalendarChangePersistentState,61,0,0,0,2,0,5,0,5,0
+app,com.github.quarck.calnotify.calendareditor,EventChangeRequestType.Companion,4,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendareditor,EventChangeStatus.Companion,4,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendareditor,CalendarChangeRequestMonitor.ValidationResultCommand,33,0,0,0,5,0,2,0,2,0
+app,com.github.quarck.calnotify.calendareditor,CalendarChangeRequestMonitor,1059,107,94,9,242,19,62,4,8,4
+app,com.github.quarck.calnotify.calendareditor,EventChangeRequestType,50,0,0,0,6,0,5,0,5,0
+app,com.github.quarck.calnotify.calendareditor,CalendarChangeRequest,180,0,2,0,17,0,23,0,22,0
+app,com.github.quarck.calnotify.logs,DevLog,0,40,0,0,0,4,0,4,0,4
+app,com.github.quarck.calnotify.logs,LogcatProvider,110,0,6,0,16,0,4,0,1,0
+app,com.github.quarck.calnotify.notification,EventNotificationManager.Companion,9,24,6,4,3,8,5,1,0,1
+app,com.github.quarck.calnotify.notification,EventNotificationManager.postEverythingCollapsed..inlined.sortedByDescending.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.notification,DisplayToast,34,0,0,0,3,0,4,0,4,0
+app,com.github.quarck.calnotify.notification,NotificationContext,141,0,26,0,23,0,24,0,11,0
+app,com.github.quarck.calnotify.notification,EventNotificationManager.postNumNotificationsCollapsed..inlined.sortedByDescending.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.notification,NotificationContext.Companion,246,126,70,24,46,22,51,13,8,9
+app,com.github.quarck.calnotify.notification,NotificationActionMuteToggleService,78,0,10,0,14,0,7,0,2,0
+app,com.github.quarck.calnotify.notification,NotificationActionSnoozeService,258,0,18,0,38,0,14,0,5,0
+app,com.github.quarck.calnotify.notification,ChannelCategory,56,0,5,0,13,0,7,0,3,0
+app,com.github.quarck.calnotify.notification,NotificationActionDismissService,108,0,10,0,27,0,7,0,2,0
+app,com.github.quarck.calnotify.notification,EventNotificationManagerInterface.DefaultImpls,0,17,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.notification,EventNotificationManager,1771,1507,219,112,410,355,155,58,17,30
+app,com.github.quarck.calnotify.notification,EventNotificationManager.NotificationMode,2,25,0,0,1,3,1,1,1,1
+app,com.github.quarck.calnotify.notification,NotificationChannels,37,308,13,11,4,86,12,4,0,4
+app,com.github.quarck.calnotify.notification,EventNotificationManager.arrangeEvents..inlined.sortedBy.new Comparator() {...},0,15,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.broadcastreceivers,RemoteCommandBroadcastReceiver,9,0,4,0,4,0,4,0,2,0
+app,com.github.quarck.calnotify.broadcastreceivers,SnoozeExactAlarmBroadcastReceiver,0,9,0,2,0,4,0,3,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,ReminderAlarmGenericBroadcastReceiver.Companion,49,0,0,0,13,0,13,0,13,0
+app,com.github.quarck.calnotify.broadcastreceivers,ManualEventAlarmBroadcastReceiver,0,3,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.broadcastreceivers,ManualEventExactAlarmBroadcastReceiver,0,3,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.broadcastreceivers,BootCompleteBroadcastReceiver,0,14,0,2,0,5,0,3,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,RescheduleConfirmationsBroadcastReceiver,30,0,6,0,9,0,5,0,2,0
+app,com.github.quarck.calnotify.broadcastreceivers,ManualEventAlarmPeriodicRescanBroadcastReceiver,0,14,1,3,0,5,1,3,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,ReminderAlarmBroadcastReceiver,8,0,0,0,2,0,2,0,2,0
+app,com.github.quarck.calnotify.broadcastreceivers,CalendarChangedBroadcastReceiver,1,14,1,1,1,5,1,2,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,ReminderAlarmGenericBroadcastReceiver,435,0,62,0,87,0,42,0,11,0
+app,com.github.quarck.calnotify.broadcastreceivers,EventReminderBroadcastReceiver,5,22,2,2,2,5,2,2,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,ReminderExactAlarmBroadcastReceiver,8,0,0,0,2,0,2,0,2,0
+app,com.github.quarck.calnotify.broadcastreceivers,SnoozeAlarmBroadcastReceiver,0,9,0,2,0,4,0,3,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,TimeSetBroadcastReceiver,0,14,0,2,0,5,0,3,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,ManualEventAlarmGenericBroadcastReceiver,0,14,1,3,0,5,1,3,0,2
+app,com.github.quarck.calnotify.broadcastreceivers,AppUpdatedBroadcastReceiver,0,14,0,2,0,5,0,3,0,2
+app,com.github.quarck.calnotify.pebble,PebbleUtils,124,0,2,0,23,0,11,0,10,0
+app,com.github.quarck.calnotify.bluetooth,BTCarModeStorageKt,0,8,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.bluetooth,BTDeviceSummary,27,0,0,0,1,0,4,0,4,0
+app,com.github.quarck.calnotify.bluetooth,BTDeviceManager,153,90,21,1,19,14,17,9,6,9
+app,com.github.quarck.calnotify.bluetooth,BTCarModeStorage,36,95,0,0,2,4,3,5,3,5
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorService.Companion,37,46,0,0,7,13,1,1,1,1
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorInterface.DefaultImpls,0,28,0,0,0,5,0,1,0,1
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorManual.manualFireEventsAt_NoHousekeeping..inlined.sortedBy.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorManual.scanNextEvent..inlined.sortedBy.new Comparator() {...},0,15,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorManual.scanNextEvent..inlined.sortedBy.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorState,0,163,0,0,0,5,0,10,0,10
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitor,344,767,29,31,72,158,30,25,7,18
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorService,37,145,1,11,9,43,2,11,1,6
+app,com.github.quarck.calnotify.calendarmonitor,CalendarMonitorManual,313,796,37,45,52,141,32,27,5,13
+app,com.github.quarck.calnotify.app,ApplicationController,1232,3026,134,182,207,459,133,126,30,71
+app,com.github.quarck.calnotify.app,TagsManager,1,83,1,9,0,14,1,8,0,4
+app,com.github.quarck.calnotify.app,SnoozeResult,6,18,0,0,0,1,2,2,2,2
+app,com.github.quarck.calnotify.app,AlarmScheduler,0,268,3,27,0,62,3,16,0,4
+app,com.github.quarck.calnotify.app,CalendarReloadManager.ReloadCalendarResult,0,62,0,0,0,7,0,7,0,7
+app,com.github.quarck.calnotify.app,AlarmScheduler.Companion,10,39,6,2,0,7,4,7,0,7
+app,com.github.quarck.calnotify.app,UndoState,30,0,0,0,1,0,4,0,4,0
+app,com.github.quarck.calnotify.app,SnoozeResultKt,81,23,5,3,11,6,4,1,0,1
+app,com.github.quarck.calnotify.app,CalendarReloadManager,236,504,27,41,44,92,22,22,0,9
+app,com.github.quarck.calnotify.app,ApplicationControllerInterface.DefaultImpls,0,91,0,0,0,12,0,6,0,6
+app,com.github.quarck.calnotify.app,CalendarReloadManager.ReloadCalendarResultCode,2,31,0,0,1,4,1,1,1,1
+app,com.github.quarck.calnotify.app,SnoozeType,2,19,0,0,1,2,1,1,1,1
+app,com.github.quarck.calnotify.app,UndoManager,56,37,8,2,10,8,9,2,4,2
+app,com.github.quarck.calnotify.backup,ImportResult.VersionTooNew,16,0,0,0,1,0,3,0,3,0
+app,com.github.quarck.calnotify.backup,SettingsBackupManager.Companion,15,0,0,0,3,0,1,0,1,0
+app,com.github.quarck.calnotify.backup,BackupData.Companion,3,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.backup,ImportResult.Success,13,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.backup,ImportResult.IoError,13,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.backup,ImportResult.ParseError,13,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.backup,BackupData,122,0,0,0,10,0,10,0,10,0
+app,com.github.quarck.calnotify.backup,CalendarSettingBackup.Companion,3,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.backup,ImportStats,69,0,0,0,7,0,7,0,7,0
+app,com.github.quarck.calnotify.backup,SettingsBackupManager,903,68,84,0,177,12,52,3,10,3
+app,com.github.quarck.calnotify.backup,CalendarSettingBackup,54,0,0,0,7,0,7,0,7,0
+app,com.github.quarck.calnotify.database,SQLiteOpenHelper,83,56,6,0,9,13,6,4,3,4
+app,com.github.quarck.calnotify.database,CrSqliteRoomFactory.crSqliteOptions.new RequerySQLiteOpenHelperFactory.ConfigurationOptions() {...},0,22,0,0,0,5,0,2,0,2
+app,com.github.quarck.calnotify.database,CrSqliteRoomFactory,0,34,0,0,0,5,0,2,0,2
+app,com.github.quarck.calnotify.database,SQLiteDatabaseExtensions,152,82,5,9,21,20,7,5,3,2
+app,com.github.quarck.calnotify.database,CrSqliteFinalizeWrapper,21,32,0,0,4,6,0,2,0,2
+app,com.github.quarck.calnotify.quiethours,QuietHoursManagerInterface.DefaultImpls,15,10,0,0,2,1,2,1,2,1
+app,com.github.quarck.calnotify.quiethours,QuietHoursManager,299,232,45,17,61,31,31,16,3,13
+app,com.github.quarck.calnotify.calendareditor.storage,CalendarChangeRequestsStorage,204,64,4,0,15,8,11,4,9,4
+app,com.github.quarck.calnotify.calendareditor.storage,CalendarChangeRequestsStorageImplV3,728,213,13,1,139,58,16,4,9,4
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventAlertRecord,0,27,0,0,0,4,0,4,0,4
+app,com.github.quarck.calnotify.dismissedeventsstorage,RoomDismissedEventsStorage.special..inlined.sortedByDescending.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsDatabase_Impl.createOpenDelegate._openDelegate.new RoomOpenDelegate() {...},25,489,1,1,8,46,4,5,3,5
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventDao_Impl.Companion,0,2,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsStorage.Companion,19,27,0,0,2,6,0,1,0,1
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsDatabase.Companion,255,81,16,4,59,23,11,4,2,3
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventDao_Impl,144,667,29,29,41,165,32,14,4,13
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventDao_Impl.new EntityInsertAdapter() {...},108,292,27,27,27,86,27,3,0,3
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventDao_Impl.new EntityDeleteOrUpdateAdapter() {...},19,3,0,0,4,1,2,1,2,1
+app,com.github.quarck.calnotify.dismissedeventsstorage,RoomDismissedEventsStorage,157,0,0,0,26,0,12,0,12,0
+app,com.github.quarck.calnotify.dismissedeventsstorage,LegacyDismissedEventsStorage,430,0,12,0,47,0,22,0,16,0
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventEntity.Companion,4,176,2,6,0,42,2,4,0,2
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsDatabase.Companion.LoggingCallback,0,29,0,0,0,7,0,3,0,3
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsDatabase,0,3,0,0,0,2,0,1,0,1
+app,com.github.quarck.calnotify.dismissedeventsstorage,EventDismissType.Companion,0,4,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventEntity,86,474,19,19,0,54,19,32,0,32
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsStorage,16,48,4,0,2,5,3,4,1,4
+app,com.github.quarck.calnotify.dismissedeventsstorage,EventDismissResult.Companion,4,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsStorageImplV1,558,0,12,0,121,0,18,0,12,0
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsStorageImplV2,335,288,5,7,66,67,10,8,7,5
+app,com.github.quarck.calnotify.dismissedeventsstorage,EventDismissResult,9,76,0,0,2,9,3,2,3,2
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsDatabase_Impl,12,84,0,0,2,17,1,8,1,8
+app,com.github.quarck.calnotify.dismissedeventsstorage,DismissedEventsMigrationException,18,0,0,0,1,0,2,0,2,0
+app,com.github.quarck.calnotify.dismissedeventsstorage,EventDismissType,19,60,6,0,3,7,6,4,3,4
+app,com.github.quarck.calnotify.dismissedeventsstorage,LegacyDismissedEventsStorage._get_eventsForDisplay_.lambda.14..inlined.sortedByDescending.new Comparator() {...},15,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendar,CalendarRecord,15,78,0,0,0,13,5,8,5,8
+app,com.github.quarck.calnotify.calendar,CalendarEventDetails,2,154,0,0,0,15,0,16,0,16
+app,com.github.quarck.calnotify.calendar,EventStatus,6,51,0,0,2,5,2,3,2,3
+app,com.github.quarck.calnotify.calendar,CalendarEventDetails.Companion,21,0,0,0,9,0,1,0,1,0
+app,com.github.quarck.calnotify.calendar,EventRecord,48,86,0,0,5,17,7,16,7,16
+app,com.github.quarck.calnotify.calendar,RecurrenceExpander,368,0,49,0,74,0,32,0,6,0
+app,com.github.quarck.calnotify.calendar,CalendarIntents,129,55,8,4,21,10,11,2,5,2
+app,com.github.quarck.calnotify.calendar,CalendarBackupInfo,3,51,0,0,0,7,1,6,1,6
+app,com.github.quarck.calnotify.calendar,CalendarProviderInterface.DefaultImpls,10,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendar,EventAlertRecordKey,6,9,0,0,0,1,2,1,2,1
+app,com.github.quarck.calnotify.calendar,CalendarProvider.EventEntry,0,27,0,0,0,5,0,5,0,5
+app,com.github.quarck.calnotify.calendar,EventReminderRecord.Companion,37,11,0,0,4,1,1,1,1,1
+app,com.github.quarck.calnotify.calendar,AttendanceStatus,6,65,0,0,2,7,2,3,2,3
+app,com.github.quarck.calnotify.calendar,EventStatus.Companion,11,18,4,4,3,4,3,2,0,1
+app,com.github.quarck.calnotify.calendar,EventDisplayStatus.Companion,0,4,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.calendar,EventRecordKt,177,70,26,6,21,12,19,4,5,2
+app,com.github.quarck.calnotify.calendar,EventReminderRecord,6,25,0,0,1,4,1,4,1,4
+app,com.github.quarck.calnotify.calendar,EventAlertRecordSpecialType,43,0,0,0,5,0,5,0,5,0
+app,com.github.quarck.calnotify.calendar,EventAlertRecord,91,349,4,0,2,32,13,44,11,44
+app,com.github.quarck.calnotify.calendar,EventDisplayStatus,6,44,0,0,2,4,2,3,2,3
+app,com.github.quarck.calnotify.calendar,EventOrigin,12,60,3,1,5,8,5,4,2,4
+app,com.github.quarck.calnotify.calendar,EventAlertRecordSpecialType.Companion,4,0,0,0,1,0,1,0,1,0
+app,com.github.quarck.calnotify.calendar,AttendanceStatus.Companion,27,18,8,4,5,4,5,2,0,1
+app,com.github.quarck.calnotify.calendar,CalendarProvider,1947,2548,262,164,419,605,197,49,8,23
+app,com.github.quarck.calnotify.calendar,EventOrigin.Companion,0,4,0,0,0,1,0,1,0,1
+app,com.github.quarck.calnotify.calendar,MonitorEventAlertEntryKey,9,12,0,0,0,4,3,1,3,1
+app,com.github.quarck.calnotify.calendar,EventAlertRecordKt,302,280,37,43,83,47,35,21,5,11
+app,com.github.quarck.calnotify.calendar,MonitorEventAlertEntry,67,90,13,1,9,12,10,13,3,13
