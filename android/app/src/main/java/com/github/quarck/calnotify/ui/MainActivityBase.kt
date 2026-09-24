@@ -27,6 +27,7 @@ import android.database.SQLException
 import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import com.github.quarck.calnotify.BuildConfig
@@ -72,6 +73,9 @@ abstract class MainActivityBase : AppCompatActivity() {
     protected var calendarRescanEnabled = true
     protected var shouldRemindForEventsWithNoReminders = true
     protected var shouldForceRepost = false
+    
+    // Flag to track if battery optimization check should run after notification permission flow
+    private var pendingBatteryOptimizationCheck = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,33 +156,17 @@ abstract class MainActivityBase : AppCompatActivity() {
             }
         } else {
             // Check notification permission (Android 13+)
+            // Battery optimization check is deferred until notification permission flow completes
             checkNotificationPermission()
-            
-            // Check for power manager optimisations
-            if (!settings.doNotShowBatteryOptimisationWarning &&
-                !powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
-                AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.battery_optimisation_title))
-                    .setMessage(getString(R.string.battery_optimisation_details))
-                    .setPositiveButton(getString(R.string.you_can_do_it)) { _, _ ->
-                        val intent = Intent()
-                            .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                            .setData(Uri.parse("package:" + BuildConfig.APPLICATION_ID))
-                        startActivity(intent)
-                    }
-                    .setNeutralButton(getString(R.string.you_can_do_it_later)) { _, _ -> }
-                    .setNegativeButton(getString(R.string.you_cannot_do_it)) { _, _ ->
-                        settings.doNotShowBatteryOptimisationWarning = true
-                    }
-                    .create()
-                    .show()
-            }
         }
     }
 
     /**
      * Check and request notification permission on Android 13+ (API 33).
      * This is required for the app to post notifications.
+     * 
+     * After this permission flow completes (granted, denied, or already had permission),
+     * the battery optimization check will be triggered.
      */
     protected fun checkNotificationPermission() {
         if (!PermissionsManager.hasNotificationPermission(this)) {
@@ -188,16 +176,63 @@ abstract class MainActivityBase : AppCompatActivity() {
                     .setMessage(R.string.notification_permission_explanation)
                     .setCancelable(false)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
+                        // Set flag so battery check runs after system permission dialog
+                        pendingBatteryOptimizationCheck = true
                         PermissionsManager.requestNotificationPermission(this)
                     }
                     .setNegativeButton(R.string.cancel) { _, _ ->
-                        // User declined, they won't get notifications
+                        // User declined - show feedback and proceed to battery check
+                        Toast.makeText(
+                            this,
+                            R.string.notification_permission_denied_toast,
+                            Toast.LENGTH_LONG
+                        ).show()
+                        checkBatteryOptimization()
                     }
                     .create()
                     .show()
             } else {
+                // No rationale needed - request permission directly
+                // Set flag so battery check runs after system permission dialog
+                pendingBatteryOptimizationCheck = true
                 PermissionsManager.requestNotificationPermission(this)
             }
+        } else {
+            // Notification permission already granted - proceed to battery check
+            checkBatteryOptimization()
+        }
+    }
+
+    /**
+     * Check for battery optimization exemption and show dialog if needed.
+     * This is called after the notification permission flow completes to avoid
+     * stacking multiple dialogs.
+     */
+    protected fun checkBatteryOptimization() {
+        if (!settings.doNotShowBatteryOptimisationWarning &&
+            !powerManager.isIgnoringBatteryOptimizations(BuildConfig.APPLICATION_ID)) {
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.battery_optimisation_title))
+                .setMessage(getString(R.string.battery_optimisation_details))
+                .setPositiveButton(getString(R.string.you_can_do_it)) { _, _ ->
+                    val intent = Intent()
+                        .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                        .setData(Uri.parse("package:" + BuildConfig.APPLICATION_ID))
+                    startActivity(intent)
+                }
+                .setNeutralButton(getString(R.string.you_can_do_it_later)) { _, _ ->
+                    // User chose to defer - show gentle reminder
+                    Toast.makeText(
+                        this,
+                        R.string.battery_optimization_later_toast,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                .setNegativeButton(getString(R.string.you_cannot_do_it)) { _, _ ->
+                    settings.doNotShowBatteryOptimisationWarning = true
+                }
+                .create()
+                .show()
         }
     }
 
@@ -206,12 +241,49 @@ abstract class MainActivityBase : AppCompatActivity() {
         @NotNull permissions: Array<out String>,
         @NotNull grantResults: IntArray
     ) {
-        for (result in grantResults) {
-            if (result != PackageManager.PERMISSION_GRANTED) {
-                DevLog.error(LOG_TAG, "Permission is not granted!")
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        when (requestCode) {
+            PermissionsManager.PERMISSION_REQUEST_NOTIFICATIONS -> {
+                // Notification permission flow completed - now check battery optimization
+                if (pendingBatteryOptimizationCheck) {
+                    pendingBatteryOptimizationCheck = false
+                    
+                    // Check if permission was denied and show feedback
+                    val granted = grantResults.isNotEmpty() && 
+                        grantResults[0] == PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        DevLog.warn(LOG_TAG, "Notification permission denied by user")
+                        Toast.makeText(
+                            this,
+                            R.string.notification_permission_denied_toast,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    
+                    checkBatteryOptimization()
+                }
+            }
+            PermissionsManager.PERMISSION_REQUEST_CALENDAR -> {
+                // Calendar permission result - if granted, continue permission flow
+                val granted = grantResults.isNotEmpty() && 
+                    grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                if (granted) {
+                    DevLog.info(LOG_TAG, "Calendar permission granted, continuing permission flow")
+                    checkNotificationPermission()
+                } else {
+                    DevLog.error(LOG_TAG, "Calendar permission denied!")
+                }
+            }
+            else -> {
+                // Log other permission results
+                for (result in grantResults) {
+                    if (result != PackageManager.PERMISSION_GRANTED) {
+                        DevLog.error(LOG_TAG, "Permission is not granted!")
+                    }
+                }
             }
         }
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     /**
