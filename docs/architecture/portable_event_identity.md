@@ -24,7 +24,7 @@ The whole subsystem is one package.
 | `IdentityCapturePlan.kt` | Given a batch of events, decides which get identity written, which are stale, which have nothing to record. Pure. |
 | `CalendarIdentityMatcher.kt` | Given a captured identity, decides which calendar on *this* device it refers to. Returns `Matched(id, strength)` / `Ambiguous(candidates)` / `NotFound`. Pure. |
 | `CalendarResolutionPlan.kt` | Given all captured identities and all device calendars, produces a per-event decision: change / already-current / calendar-not-found / ambiguous. Pure. |
-| `CalendarResolutionApplier.kt` | Turns a resolution plan into edited event copies. Pure. |
+| `CalendarResolutionApplier.kt` | Turns a resolution plan into edited event copies plus a settings remap. Pure. |
 
 Only two files reach out of the package:
 
@@ -73,13 +73,17 @@ CalendarMonitorService.onHandleIntent   (partial wake lock held)
            │
            └─► CalendarResolutionApplier.computeEdits(...)        (pure)
                   │
-                  └─ events whose row still exists      → updatedEvents (copy(calendarId = new))
+                  ├─ events whose row still exists      → updatedEvents (copy(calendarId = new))
+                  └─ calendars with an explicit setting → handledSettingsToMove + toClear
 
            EventsStorage.updateEvents(updatedEvents)              (Room @Update, keyed on PK,
                                                                    transactional rollback built in)
+
+           Settings.setCalendarIsHandled(newId, ...)              (per calendar, only if set)
+           Settings.clearCalendarIsHandled(oldId)
 ```
 
-Total per healthy-device pass: a handful of projection reads and one `getCalendars()`. No writes. The `updatedEvents` list is empty, both entry points return without touching anything.
+Total per healthy-device pass: a handful of projection reads and one `getCalendars()`. No writes. The `updatedEvents` list is empty, `handledSettingsToMove` is empty, both entry points return without touching anything.
 
 ## The self-check
 
@@ -170,15 +174,19 @@ Two details worth knowing:
 
 ### From a plan to edits
 
-`CalendarResolutionApplier.computeEdits()` returns `updatedEvents: List<EventAlertRecord>` — event rows with their `calendarId` corrected, ready to hand to `EventsStorage.updateEvents`. Two guards: the event still has to exist (dismissed or deleted between planning and applying → skipped), and its live `calendarId` still has to differ from the target (already correct → skipped, keeps rescans idempotent).
+`CalendarResolutionApplier.computeEdits()` turns a plan into two things:
 
-The `calendar_handled_.<id>` preferences also need re-keying when a calendar id moves — otherwise a restored device starts notifying from calendars the user had switched off — but that is a UX repair on top of the data repair here and ships as its own layer (see the per-PR table below).
+- `updatedEvents: List<EventAlertRecord>` — event rows with their `calendarId` corrected, ready to hand to `EventsStorage.updateEvents`. Guards: the event still has to exist (dismissed or deleted between planning and applying → skipped), and its live `calendarId` still has to differ from the target (already correct → skipped, keeps rescans idempotent).
+- `handledSettingsToMove: Map<Long, Boolean>` + `handledSettingsToClear: Set<Long>` — the per-calendar `calendar_handled_.<id>` prefs, collapsed from the per-event changes. **Only the calendars the user explicitly set** are moved. `getCalendarIsHandled` defaults to `true`, so writing the default through would invent a setting the user never made *and* make later `hasCalendarIsHandledSetting()` checks answer `yes` from then on.
+
+Only after both pieces are computed does the controller do any writing. Events first — the settings move is a repair of what the event rows say, so it should never run ahead of them succeeding.
 
 ## Scope
 
 **In this system, right now:**
 
 - Rewriting `cid` on `eventsV9` rows after a restore.
+- Moving `calendar_handled_.<id>` preferences with the events.
 - Retrying anything that can't be resolved yet (ambiguous, calendar-not-found), on every subsequent rescan.
 
 **Not in this system:**
@@ -195,7 +203,7 @@ The `calendar_handled_.<id>` preferences also need re-keying when a calendar id 
 | [#280](https://github.com/williscool/CalendarNotification/pull/280) | Self-check, dismissed capture, bulk query optimisations | `EventIdentityCheck`, `IdentityCapturePlan`, the two DAO projections |
 | [#281](https://github.com/williscool/CalendarNotification/pull/281) | Matcher + plan (lookup only, no writes) | `CalendarIdentityMatcher`, `CalendarResolutionPlan` |
 | [#283](https://github.com/williscool/CalendarNotification/pull/283) | `cid` write-back | `CalendarResolutionApplier`, `resolveEventCalendars`, the service call |
-| [#284](https://github.com/williscool/CalendarNotification/pull/284) *(open, above this PR)* | Per-calendar setting remap | Adds the applier's settings edits, `hasCalendarIsHandledSetting` / `clearCalendarIsHandled`, `resetSettings` for tests |
+| [#284](https://github.com/williscool/CalendarNotification/pull/284) | Per-calendar setting remap | The applier's settings edits, `hasCalendarIsHandledSetting` / `clearCalendarIsHandled`, `resetSettings` for tests |
 
 ## For further reading
 

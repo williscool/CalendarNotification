@@ -87,10 +87,13 @@ class CalendarResolutionApplierTest {
 
     private fun edits(
         plan: CalendarResolutionPlan,
-        events: List<EventAlertRecord>
+        events: List<EventAlertRecord>,
+        handled: Map<Long, Boolean> = emptyMap()
     ) = CalendarResolutionApplier.computeEdits(
         plan = plan,
-        eventsByKey = events.associateBy { it.eventId to it.instanceStartTime }
+        eventsByKey = events.associateBy { it.eventId to it.instanceStartTime },
+        isCalendarHandled = { handled[it] ?: true },
+        isCalendarHandledExplicitlySet = { it in handled }
     )
 
     // --- Moving events onto the right calendar ---
@@ -156,6 +159,103 @@ class CalendarResolutionApplierTest {
 
         assertEquals(2, result.updatedEvents.size)
         assertEquals(setOf(1L, 3L), result.updatedEvents.map { it.eventId }.toSet())
+    }
+
+    // --- Per-calendar handled settings ---
+
+    @Test
+    fun movesAnExplicitlyDisabledCalendarSetting() {
+        // The setting users actually notice: a calendar they turned off. If it
+        // does not move, the restored device starts notifying from it again.
+        val result = edits(
+            planMoving(Triple(100L, 6L, 31L)),
+            listOf(event(100L, 6L)),
+            handled = mapOf(6L to false)
+        )
+
+        assertEquals(mapOf(31L to false), result.handledSettingsToMove)
+        assertEquals(setOf(6L), result.handledSettingsToClear)
+    }
+
+    @Test
+    fun movesAnExplicitlyEnabledCalendarSettingToo() {
+        // Explicitly-true is still a user decision, and the old key has to go
+        // regardless or it lingers pointing at a calendar that no longer exists.
+        val result = edits(
+            planMoving(Triple(100L, 6L, 31L)),
+            listOf(event(100L, 6L)),
+            handled = mapOf(6L to true)
+        )
+
+        assertEquals(mapOf(31L to true), result.handledSettingsToMove)
+    }
+
+    @Test
+    fun leavesNeverConfiguredCalendarsAlone() {
+        // getCalendarIsHandled defaults to true, so an unconfigured calendar
+        // reads as handled. Writing that through would create a setting the
+        // user never made -- and make "has this been configured?" answer yes
+        // from then on.
+        val result = edits(
+            planMoving(Triple(100L, 6L, 31L)),
+            listOf(event(100L, 6L)),
+            handled = emptyMap()
+        )
+
+        assertTrue("no setting to move", result.handledSettingsToMove.isEmpty())
+        assertTrue("and nothing to clear", result.handledSettingsToClear.isEmpty())
+    }
+
+    @Test
+    fun collapsesToOneSettingPerCalendarNotPerEvent() {
+        // The real shape: hundreds of events over a couple of calendars.
+        val events = (1L..200L).map { event(it, calendarId = 6L) }
+
+        val result = edits(
+            planMoving(*(1L..200L).map { Triple(it, 6L, 31L) }.toTypedArray()),
+            events,
+            handled = mapOf(6L to false)
+        )
+
+        assertEquals(200, result.updatedEvents.size)
+        assertEquals("200 events, one setting", 1, result.handledSettingsToMove.size)
+    }
+
+    @Test
+    fun handlesSeveralCalendarsMovingAtOnce() {
+        val result = edits(
+            planMoving(Triple(1L, 6L, 31L), Triple(2L, 16L, 32L)),
+            listOf(event(1L, 6L), event(2L, 16L)),
+            handled = mapOf(6L to false, 16L to true)
+        )
+
+        assertEquals(mapOf(31L to false, 32L to true), result.handledSettingsToMove)
+        assertEquals(setOf(6L, 16L), result.handledSettingsToClear)
+    }
+
+    @Test
+    fun movesSettingsForOnlyTheCalendarsThatWereConfigured() {
+        val result = edits(
+            planMoving(Triple(1L, 6L, 31L), Triple(2L, 16L, 32L)),
+            listOf(event(1L, 6L), event(2L, 16L)),
+            handled = mapOf(6L to false)        // 16 never configured
+        )
+
+        assertEquals(mapOf(31L to false), result.handledSettingsToMove)
+        assertEquals(setOf(6L), result.handledSettingsToClear)
+    }
+
+    @Test
+    fun summaryNamesBothKindsOfEdit() {
+        val result = edits(
+            planMoving(Triple(100L, 6L, 31L)),
+            listOf(event(100L, 6L)),
+            handled = mapOf(6L to false)
+        )
+
+        val summary = result.summary()
+        assertTrue(summary, summary.contains("1 event(s) re-linked"))
+        assertTrue(summary, summary.contains("1 calendar setting(s) moved"))
     }
 
     companion object {

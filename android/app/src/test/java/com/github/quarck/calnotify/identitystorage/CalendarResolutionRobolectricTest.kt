@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.identitystorage
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.calendar.CalendarProvider
@@ -46,8 +47,8 @@ import org.robolectric.annotation.Config
  * The decisions themselves are covered by [CalendarResolutionPlanTest] and
  * [CalendarResolutionApplierTest], which need no Android at all. What is worth
  * testing here is the part those cannot reach -- that the right rows actually
- * reach storage, and that a failure anywhere in the chain does not escape into
- * the rescan that called it.
+ * reach storage, that the settings move with them, and that a failure anywhere
+ * in the chain does not escape into the rescan that called it.
  *
  * See docs/dev_todo/portable_event_identity.md.
  */
@@ -56,6 +57,7 @@ import org.robolectric.annotation.Config
 class CalendarResolutionRobolectricTest {
 
     private lateinit var context: Context
+    private lateinit var settings: Settings
     private lateinit var identityStorage: EventIdentityStorage
     private lateinit var eventsStorage: MockEventsStorage
 
@@ -65,10 +67,15 @@ class CalendarResolutionRobolectricTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        settings = Settings(context)
         eventsStorage = MockEventsStorage()
 
         val dao = FakeIdentityDao()
         identityStorage = EventIdentityStorage(dao)
+
+        // getSettings() memoises a Settings from the first Context to ask, so a
+        // previous test's instance would otherwise shadow this one's writes.
+        ApplicationController.resetSettings()
 
         mockkObject(CalendarProvider)
         every { CalendarProvider.getCalendars(any()) } answers { deviceCalendars }
@@ -81,6 +88,9 @@ class CalendarResolutionRobolectricTest {
     fun teardown() {
         ApplicationController.eventIdentityStorageProvider = null
         ApplicationController.eventsStorageProvider = null
+        listOf(OLD_CALENDAR, NEW_CALENDAR, OTHER_OLD, OTHER_NEW)
+            .forEach { settings.clearCalendarIsHandled(it) }
+        ApplicationController.resetSettings()
         unmockkAll()
     }
 
@@ -193,7 +203,24 @@ class CalendarResolutionRobolectricTest {
         assertTrue(eventsStorage.events.all { it.calendarId == NEW_CALENDAR })
     }
 
-// --- The healthy device: nothing should happen ---
+    @Test
+    fun carriesThePerCalendarHandledSettingAcross() {
+        // The setting users notice: a calendar they switched off. If it does
+        // not move, the restored device starts notifying from it again.
+        settings.setCalendarIsHandled(OLD_CALENDAR, false)
+        seed(100L, storedCalendarId = OLD_CALENDAR)
+        deviceCalendars = listOf(calendar(NEW_CALENDAR, OWNER))
+
+        ApplicationController.resolveEventCalendars(context)
+
+        assertFalse("setting moved to the new id", settings.getCalendarIsHandled(NEW_CALENDAR))
+        assertFalse(
+            "and the stale key is gone",
+            settings.hasCalendarIsHandledSetting(OLD_CALENDAR)
+        )
+    }
+
+    // --- The healthy device: nothing should happen ---
 
     @Test
     fun aHealthyDeviceIsLeftAlone() {
@@ -266,7 +293,20 @@ class CalendarResolutionRobolectricTest {
         assertEquals(OLD_CALENDAR, storedCalendarIdOf(100L))
     }
 
-// --- Failures must not escape into the rescan ---
+    @Test
+    fun neverConfiguredCalendarsGetNoSettingWritten() {
+        seed(100L, storedCalendarId = OLD_CALENDAR)
+        deviceCalendars = listOf(calendar(NEW_CALENDAR, OWNER))
+
+        ApplicationController.resolveEventCalendars(context)
+
+        assertFalse(
+            "a setting the user never made must not be invented",
+            settings.hasCalendarIsHandledSetting(NEW_CALENDAR)
+        )
+    }
+
+    // --- Failures must not escape into the rescan ---
 
     @Test
     fun aProviderFailureDoesNotPropagate() {
