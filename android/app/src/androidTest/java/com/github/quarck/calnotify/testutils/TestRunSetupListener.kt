@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.testutils
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import androidx.test.platform.app.InstrumentationRegistry
@@ -29,8 +30,15 @@ import org.junit.runner.Result
 import org.junit.runner.notification.RunListener
 
 /**
- * Stops the OS delivering calendar-provider broadcasts to the app under test.
+ * One-time setup for an instrumentation run, before any test starts.
  *
+ * Grants calendar permissions. Tests' GrantPermissionRule otherwise grants them
+ * inside the first test that needs them, via a shell `pm grant` that can still
+ * be landing when the test checks: CalendarBackupRestoreTest (always first)
+ * intermittently saw no permission and findMatchingCalendarId returned -1.
+ * UiAutomation.grantRuntimePermission completes before returning.
+ *
+ * Stops the OS delivering calendar-provider broadcasts to the app under test.
  * Tests write to the emulator's real calendar provider, which answers with real
  * PROVIDER_CHANGED and EVENT_REMINDER broadcasts. Those start app code -- e.g.
  * CalendarMonitorService, after a 2s delay -- that can land after the test's
@@ -42,10 +50,15 @@ import org.junit.runner.notification.RunListener
  * am instrument scripts). Debug builds share the release applicationId, so the
  * receivers are restored when the run finishes.
  */
-class OsBroadcastBlockingListener : RunListener() {
+class TestRunSetupListener : RunListener() {
 
-    override fun testRunStarted(description: Description?) =
+    override fun testRunStarted(description: Description?) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        for (permission in listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)) {
+            instrumentation.uiAutomation.grantRuntimePermission(instrumentation.targetContext.packageName, permission)
+        }
         setReceiversState(PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+    }
 
     override fun testRunFinished(result: Result?) =
         setReceiversState(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
