@@ -33,16 +33,18 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
-import com.github.quarck.calnotify.utils.AsyncTaskCallback
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
-import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.robolectric.Shadows.shadowOf
-import java.util.concurrent.CountDownLatch
+import org.robolectric.shadows.ShadowPausedAsyncTask
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Test fixture for Robolectric UI tests.
@@ -74,6 +76,11 @@ class UITestFixtureRobolectric {
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixtureRobolectric")
+        
+        // Run background { } tasks on an executor we own, so waitForAsyncTasks()
+        // can block on their futures. Robolectric resets the override per test.
+        pendingTasks.clear()
+        ShadowPausedAsyncTask.overrideExecutor { pendingTasks.add(backgroundExecutor.submit(it)) }
         
         // Grant calendar permissions for Robolectric
         grantCalendarPermissions()
@@ -158,7 +165,14 @@ class UITestFixtureRobolectric {
         // Mock CalendarReloadManager to prevent reloading from real calendar
         mockkObject(CalendarReloadManager)
         every { CalendarReloadManager.reloadSingleEvent(any(), any(), any(), any(), any()) } returns false
-        
+
+        // MainActivity's onResume runs this in background { }: it reposts
+        // notifications through a real EventsStorage (cr-sqlite's native library
+        // isn't loadable on the JVM, so it throws) and starts a calendar rescan.
+        // Neither belongs in a UI test.
+        mockkObject(ApplicationController)
+        every { ApplicationController.onMainActivityResumed(any(), any(), any()) } just Runs
+
         DevLog.info(LOG_TAG, "Injected mock storage, granted permissions, and mocked calendar components")
     }
     
@@ -392,7 +406,7 @@ class UITestFixtureRobolectric {
      */
     fun launchMainActivity(): ActivityScenario<MainActivityLegacy> {
         DevLog.info(LOG_TAG, "Launching MainActivityLegacy")
-        return ActivityScenario.launch(MainActivityLegacy::class.java)
+        return ActivityScenario.launch(MainActivityLegacy::class.java).also { waitForAsyncTasks() }
     }
     
     /**
@@ -403,7 +417,7 @@ class UITestFixtureRobolectric {
      */
     fun launchMainActivityModern(): ActivityScenario<MainActivityModern> {
         DevLog.info(LOG_TAG, "Launching MainActivityModern")
-        return ActivityScenario.launch(MainActivityModern::class.java)
+        return ActivityScenario.launch(MainActivityModern::class.java).also { waitForAsyncTasks() }
     }
     
     /**
@@ -501,61 +515,26 @@ class UITestFixtureRobolectric {
     }
     
     /**
-     * Mocks ApplicationController for isolated UI testing.
-     */
-    fun mockApplicationController() {
-        DevLog.info(LOG_TAG, "Mocking ApplicationController")
-        mockkObject(ApplicationController)
-    }
-    
-    /**
-     * Waits for all async tasks to complete.
-     * 
-     * Uses the globalAsyncTaskCallback mechanism to track pending tasks
-     * with a CountDownLatch for efficient blocking (no busy-wait).
-     * Then idles the main looper to process onPostExecute callbacks.
+     * Waits for all background { } tasks to complete, including any started by
+     * their onPostExecute callbacks. Fails with TimeoutException if one takes
+     * more than 5s.
      */
     fun waitForAsyncTasks() {
-        // Wait for any pending async tasks to complete (with timeout)
-        if (pendingTaskCount.get() > 0) {
-            completionLatch?.await(5, TimeUnit.SECONDS)
-        }
-        // Idle the main looper to process onPostExecute callbacks
-        shadowOf(Looper.getMainLooper()).idle()
+        do {
+            generateSequence { pendingTasks.poll() }.forEach { it.get(5, TimeUnit.SECONDS) }
+            // Runs onPostExecute and anything doInBackground posted to the UI thread
+            shadowOf(Looper.getMainLooper()).idle()
+        } while (pendingTasks.isNotEmpty())
     }
     
     companion object {
         private const val LOG_TAG = "UITestFixtureRobolectric"
         
-        /** Tracks number of async tasks currently in flight */
-        private val pendingTaskCount = AtomicInteger(0)
-        
-        /** Latch that signals when all tasks complete */
-        @Volatile
-        private var completionLatch: CountDownLatch? = null
-        
-        /** Callback installed to track async task lifecycle */
-        private val taskTrackingCallback = object : AsyncTaskCallback {
-            override fun onTaskStarted() {
-                val count = pendingTaskCount.incrementAndGet()
-                if (count == 1) {
-                    // First task started - create a fresh latch
-                    completionLatch = CountDownLatch(1)
-                }
-            }
-            override fun onTaskCompleted() {
-                val count = pendingTaskCount.decrementAndGet()
-                if (count == 0) {
-                    // All tasks done - signal the latch
-                    completionLatch?.countDown()
-                }
-            }
-        }
-        
-        init {
-            // Install the callback globally to track all background { } calls
-            globalAsyncTaskCallback = taskTrackingCallback
-        }
+        /** Futures of background { } tasks not yet waited on */
+        private val pendingTasks = ConcurrentLinkedQueue<Future<*>>()
+
+        /** Single thread, like AsyncTask.execute()'s serial executor; daemon so it can't hold the JVM open */
+        private val backgroundExecutor = Executors.newSingleThreadExecutor { Thread(it).apply { isDaemon = true } }
         
         fun create(): UITestFixtureRobolectric = UITestFixtureRobolectric()
     }
