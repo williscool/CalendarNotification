@@ -24,4 +24,13 @@ done
 if [ $retries -eq 0 ]; then
   echo "Emulator failed to start after 15 minutes"
   exit 1
-fi 
+fi
+
+# A freshly booted CI emulator is slow enough that the launcher or SystemUI can
+# hit an ANR (Application Not Responding: its main thread stays blocked ~5s).
+# Android then shows an "<app> isn't responding" dialog, which takes window
+# focus from the app under test (Espresso: RootViewWithoutFocusException) until
+# someone dismisses it. Hide future error dialogs -- the system kills the
+# unresponsive app instead -- and close any that already went up during boot.
+adb shell settings put global hide_error_dialogs 1
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
