@@ -154,6 +154,15 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private const val LOG_TAG = "App"
 
+    /**
+     * How many `Ambiguous` matches to include in the calendar re-link log line.
+     *
+     * The full list can be arbitrarily long on a mis-synced device and the log
+     * message goes to `Log.w`, which line-truncates. A sample is enough to
+     * diagnose the shape of the collision; the total count is logged either way.
+     */
+    private const val AMBIGUOUS_MATCH_LOG_SAMPLE_SIZE = 3
+
     private var settings: Settings? = null
     private fun getSettings(ctx: Context): Settings {
         if (settings == null) {
@@ -259,7 +268,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                     // success. Logged so it is diagnosable if it ever happens.
                     DevLog.warn(LOG_TAG,
                         "${plan.ambiguous.size} event(s) match several calendars and were " +
-                        "left alone; candidates: ${plan.ambiguous.take(3).map { it.candidateIds }}")
+                        "left alone; candidates: " +
+                        "${plan.ambiguous.take(AMBIGUOUS_MATCH_LOG_SAMPLE_SIZE).map { it.candidateIds }}")
                 }
 
                 if (plan.changes.isEmpty())
