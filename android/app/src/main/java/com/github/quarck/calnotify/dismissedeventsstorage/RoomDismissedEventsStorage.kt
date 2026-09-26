@@ -99,6 +99,9 @@ class RoomDismissedEventsStorage(
             .map { it.toRecord() }
     }
 
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long): Int =
+        dao.reKeyEventId(oldEventId, newEventId)
+
     /**
      * No-op for Room storage.
      * 

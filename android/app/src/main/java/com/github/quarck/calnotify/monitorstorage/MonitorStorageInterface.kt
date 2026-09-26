@@ -37,6 +37,13 @@ interface MonitorStorageInterface : Closeable {
 
     fun deleteAlertsMatching(filter: (MonitorEventAlertEntry) -> Boolean)
 
+    /**
+     * Move every monitor alert row for [oldEventId]+[instanceStart] onto
+     * [newEventId]. Used by the id re-key after a restore. Returns
+     * the number of rows moved.
+     */
+    fun reKeyEventId(oldEventId: Long, newEventId: Long, instanceStart: Long): Int
+
     fun updateAlert(entry: MonitorEventAlertEntry)
     fun updateAlerts(entries: Collection<MonitorEventAlertEntry>)
 

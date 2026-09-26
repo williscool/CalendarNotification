@@ -80,6 +80,21 @@ interface MonitorAlertDao {
     @Delete
     fun deleteAll(entities: List<MonitorAlertEntity>)
 
+    /**
+     * Move every monitor alert row for one event id onto a new event id,
+     * scoped to a single instance start time.
+     *
+     * Preserves alertTime, wasHandled, alertCreatedByUs and everything
+     * else -- only the key column moves. Used by the id re-key after a
+     * restore. Scoped by instanceStart so a repeating event only has
+     * the instance being re-keyed touched, not every future occurrence.
+     */
+    @Query("UPDATE ${MonitorAlertEntity.TABLE_NAME} " +
+           "SET ${MonitorAlertEntity.COL_EVENT_ID} = :newEventId " +
+           "WHERE ${MonitorAlertEntity.COL_EVENT_ID} = :oldEventId " +
+           "AND ${MonitorAlertEntity.COL_INSTANCE_START} = :instanceStart")
+    fun reKeyEventId(oldEventId: Long, newEventId: Long, instanceStart: Long): Int
+
     @Query("DELETE FROM ${MonitorAlertEntity.TABLE_NAME} WHERE ${MonitorAlertEntity.COL_EVENT_ID} = :eventId AND ${MonitorAlertEntity.COL_ALERT_TIME} = :alertTime AND ${MonitorAlertEntity.COL_INSTANCE_START} = :instanceStart")
     fun deleteByKey(eventId: Long, alertTime: Long, instanceStart: Long)
 }

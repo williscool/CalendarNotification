@@ -151,6 +151,13 @@ class LegacyDismissedEventsStorage(
 
     override fun close() = super.close()
 
+    /**
+     * Legacy path stays as a not-implemented no-op: this storage is deprecated,
+     * only reached if Room migration failed, and re-keying identity in a
+     * degraded state would layer new failures on top of existing ones.
+     */
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long): Int = 0
+
     companion object {
         private val LOG_TAG = "LegacyDismissedEventsStorage"
 

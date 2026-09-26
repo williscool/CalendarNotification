@@ -74,6 +74,19 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
         DevLog.info(LOG_TAG, "Clearing all ${eventsMap.size} dismissed events")
         eventsMap.clear()
     }
+
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long): Int {
+        warnIfClosed()
+        val toMove = eventsMap.entries
+            .filter { it.key.eventId == oldEventId }
+            .toList()
+        for ((oldKey, record) in toMove) {
+            eventsMap.remove(oldKey)
+            val movedRecord = record.copy(event = record.event.copy(eventId = newEventId))
+            eventsMap[EventKey(newEventId, oldKey.instanceStartTime)] = movedRecord
+        }
+        return toMove.size
+    }
     
     override fun purgeOld(currentTime: Long, maxLiveTime: Long) {
         warnIfClosed()

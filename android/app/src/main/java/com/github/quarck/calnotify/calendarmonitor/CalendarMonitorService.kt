@@ -114,6 +114,10 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
             // stored ids went stale. On a healthy device this finds nothing to
             // do and costs one calendar-list read.
             ApplicationController.resolveEventCalendars(this)
+
+            // After the calendar side is right, re-key events whose provider id
+            // changed on this device. Same shape: healthy device does nothing.
+            ApplicationController.resolveEventIds(this)
         }
     }
 
