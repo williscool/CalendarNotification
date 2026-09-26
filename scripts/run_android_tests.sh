@@ -132,7 +132,7 @@ INSTRUMENT_COMMAND="am instrument -w -r \
   -e jaco-agent.destfile \"${COVERAGE_FILE_PATH}\" \
   -e jaco-agent.includes \"com.github.quarck.calnotify.*\" \
   -e notPackage com.github.quarck.calnotify.ui \
-  -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
+  -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener,com.github.quarck.calnotify.testutils.OsBroadcastBlockingListener\""
 
 # If a specific test is specified, add it to the command
 if [ -n "$SINGLE_TEST" ]; then

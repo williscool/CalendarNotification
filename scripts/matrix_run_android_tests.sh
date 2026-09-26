@@ -150,7 +150,7 @@ build_instrument_command() {
   cmd+=" -e outputFormat \"xml\""
   cmd+=" -e jaco-agent.destfile \"$coverage_path\""
   cmd+=" -e jaco-agent.includes \"com.github.quarck.calnotify.*\""
-  cmd+=" -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
+  cmd+=" -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener,com.github.quarck.calnotify.testutils.OsBroadcastBlockingListener\""
   # Write XML report to internal storage (external storage blocked by scoped storage on API 30+)
   cmd+=" -e reportFile \"$xml_report_path\""
 
