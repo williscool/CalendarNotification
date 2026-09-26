@@ -13,7 +13,7 @@ Authoritative definitions live in the Room entities; this doc is the human-reada
 | Database | Room file | Legacy file | Table | Primary key |
 |---|---|---|---|---|
 | Events (active/snoozed) | `RoomEvents` | `Events` | `eventsV9` | `(id, istart)` |
-| Portable event identity *(planned)* | `RoomEventIdentity` | — (new) | `eventIdentityV1` | `(eventId, instanceStartTime)` |
+| Portable event identity | `RoomEventIdentity` | — (new) | `eventIdentityV1` | `(eventId, instanceStartTime)` |
 | Dismissed events | `RoomDismissedEvents` | `DismissedEvents` | `dismissedEventsV2` | `(eventId, instanceStart)` |
 | Calendar monitor | `RoomCalendarMonitor` | `CalendarMonitor` | `manualAlertsV1` | `(eventId, alertTime, instanceStart)` |
 

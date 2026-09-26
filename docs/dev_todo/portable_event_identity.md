@@ -1,5 +1,8 @@
 # Feature: Portable Event Identity (Restore-to-New-Device Calendar Re-association)
 
+> **For how the shipped system works today, see [`docs/architecture/portable_event_identity.md`](../architecture/portable_event_identity.md).**
+> This document is the design record: goal, measurements, approaches tried and reverted, plan of work. It kept growing as decisions were revisited, so it reads chronologically rather than as a reference.
+
 **GitHub Issue:** [#273](https://github.com/williscool/CalendarNotification/issues/273) — "Data Sync 2.0"
 
 Scope: only the first half of #273, which the issue author split out explicitly:

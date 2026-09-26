@@ -55,6 +55,8 @@ import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
 import android.database.SQLException
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
+import com.github.quarck.calnotify.identitystorage.CalendarResolutionApplier
+import com.github.quarck.calnotify.identitystorage.CalendarResolutionPlan
 import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
 import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
 import com.github.quarck.calnotify.identitystorage.IdentityCapturePlan
@@ -200,6 +202,97 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
     private fun getEventIdentityStorage(ctx: Context): EventIdentityStorage {
         return eventIdentityStorageProvider?.invoke(ctx) ?: EventIdentityStorage(ctx)
+    }
+
+    /**
+     * Re-attach stored events to the right calendar on this device.
+     *
+     * The companion to [captureEventIdentities]. Capture flags rows whose stored
+     * ids no longer mean what they used to; this fixes the calendar half of
+     * those rows, using the account tuple captured on the old device.
+     *
+     * **Calendar only.** `cid` is a payload column of `eventsV9`, so moving it
+     * is an ordinary update Room applies in place. The event `id` is half the
+     * primary key, so changing that means delete + re-insert across four
+     * databases -- a separate, much riskier step. Fixing `cid` alone already
+     * restores calendar attribution, the filter pills, and the per-calendar
+     * handled settings.
+     *
+     * Runs on the same wake-locked background service as capture, straight
+     * after it, and swallows its own failures for the same reason: a missed
+     * re-link costs some accuracy at restore time, while a propagated exception
+     * would cost the user a notification.
+     */
+    fun resolveEventCalendars(context: Context) {
+        try {
+            val identityStorage = getEventIdentityStorage(context)
+            val identities = identityStorage.getAll()
+            if (identities.isEmpty())
+                return
+
+            val calendars = calendarProvider.getCalendars(context)
+            if (calendars.isEmpty()) {
+                // Mid-sync, or permissions revoked. Matching against an empty
+                // list would report every event as calendar-not-found, so stop
+                // rather than log a misleading result.
+                DevLog.info(LOG_TAG, "Calendar re-link skipped: no calendars visible yet")
+                return
+            }
+
+            getEventsStorage(context).use { db ->
+                val eventsByKey = db.events.associateBy { it.eventId to it.instanceStartTime }
+                if (eventsByKey.isEmpty())
+                    return
+
+                val plan = CalendarResolutionPlan.compute(
+                    identities = identities,
+                    calendars = calendars,
+                    currentCalendarIdOf = {
+                        eventsByKey[it.eventId to it.instanceStartTime]?.calendarId
+                            ?: it.originalCalendarId
+                    }
+                )
+
+                if (plan.ambiguous.isNotEmpty()) {
+                    // Never guessed at -- attaching events to an arbitrary one
+                    // of several candidates is corruption that looks like
+                    // success. Logged so it is diagnosable if it ever happens.
+                    DevLog.warn(LOG_TAG,
+                        "${plan.ambiguous.size} event(s) match several calendars and were " +
+                        "left alone; candidates: ${plan.ambiguous.take(3).map { it.candidateIds }}")
+                }
+
+                if (plan.changes.isEmpty())
+                    return
+
+                val edits = CalendarResolutionApplier.computeEdits(
+                    plan = plan,
+                    eventsByKey = eventsByKey
+                )
+
+                if (edits.isEmpty)
+                    return
+
+                if (!db.updateEvents(edits.updatedEvents)) {
+                    DevLog.error(LOG_TAG, "Calendar re-link failed writing event rows")
+                    return
+                }
+
+                DevLog.info(LOG_TAG, "Calendar re-link: ${edits.summary()}")
+            }
+        }
+        catch (ex: SQLException) {
+            DevLog.error(LOG_TAG, "Calendar re-link failed (SQL): ${ex.message}")
+        }
+        catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "Calendar re-link failed (calendar permission): ${ex.message}")
+        }
+        catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Calendar re-link failed (provider state): ${ex.message}")
+        }
+        catch (ex: LinkageError) {
+            DevLog.error(LOG_TAG, "Calendar re-link unavailable (native SQLite missing): ${ex.message}")
+        }
     }
 
     /**
@@ -380,6 +473,19 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     /** Reset clock provider - call in @After to prevent test pollution */
     fun resetClockProvider() {
         clockProvider = null
+    }
+
+    /**
+     * Drop the cached Settings - call in @After to prevent test pollution.
+     *
+     * [getSettings] memoises a Settings built from whichever Context asked
+     * first. In production that is the application context and caching is the
+     * point; across tests it means a later test reads the SharedPreferences of
+     * an earlier one's Context, so a setting written in the test is invisible
+     * to the code under test.
+     */
+    fun resetSettings() {
+        settings = null
     }
 
 //    fun hasActiveEvents(context: Context) =
