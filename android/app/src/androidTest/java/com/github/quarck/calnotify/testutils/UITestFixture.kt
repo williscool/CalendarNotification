@@ -834,8 +834,14 @@ class UITestFixture {
     /**
      * Mocks ApplicationController for isolated UI testing.
      * Call this when you want to verify UI calls methods without side effects.
+     *
+     * No-op when calendar reload prevention already mocked it: re-running
+     * mockkObject clears every stub on the object, including the
+     * onMainActivityResumed stub. The real rescan then runs and outlives the
+     * test, crashing the process after unmockkAll() ("can't find stub").
      */
     fun mockApplicationController() {
+        if (calendarReloadPrevented) return
         DevLog.info(LOG_TAG, "Mocking ApplicationController")
         mockkObject(ApplicationController)
     }
