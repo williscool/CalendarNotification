@@ -33,14 +33,16 @@ import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
-import com.github.quarck.calnotify.utils.AsyncTaskCallback
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
-import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.robolectric.Shadows.shadowOf
-import java.util.concurrent.atomic.AtomicInteger
+import org.robolectric.shadows.ShadowPausedAsyncTask
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
 
 /**
  * Test fixture for Robolectric UI tests.
@@ -73,9 +75,10 @@ class UITestFixtureRobolectric {
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixtureRobolectric")
         
-        // A task whose onPostExecute was dropped when the previous test's looper
-        // was reset would otherwise leave the count stuck above zero
-        pendingTaskCount.set(0)
+        // Run background { } tasks on an executor we own, so waitForAsyncTasks()
+        // can block on their futures. Robolectric resets the override per test.
+        pendingTasks.clear()
+        ShadowPausedAsyncTask.overrideExecutor { pendingTasks.add(backgroundExecutor.submit(it)) }
         
         // Grant calendar permissions for Robolectric
         grantCalendarPermissions()
@@ -511,40 +514,26 @@ class UITestFixtureRobolectric {
     }
     
     /**
-     * Waits (up to ~5s) for all background { } tasks to complete.
-     *
-     * Tasks are tracked via globalAsyncTaskCallback. Completion is reported from
-     * onPostExecute, which is posted to the main looper -- the thread the test
-     * itself runs on -- so keep idling it while waiting rather than blocking.
+     * Waits for all background { } tasks to complete, including any started by
+     * their onPostExecute callbacks. Fails with TimeoutException if one takes
+     * more than 5s.
      */
     fun waitForAsyncTasks() {
-        repeat(500) {
+        do {
+            generateSequence { pendingTasks.poll() }.forEach { it.get(5, TimeUnit.SECONDS) }
+            // Runs onPostExecute and anything doInBackground posted to the UI thread
             shadowOf(Looper.getMainLooper()).idle()
-            if (pendingTaskCount.get() == 0) return
-            Thread.sleep(10)
-        }
+        } while (pendingTasks.isNotEmpty())
     }
     
     companion object {
         private const val LOG_TAG = "UITestFixtureRobolectric"
         
-        /** Tracks number of async tasks currently in flight */
-        private val pendingTaskCount = AtomicInteger(0)
-        
-        /** Callback installed to track async task lifecycle */
-        private val taskTrackingCallback = object : AsyncTaskCallback {
-            override fun onTaskStarted() {
-                pendingTaskCount.incrementAndGet()
-            }
-            override fun onTaskCompleted() {
-                pendingTaskCount.decrementAndGet()
-            }
-        }
-        
-        init {
-            // Install the callback globally to track all background { } calls
-            globalAsyncTaskCallback = taskTrackingCallback
-        }
+        /** Futures of background { } tasks not yet waited on */
+        private val pendingTasks = ConcurrentLinkedQueue<Future<*>>()
+
+        /** Single thread, like AsyncTask.execute()'s serial executor; daemon so it can't hold the JVM open */
+        private val backgroundExecutor = Executors.newSingleThreadExecutor { Thread(it).apply { isDaemon = true } }
         
         fun create(): UITestFixtureRobolectric = UITestFixtureRobolectric()
     }
