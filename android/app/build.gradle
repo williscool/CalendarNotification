@@ -95,8 +95,8 @@ android {
     minSdkVersion rootProject.ext.minSdkVersion
     minSdk rootProject.ext.minSdk
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 4000091
-    versionName "9.25.0"
+    versionCode 4000092
+    versionName "9.26.0"
 
     buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
     // Git commit SHA for identifying builds
