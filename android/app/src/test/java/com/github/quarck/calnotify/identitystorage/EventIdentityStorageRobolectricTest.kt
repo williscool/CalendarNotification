@@ -59,6 +59,19 @@ class EventIdentityStorageRobolectricTest {
             return rows.values.toList()
         }
 
+        override fun getAllSyncIds(): List<EventIdentitySyncId> {
+            checkFailure()
+            return rows.values.map {
+                EventIdentitySyncId(it.eventId, it.instanceStartTime, it.eventSyncId)
+            }
+        }
+
+        override fun getFullyCapturedKeys(): List<EventIdentityKey> {
+            checkFailure()
+            return rows.values.filter { it.hasUsableCalendar() }
+                .map { EventIdentityKey(it.eventId, it.instanceStartTime) }
+        }
+
         override fun count(): Int {
             checkFailure()
             return rows.size

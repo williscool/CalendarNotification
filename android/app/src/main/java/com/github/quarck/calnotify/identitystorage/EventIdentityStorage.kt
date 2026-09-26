@@ -65,6 +65,26 @@ class EventIdentityStorage(
     fun getAll(): List<EventIdentityEntity> =
         runCatchingRead("getAll", emptyList()) { dao.getAll() }
 
+    /**
+     * Key plus sync id for every row, without reading the other columns.
+     *
+     * What the capture pass needs: which events already have identity, and what
+     * sync id to compare against the provider. Avoids reading eleven unused
+     * columns per row on a table sized to the stored-event count.
+     */
+    fun getAllSyncIds(): List<EventIdentitySyncId> =
+        runCatchingRead("getAllSyncIds", emptyList()) { dao.getAllSyncIds() }
+
+    /**
+     * Keys of rows holding both halves of an identity: an event identifier and
+     * a calendar to attach it to.
+     *
+     * Rows missing the calendar half are excluded so they keep being retried --
+     * see [EventIdentityDao.getFullyCapturedKeys].
+     */
+    fun getFullyCapturedKeys(): List<EventIdentityKey> =
+        runCatchingRead("getFullyCapturedKeys", emptyList()) { dao.getFullyCapturedKeys() }
+
     /** Rows still awaiting resolution, below the retry cap. */
     fun getUnresolved(maxAttempts: Int = DEFAULT_MAX_RESOLUTION_ATTEMPTS): List<EventIdentityEntity> =
         runCatchingRead("getUnresolved", emptyList()) { dao.getUnresolved(maxAttempts) }

@@ -40,6 +40,50 @@ interface EventIdentityDao {
     @Query("SELECT COUNT(*) FROM ${EventIdentityEntity.TABLE_NAME}")
     fun count(): Int
 
+    /**
+     * Key plus sync id, without the other eleven columns.
+     *
+     * This is everything the capture pass needs from this table: which events
+     * already have identity, and what sync id was recorded so the self-check can
+     * compare it against the provider. Reading full rows for that costs eleven
+     * unused columns per row, on a table that grows to roughly one row per
+     * stored event -- measured at ~3082 once dismissed history is captured --
+     * re-read every 30 minutes on a wake-locked service.
+     *
+     * See docs/dev_todo/portable_event_identity.md.
+     */
+    @Query(
+        "SELECT ${EventIdentityEntity.COL_EVENT_ID}, " +
+        "${EventIdentityEntity.COL_INSTANCE_START_TIME}, " +
+        "${EventIdentityEntity.COL_EVENT_SYNC_ID} " +
+        "FROM ${EventIdentityEntity.TABLE_NAME}"
+    )
+    fun getAllSyncIds(): List<EventIdentitySyncId>
+
+    /**
+     * Keys of rows that are fully captured -- both an event identifier and a
+     * calendar to attach it to.
+     *
+     * A row missing the calendar half is deliberately **not** listed. Capture
+     * writes empty account columns when the provider could not describe the
+     * calendar (it was removed between the event being stored and the pass
+     * running), and such a row can never resolve: `CalendarIdentityMatcher` has
+     * no account to search for. Reporting it as captured would retire it from
+     * the dismissed-event skip list forever, so the calendar would never be
+     * picked up even once it returns.
+     *
+     * Active events are re-read every pass regardless, so this only changes
+     * behaviour for dismissed events -- which are skipped once captured.
+     */
+    @Query(
+        "SELECT ${EventIdentityEntity.COL_EVENT_ID}, " +
+        "${EventIdentityEntity.COL_INSTANCE_START_TIME} " +
+        "FROM ${EventIdentityEntity.TABLE_NAME} " +
+        "WHERE ${EventIdentityEntity.COL_CALENDAR_ACCOUNT_NAME} != '' " +
+        "AND ${EventIdentityEntity.COL_CALENDAR_ACCOUNT_TYPE} != ''"
+    )
+    fun getFullyCapturedKeys(): List<EventIdentityKey>
+
     @Query(
         "SELECT * FROM ${EventIdentityEntity.TABLE_NAME} " +
         "WHERE ${EventIdentityEntity.COL_EVENT_ID} = :eventId " +
@@ -111,3 +155,27 @@ interface EventIdentityDao {
     )
     fun recordResolutionAttempt(eventId: Long, instanceStartTime: Long, attemptTime: Long): Int
 }
+
+/**
+ * The key of an identity row plus its captured sync id.
+ *
+ * Room matches the projection's columns onto these properties by name. The
+ * columns are already called eventId/instanceStartTime/eventSyncId, so the
+ * query needs no aliases -- add one only if a column is ever renamed away from
+ * its property.
+ */
+data class EventIdentitySyncId(
+    val eventId: Long,
+    val instanceStartTime: Long,
+    val eventSyncId: String?
+)
+
+/**
+ * The primary key of an identity row, with nothing else.
+ *
+ * Room matches the projection's columns onto these properties by name.
+ */
+data class EventIdentityKey(
+    val eventId: Long,
+    val instanceStartTime: Long
+)

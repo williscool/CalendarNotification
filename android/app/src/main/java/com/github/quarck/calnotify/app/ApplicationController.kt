@@ -57,6 +57,9 @@ import android.database.SQLException
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
 import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
+import com.github.quarck.calnotify.identitystorage.IdentityCapturePlan
+import com.github.quarck.calnotify.identitystorage.EventIdentityVerdict
+import com.github.quarck.calnotify.identitystorage.checkEventIdentity
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
@@ -200,13 +203,70 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     /**
-     * Record portable identity for stored events.
+     * The events a capture pass should consider, read from both stores.
+     *
+     * Active events are always included: that list is small and its events
+     * genuinely move -- reschedules, edits, calendar renames -- so their
+     * identity is refreshed every pass.
+     *
+     * Dismissed events are included only where nothing has been captured yet.
+     * They outnumber active ones by an order of magnitude (measured: 4183
+     * against 373) and their identity is immutable history, so re-reading
+     * captured ones would be pure waste on a pass that runs every 30 minutes on
+     * a wake-locked service. The keys are read as a projection and filtered
+     * before any row is fetched, so a steady-state pass reads no dismissed rows
+     * at all.
+     *
+     * `eventIdentityV1` and `dismissedEventsV2` live in separate SQLite files,
+     * so this set difference cannot be a join -- see the class doc on
+     * [com.github.quarck.calnotify.identitystorage.EventIdentityDatabase].
+     */
+    private fun eventsNeedingCapture(
+        context: Context,
+        alreadyCaptured: Set<Pair<Long, Long>>
+    ): List<EventAlertRecord> {
+        val active = getEventsStorage(context).use { db -> db.events }
+
+        val dismissed = getDismissedEventsStorage(context).use { db ->
+            val uncaptured = db.getAllKeys().filter {
+                (it.eventId to it.instanceStart) !in alreadyCaptured
+            }
+            if (uncaptured.isEmpty()) emptyList()
+            else db.getEventsByKeys(uncaptured).map { it.event }
+        }
+
+        // Active first: where the same event appears in both stores, the active
+        // row is the one whose identity has to be right, and distinctBy keeps
+        // the first occurrence of each key.
+        return (active + dismissed).distinctBy { it.eventId to it.instanceStartTime }
+    }
+
+    /**
+     * Record portable identity for stored events, and flag any whose stored ids
+     * have gone stale.
      *
      * `eventsV9` keys events by `cid`/`id`, which are row numbers local to this
      * device's Calendar Provider -- restore the database onto a new phone and
      * both point at nothing. This stores the server-assigned identifiers while
      * they are still resolvable, so a restored database can find these events
      * again. See docs/dev_todo/portable_event_identity.md.
+     *
+     * The same walk does double duty. For each event it already reads the
+     * provider, so it can compare what came back against the identity captured
+     * earlier ([checkEventIdentity]) and tell whether the stored id still means
+     * what it used to. A stale row is **not** re-captured: its id resolves to
+     * someone else's event, and writing identity from that would leave the row
+     * carrying a plausible-looking pointer to the wrong event -- worse than
+     * carrying none. Those rows are left for the resolver.
+     *
+     * **Covers dismissed events as well as active ones.** Dismissed rows are
+     * history, but they are restorable history -- the un-dismiss path puts them
+     * back into the active list, and it needs a `cid`/`id` that still resolve.
+     * Their identity has the same shelf life as anything else: measured on a
+     * real device, 2709 of 4183 dismissed rows still resolved in the provider,
+     * so skipping them would have discarded most of what was recoverable. The
+     * rest are old enough that the provider has pruned them, which is expected
+     * for history and reported rather than treated as a failure.
      *
      * Runs after a calendar reload, on the wake-locked background service --
      * never on the EVENT_REMINDER path, where a notification is about to fire.
@@ -218,41 +278,50 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
      */
     fun captureEventIdentities(context: Context) {
         try {
-            val events = getEventsStorage(context).use { db -> db.events }
+            val identityStorage = getEventIdentityStorage(context)
+
+            // Key plus sync id only. This table holds roughly one row per
+            // stored event -- ~3082 once dismissed history is captured -- and
+            // the pass needs just two things from it: which events are already
+            // captured, and what sync id to compare against the provider.
+            // Reading full rows would carry eleven unused columns apiece, every
+            // 30 minutes, on a wake-locked service.
+            val storedSyncIds = identityStorage.getAllSyncIds()
+                .associate { (it.eventId to it.instanceStartTime) to it.eventSyncId }
+
+            // Skip only rows that are *fully* captured. A row with a sync id
+            // but no calendar (its calendar was gone when capture ran) stays on
+            // the list, so a dismissed event gets another chance if the
+            // calendar returns -- otherwise it would be retired permanently.
+            val events = eventsNeedingCapture(
+                context,
+                identityStorage.getFullyCapturedKeys()
+                    .mapTo(HashSet()) { it.eventId to it.instanceStartTime }
+            )
             if (events.isEmpty())
                 return
 
-            val capturedAt = clock.currentTimeMillis()
+            val plan = IdentityCapturePlan.compute(
+                events = events,
+                storedSyncIdOf = { storedSyncIds[it.eventId to it.instanceStartTime] },
+                providerEventOf = { calendarProvider.getEvent(context, it.eventId) },
+                backupInfoOf = { calendarProvider.getCalendarBackupInfo(context, it) },
+                capturedAtTime = clock.currentTimeMillis()
+            )
 
-            // One backup-info lookup per calendar rather than per event -- a
-            // reload pass is usually dominated by a handful of calendars.
-            val backupInfoByCalendar = HashMap<Long, CalendarBackupInfo?>()
-
-            val identities = events.mapNotNull { event ->
-                val providerEvent = calendarProvider.getEvent(context, event.eventId)
-                val backupInfo = backupInfoByCalendar.getOrPut(event.calendarId) {
-                    calendarProvider.getCalendarBackupInfo(context, event.calendarId)
-                }
-
-                if (providerEvent?.syncId == null && providerEvent?.uid2445 == null && backupInfo == null)
-                    return@mapNotNull null
-
-                EventIdentityEntity.create(
-                    eventId = event.eventId,
-                    instanceStartTime = event.instanceStartTime,
-                    calendarId = event.calendarId,
-                    backupInfo = backupInfo,
-                    eventSyncId = providerEvent?.syncId,
-                    eventUid = providerEvent?.uid2445,
-                    capturedAtTime = capturedAt
-                )
+            if (plan.stale.isNotEmpty()) {
+                // Expected on a restored device, and on nothing else. Logged
+                // rather than acted on: resolution is the resolver's job.
+                DevLog.warn(LOG_TAG,
+                    "${plan.stale.size} of ${events.size} event(s) no longer match their " +
+                    "stored identity -- stored ids look stale, capture skipped for those")
             }
 
-            if (identities.isEmpty())
+            if (plan.isEmpty)
                 return
 
-            getEventIdentityStorage(context).putAll(identities)
-            DevLog.info(LOG_TAG, "Captured identity for ${identities.size} of ${events.size} event(s)")
+            identityStorage.putAll(plan.toCapture)
+            DevLog.info(LOG_TAG, plan.summary(events.size))
         }
         catch (ex: SQLException) {
             DevLog.error(LOG_TAG, "Identity capture failed (SQL): ${ex.message}")

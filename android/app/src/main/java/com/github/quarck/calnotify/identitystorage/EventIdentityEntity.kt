@@ -107,6 +107,20 @@ data class EventIdentityEntity(
     fun hasUsableIdentifier(): Boolean =
         !eventSyncId.isNullOrBlank() || !eventUid.isNullOrBlank()
 
+    /**
+     * True when the calendar half is present, so [CalendarIdentityMatcher] has
+     * something to match against.
+     *
+     * Capture writes empty strings when the provider could not describe the
+     * calendar -- it was removed between the event being stored and the capture
+     * pass running. Such a row can still name its event via [eventSyncId], but
+     * can never be re-attached to a calendar on another device, because there
+     * is no account to look for. Worth being able to ask about rather than
+     * discovering as a silent no-match.
+     */
+    fun hasUsableCalendar(): Boolean =
+        calendarAccountName.isNotBlank() && calendarAccountType.isNotBlank()
+
     /** The calendar half of the identity, in the shape the existing matcher takes. */
     fun toCalendarBackupInfo(): CalendarBackupInfo =
         CalendarBackupInfo(

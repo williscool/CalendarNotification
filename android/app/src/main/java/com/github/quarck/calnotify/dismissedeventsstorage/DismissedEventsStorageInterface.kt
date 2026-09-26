@@ -43,4 +43,22 @@ interface DismissedEventsStorageInterface : Closeable {
     /** Events sorted for UI display: dismissTime descending (most recent first) */
     val eventsForDisplay: List<DismissedEventAlertRecord> get
 
+    /**
+     * Every dismissed event's primary key, without reading the rows.
+     *
+     * This is the app's largest table -- measured at 4183 rows against 373
+     * active events -- so callers that only need to know *which* events exist
+     * should not pay [events]' full row read, sort and mapping. Unsorted.
+     */
+    fun getAllKeys(): List<DismissedEventKey>
+
+    /**
+     * The events for [keys], and only those.
+     *
+     * The companion to [getAllKeys]: decide which dismissed events matter, then
+     * read just them. Chunks internally, since SQLite bounds how many parameters
+     * an `IN` list may carry.
+     */
+    fun getEventsByKeys(keys: Collection<DismissedEventKey>): List<DismissedEventAlertRecord>
+
 }

@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.testutils
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventKey
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.logs.DevLog
@@ -96,6 +97,34 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     
     override fun close() {
         closed = true
+    }
+
+    /** Counts key-only reads, so tests can assert full rows were not loaded. */
+    var keyReadCount = 0
+        private set
+
+    /** Counts full-row reads, likewise. */
+    var fullReadCount = 0
+        private set
+
+    override fun getAllKeys(): List<DismissedEventKey> {
+        keyReadCount++
+        return eventsMap.values.map {
+            DismissedEventKey(it.event.eventId, it.event.instanceStartTime)
+        }
+    }
+
+    override fun getEventsByKeys(
+        keys: Collection<DismissedEventKey>
+    ): List<DismissedEventAlertRecord> {
+        fullReadCount++
+        if (keys.isEmpty())
+            return emptyList()
+
+        val wanted = keys.toHashSet()
+        return eventsMap.values.filter {
+            DismissedEventKey(it.event.eventId, it.event.instanceStartTime) in wanted
+        }
     }
     
     /**

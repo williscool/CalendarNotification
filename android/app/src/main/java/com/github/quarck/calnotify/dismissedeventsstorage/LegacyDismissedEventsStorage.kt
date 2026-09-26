@@ -122,6 +122,30 @@ class LegacyDismissedEventsStorage(
                 .sortedByDescending { it.dismissTime }
         }
 
+    /**
+     * No projection query on the legacy path -- it reads whole rows and filters
+     * in memory, which is what the Room implementation avoids.
+     *
+     * Acceptable: legacy storage is deprecated and exists only as a fallback if
+     * Room migration throws (docs/dev_todo/deprecated_features.md, item 5).
+     * Adding a hand-written projection to a path slated for deletion would be
+     * new code written to be removed.
+     */
+    override fun getAllKeys(): List<DismissedEventKey> =
+        events.map { DismissedEventKey(it.event.eventId, it.event.instanceStartTime) }
+
+    override fun getEventsByKeys(
+        keys: Collection<DismissedEventKey>
+    ): List<DismissedEventAlertRecord> {
+        if (keys.isEmpty())
+            return emptyList()
+
+        val wanted = keys.toHashSet()
+        return events.filter {
+            DismissedEventKey(it.event.eventId, it.event.instanceStartTime) in wanted
+        }
+    }
+
     override fun purgeOld(currentTime: Long, maxLiveTime: Long)
             = events.filter { (currentTime - it.dismissTime) > maxLiveTime }.forEach { deleteEvent(it) }
 

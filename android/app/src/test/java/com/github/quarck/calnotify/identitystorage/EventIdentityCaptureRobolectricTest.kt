@@ -27,12 +27,15 @@ import com.github.quarck.calnotify.calendar.CalendarEventDetails
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
+import com.github.quarck.calnotify.testutils.MockDismissedEventsStorage
 import com.github.quarck.calnotify.testutils.MockEventsStorage
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -73,6 +76,10 @@ class EventIdentityCaptureRobolectricTest {
             var throwOnWrite: android.database.SQLException? = null
 
             override fun getAll() = rows.values.toList()
+            override fun getAllSyncIds() =
+                rows.values.map {
+                    EventIdentitySyncId(it.eventId, it.instanceStartTime, it.eventSyncId)
+                }
             override fun count() = rows.size
             override fun getByKey(eventId: Long, instanceStartTime: Long) =
                 rows[eventId to instanceStartTime]
@@ -84,6 +91,9 @@ class EventIdentityCaptureRobolectricTest {
                 throwOnWrite?.let { throw it }
                 rows[entity.eventId to entity.instanceStartTime] = entity
             }
+            override fun getFullyCapturedKeys() =
+                rows.values.filter { it.hasUsableCalendar() }
+                    .map { EventIdentityKey(it.eventId, it.instanceStartTime) }
             override fun putAll(entities: List<EventIdentityEntity>) {
                 throwOnWrite?.let { throw it }
                 entities.forEach { rows[it.eventId to it.instanceStartTime] = it }
@@ -106,6 +116,13 @@ class EventIdentityCaptureRobolectricTest {
 
     /** What EventsStorage returns for this test. */
     private var storedEvents: List<EventAlertRecord> = emptyList()
+
+    /** What DismissedEventsStorage returns for this test. */
+    private var dismissedEvents: List<EventAlertRecord> = emptyList()
+
+    /** The mock handed to the controller, for asserting how it was read. */
+    private var lastDismissedStorage: MockDismissedEventsStorage? = null
+
 
     /** Counts provider calls, so redundant lookups are visible. */
     private var backupInfoLookups = 0
@@ -145,12 +162,18 @@ class EventIdentityCaptureRobolectricTest {
         ApplicationController.eventsStorageProvider = {
             MockEventsStorage().apply { storedEvents.forEach { addEvent(it) } }
         }
+        ApplicationController.dismissedEventsStorageProvider = {
+            MockDismissedEventsStorage().apply {
+                dismissedEvents.forEach { addEvent(EventDismissType.ManuallyDismissedFromActivity, it) }
+            }.also { lastDismissedStorage = it }
+        }
     }
 
     @After
     fun teardown() {
         ApplicationController.eventIdentityStorageProvider = null
         ApplicationController.eventsStorageProvider = null
+        ApplicationController.dismissedEventsStorageProvider = null
         unmockkAll()
     }
 
@@ -193,9 +216,13 @@ class EventIdentityCaptureRobolectricTest {
         lastStatusChangeTime = 0L
     )
 
-    /** Seeds EventsStorage, then runs capture the way the reload pass does. */
-    private fun capture(events: List<EventAlertRecord>) {
+    /** Seeds both stores, then runs capture the way the reload pass does. */
+    private fun capture(
+        events: List<EventAlertRecord>,
+        dismissed: List<EventAlertRecord> = emptyList()
+    ) {
         storedEvents = events
+        dismissedEvents = dismissed
         ApplicationController.captureEventIdentities(context)
     }
 
@@ -309,6 +336,309 @@ class EventIdentityCaptureRobolectricTest {
             )
         }
     }
+
+    // --- The self-check: stale rows must not be re-captured ---
+    //
+    // Capture reads the provider using the stored event id. That is right while
+    // the id still resolves; after a restore it points at an unrelated event,
+    // and capturing from it would leave the row holding a plausible-looking
+    // pointer to the wrong event. See docs/dev_todo/portable_event_identity.md.
+
+    /** Pre-seeds an identity row, as an earlier capture pass would have. */
+    private fun seedIdentity(
+        eventId: Long,
+        syncId: String?,
+        withCalendar: Boolean = false
+    ) {
+        identityStorage.storage.put(
+            EventIdentityEntity.create(
+                eventId = eventId,
+                instanceStartTime = INSTANCE_START,
+                calendarId = CALENDAR_ID,
+                backupInfo = if (withCalendar) CalendarBackupInfo(
+                    calendarId = CALENDAR_ID,
+                    accountName = "user@example.com",
+                    accountType = "com.google",
+                    ownerAccount = "user@example.com",
+                    displayName = "Calendar $CALENDAR_ID",
+                    name = "user@example.com"
+                ) else null,
+                eventSyncId = syncId,
+                eventUid = null,
+                capturedAtTime = 1L
+            )
+        )
+    }
+
+    @Test
+    fun captureRefreshesIdentityWhenTheSyncIdStillMatches() {
+        // Healthy device: the provider agrees, so the row is re-captured and
+        // its calendar half is refreshed.
+        seedIdentity(100L, "sync-100")
+
+        capture(listOf(alertRecord(100L)))
+
+        val stored = identityStorage.stored[100L to INSTANCE_START]
+        assertEquals("sync-100", stored!!.eventSyncId)
+        assertEquals(
+            "a matching row should have its calendar details refreshed",
+            "user@example.com", stored.calendarAccountName
+        )
+    }
+
+    @Test
+    fun captureSkipsRowWhoseStoredSyncIdNoLongerMatches() {
+        // The restored-device case. Event 100 is now some other event as far as
+        // the provider is concerned, so the stale identity must be left exactly
+        // as captured rather than overwritten with the wrong event's details.
+        seedIdentity(100L, "sync-from-the-old-phone")
+
+        capture(listOf(alertRecord(100L)))
+
+        val stored = identityStorage.stored[100L to INSTANCE_START]
+        assertEquals(
+            "stale row must keep its original sync id for the resolver to use",
+            "sync-from-the-old-phone", stored!!.eventSyncId
+        )
+        assertEquals(
+            "capture must not overwrite it with what the stale id returned",
+            "", stored.calendarAccountName
+        )
+    }
+
+    @Test
+    fun captureSkipsRowWhoseEventIsGoneFromTheProvider() {
+        // Same verdict by the other branch: the id resolves to nothing. Uses
+        // the event the mock provider returns null for.
+        seedIdentity(EVENT_WITHOUT_IDENTITY, "sync-from-the-old-phone")
+
+        capture(listOf(alertRecord(EVENT_WITHOUT_IDENTITY)))
+
+        assertEquals(
+            "sync-from-the-old-phone",
+            identityStorage.stored[EVENT_WITHOUT_IDENTITY to INSTANCE_START]!!.eventSyncId
+        )
+    }
+
+    @Test
+    fun oneUnidentifiableEventDoesNotAffectItsNeighbours() {
+        // The exact failure that killed the earlier validation-sample design: a
+        // single event with no stored identity was read as proof the *device*
+        // was wrong, which disabled capture for every event on it.
+        //
+        // Event 999 returns null from the provider and has no stored identity,
+        // so it has no verdict. Every other event must still be captured.
+        capture(listOf(alertRecord(EVENT_WITHOUT_IDENTITY)) + (1L..4L).map { alertRecord(it) })
+
+        assertEquals(
+            "an unidentifiable event must not suppress capture for the others",
+            5, identityStorage.stored.size
+        )
+        assertEquals("sync-1", identityStorage.stored[1L to INSTANCE_START]!!.eventSyncId)
+    }
+
+    @Test
+    fun aMixedBatchGivesEachRowItsOwnVerdict() {
+        // Stale, current, and never-captured rows in one pass.
+        seedIdentity(1L, "stale-value")      // provider says "sync-1" -> STALE
+        seedIdentity(2L, "sync-2")           // provider agrees        -> CURRENT
+        // event 3 has no seeded identity                              -> UNKNOWN
+
+        capture((1L..3L).map { alertRecord(it) })
+
+        assertEquals(
+            "stale row keeps what it had",
+            "stale-value", identityStorage.stored[1L to INSTANCE_START]!!.eventSyncId
+        )
+        assertEquals(
+            "current row is refreshed",
+            "user@example.com",
+            identityStorage.stored[2L to INSTANCE_START]!!.calendarAccountName
+        )
+        assertEquals(
+            "never-captured row is captured for the first time",
+            "sync-3", identityStorage.stored[3L to INSTANCE_START]!!.eventSyncId
+        )
+    }
+
+    // --- Dismissed events get identity too ---
+    //
+    // They are history, but restorable history: the un-dismiss path puts them
+    // back into the active list and needs a cid/id that still resolve. Measured
+    // on a real device, 2709 of 4183 dismissed rows were still resolvable in the
+    // provider, so skipping them discarded most of what was recoverable.
+
+    @Test
+    fun capturesIdentityForDismissedEvents() {
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
+
+        val stored = identityStorage.stored[700L to INSTANCE_START]
+        assertNotNull("a dismissed event still needs portable identity", stored)
+        assertEquals("sync-700", stored!!.eventSyncId)
+        assertEquals("user@example.com", stored.calendarAccountName)
+    }
+
+    @Test
+    fun capturesBothActiveAndDismissedInOnePass() {
+        capture(events = (1L..3L).map { alertRecord(it) },
+                dismissed = (10L..14L).map { alertRecord(it) })
+
+        assertEquals("all 8 rows across both stores", 8, identityStorage.stored.size)
+        assertEquals("sync-2", identityStorage.stored[2L to INSTANCE_START]!!.eventSyncId)
+        assertEquals("sync-12", identityStorage.stored[12L to INSTANCE_START]!!.eventSyncId)
+    }
+
+    @Test
+    fun anEventInBothStoresIsCapturedOnceFromTheActiveRow() {
+        // Dismiss-then-restore can leave the same key in both stores. It must
+        // not be looked up twice, and the active row is the authoritative one.
+        capture(events = listOf(alertRecord(100L)), dismissed = listOf(alertRecord(100L)))
+
+        assertEquals("deduplicated by (eventId, instanceStartTime)", 1, identityStorage.stored.size)
+        assertEquals(
+            "one provider lookup, not two",
+            1, getEventLookups
+        )
+    }
+
+    @Test
+    fun dismissedEventAgedOutOfTheProviderIsSkippedNotFailed() {
+        // The common case for old history: the provider has pruned the event.
+        // Nothing to store, and it must not disturb the rows that do resolve.
+        capture(events = listOf(alertRecord(100L)),
+                dismissed = listOf(alertRecord(EVENT_WITHOUT_IDENTITY, calendarId = UNKNOWN_CALENDAR_ID)))
+
+        assertEquals("only the resolvable row is stored", 1, identityStorage.stored.size)
+        assertNotNull(identityStorage.stored[100L to INSTANCE_START])
+    }
+
+    @Test
+    fun dismissedOnlyDatabaseStillCaptures() {
+        // No active events at all -- capture must not bail out early on an
+        // empty active list while dismissed rows are still worth recording.
+        capture(events = emptyList(), dismissed = (1L..4L).map { alertRecord(it) })
+
+        assertEquals(4, identityStorage.stored.size)
+    }
+
+    @Test
+    fun steadyStateReadsDismissedKeysWithoutLoadingTheRows() {
+        // dismissedEventsV2 is the largest table the app keeps (4183 rows vs 373
+        // active), and this runs every 30 minutes on a wake-locked service.
+        // Once everything is captured, a pass must cost a key projection and
+        // nothing more -- no full row read, no sort, no entity mapping.
+        seedIdentity(700L, "sync-700", withCalendar = true)
+        seedIdentity(701L, "sync-701", withCalendar = true)
+
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L), alertRecord(701L)))
+
+        assertEquals("keys are read", 1, lastDismissedStorage!!.keyReadCount)
+        assertEquals(
+            "no full rows read when nothing needs capturing",
+            0, lastDismissedStorage!!.fullReadCount
+        )
+    }
+
+    @Test
+    fun onlyTheUncapturedDismissedRowsAreFetched() {
+        // One of three needs capturing, so the row read must ask for that one.
+        seedIdentity(700L, "sync-700", withCalendar = true)
+        seedIdentity(701L, "sync-701", withCalendar = true)
+
+        capture(
+            events = emptyList(),
+            dismissed = listOf(alertRecord(700L), alertRecord(701L), alertRecord(702L))
+        )
+
+        assertEquals(1, lastDismissedStorage!!.fullReadCount)
+        assertEquals(
+            "the uncaptured one is now stored",
+            "sync-702", identityStorage.stored[702L to INSTANCE_START]!!.eventSyncId
+        )
+        assertEquals("and only it was queried from the provider", 1, getEventLookups)
+    }
+
+    @Test
+    fun alreadyCapturedDismissedEventsAreNotReReadEveryPass() {
+        // Dismissed rows outnumber active ones ~11:1 on a real device and this
+        // runs every 30 minutes on a wake-locked service. Their identity is
+        // immutable history, so a captured dismissed row must cost nothing on
+        // subsequent passes.
+        seedIdentity(700L, "sync-700", withCalendar = true)
+
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
+
+        assertEquals(
+            "an already-captured dismissed event must not be queried again",
+            0, getEventLookups
+        )
+        assertEquals(
+            "and its stored identity is left alone",
+            "sync-700", identityStorage.stored[700L to INSTANCE_START]!!.eventSyncId
+        )
+    }
+
+    @Test
+    fun activeEventsAreStillReReadEvenWhenAlreadyCaptured() {
+        // The active list is small and its events move -- reschedules, edits,
+        // calendar renames -- so it keeps being refreshed. Only the dismissed
+        // side is skipped.
+        seedIdentity(100L, "sync-100")
+
+        capture(events = listOf(alertRecord(100L)))
+
+        assertEquals("active events are re-read every pass", 1, getEventLookups)
+    }
+
+    @Test
+    fun aDismissedRowMissingItsCalendarIsRetriedNotRetiredForever() {
+        // Capture can record a sync id but no calendar, when the calendar was
+        // removed between the event being stored and the pass running. Such a
+        // row cannot resolve -- the matcher has no account to search for -- so
+        // it must stay on the list and get another chance if the calendar
+        // comes back. Dismissed rows are skipped once captured, so without this
+        // the event would be retired permanently.
+        seedIdentity(700L, "sync-700", withCalendar = false)
+
+        capture(events = emptyList(), dismissed = listOf(alertRecord(700L)))
+
+        assertEquals(
+            "an incomplete row must be re-read, not skipped",
+            1, lastDismissedStorage!!.fullReadCount
+        )
+        assertEquals(
+            "and this time the calendar is recorded",
+            "user@example.com",
+            identityStorage.stored[700L to INSTANCE_START]!!.calendarAccountName
+        )
+    }
+
+    @Test
+    fun anIncompleteRowDoesNotCauseCompleteOnesToBeReRead() {
+        // The retry is per row: one incomplete neighbour must not drag the
+        // whole dismissed table back into a full read every pass.
+        seedIdentity(700L, "sync-700", withCalendar = false)
+        seedIdentity(701L, "sync-701", withCalendar = true)
+
+        capture(events = emptyList(),
+                dismissed = listOf(alertRecord(700L), alertRecord(701L)))
+
+        assertEquals(
+            "only the incomplete row is fetched",
+            1, getEventLookups
+        )
+    }
+
+    @Test
+    fun firstEverCaptureIsNotTreatedAsStale() {
+        // Nothing stored yet, on every event, which is what installing this
+        // version looks like. Must capture, not skip.
+        capture((1L..3L).map { alertRecord(it) })
+
+        assertEquals(3, identityStorage.stored.size)
+    }
+
+
 
     companion object {
         private const val CALENDAR_ID = 6L
