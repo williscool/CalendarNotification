@@ -83,6 +83,15 @@ open class PersistentStorageBase(ctx: Context, prefName: String? = null) {
         editor.commit()
     }
 
+    /** Whether a value was ever stored, as opposed to a getter's default. */
+    fun hasKey(key: String): Boolean = state.contains(key)
+
+    fun remove(key: String) {
+        val editor = edit()
+        editor.remove(key)
+        editor.apply()
+    }
+
     fun getBoolean(key: String, default: Boolean): Boolean = state.getBoolean(key, default)
 
     fun getInt(key: String, default: Int): Int = state.getInt(key, default)

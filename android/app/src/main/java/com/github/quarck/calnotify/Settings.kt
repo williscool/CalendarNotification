@@ -241,6 +241,22 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
     fun setCalendarIsHandled(calendarId: Long, enabled: Boolean) =
             setBoolean("$CALENDAR_IS_HANDLED_KEY_PREFIX.$calendarId", enabled)
 
+    /**
+     * Whether the user ever set this calendar's handled flag.
+     *
+     * [getCalendarIsHandled] defaults to true, so a plain read cannot tell
+     * "the user enabled it" from "nobody ever touched it". Re-associating
+     * calendars after a restore needs the difference: moving a setting that was
+     * never configured would write a row that says nothing while making this
+     * check answer yes from then on.
+     */
+    fun hasCalendarIsHandledSetting(calendarId: Long) =
+            hasKey("$CALENDAR_IS_HANDLED_KEY_PREFIX.$calendarId")
+
+    /** Drops the setting, restoring the default. Used when a calendar id moves. */
+    fun clearCalendarIsHandled(calendarId: Long) =
+            remove("$CALENDAR_IS_HANDLED_KEY_PREFIX.$calendarId")
+
     var versionCodeFirstInstalled: Long
         get() = getLong(VERSION_CODE_FIRST_INSTALLED_KEY, 0L)
         set(value) = setLong(VERSION_CODE_FIRST_INSTALLED_KEY, value)
