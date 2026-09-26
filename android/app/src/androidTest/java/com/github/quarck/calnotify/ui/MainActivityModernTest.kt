@@ -25,7 +25,6 @@ import io.mockk.*
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -674,7 +673,6 @@ class MainActivityModernTest : BaseUltronTest() {
     }
     
     @Test
-    @Ignore("Flaky test - temporarily disabled")
     fun search_partial_match_works() {
         fixture.createEvent(title = "Important Meeting")
         fixture.createEvent(title = "Unimportant Task")
