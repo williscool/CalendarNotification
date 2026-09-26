@@ -1,0 +1,425 @@
+#!/usr/bin/env node
+//
+//   Calendar Notifications Plus
+//   Copyright (C) 2026 William Harris (wharris+cnplus@upscalews.com)
+//
+//   This program is free software; you can redistribute it and/or modify
+//   it under the terms of the GNU General Public License as published by
+//   the Free Software Foundation; either version 3 of the License, or
+//   (at your option) any later version.
+//
+
+/**
+ * One-off migration tool: inject only-on-old events from one phone's
+ * .ab into another phone's .ab, remapping calendar and (optionally)
+ * event ids into the destination phone's namespace.
+ *
+ * See docs/dev_todo/merge_old_phone_backup_script.md for the plan and
+ * rationale. Invocation mirrors scripts/clean_logs.ts:
+ *
+ *   npx ts-node scripts/merge_old_phone_backup.ts \
+ *     --old  path/to/old.ab \
+ *     --new  path/to/new.ab \
+ *     --new-provider-snapshot path/to/events.txt \
+ *     --out  path/to/merged.ab \
+ *     [--no-rekey-events] [--dry-run]
+ */
+
+import { Command } from 'commander'
+import Database from 'better-sqlite3'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import { execFileSync } from 'child_process'
+
+import { unpackAb, packAb } from './lib/ab_unpack'
+import {
+  buildCalendarRemap,
+  diffIdentities,
+  insertOrSkip,
+  parseProviderEvents,
+  readDismissed,
+  readEvent,
+  readIdentities,
+  remapCalendarId,
+  remapEventId,
+  tupleKey,
+  type IdentityRow,
+  type ProviderEvent,
+} from './lib/backup_merge'
+
+interface Opts {
+  old: string
+  new: string
+  newProviderSnapshot: string
+  out: string
+  rekeyEvents: boolean
+  dryRun: boolean
+}
+
+interface Summary {
+  identitiesOnlyOnOld: number
+  identitiesOnlyOnNew: number
+  identitiesOverlap: number
+  identitiesDroppedNoSyncId: number
+  eventsInjected: number
+  eventsSkippedNoLiveRow: number
+  eventsSkippedCollision: number
+  identitiesInjected: number
+  identitiesSkippedCollision: number
+  dismissedInjected: number
+  dismissedSkippedNoLiveRow: number
+  dismissedSkippedCollision: number
+  eventIdRemapped: number
+  eventIdKeptOld: number
+  calendarTuplesUsed: number
+}
+
+function main() {
+  const program = new Command()
+  program
+    .requiredOption('--old <path>', 'source .ab (old phone)')
+    .requiredOption('--new <path>', 'destination .ab (new phone)')
+    .requiredOption('--new-provider-snapshot <path>', 'new phone provider events.txt from capture_calendar_snapshot.sh')
+    .requiredOption('--out <path>', 'merged .ab output path')
+    .option('--no-rekey-events', 'skip eventId remap; rely on PR #291 at runtime')
+    .option('--dry-run', 'print the plan without writing the output .ab', false)
+    .parse(process.argv)
+
+  const opts = program.opts<Opts>()
+  console.log('merge_old_phone_backup')
+  console.log(`  --old:  ${opts.old}`)
+  console.log(`  --new:  ${opts.new}`)
+  console.log(`  --out:  ${opts.out}`)
+  console.log(`  --rekey-events: ${opts.rekeyEvents}`)
+  console.log(`  --dry-run: ${opts.dryRun}`)
+  console.log()
+
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ab-merge-'))
+  try {
+    const oldDbDir = path.join(workDir, 'old')
+    const newDbDir = path.join(workDir, 'new')
+    fs.mkdirSync(oldDbDir, { recursive: true })
+    fs.mkdirSync(newDbDir, { recursive: true })
+
+    console.log('unpacking .ab files...')
+    extractDbs(opts.old, oldDbDir)
+    extractDbs(opts.new, newDbDir)
+
+    const providerEvents = parseProviderEvents(fs.readFileSync(opts.newProviderSnapshot, 'utf8'))
+    console.log(`  new-phone provider snapshot: ${providerEvents.length} events`)
+    const providerBySyncId = new Map<string, ProviderEvent>()
+    for (const e of providerEvents) {
+      if (e.syncId) providerBySyncId.set(e.syncId, e)
+    }
+
+    const summary = mergeAll(oldDbDir, newDbDir, providerBySyncId, opts.rekeyEvents)
+
+    console.log()
+    console.log('== Summary ==')
+    for (const [k, v] of Object.entries(summary)) {
+      console.log(`  ${k.padEnd(28)} ${v}`)
+    }
+
+    if (opts.dryRun) {
+      console.log()
+      console.log('--dry-run: not writing output .ab')
+      return
+    }
+
+    console.log()
+    console.log('repacking merged .ab...')
+    repackAb(newDbDir, opts.new, opts.out)
+    console.log(`  wrote ${opts.out}`)
+  } finally {
+    fs.rmSync(workDir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Extract just the SQLite files (`db/RoomEventIdentity`, `db/RoomEvents`,
+ * `db/DismissedEvents`, `db/CalendarMonitor`) plus their `-wal` and
+ * `-shm` sidecars from the .ab into `outDir`.
+ */
+function extractDbs(abPath: string, outDir: string): void {
+  const tarBytes = unpackAb(abPath)
+  const tarPath = path.join(outDir, 'source.tar')
+  fs.writeFileSync(tarPath, tarBytes)
+  // Extract only the four DBs + sidecars. Simpler and less to move.
+  execFileSync(
+    'tar',
+    [
+      '-xf', tarPath,
+      '-C', outDir,
+      '--wildcards',
+      'apps/*/db/RoomEventIdentity*',
+      'apps/*/db/RoomEvents*',
+      'apps/*/db/DismissedEvents*',
+      'apps/*/db/CalendarMonitor*',
+    ],
+    { stdio: 'inherit' }
+  )
+  fs.unlinkSync(tarPath)
+}
+
+function findDb(dir: string, name: string): string {
+  const globPath = path.join(dir, 'apps')
+  const pkgs = fs.readdirSync(globPath)
+  if (pkgs.length !== 1) {
+    throw new Error(`Expected one package under ${globPath}, found: ${pkgs.join(', ')}`)
+  }
+  return path.join(globPath, pkgs[0], 'db', name)
+}
+
+/**
+ * Open a Room database file, force a full WAL checkpoint so all data is
+ * in the main .db (so re-tarring the file alone captures everything),
+ * then return the handle. Any -wal / -shm sidecars can then be dropped
+ * without losing data.
+ */
+function openAndCheckpoint(dbPath: string): Database.Database {
+  const db = new Database(dbPath)
+  db.pragma('journal_mode = DELETE')
+  db.pragma('wal_checkpoint(TRUNCATE)')
+  return db
+}
+
+function mergeAll(
+  oldDir: string,
+  newDir: string,
+  providerBySyncId: Map<string, ProviderEvent>,
+  rekeyEvents: boolean
+): Summary {
+  const oldIdentityDb = openAndCheckpoint(findDb(oldDir, 'RoomEventIdentity'))
+  const oldEventsDb = openAndCheckpoint(findDb(oldDir, 'RoomEvents'))
+  const oldDismissedDb = openAndCheckpoint(findDb(oldDir, 'DismissedEvents'))
+
+  const newIdentityDb = openAndCheckpoint(findDb(newDir, 'RoomEventIdentity'))
+  const newEventsDb = openAndCheckpoint(findDb(newDir, 'RoomEvents'))
+  const newDismissedDb = openAndCheckpoint(findDb(newDir, 'DismissedEvents'))
+
+  const oldIdentities = readIdentities(oldIdentityDb)
+  const newIdentities = readIdentities(newIdentityDb)
+  const diff = diffIdentities(oldIdentities, newIdentities)
+  const calendarRemap = buildCalendarRemap(newIdentities)
+
+  console.log(`  old identities: ${oldIdentities.length}`)
+  console.log(`  new identities: ${newIdentities.length}`)
+  console.log(`  only-on-old:    ${diff.onlyOnOld.length}`)
+  console.log(`  only-on-new:    ${diff.onlyOnNew.length}`)
+  console.log(`  overlap:        ${diff.overlap.length}`)
+  console.log(`  dropped (no syncId): ${diff.droppedNoSyncId.length}`)
+  console.log(`  distinct dest calendars: ${calendarRemap.size}`)
+
+  const summary: Summary = {
+    identitiesOnlyOnOld: diff.onlyOnOld.length,
+    identitiesOnlyOnNew: diff.onlyOnNew.length,
+    identitiesOverlap: diff.overlap.length,
+    identitiesDroppedNoSyncId: diff.droppedNoSyncId.length,
+    eventsInjected: 0,
+    eventsSkippedNoLiveRow: 0,
+    eventsSkippedCollision: 0,
+    identitiesInjected: 0,
+    identitiesSkippedCollision: 0,
+    dismissedInjected: 0,
+    dismissedSkippedNoLiveRow: 0,
+    dismissedSkippedCollision: 0,
+    eventIdRemapped: 0,
+    eventIdKeptOld: 0,
+    calendarTuplesUsed: 0,
+  }
+
+  const usedTuples = new Set<string>()
+
+  // Three separate SQLite files, no shared transaction. Each DB gets
+  // its own transaction so a mid-run failure leaves that DB consistent;
+  // cross-DB atomicity is unnecessary because the output .ab is a
+  // throwaway artifact -- rerun the tool if it dies.
+  const dbs = [newEventsDb, newIdentityDb, newDismissedDb]
+  for (const db of dbs) db.prepare('BEGIN').run()
+  try {
+    for (const src of diff.onlyOnOld) {
+      injectOne(
+        src,
+        oldEventsDb,
+        oldDismissedDb,
+        newEventsDb,
+        newIdentityDb,
+        newDismissedDb,
+        calendarRemap,
+        providerBySyncId,
+        rekeyEvents,
+        summary,
+        usedTuples
+      )
+    }
+    for (const db of dbs) db.prepare('COMMIT').run()
+  } catch (ex) {
+    for (const db of dbs) {
+      try { db.prepare('ROLLBACK').run() } catch { /* already rolled back */ }
+    }
+    throw ex
+  }
+
+  summary.calendarTuplesUsed = usedTuples.size
+
+  oldIdentityDb.close()
+  oldEventsDb.close()
+  oldDismissedDb.close()
+  newIdentityDb.close()
+  newEventsDb.close()
+  newDismissedDb.close()
+
+  return summary
+}
+
+function injectOne(
+  src: IdentityRow,
+  oldEventsDb: Database.Database,
+  oldDismissedDb: Database.Database,
+  newEventsDb: Database.Database,
+  newIdentityDb: Database.Database,
+  newDismissedDb: Database.Database,
+  calendarRemap: Map<string, number>,
+  providerBySyncId: Map<string, ProviderEvent>,
+  rekeyEvents: boolean,
+  summary: Summary,
+  usedTuples: Set<string>
+): void {
+  const oldEvent = readEvent(oldEventsDb, src.eventId, src.instanceStartTime)
+  if (!oldEvent) {
+    summary.eventsSkippedNoLiveRow += 1
+    return
+  }
+
+  const newCid = remapCalendarId(src, calendarRemap)
+  usedTuples.add(tupleKey(src))
+
+  let newEventId = src.eventId
+  if (rekeyEvents) {
+    const remapped = remapEventId(src, providerBySyncId)
+    if (remapped !== null) {
+      newEventId = remapped
+      summary.eventIdRemapped += 1
+    } else {
+      summary.eventIdKeptOld += 1
+    }
+  } else {
+    summary.eventIdKeptOld += 1
+  }
+
+  const eventRow: Record<string, unknown> = { ...oldEvent, cid: newCid, id: newEventId }
+  if (insertOrSkip(newEventsDb, 'eventsV9', eventRow)) {
+    summary.eventsInjected += 1
+  } else {
+    summary.eventsSkippedCollision += 1
+    return
+  }
+
+  const identityRow: Record<string, unknown> = {
+    eventId: newEventId,
+    instanceStartTime: src.instanceStartTime,
+    calendarAccountName: src.accountName,
+    calendarAccountType: src.accountType,
+    calendarOwnerAccount: src.ownerAccount,
+    calendarDisplayName: src.displayName,
+    calendarName: src.name,
+    eventSyncId: src.eventSyncId,
+    eventUid: src.eventUid,
+    originalCalendarId: newCid,
+    originalEventId: newEventId,
+    capturedAtTime: src.capturedAtTime,
+    resolutionAttemptCount: 0,
+    lastResolutionAttemptTime: 0,
+  }
+  if (insertOrSkip(newIdentityDb, 'eventIdentityV1', identityRow)) {
+    summary.identitiesInjected += 1
+  } else {
+    summary.identitiesSkippedCollision += 1
+  }
+
+  const oldDismissed = readDismissed(oldDismissedDb, src.eventId, src.instanceStartTime)
+  if (oldDismissed) {
+    const dismissedRow: Record<string, unknown> = {
+      ...oldDismissed,
+      calendarId: newCid,
+      eventId: newEventId,
+    }
+    if (insertOrSkip(newDismissedDb, 'dismissedEventsV2', dismissedRow)) {
+      summary.dismissedInjected += 1
+    } else {
+      summary.dismissedSkippedCollision += 1
+    }
+  } else {
+    summary.dismissedSkippedNoLiveRow += 1
+  }
+}
+
+/**
+ * Re-tar the destination phone's extracted app dir (with the modified
+ * DB files in place) and re-wrap it as an .ab, using the original .ab's
+ * inner tar as the ordering/permissions template.
+ *
+ * The approach: unpack the destination .ab in full to a temp dir (not
+ * just the DB files), overlay our modified DB files, tar it back up
+ * preserving the same file order the original had, deflate, prepend
+ * the 24-byte header.
+ */
+function repackAb(newDbDir: string, newAbPath: string, outAbPath: string): void {
+  const repackDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ab-repack-'))
+  try {
+    const fullTar = unpackAb(newAbPath)
+    const fullTarPath = path.join(repackDir, 'full.tar')
+    fs.writeFileSync(fullTarPath, fullTar)
+
+    const listRaw = execFileSync('tar', ['-tf', fullTarPath], { encoding: 'utf8' })
+    const fileList = listRaw.split('\n').filter((l) => l.length > 0)
+
+    execFileSync('tar', ['-xf', fullTarPath, '-C', repackDir], { stdio: 'inherit' })
+    fs.unlinkSync(fullTarPath)
+
+    for (const dbName of ['RoomEventIdentity', 'RoomEvents', 'DismissedEvents', 'CalendarMonitor']) {
+      const src = findDb(newDbDir, dbName)
+      // Under repackDir/apps/<pkg>/db/
+      const pkgs = fs.readdirSync(path.join(repackDir, 'apps'))
+      const dst = path.join(repackDir, 'apps', pkgs[0], 'db', dbName)
+      fs.copyFileSync(src, dst)
+      // Drop any -wal/-shm sidecars from the repack -- we checkpointed
+      // and switched to journal_mode=DELETE, so all data is in the .db.
+      for (const suffix of ['-wal', '-shm']) {
+        const sidecar = dst + suffix
+        if (fs.existsSync(sidecar)) fs.unlinkSync(sidecar)
+      }
+    }
+
+    // Re-tar in the ORIGINAL file order, minus the -wal/-shm sidecars
+    // we removed. Preserving order matters because Android's restore
+    // reads the tar sequentially.
+    const dbSidecarSuffixes = ['-wal', '-shm']
+    const keptFiles = fileList.filter((f) => {
+      const base = path.basename(f)
+      return !dbSidecarSuffixes.some((sfx) =>
+        ['RoomEventIdentity', 'RoomEvents', 'DismissedEvents', 'CalendarMonitor'].some(
+          (db) => base === db + sfx
+        )
+      )
+    })
+
+    const listFile = path.join(repackDir, 'files.list')
+    fs.writeFileSync(listFile, keptFiles.join('\n') + '\n')
+
+    const outTarPath = path.join(repackDir, 'out.tar')
+    execFileSync(
+      'tar',
+      ['-cf', outTarPath, '-C', repackDir, '--no-recursion', '-T', listFile, '--format=ustar'],
+      { stdio: 'inherit' }
+    )
+
+    const outTarBytes = fs.readFileSync(outTarPath)
+    packAb(outTarBytes, outAbPath)
+  } finally {
+    fs.rmSync(repackDir, { recursive: true, force: true })
+  }
+}
+
+main()

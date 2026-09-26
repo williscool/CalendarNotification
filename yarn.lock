@@ -6121,6 +6121,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/better-sqlite3@npm:^9.6.0":
+  version: 9.6.0
+  resolution: "@types/better-sqlite3@npm:9.6.0"
+  dependencies:
+    "@types/node": "*"
+  checksum: a5ab061b2c5269430b47ee62af1b6b9425fb75f3f8ee3d7ca41feae227ce9114fc5402b3bae51e4ce9003bb8df5dc1a60a4958aed077c0a2a0722f86bf8fcd71
+  languageName: node
+  linkType: hard
+
 "@types/cacheable-request@npm:^6.0.1":
   version: 6.0.3
   resolution: "@types/cacheable-request@npm:6.0.3"
@@ -6680,6 +6689,7 @@ __metadata:
     "@testing-library/react-hooks": ^8.0.1
     "@testing-library/react-native": ^13.3.3
     "@tsconfig/react-native": ^3.0.2
+    "@types/better-sqlite3": ^9.6.0
     "@types/crypto-js": ^4.2.2
     "@types/jest": ^29.5.5
     "@types/node": ^22.14.0
@@ -6688,6 +6698,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": ^6.6.0
     await-to-js: ^3.0.0
     babel-plugin-module-resolver: ^5.0.0
+    better-sqlite3: ^13.0.3
     commander: ^13.1.0
     conventional-changelog-conventionalcommits: ^8.0.0
     crypto-js: ^4.2.0
@@ -7411,6 +7422,16 @@ __metadata:
   dependencies:
     open: ^8.0.4
   checksum: 1471552fa7f733561e7f49e812be074b421153006ca744de985fb6d38939807959fc5fe9cb819cf09f864782e294704fd3b31711ea14c115baf3330a2f1135de
+  languageName: node
+  linkType: hard
+
+"better-sqlite3@npm:^13.0.3":
+  version: 13.0.3
+  resolution: "better-sqlite3@npm:13.0.3"
+  dependencies:
+    node-addon-api: ^8.0.0
+    node-gyp: latest
+  checksum: 1c43a2c815c5ee5853be5971c1f0c37dbbe54aeb5566365351f196ce41aa0758162dddfed8d780a1ac82e4f4455944a918e50d0540b50aec59cc4df30e8275a0
   languageName: node
   linkType: hard
 
@@ -14738,6 +14759,15 @@ __metadata:
   version: 3.0.4
   resolution: "nocache@npm:3.0.4"
   checksum: 6be9ee67eb561ecedc56d805c024c0fda55b9836ecba659c720073b067929aa4fe04bb7121480e004c9cf52989e62d8720f29a7fe0269f1a4941221a1e4be1c2
+  languageName: node
+  linkType: hard
+
+"node-addon-api@npm:^8.0.0":
+  version: 8.9.2
+  resolution: "node-addon-api@npm:8.9.2"
+  dependencies:
+    node-gyp: latest
+  checksum: 820b3099b7d27c555fd9d98c986feab52d7eaf2e4dac1bce927857368baa0f2a3f31db5bd5112acd45222fd33a453b3baf8bf78771a0643a4b712e09a33f0fdf
   languageName: node
   linkType: hard
 
