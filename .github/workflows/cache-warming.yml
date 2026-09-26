@@ -1,21 +1,17 @@
 # Workflow to keep caches warm for faster CI runs
-# Runs on schedule and when dependency files change on master
+# Runs on every push to master and on a daily schedule
 name: Cache Warming
 
 on:
   schedule:
     # Run daily at 9 AM UTC (4 AM EST, before most development activity)
+    # GitHub disables scheduled workflows after 60 days without repo activity
     - cron: '0 9 * * *'
   push:
+    # Every merge: this is a full build with ccache, so code changes matter,
+    # not just dependency files. PRs and tag builds can only restore caches
+    # from master.
     branches: [master]
-    paths:
-      # Trigger when dependency files change
-      - 'yarn.lock'
-      - 'package.json'
-      - '**/build.gradle'
-      - '**/build.gradle.kts'
-      - '**/gradle-wrapper.properties'
-      - '**/gradle.properties'
   workflow_dispatch:
     # Allow manual triggering to refresh caches
 

@@ -85,7 +85,7 @@ New workflow that proactively warms caches on master branch:
 
 **Triggers**:
 - Daily at 9 AM UTC (4 AM EST)
-- On push to master when dependency files change
+- On every push to master (originally only on dependency-file changes, from when it ran minimal Gradle tasks; widened once it became a full ccache build)
 - Manual dispatch
 
 **Jobs**:
