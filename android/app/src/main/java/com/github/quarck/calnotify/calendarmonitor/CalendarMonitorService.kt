@@ -109,6 +109,11 @@ class CalendarMonitorService : IntentService("CalendarMonitorService") {
             // reload alone would miss it. Runs after both scanners so it cannot
             // delay either, and swallows its own failures.
             ApplicationController.captureEventIdentities(this)
+
+            // Straight after capture, which has just flagged any rows whose
+            // stored ids went stale. On a healthy device this finds nothing to
+            // do and costs one calendar-list read.
+            ApplicationController.resolveEventCalendars(this)
         }
     }
 
