@@ -40,8 +40,6 @@ import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.robolectric.Shadows.shadowOf
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -74,6 +72,10 @@ class UITestFixtureRobolectric {
      */
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up UITestFixtureRobolectric")
+        
+        // A task whose onPostExecute was dropped when the previous test's looper
+        // was reset would otherwise leave the count stuck above zero
+        pendingTaskCount.set(0)
         
         // Grant calendar permissions for Robolectric
         grantCalendarPermissions()
@@ -392,7 +394,7 @@ class UITestFixtureRobolectric {
      */
     fun launchMainActivity(): ActivityScenario<MainActivityLegacy> {
         DevLog.info(LOG_TAG, "Launching MainActivityLegacy")
-        return ActivityScenario.launch(MainActivityLegacy::class.java)
+        return ActivityScenario.launch(MainActivityLegacy::class.java).also { waitForAsyncTasks() }
     }
     
     /**
@@ -403,7 +405,7 @@ class UITestFixtureRobolectric {
      */
     fun launchMainActivityModern(): ActivityScenario<MainActivityModern> {
         DevLog.info(LOG_TAG, "Launching MainActivityModern")
-        return ActivityScenario.launch(MainActivityModern::class.java)
+        return ActivityScenario.launch(MainActivityModern::class.java).also { waitForAsyncTasks() }
     }
     
     /**
@@ -509,19 +511,18 @@ class UITestFixtureRobolectric {
     }
     
     /**
-     * Waits for all async tasks to complete.
-     * 
-     * Uses the globalAsyncTaskCallback mechanism to track pending tasks
-     * with a CountDownLatch for efficient blocking (no busy-wait).
-     * Then idles the main looper to process onPostExecute callbacks.
+     * Waits (up to ~5s) for all background { } tasks to complete.
+     *
+     * Tasks are tracked via globalAsyncTaskCallback. Completion is reported from
+     * onPostExecute, which is posted to the main looper -- the thread the test
+     * itself runs on -- so keep idling it while waiting rather than blocking.
      */
     fun waitForAsyncTasks() {
-        // Wait for any pending async tasks to complete (with timeout)
-        if (pendingTaskCount.get() > 0) {
-            completionLatch?.await(5, TimeUnit.SECONDS)
+        repeat(500) {
+            shadowOf(Looper.getMainLooper()).idle()
+            if (pendingTaskCount.get() == 0) return
+            Thread.sleep(10)
         }
-        // Idle the main looper to process onPostExecute callbacks
-        shadowOf(Looper.getMainLooper()).idle()
     }
     
     companion object {
@@ -530,25 +531,13 @@ class UITestFixtureRobolectric {
         /** Tracks number of async tasks currently in flight */
         private val pendingTaskCount = AtomicInteger(0)
         
-        /** Latch that signals when all tasks complete */
-        @Volatile
-        private var completionLatch: CountDownLatch? = null
-        
         /** Callback installed to track async task lifecycle */
         private val taskTrackingCallback = object : AsyncTaskCallback {
             override fun onTaskStarted() {
-                val count = pendingTaskCount.incrementAndGet()
-                if (count == 1) {
-                    // First task started - create a fresh latch
-                    completionLatch = CountDownLatch(1)
-                }
+                pendingTaskCount.incrementAndGet()
             }
             override fun onTaskCompleted() {
-                val count = pendingTaskCount.decrementAndGet()
-                if (count == 0) {
-                    // All tasks done - signal the latch
-                    completionLatch?.countDown()
-                }
+                pendingTaskCount.decrementAndGet()
             }
         }
         
