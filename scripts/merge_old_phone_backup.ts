@@ -38,22 +38,26 @@ import {
   diffIdentities,
   insertOrSkip,
   parseProviderEvents,
+  planDedup,
   readDismissed,
   readEvent,
   readIdentities,
   remapCalendarId,
   remapEventId,
   tupleKey,
+  type EventKey,
   type IdentityRow,
   type ProviderEvent,
 } from './lib/backup_merge'
 
 interface Opts {
-  old: string
+  old?: string
   new: string
   newProviderSnapshot: string
   out: string
   rekeyEvents: boolean
+  dedup: boolean
+  dedupOnly: boolean
   dryRun: boolean
 }
 
@@ -75,35 +79,46 @@ interface Summary {
   calendarTuplesUsed: number
 }
 
+interface DedupSummary {
+  dupGroupsSeen: number
+  dupGroupsResolved: number
+  dupGroupsAmbiguous: number
+  eventsDeleted: number
+  identityRowsDeleted: number
+}
+
 function main() {
   const program = new Command()
   program
-    .requiredOption('--old <path>', 'source .ab (old phone)')
-    .requiredOption('--new <path>', 'destination .ab (new phone)')
+    .option('--old <path>', 'source .ab (old phone); omit with --dedup-only')
+    .requiredOption('--new <path>', 'destination .ab (new phone), or the .ab to dedup')
     .requiredOption('--new-provider-snapshot <path>', 'new phone provider events.txt from capture_calendar_snapshot.sh')
-    .requiredOption('--out <path>', 'merged .ab output path')
-    .option('--no-rekey-events', 'skip eventId remap; rely on PR #291 at runtime')
+    .requiredOption('--out <path>', 'output .ab path')
+    .option('--no-rekey-events', 'skip eventId remap during merge; rely on PR #291 at runtime')
+    .option('--dedup', 'after merge, drop orphaned (title, istart) dupes whose identity syncId does not match live provider', false)
+    .option('--dedup-only', 'skip merge; run only the dedup pass against --new and write --out', false)
     .option('--dry-run', 'print the plan without writing the output .ab', false)
     .parse(process.argv)
 
   const opts = program.opts<Opts>()
-  console.log('merge_old_phone_backup')
-  console.log(`  --old:  ${opts.old}`)
+  if (!opts.dedupOnly && !opts.old) {
+    throw new Error('--old is required unless --dedup-only is set')
+  }
+  console.log(opts.dedupOnly ? 'merge_old_phone_backup [dedup-only]' : 'merge_old_phone_backup')
+  if (opts.old) console.log(`  --old:  ${opts.old}`)
   console.log(`  --new:  ${opts.new}`)
   console.log(`  --out:  ${opts.out}`)
-  console.log(`  --rekey-events: ${opts.rekeyEvents}`)
+  if (!opts.dedupOnly) console.log(`  --rekey-events: ${opts.rekeyEvents}`)
+  console.log(`  --dedup: ${opts.dedup || opts.dedupOnly}`)
   console.log(`  --dry-run: ${opts.dryRun}`)
   console.log()
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ab-merge-'))
   try {
-    const oldDbDir = path.join(workDir, 'old')
     const newDbDir = path.join(workDir, 'new')
-    fs.mkdirSync(oldDbDir, { recursive: true })
     fs.mkdirSync(newDbDir, { recursive: true })
 
     console.log('unpacking .ab files...')
-    extractDbs(opts.old, oldDbDir)
     extractDbs(opts.new, newDbDir)
 
     const providerEvents = parseProviderEvents(fs.readFileSync(opts.newProviderSnapshot, 'utf8'))
@@ -113,12 +128,26 @@ function main() {
       if (e.syncId) providerBySyncId.set(e.syncId, e)
     }
 
-    const summary = mergeAll(oldDbDir, newDbDir, providerBySyncId, opts.rekeyEvents)
+    if (!opts.dedupOnly) {
+      const oldDbDir = path.join(workDir, 'old')
+      fs.mkdirSync(oldDbDir, { recursive: true })
+      extractDbs(opts.old!, oldDbDir)
+      const summary = mergeAll(oldDbDir, newDbDir, providerBySyncId, opts.rekeyEvents)
+      console.log()
+      console.log('== Merge summary ==')
+      for (const [k, v] of Object.entries(summary)) {
+        console.log(`  ${k.padEnd(28)} ${v}`)
+      }
+    }
 
-    console.log()
-    console.log('== Summary ==')
-    for (const [k, v] of Object.entries(summary)) {
-      console.log(`  ${k.padEnd(28)} ${v}`)
+    if (opts.dedup || opts.dedupOnly) {
+      console.log()
+      console.log('running dedup pass...')
+      const dedupSummary = dedupInDbs(newDbDir, providerEvents)
+      console.log('== Dedup summary ==')
+      for (const [k, v] of Object.entries(dedupSummary)) {
+        console.log(`  ${k.padEnd(28)} ${v}`)
+      }
     }
 
     if (opts.dryRun) {
@@ -128,11 +157,86 @@ function main() {
     }
 
     console.log()
-    console.log('repacking merged .ab...')
+    console.log('repacking output .ab...')
     repackAb(newDbDir, opts.new, opts.out)
     console.log(`  wrote ${opts.out}`)
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Run the dedup pass in place against the already-extracted destination
+ * SQLite files. Uses `planDedup` to decide which eventIds to drop, then
+ * deletes those rows from `eventsV9` and their matching identity rows
+ * from `eventIdentityV1`. Same idempotence guarantee as the merge pass:
+ * running it twice is a no-op the second time.
+ */
+function dedupInDbs(newDir: string, providerEvents: ProviderEvent[]): DedupSummary {
+  const eventsDb = openAndCheckpoint(findDb(newDir, 'RoomEvents'))
+  const identityDb = openAndCheckpoint(findDb(newDir, 'RoomEventIdentity'))
+
+  const events: EventKey[] = eventsDb
+    .prepare('SELECT id, istart, ttl AS title, rep AS repInt FROM eventsV9')
+    .all()
+    .map((r: unknown) => {
+      const row = r as { id: number; istart: number; title: string | null; repInt: number | null }
+      return {
+        id: row.id,
+        istart: row.istart,
+        title: row.title ?? '',
+        isRepeating: row.repInt === 1,
+      }
+    })
+
+  // eventId -> identity syncId (nullable). Take any one identity row per
+  // eventId; a repeating event has one per instance but they carry the
+  // same syncId, so `LIMIT 1` is fine for the dedup decision.
+  const syncIdByEventId = new Map<number, string | null>()
+  for (const row of identityDb.prepare('SELECT eventId, eventSyncId FROM eventIdentityV1').iterate()) {
+    const r = row as { eventId: number; eventSyncId: string | null }
+    if (!syncIdByEventId.has(r.eventId)) {
+      syncIdByEventId.set(r.eventId, r.eventSyncId && r.eventSyncId !== '' ? r.eventSyncId : null)
+    }
+  }
+
+  const providerSyncIdByEventId = new Map<number, string | null>()
+  for (const e of providerEvents) providerSyncIdByEventId.set(e.id, e.syncId)
+
+  const plan = planDedup(events, syncIdByEventId, providerSyncIdByEventId)
+
+  // Actually delete.
+  const deleteEvent = eventsDb.prepare('DELETE FROM eventsV9 WHERE id = ?')
+  const deleteIdentity = identityDb.prepare('DELETE FROM eventIdentityV1 WHERE eventId = ?')
+  let identityRowsDeleted = 0
+
+  eventsDb.prepare('BEGIN').run()
+  identityDb.prepare('BEGIN').run()
+  try {
+    for (const g of plan.deletionsByGroup) {
+      for (const id of g.drop) {
+        deleteEvent.run(id)
+        const info = deleteIdentity.run(id)
+        identityRowsDeleted += info.changes
+      }
+    }
+    eventsDb.prepare('COMMIT').run()
+    identityDb.prepare('COMMIT').run()
+  } catch (ex) {
+    try { eventsDb.prepare('ROLLBACK').run() } catch { /* already rolled back */ }
+    try { identityDb.prepare('ROLLBACK').run() } catch { /* already rolled back */ }
+    throw ex
+  }
+
+  eventsDb.close()
+  identityDb.close()
+
+  return {
+    dupGroupsSeen: plan.deletionsByGroup.length + plan.ambiguousGroups,
+    dupGroupsResolved: plan.deletionsByGroup.length,
+    dupGroupsAmbiguous: plan.ambiguousGroups,
+    eventsDeleted: plan.totalDeletions,
+    identityRowsDeleted,
   }
 }
 

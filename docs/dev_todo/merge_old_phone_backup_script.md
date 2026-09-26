@@ -64,6 +64,19 @@ Bulk-insert the remapped rows into copies of the new phone's SQLite files, skipp
 
 Re-tar the modified SQLite files, re-deflate, prepend the 24-byte header, write out `cnp_backup_<timestamp>_merged.ab`. Print a summary: rows injected per table, rows skipped, calendar-tuple matches used.
 
+### Phase 7: Optional dedup (`--dedup` / `--dedup-only`)
+
+The merge's diff key is `(syncId, istart)`. That misses a case seen in real data: the *same* underlying task exists as multiple independent Google events across accounts, each with its own syncId. The merge treats them as distinct and injects all of them, producing `(title, istart)` dupes where the syncIds legitimately differ. On the reference merge this was 126 dup groups out of 706 events.
+
+Dedup pass: for each `(title, istart)` non-repeating dup group, classify each row by whether its identity `syncId` matches the live provider's `syncId` for that `eventId`. Keep the one live row, delete the rest. Groups with zero or 2+ live rows are ambiguous — left alone.
+
+Two modes:
+
+- **`--dedup`**: runs after the merge in the same invocation.
+- **`--dedup-only`**: skips merge, treats `--new` as an already-merged `.ab`, runs only dedup, writes to `--out`. Useful when the merge already ran and dedup is a follow-up decision.
+
+Idempotent — running dedup a second time is a no-op because there are no dup groups left.
+
 ## Files Changed Summary
 
 | File | Change |
@@ -85,7 +98,15 @@ npx ts-node scripts/merge_old_phone_backup.ts \
   --new-provider-snapshot tmp/calendar_snapshot_20260926_162050/provider_events_snapshot.csv \
   --out tmp/android_backups/cnp_backup_2026_09_26_merged.ab \
   [--rekey-events | --no-rekey-events] \
+  [--dedup] \
   [--dry-run]
+
+# dedup-only against an already-merged .ab:
+npx ts-node scripts/merge_old_phone_backup.ts \
+  --dedup-only \
+  --new  tmp/android_backups/cnp_backup_2026_09_26_merged.ab \
+  --new-provider-snapshot tmp/calendar_snapshot_20260926_162050/provider_events_snapshot.csv \
+  --out  tmp/android_backups/cnp_backup_2026_09_26_merged_deduped.ab
 ```
 
 `--dry-run` prints the summary without writing the output `.ab` — used to inspect what the tool would inject before committing.

@@ -14,8 +14,10 @@ import {
   diffIdentities,
   insertOrSkip,
   parseProviderEvents,
+  planDedup,
   remapCalendarId,
   remapEventId,
+  type EventKey,
   type IdentityRow,
 } from '../lib/backup_merge'
 
@@ -137,6 +139,71 @@ describe('parseProviderEvents', () => {
     expect(events).toEqual([
       { id: 1, calendarId: 6, syncId: 'abc123', uid2445: null },
       { id: 2, calendarId: 7, syncId: null, uid2445: 'xyz@example.com' },
+    ])
+  })
+})
+
+describe('planDedup', () => {
+  const ev = (id: number, title: string, istart = 100, isRepeating = false): EventKey => ({
+    id, istart, title, isRepeating,
+  })
+
+  test('keeps the live row and drops the orphan in a 2-row dup group', () => {
+    const events = [ev(4223, 'Brewton'), ev(3380, 'Brewton')]
+    // 4223's identity has empty syncId (orphan); 3380's syncId matches provider
+    const idSyncs = new Map([[4223, null], [3380, 'sync-3380']])
+    const provSyncs = new Map([[4223, null], [3380, 'sync-3380']])
+    const plan = planDedup(events, idSyncs, provSyncs)
+    expect(plan.deletionsByGroup).toEqual([
+      { title: 'Brewton', istart: 100, keep: 3380, drop: [4223] },
+    ])
+    expect(plan.ambiguousGroups).toBe(0)
+    expect(plan.totalDeletions).toBe(1)
+  })
+
+  test('leaves a group alone when zero rows associate', () => {
+    const events = [ev(1, 'x'), ev(2, 'x')]
+    const idSyncs = new Map([[1, null], [2, null]])
+    const provSyncs = new Map<number, string | null>()
+    const plan = planDedup(events, idSyncs, provSyncs)
+    expect(plan.deletionsByGroup).toEqual([])
+    expect(plan.ambiguousGroups).toBe(1)
+    expect(plan.totalDeletions).toBe(0)
+  })
+
+  test('leaves a group alone when 2+ rows associate (genuine multi-cal duplicate)', () => {
+    const events = [ev(1, 'x'), ev(2, 'x')]
+    const idSyncs = new Map([[1, 'a'], [2, 'b']])
+    const provSyncs = new Map([[1, 'a'], [2, 'b']])
+    const plan = planDedup(events, idSyncs, provSyncs)
+    expect(plan.deletionsByGroup).toEqual([])
+    expect(plan.ambiguousGroups).toBe(1)
+  })
+
+  test('skips repeating events entirely -- occurrences share (title, istart) legitimately', () => {
+    const events = [ev(1, 'weekly', 100, true), ev(2, 'weekly', 100, true)]
+    const idSyncs = new Map<number, string | null>()
+    const provSyncs = new Map<number, string | null>()
+    const plan = planDedup(events, idSyncs, provSyncs)
+    expect(plan.deletionsByGroup).toEqual([])
+    expect(plan.ambiguousGroups).toBe(0)
+  })
+
+  test('ignores non-dup rows', () => {
+    const events = [ev(1, 'unique-a'), ev(2, 'unique-b')]
+    const plan = planDedup(events, new Map(), new Map())
+    expect(plan.deletionsByGroup).toEqual([])
+    expect(plan.totalDeletions).toBe(0)
+  })
+
+  test('empty identity syncId is treated the same as null', () => {
+    const events = [ev(1, 'x'), ev(2, 'x')]
+    const idSyncs = new Map([[1, ''], [2, 'sync-2']])
+    const provSyncs = new Map([[1, null], [2, 'sync-2']])
+    const plan = planDedup(events, idSyncs, provSyncs)
+    // The empty-string syncId cannot match provider's null, so id 1 is dead
+    expect(plan.deletionsByGroup).toEqual([
+      { title: 'x', istart: 100, keep: 2, drop: [1] },
     ])
   })
 })

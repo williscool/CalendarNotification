@@ -152,6 +152,96 @@ export function remapEventId(
   return hit ? hit.id : null
 }
 
+// ---- Dedup -------------------------------------------------------------
+
+/**
+ * One row of `eventsV9` reduced to what the dedup planner needs.
+ * `isRepeating` mirrors `rep` (0/1/null) so the planner can skip
+ * repeating events -- their instances legitimately share (title, istart)
+ * across occurrences and are not dupes.
+ */
+export interface EventKey {
+  id: number
+  istart: number
+  title: string
+  isRepeating: boolean
+}
+
+export interface DedupPlan {
+  deletionsByGroup: Array<{ title: string; istart: number; keep: number; drop: number[] }>
+  ambiguousGroups: number
+  totalDeletions: number
+}
+
+/**
+ * Plan a dedup pass over a merged eventsV9.
+ *
+ * The merge script's diff key is (syncId, istart). That misses a case:
+ * the *same* underlying task exists as multiple independent Google events
+ * across accounts, each with its own syncId. The merge treats them as
+ * distinct and injects all of them, producing (title, istart) dupes
+ * where the syncIds legitimately differ.
+ *
+ * The dedup rule: for each (title, istart) non-repeating dup group,
+ * classify each row as "live" if its identity syncId matches the live
+ * provider's syncId for that eventId. Keep the live row, drop the rest.
+ * A dup group with zero or 2+ live rows is left alone (nothing safe to
+ * do) and counted as ambiguous.
+ *
+ * @param events                 rows of eventsV9 (id, istart, title, isRepeating)
+ * @param syncIdByEventId        eventId -> identity's syncId, or null if empty/absent
+ * @param providerSyncIdByEventId eventId -> provider's live syncId, or null
+ */
+export function planDedup(
+  events: EventKey[],
+  syncIdByEventId: Map<number, string | null>,
+  providerSyncIdByEventId: Map<number, string | null>
+): DedupPlan {
+  const groups = new Map<string, EventKey[]>()
+  for (const e of events) {
+    if (e.isRepeating) continue
+    const key = `${e.title}\u0000${e.istart}`
+    let bucket = groups.get(key)
+    if (!bucket) {
+      bucket = []
+      groups.set(key, bucket)
+    }
+    bucket.push(e)
+  }
+
+  const deletionsByGroup: DedupPlan['deletionsByGroup'] = []
+  let ambiguousGroups = 0
+  let totalDeletions = 0
+
+  for (const [, bucket] of groups) {
+    if (bucket.length < 2) continue
+
+    const live: EventKey[] = []
+    const dead: EventKey[] = []
+    for (const row of bucket) {
+      const ident = syncIdByEventId.get(row.id) ?? null
+      const prov = providerSyncIdByEventId.get(row.id) ?? null
+      const isLive = !!ident && ident === prov
+      if (isLive) live.push(row)
+      else dead.push(row)
+    }
+
+    if (live.length === 1 && dead.length >= 1) {
+      deletionsByGroup.push({
+        title: bucket[0].title,
+        istart: bucket[0].istart,
+        keep: live[0].id,
+        drop: dead.map((r) => r.id),
+      })
+      totalDeletions += dead.length
+    } else {
+      ambiguousGroups += 1
+    }
+  }
+
+  return { deletionsByGroup, ambiguousGroups, totalDeletions }
+}
+
 // ---- SQLite readers/writers --------------------------------------------
 
 export function readIdentities(db: Database): IdentityRow[] {
