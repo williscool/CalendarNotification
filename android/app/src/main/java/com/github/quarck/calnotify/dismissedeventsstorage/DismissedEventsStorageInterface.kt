@@ -61,4 +61,12 @@ interface DismissedEventsStorageInterface : Closeable {
      */
     fun getEventsByKeys(keys: Collection<DismissedEventKey>): List<DismissedEventAlertRecord>
 
+    /**
+     * Move every dismissed row from [oldEventId] to [newEventId].
+     *
+     * Used by the id re-key after a restore. Returns the number of
+     * rows moved (0 if the event was never dismissed).
+     */
+    fun reKeyEventId(oldEventId: Long, newEventId: Long): Int
+
 }

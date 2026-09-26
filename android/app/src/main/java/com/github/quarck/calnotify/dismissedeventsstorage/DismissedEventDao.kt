@@ -72,6 +72,19 @@ interface DismissedEventDao {
     @Query("DELETE FROM ${DismissedEventEntity.TABLE_NAME}")
     fun deleteAll()
 
+    /**
+     * Move all dismissed rows for one event id onto a new event id.
+     *
+     * Preserves dismissTime, dismissType and every other column -- only
+     * the key column moves. Used by the id re-key that runs after a
+     * restore, when the provider assigns the same event a different
+     * numeric id on the new device.
+     */
+    @Query("UPDATE ${DismissedEventEntity.TABLE_NAME} " +
+           "SET ${DismissedEventEntity.COL_EVENT_ID} = :newEventId " +
+           "WHERE ${DismissedEventEntity.COL_EVENT_ID} = :oldEventId")
+    fun reKeyEventId(oldEventId: Long, newEventId: Long): Int
+
     @Query("DELETE FROM ${DismissedEventEntity.TABLE_NAME} WHERE ${DismissedEventEntity.COL_DISMISS_TIME} < :cutoffTime")
     fun deleteOlderThan(cutoffTime: Long)
 

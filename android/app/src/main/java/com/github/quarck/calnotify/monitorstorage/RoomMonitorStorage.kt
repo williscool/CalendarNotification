@@ -63,6 +63,9 @@ class RoomMonitorStorage(context: Context) : MonitorStorageInterface {
         }
     }
 
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long, instanceStart: Long): Int =
+        dao.reKeyEventId(oldEventId, newEventId, instanceStart)
+
     override fun updateAlert(entry: MonitorEventAlertEntry) {
         dao.update(MonitorAlertEntity.fromAlertEntry(entry))
     }

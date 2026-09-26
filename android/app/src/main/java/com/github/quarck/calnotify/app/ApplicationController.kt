@@ -55,10 +55,13 @@ import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
 import android.database.SQLException
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
+import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.identitystorage.CalendarResolutionApplier
 import com.github.quarck.calnotify.identitystorage.CalendarResolutionPlan
 import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
 import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
+import com.github.quarck.calnotify.identitystorage.EventIdRekeyApplier
+import com.github.quarck.calnotify.identitystorage.EventIdRekeyPlan
 import com.github.quarck.calnotify.identitystorage.IdentityCapturePlan
 import com.github.quarck.calnotify.identitystorage.EventIdentityVerdict
 import com.github.quarck.calnotify.identitystorage.checkEventIdentity
@@ -312,6 +315,128 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
         catch (ex: LinkageError) {
             DevLog.error(LOG_TAG, "Calendar re-link unavailable (native SQLite missing): ${ex.message}")
+        }
+    }
+
+    /**
+     * Re-key stored events whose provider id has changed on this device.
+     *
+     * The companion to [resolveEventCalendars]. That fixes `cid`; this fixes
+     * `id`. Runs on the same wake-locked background service pass, straight
+     * after `resolveEventCalendars` has finished, and swallows its own
+     * failures for the same reason capture does: a missed re-key costs some
+     * accuracy at restore time, while a propagated exception would cost the
+     * user a notification.
+     *
+     * ### Cross-database writes with rollback
+     *
+     * `eventsV9`'s primary key is `(id, instanceStartTime)`, so changing `id`
+     * is a delete + re-insert. The same `id` lives in three other databases
+     * (`RoomEventIdentity`, `dismissedEventsV2`, `manualAlertsV1`) that all
+     * have to move in lockstep. Those are four separate SQLite files -- no
+     * shared transaction is possible -- so we use the same manual-rollback
+     * pattern [unsnoozeToUpcoming] does, encoded once in
+     * [EventIdRekeyApplier]. The applier reports per-event failure and this
+     * method logs a summary; a per-event failure stops that event's re-key
+     * but does not stop the batch.
+     */
+    fun resolveEventIds(context: Context) {
+        try {
+            val identityStorage = getEventIdentityStorage(context)
+            val identities = identityStorage.getAll()
+            if (identities.isEmpty())
+                return
+
+            val eventsDb = getEventsStorage(context)
+            val dismissedDb = getDismissedEventsStorage(context)
+            val monitorDb = getMonitorStorage(context)
+
+            eventsDb.use { events ->
+                val liveIds = events.events
+                    .associate { (it.eventId to it.instanceStartTime) to it.eventId }
+
+                val plan = EventIdRekeyPlan.compute(
+                    identities = identities,
+                    liveEventIdOf = { liveIds[it.eventId to it.instanceStartTime] },
+                    providerEventIdOf = { calendarId, syncId ->
+                        calendarProvider.findEventIdBySyncId(context, calendarId, syncId, uid2445 = null)
+                    }
+                )
+
+                if (plan.changes.isEmpty()) {
+                    if (plan.unresolved.isNotEmpty() || plan.eventRowMissing.isNotEmpty()) {
+                        DevLog.info(LOG_TAG, "Event re-key: ${plan.summary()}")
+                    }
+                    return
+                }
+
+                DevLog.info(LOG_TAG, "Event re-key: ${plan.summary()}")
+
+                val ops = object : EventIdRekeyApplier.Ops {
+                    override fun readEvent(currentId: Long, instanceStartTime: Long) =
+                        events.getEvent(currentId, instanceStartTime)
+
+                    override fun deleteEvent(currentId: Long, instanceStartTime: Long) =
+                        events.deleteEvent(currentId, instanceStartTime)
+
+                    override fun insertEvent(event: EventAlertRecord) =
+                        events.addEvent(event)
+
+                    override fun reKeyIdentity(oldId: Long, instanceStartTime: Long, newId: Long) =
+                        identityStorage.reKey(oldId, instanceStartTime, newId)
+
+                    override fun reKeyDismissed(oldId: Long, newId: Long): Boolean {
+                        dismissedDb.reKeyEventId(oldId, newId)
+                        return true
+                    }
+
+                    override fun reKeyMonitorAlerts(
+                        oldId: Long, newId: Long, instanceStartTime: Long
+                    ): Boolean {
+                        monitorDb.reKeyEventId(oldId, newId, instanceStartTime)
+                        return true
+                    }
+                }
+
+                var succeeded = 0
+                var failed = 0
+                var rollbackDirty = 0
+                for (change in plan.changes) {
+                    when (val result = EventIdRekeyApplier.applyOne(change, ops)) {
+                        is EventIdRekeyApplier.Result.Success -> succeeded++
+                        is EventIdRekeyApplier.Result.EventRowMissing -> failed++
+                        is EventIdRekeyApplier.Result.EventsWriteFailed -> {
+                            failed++
+                            DevLog.error(LOG_TAG,
+                                "Event re-key ${change.currentEventId}->${change.newEventId} " +
+                                "failed at events layer: ${result.cause?.message}")
+                        }
+                        is EventIdRekeyApplier.Result.LaterWriteFailed -> {
+                            failed++
+                            if (!result.rolledBackCleanly) rollbackDirty++
+                            DevLog.error(LOG_TAG,
+                                "Event re-key ${change.currentEventId}->${change.newEventId} " +
+                                "failed at ${result.failedAt} (rolled back: ${result.rolledBackCleanly}): " +
+                                "${result.cause?.message}")
+                        }
+                    }
+                }
+                DevLog.info(LOG_TAG,
+                    "Event re-key: $succeeded succeeded, $failed failed, " +
+                    "$rollbackDirty rollback issues")
+            }
+        }
+        catch (ex: SQLException) {
+            DevLog.error(LOG_TAG, "Event re-key failed (SQL): ${ex.message}")
+        }
+        catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "Event re-key failed (calendar permission): ${ex.message}")
+        }
+        catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Event re-key failed (provider state): ${ex.message}")
+        }
+        catch (ex: LinkageError) {
+            DevLog.error(LOG_TAG, "Event re-key unavailable (native SQLite missing): ${ex.message}")
         }
     }
 

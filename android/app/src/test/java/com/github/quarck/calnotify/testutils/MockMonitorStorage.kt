@@ -80,6 +80,18 @@ class MockMonitorStorage : MonitorStorageInterface {
         toRemove.forEach { alertsMap.remove(it) }
         DevLog.info(LOG_TAG, "Deleted ${toRemove.size} alerts matching filter")
     }
+
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long, instanceStart: Long): Int {
+        warnIfClosed()
+        val toMove = alertsMap.values
+            .filter { it.eventId == oldEventId && it.instanceStartTime == instanceStart }
+            .toList()
+        for (entry in toMove) {
+            alertsMap.remove(AlertKey(oldEventId, entry.alertTime, instanceStart))
+            alertsMap[AlertKey(newEventId, entry.alertTime, instanceStart)] = entry.copy(eventId = newEventId)
+        }
+        return toMove.size
+    }
     
     override fun updateAlert(entry: MonitorEventAlertEntry) {
         warnIfClosed()
