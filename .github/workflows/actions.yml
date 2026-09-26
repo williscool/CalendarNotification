@@ -808,6 +808,19 @@ jobs:
         disable-animations: true
         script: ./scripts/wait_for_emulator.sh && ./scripts/matrix_run_android_tests.sh --shard-index ${{ matrix.shard }} --num-shards ${{ env.NUM_SHARDS }} --arch ${{ matrix.arch }} --module ${{ env.main_project_module }} --timeout 25m && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ matrix.shard }}
 
+    # Full logcat is in the emulator-log-shard-N artifact. On a crash, surface the
+    # app process's last lines before it here so the cause is in the job log.
+    - name: App logcat before crash (Shard ${{ matrix.shard }})
+      if: failure()
+      run: |
+        [ -f emulator.log ] || exit 0
+        grep -n "FATAL EXCEPTION" emulator.log | while IFS=: read -r line _; do
+          pid=$(sed -n "${line}p" emulator.log | awk '{print $3}')
+          echo "::group::App logcat up to crash at emulator.log:$line (pid $pid)"
+          head -n "$((line + 60))" emulator.log | awk -v p="$pid" '$3 == p' | tail -n 200
+          echo "::endgroup::"
+        done
+
     # Note: JaCoCo report generation moved to merge-integration-coverage job
 
     # Verify test results were generated (catches am instrument crashes)
