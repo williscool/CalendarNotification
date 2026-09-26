@@ -181,17 +181,114 @@ Two details worth knowing:
 
 Only after both pieces are computed does the controller do any writing. Events first — the settings move is a repair of what the event rows say, so it should never run ahead of them succeeding.
 
+## Re-key, in detail
+
+`ApplicationController.resolveEventIds()` — the third entry point — reads every identity row, asks the provider what `eventId` its `syncId` maps to on this device, and moves any row whose stored `eventId` no longer matches.
+
+Fixing `cid` was an in-place `UPDATE`. Fixing `eventId` is not: `eventId` is half the primary key of `eventsV9`, so changing it is a **delete + re-insert**, and the same id lives in three other databases that must move with it. This is why it ships as its own layer, after `cid` is landed.
+
+### The four databases
+
+```
+┌──────────────────────┬────────────────────────────────────────────┐
+│ eventsV9             │ the event row itself                       │
+│                      │ PK is (id, instanceStartTime)              │
+│                      │ → delete + re-insert                       │
+├──────────────────────┼────────────────────────────────────────────┤
+│ eventIdentityV1      │ the captured identity                      │
+│                      │ → UPDATE eventId (native reKey)            │
+│                      │   originalEventId is never touched         │
+├──────────────────────┼────────────────────────────────────────────┤
+│ dismissedEventsV2    │ history of prior dismissals                │
+│                      │ → UPDATE eventId                           │
+├──────────────────────┼────────────────────────────────────────────┤
+│ manualAlertsV1       │ pending alerts                             │
+│                      │ → UPDATE eventId, scoped by istart         │
+│                      │   (a repeating event has one row per       │
+│                      │   occurrence — must not cross-write)       │
+└──────────────────────┴────────────────────────────────────────────┘
+```
+
+Room databases are separate files, so no shared transaction spans them. The pattern follows `ApplicationController.unsnoozeToUpcoming`: numbered writes, best-effort rollback of earlier steps if a later one fails.
+
+### From identities to a plan
+
+`EventIdRekeyPlan.compute()` walks every identity that has a resolvable `syncId` and sorts them into four buckets: `changes`, `alreadyCurrent`, `unresolved`, `eventRowMissing`.
+
+The planner is a pure function — provider lookup and live-event lookup are passed in as callbacks — so every bucketing decision is testable without a database or a `Context`. It compares each identity's stored `eventId` against the *live* provider answer for its `syncId`; equal means no work, different means a re-key, absent means the identity is stale but nothing to do until the provider catches up.
+
+### From a plan to writes
+
+`EventIdRekeyApplier.applyOne()` applies **one** change at a time, in a fixed order. Per-event, not per-batch, so one bad event does not abort the pass:
+
+```
+    ┌────────────────────────────────────────────────────────────┐
+    │ 1. readEvent(oldId, istart)                                │
+    │    → null: plan is stale, EventRowMissing (no writes)      │
+    ├────────────────────────────────────────────────────────────┤
+    │ 2. deleteEvent(oldId, istart)                              │
+    │    insertEvent(newRow with newId)                          │
+    │    → fail: tryReinsert(oldRow), EventsWriteFailed          │
+    ├────────────────────────────────────────────────────────────┤
+    │ 3. reKeyIdentity(oldId, istart, newId)                     │
+    │    → fail: rollbackEvent                                   │
+    ├────────────────────────────────────────────────────────────┤
+    │ 4. reKeyDismissed(oldId, newId)                            │
+    │    → fail: rollbackAfterIdentity                           │
+    ├────────────────────────────────────────────────────────────┤
+    │ 5. reKeyMonitorAlerts(oldId, newId, istart)                │
+    │    → fail: rollbackAfterDismissed                          │
+    └────────────────────────────────────────────────────────────┘
+```
+
+The ordering is deliberate — sources of truth first, derived data after:
+
+- `eventsV9` moves first because everything else keys off it. If its write fails, nothing has moved and there is nothing to undo.
+- Identity moves second so the anchor tracks the row.
+- Dismissed and monitor move last because they are recoverable. Dismissed rows are historical. Monitor alerts fire from the alarm scheduler, not the stored `eventId`, so leaving them keyed to the old id for the duration of steps 2–4 is safe.
+
+### Rollback
+
+If a step after `eventsV9` fails, its rollback helper reverses everything that already moved, in reverse order:
+
+| Failed at | Rollback | What it undoes |
+|---|---|---|
+| Step 3 (identity) | `rollbackEvent` | delete new eventsV9 row, re-insert old |
+| Step 4 (dismissed) | `rollbackAfterIdentity` | reverse identity, then event |
+| Step 5 (monitor) | `rollbackAfterDismissed` | reverse dismissed, then identity, then event |
+
+Each helper returns a `rolledBackCleanly: Boolean` on the `LaterWriteFailed` result so the caller knows whether disk state is consistent. If a rollback itself throws, the write is idempotent — the next rescan sees the partial state and either finishes the move or notices the plan no longer applies.
+
+### The power-loss guarantee
+
+The identity row is written on capture, on a **prior** rescan. It is on disk before `applyOne` runs, and never touched by the delete in step 2. If the phone loses power between the eventsV9 delete and the eventsV9 insert:
+
+```
+    on-disk state after reboot:
+      eventsV9           gone
+      eventIdentityV1    still present at (oldId, istart)
+                          originalEventId = oldId  ← anchor
+                          syncId          = "abc"  ← anchor
+      manualAlertsV1     still keyed to oldId, alarm still armed
+```
+
+`originalEventId` is deliberately not moved by `reKey` — it is the staleness anchor and must keep pointing at the pre-restore id so a later scan can recognise the row as stale. `syncId` is globally stable across devices. As long as either survives, the row is recoverable: the next rescan asks the provider for `syncId="abc"`, gets `newId` back, re-derives the `eventsV9` row from the provider, and the applier's next pass either finishes the re-key or reports `EventRowMissing` for a plan that no longer applies. No lost data, one missed notification cycle at worst.
+
+### Legacy fallback storages
+
+Both `LegacyDismissedEventsStorage` and `LegacyMonitorStorage` stub the new `reKeyEventId` to `return 0`. Rationale: those paths are only reached if Room migration failed, so the device is already in a degraded state; re-keying identity there would layer new failures on top of existing ones. Documented on the stubs.
+
 ## Scope
 
 **In this system, right now:**
 
 - Rewriting `cid` on `eventsV9` rows after a restore.
+- Re-keying `eventId` across all four databases when the provider assigns a new id.
 - Moving `calendar_handled_.<id>` preferences with the events.
-- Retrying anything that can't be resolved yet (ambiguous, calendar-not-found), on every subsequent rescan.
+- Retrying anything that can't be resolved yet (ambiguous, calendar-not-found, missing `syncId`), on every subsequent rescan.
 
 **Not in this system:**
 
-- Rewriting event `id`. That is *half* the primary key of `eventsV9`, so changing it means delete + re-insert across four databases (`eventsV9`, `RoomEventIdentity`, `dismissedEventsV2`, `manualAlertsV1`) with manual rollback. Separate future layer.
 - The old-device fallback for `_SYNC_ID`, `UID_2445`. Measured on a real Google-synced device: `_SYNC_ID` populated and unique for 100% of 4761 events, `UID_2445` null for every one. Capture reads and stores both, but only `_SYNC_ID` drives resolution today.
 - Backfilling identity from a snapshot at install time. Capture on the old device happens every rescan; a device installing this build fresh gains identity on its first rescan.
 
@@ -204,6 +301,7 @@ Only after both pieces are computed does the controller do any writing. Events f
 | [#281](https://github.com/williscool/CalendarNotification/pull/281) | Matcher + plan (lookup only, no writes) | `CalendarIdentityMatcher`, `CalendarResolutionPlan` |
 | [#283](https://github.com/williscool/CalendarNotification/pull/283) | `cid` write-back | `CalendarResolutionApplier`, `resolveEventCalendars`, the service call |
 | [#284](https://github.com/williscool/CalendarNotification/pull/284) | Per-calendar setting remap | The applier's settings edits, `hasCalendarIsHandledSetting` / `clearCalendarIsHandled`, `resetSettings` for tests |
+| [#291](https://github.com/williscool/CalendarNotification/pull/291) | `eventId` re-key across four databases | `EventIdRekeyPlan`, `EventIdRekeyApplier`, `resolveEventIds`, `reKeyEventId` on the dismissed and monitor DAOs |
 
 ## For further reading
 
