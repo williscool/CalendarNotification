@@ -265,18 +265,28 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 if (plan.changes.isEmpty())
                     return
 
+                val settings = getSettings(context)
                 val edits = CalendarResolutionApplier.computeEdits(
                     plan = plan,
-                    eventsByKey = eventsByKey
+                    eventsByKey = eventsByKey,
+                    isCalendarHandled = { settings.getCalendarIsHandled(it) },
+                    isCalendarHandledExplicitlySet = { settings.hasCalendarIsHandledSetting(it) }
                 )
 
                 if (edits.isEmpty)
                     return
 
+                // Events first: the settings move is a repair of what the event
+                // rows say, so it should not run ahead of them succeeding.
                 if (!db.updateEvents(edits.updatedEvents)) {
                     DevLog.error(LOG_TAG, "Calendar re-link failed writing event rows")
                     return
                 }
+
+                edits.handledSettingsToMove.forEach { (calendarId, handled) ->
+                    settings.setCalendarIsHandled(calendarId, handled)
+                }
+                edits.handledSettingsToClear.forEach { settings.clearCalendarIsHandled(it) }
 
                 DevLog.info(LOG_TAG, "Calendar re-link: ${edits.summary()}")
             }

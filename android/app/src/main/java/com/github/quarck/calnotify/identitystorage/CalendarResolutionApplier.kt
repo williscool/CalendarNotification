@@ -27,13 +27,7 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
  * Kept separate from both the plan and the storage call for the same reason the
  * plan is separate from the matcher: the interesting part is *what* changes, and
  * that should be inspectable without a database. This produces edited copies of
- * event records; the caller writes them.
- *
- * ### Scope: events only
- *
- * The `calendar_handled_.<id>` preferences also need re-keying when a calendar
- * id moves, so they follow the events onto the new device. That is a UX repair
- * layered on top of the data repair here and lives in a separate change.
+ * event records plus a settings remap; the caller writes them.
  *
  * ### Scope: `cid` only
  *
@@ -54,11 +48,27 @@ object CalendarResolutionApplier {
 
     data class Edits(
         /** Event rows with their `calendarId` corrected, ready to write back. */
-        val updatedEvents: List<EventAlertRecord>
-    ) {
-        val isEmpty: Boolean get() = updatedEvents.isEmpty()
+        val updatedEvents: List<EventAlertRecord>,
 
-        fun summary(): String = "${updatedEvents.size} event(s) re-linked"
+        /**
+         * `calendar_handled_.<old>` values to re-save under their new id.
+         *
+         * Only calendars the user actually changed the setting for. The getter
+         * defaults to `true`, so re-saving an untouched calendar would write a
+         * row that says nothing -- and, worse, would make a later "has the user
+         * configured this?" check answer yes.
+         */
+        val handledSettingsToMove: Map<Long, Boolean>,
+
+        /** Old calendar ids whose settings are now moved and can be dropped. */
+        val handledSettingsToClear: Set<Long>
+    ) {
+        val isEmpty: Boolean
+            get() = updatedEvents.isEmpty() && handledSettingsToMove.isEmpty()
+
+        fun summary(): String =
+            "${updatedEvents.size} event(s) re-linked, " +
+            "${handledSettingsToMove.size} calendar setting(s) moved"
     }
 
     /**
@@ -68,13 +78,18 @@ object CalendarResolutionApplier {
      * @param eventsByKey the current event rows, keyed `(eventId, instanceStartTime)`.
      *   Rows the plan names but this does not contain are skipped: the event was
      *   dismissed or deleted between planning and applying.
+     * @param isCalendarHandled reads the stored per-calendar setting.
+     * @param isCalendarHandledExplicitlySet whether the user ever set it, as
+     *   opposed to it defaulting to true.
      */
     fun computeEdits(
         plan: CalendarResolutionPlan,
-        eventsByKey: Map<Pair<Long, Long>, EventAlertRecord>
+        eventsByKey: Map<Pair<Long, Long>, EventAlertRecord>,
+        isCalendarHandled: (Long) -> Boolean,
+        isCalendarHandledExplicitlySet: (Long) -> Boolean
     ): Edits {
         if (plan.changes.isEmpty())
-            return Edits(emptyList())
+            return Edits(emptyList(), emptyMap(), emptySet())
 
         val updated = plan.changes.mapNotNull { change ->
             val key = change.identity.eventId to change.identity.instanceStartTime
@@ -88,6 +103,19 @@ object CalendarResolutionApplier {
             event.copy(calendarId = change.newCalendarId)
         }
 
-        return Edits(updated)
+        // Settings are per calendar, so collapse the per-event changes first:
+        // hundreds of events over a handful of calendars.
+        val toMove = HashMap<Long, Boolean>()
+        val toClear = HashSet<Long>()
+
+        for ((oldId, newId) in plan.calendarIdRemapping) {
+            if (!isCalendarHandledExplicitlySet(oldId))
+                continue    // never configured; the default already applies
+
+            toMove[newId] = isCalendarHandled(oldId)
+            toClear.add(oldId)
+        }
+
+        return Edits(updated, toMove, toClear)
     }
 }
