@@ -119,29 +119,29 @@ object CalendarIdentityMatcher {
         if (!identity.hasUsableCalendar())
             return Result.NotFound
 
-        val sameAccount = calendars.filter {
+        val candidatesOnSameAccount = calendars.filter {
             it.accountName == identity.calendarAccountName &&
             it.accountType == identity.calendarAccountType &&
             it.owner == identity.calendarOwnerAccount
         }
 
-        sameAccount.singleOrNull()?.let {
+        candidatesOnSameAccount.singleOrNull()?.let {
             return Result.Matched(it.calendarId, MatchStrength.UNIQUE_ACCOUNT)
         }
 
-        if (sameAccount.isEmpty())
+        if (candidatesOnSameAccount.isEmpty())
             return Result.NotFound
 
         // Several calendars share the account fields. Split that group by name
         // -- never search outside it, which would cross an account boundary.
-        sameAccount.filter { it.name == identity.calendarName }
+        candidatesOnSameAccount.filter { it.name == identity.calendarName }
             .singleOrNull()
             ?.let { return Result.Matched(it.calendarId, MatchStrength.ACCOUNT_PLUS_CALENDAR_NAME) }
 
-        sameAccount.filter { it.displayName == identity.calendarDisplayName }
+        candidatesOnSameAccount.filter { it.displayName == identity.calendarDisplayName }
             .singleOrNull()
             ?.let { return Result.Matched(it.calendarId, MatchStrength.ACCOUNT_PLUS_DISPLAY_NAME) }
 
-        return Result.Ambiguous(sameAccount.map { it.calendarId }.sorted())
+        return Result.Ambiguous(candidatesOnSameAccount.map { it.calendarId }.sorted())
     }
 }
