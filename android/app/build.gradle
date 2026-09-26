@@ -112,7 +112,9 @@ android {
     testInstrumentationRunnerArguments = [
         'coverage': 'true',
         'jacoco-agent.destfile': '/data/data/com.github.quarck.calnotify/files/coverage.ec',
-        'jacoco-agent.includes': 'com.github.quarck.calnotify.*'
+        'jacoco-agent.includes': 'com.github.quarck.calnotify.*',
+        // Keep real calendar broadcasts from reaching app code mid-test; see the class
+        'listener': 'com.github.quarck.calnotify.testutils.OsBroadcastBlockingListener'
     ]
 
     externalNativeBuild {
