@@ -1134,3 +1134,19 @@ jobs:
         with:
           body_path: ${{ github.workspace }}-CHANGELOG.txt
           files: release_files/*
+
+  # The single required status check for master. Required checks can't name
+  # the per-arch jobs directly: when a matrix job is skipped (docs-only PRs) it
+  # reports one check under its unexpanded name, so "Build Android App
+  # (x86_64)" never appears. Passes when every gated job succeeded or was
+  # skipped; set_build_datetime is included so a failed docs-only detection
+  # can't skip everything and still pass.
+  ci-result:
+    name: CI Result
+    if: always()
+    needs: [set_build_datetime, safety_checks, build, sign, unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any gated job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
