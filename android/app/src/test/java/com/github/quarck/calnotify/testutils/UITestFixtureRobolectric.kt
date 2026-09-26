@@ -34,7 +34,9 @@ import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.robolectric.Shadows.shadowOf
@@ -163,7 +165,14 @@ class UITestFixtureRobolectric {
         // Mock CalendarReloadManager to prevent reloading from real calendar
         mockkObject(CalendarReloadManager)
         every { CalendarReloadManager.reloadSingleEvent(any(), any(), any(), any(), any()) } returns false
-        
+
+        // MainActivity's onResume runs this in background { }: it reposts
+        // notifications through a real EventsStorage (cr-sqlite's native library
+        // isn't loadable on the JVM, so it throws) and starts a calendar rescan.
+        // Neither belongs in a UI test.
+        mockkObject(ApplicationController)
+        every { ApplicationController.onMainActivityResumed(any(), any(), any()) } just Runs
+
         DevLog.info(LOG_TAG, "Injected mock storage, granted permissions, and mocked calendar components")
     }
     
@@ -503,14 +512,6 @@ class UITestFixtureRobolectric {
             UpcomingEventsFragment::class.java,
             themeResId = R.style.AppTheme
         )
-    }
-    
-    /**
-     * Mocks ApplicationController for isolated UI testing.
-     */
-    fun mockApplicationController() {
-        DevLog.info(LOG_TAG, "Mocking ApplicationController")
-        mockkObject(ApplicationController)
     }
     
     /**
