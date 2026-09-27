@@ -12,17 +12,42 @@
 /**
  * One-off migration tool: inject only-on-old events from one phone's
  * .ab into another phone's .ab, remapping calendar and (optionally)
- * event ids into the destination phone's namespace.
+ * event ids into the destination phone's namespace. See the plan doc
+ * at docs/dev_todo/merge_old_phone_backup_script.md.
  *
- * See docs/dev_todo/merge_old_phone_backup_script.md for the plan and
- * rationale. Invocation mirrors scripts/clean_logs.ts:
+ * Two modes:
  *
- *   npx ts-node scripts/merge_old_phone_backup.ts \
- *     --old  path/to/old.ab \
- *     --new  path/to/new.ab \
- *     --new-provider-snapshot path/to/events.txt \
- *     --out  path/to/merged.ab \
- *     [--no-rekey-events] [--dry-run]
+ * 1. Merge (+ optional dedup):
+ *
+ *     npx ts-node scripts/merge_old_phone_backup.ts \
+ *       --old  path/to/old.ab \
+ *       --new  path/to/new.ab \
+ *       --new-provider-snapshot path/to/events.txt \
+ *       --out  path/to/merged.ab \
+ *       [--no-rekey-events] [--dedup] [--dry-run]
+ *
+ *    Injects only-on-old events into a copy of --new, writing --out.
+ *    --dedup runs the dedup pass at the end of the same invocation.
+ *
+ * 2. Dedup-only (post-hoc against an already-merged .ab):
+ *
+ *     npx ts-node scripts/merge_old_phone_backup.ts \
+ *       --dedup-only \
+ *       --new  path/to/merged.ab \
+ *       --new-provider-snapshot path/to/events.txt \
+ *       --out  path/to/merged_deduped.ab
+ *
+ *    Skips merge entirely; --old is not used. Drops orphaned
+ *    (title, istart) dupes whose identity syncId does not match the
+ *    live provider syncId for their eventId.
+ *
+ * --new-provider-snapshot is the events.txt produced by
+ * scripts/capture_calendar_snapshot.sh against the destination phone.
+ * It is always required (the eventId remap and the dedup classifier
+ * both consult it).
+ *
+ * Invocation shape mirrors scripts/clean_logs.ts:
+ *   yarn merge-old-phone-backup -- --old ... --new ... [flags]
  */
 
 import { Command } from 'commander'
@@ -33,6 +58,14 @@ import * as path from 'path'
 import { execFileSync } from 'child_process'
 
 import { unpackAb, packAb } from './lib/ab_unpack'
+
+/**
+ * The app package we operate on. An `adb backup <pkg>` produces a single
+ * package under `apps/`, but a broader `bmgr` backup can contain many:
+ * pinning the package here keeps every path lookup deterministic and
+ * makes a wrong-app .ab fail loudly instead of picking a sibling.
+ */
+const APP_PACKAGE = 'com.github.quarck.calnotify'
 import {
   buildCalendarRemap,
   diffIdentities,
@@ -243,36 +276,38 @@ function dedupInDbs(newDir: string, providerEvents: ProviderEvent[]): DedupSumma
 /**
  * Extract just the SQLite files (`db/RoomEventIdentity`, `db/RoomEvents`,
  * `db/DismissedEvents`, `db/CalendarMonitor`) plus their `-wal` and
- * `-shm` sidecars from the .ab into `outDir`.
+ * `-shm` sidecars from the .ab into `outDir`. Scoped to `APP_PACKAGE` so
+ * a multi-package backup doesn't pick a sibling app's DBs.
  */
 function extractDbs(abPath: string, outDir: string): void {
   const tarBytes = unpackAb(abPath)
   const tarPath = path.join(outDir, 'source.tar')
   fs.writeFileSync(tarPath, tarBytes)
-  // Extract only the four DBs + sidecars. Simpler and less to move.
   execFileSync(
     'tar',
     [
       '-xf', tarPath,
       '-C', outDir,
       '--wildcards',
-      'apps/*/db/RoomEventIdentity*',
-      'apps/*/db/RoomEvents*',
-      'apps/*/db/DismissedEvents*',
-      'apps/*/db/CalendarMonitor*',
+      `apps/${APP_PACKAGE}/db/RoomEventIdentity*`,
+      `apps/${APP_PACKAGE}/db/RoomEvents*`,
+      `apps/${APP_PACKAGE}/db/DismissedEvents*`,
+      `apps/${APP_PACKAGE}/db/CalendarMonitor*`,
     ],
     { stdio: 'inherit' }
   )
   fs.unlinkSync(tarPath)
+
+  const expected = path.join(outDir, 'apps', APP_PACKAGE, 'db')
+  if (!fs.existsSync(expected)) {
+    throw new Error(
+      `Extracted .ab has no ${APP_PACKAGE} DB dir. Is ${abPath} a backup of a different app?`
+    )
+  }
 }
 
 function findDb(dir: string, name: string): string {
-  const globPath = path.join(dir, 'apps')
-  const pkgs = fs.readdirSync(globPath)
-  if (pkgs.length !== 1) {
-    throw new Error(`Expected one package under ${globPath}, found: ${pkgs.join(', ')}`)
-  }
-  return path.join(globPath, pkgs[0], 'db', name)
+  return path.join(dir, 'apps', APP_PACKAGE, 'db', name)
 }
 
 /**
@@ -484,9 +519,7 @@ function repackAb(newDbDir: string, newAbPath: string, outAbPath: string): void 
 
     for (const dbName of ['RoomEventIdentity', 'RoomEvents', 'DismissedEvents', 'CalendarMonitor']) {
       const src = findDb(newDbDir, dbName)
-      // Under repackDir/apps/<pkg>/db/
-      const pkgs = fs.readdirSync(path.join(repackDir, 'apps'))
-      const dst = path.join(repackDir, 'apps', pkgs[0], 'db', dbName)
+      const dst = path.join(repackDir, 'apps', APP_PACKAGE, 'db', dbName)
       fs.copyFileSync(src, dst)
       // Drop any -wal/-shm sidecars from the repack -- we checkpointed
       // and switched to journal_mode=DELETE, so all data is in the .db.
