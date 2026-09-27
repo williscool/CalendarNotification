@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.ui
 
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
@@ -480,8 +481,11 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         withText("Beta Meeting").doesNotExist()
         
-        // Dismiss keyboard so we can click bottom nav (keyboard covers it)
-        pressBack()
+        // Dismiss keyboard so we can click bottom nav (keyboard covers it).
+        // closeSoftKeyboard() waits for the IME to confirm it's hidden; after
+        // pressBack() the tab tap could land mid-animation on the keyboard's
+        // window and be lost.
+        closeSoftKeyboard()
         fixture.popNavigation()
         
         // Switch to Upcoming tab using content description (more reliable for BottomNav items)
@@ -610,8 +614,11 @@ class MainActivityModernTest : BaseUltronTest() {
         withText("Active Alpha").isDisplayed()
         withText("Active Beta").doesNotExist()
         
-        // Dismiss keyboard so we can click bottom nav (keyboard covers it)
-        pressBack()
+        // Dismiss keyboard so we can click bottom nav (keyboard covers it).
+        // closeSoftKeyboard() waits for the IME to confirm it's hidden; after
+        // pressBack() the tab tap could land mid-animation on the keyboard's
+        // window and be lost.
+        closeSoftKeyboard()
         fixture.popNavigation()
         
         // Switch to Dismissed tab using content description (more reliable for BottomNav items)
