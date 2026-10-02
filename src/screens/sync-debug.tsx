@@ -7,6 +7,7 @@ import { Section } from '@lib/components/ui';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { ThemeColors } from '@lib/theme/colors';
 import { Box, Text, HStack, VStack, Button, ButtonText } from '@/components/ui';
+import { startBackgroundSync } from '../../modules/my-module';
 
 // Filter logs based on display level preference
 const filterLogsByLevel = (logs: SyncLogEntry[], filterLevel: LogFilterLevel): SyncLogEntry[] => {
@@ -205,6 +206,13 @@ export default function SyncDebug() {
 
       <Section>
         <LogFilterToggle value={logFilterLevel} onChange={setLogFilterLevel} colors={colors} />
+      </Section>
+
+      {/* Smoke test trigger; the Full Resync button takes over once the task drains the real queue */}
+      <Section>
+        <Button onPress={startBackgroundSync} action="secondary" size="sm" testID="background-sync-test-button">
+          <ButtonText>Run background sync test</ButtonText>
+        </Button>
       </Section>
 
       {failedOperations.length > 0 && (
