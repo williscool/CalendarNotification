@@ -108,10 +108,11 @@ The service keeps `total` from `startBackgroundSync(total)`; the task pushes the
   - `startBackgroundSync` is a no-op when the service is already running.
   - Terminal state writes the three fields with the injected clock's time; a finish with no reported outcome is recorded as paused.
   - A refused foreground start (`ForegroundServiceStartNotAllowedException`) stops the service without crashing.
-- **Manual on device (required; tests can't observe backgrounding)**:
-  - Run a Full Resync with ~150 events, press Home right away, and confirm the Supabase row count reaches the local count and the ongoing notification is replaced by "Sync complete". Repeat with back-press and with the screen off.
-  - Kill the process mid-sync (`adb shell am kill`, battery-optimization exemption granted) and confirm the service restarts and the drain finishes. Repeat with the exemption revoked and confirm there is no crash and the ops stay queued.
+- **Manual on an emulator (required; tests can't observe backgrounding).** No backend is needed: the service behaviour is exercised with a debug stand-in task that drains a fake queue on a timer, and adb forces the conditions.
+  - Start a sync, press Home right away, and confirm the progress keeps moving and the ongoing notification is replaced by "Sync complete". Repeat with back-press and with the screen off (`adb shell dumpsys deviceidle force-idle`).
+  - Kill the process mid-sync (`adb shell am kill`, battery-optimization exemption granted) and confirm the service restarts and the drain finishes. Repeat with the exemption revoked and confirm there is no crash.
   - After the service has finished and the process has been killed, reopen Data Sync and confirm it shows the final "complete at HH:MM" or error state.
+- **Manual on a real phone, once, as the final check.** Run a Full Resync with ~150 events against the real Supabase/PowerSync instance, press Home right away, and confirm the Supabase row count reaches the local count. This is the only step that needs real credentials, and it covers what an emulator can't: the manufacturer's battery manager and a real screen-off stretch.
 
 ## Open Questions
 
