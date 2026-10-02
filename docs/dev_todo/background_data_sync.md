@@ -37,6 +37,14 @@ Step 2 is the slow part, and it is the part that stops when the app leaves the f
 - **It returns `START_REDELIVER_INTENT`.** After a process kill the system restarts the service from the background and redelivers the intent, so an interrupted sync resumes without you. Android 12+ normally blocks a background `startForeground`, but apps exempt from battery optimizations are excepted, and this app already asks for that exemption (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, prompted in `MainActivityBase`). We keep the default. For anyone who declined or revoked the exemption, the service catches `ForegroundServiceStartNotAllowedException` (API 31+) specifically and stops; the queue is persisted and resumes on the next sync they start.
 - It already holds a partial wake lock for the life of the service.
 
+### Permissions
+
+Nothing has to be granted for the sync to run in the background, so there is no "would you like to background?" prompt:
+
+- **`FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC`** are normal permissions. Android grants them at install with no dialog and they can't be revoked.
+- **`POST_NOTIFICATIONS`** (Android 13+) is the only runtime permission involved, and the app already asks for it at launch (`MainActivityBase`). If it is denied the service still runs and the sync still finishes; only its notification is hidden (confirmed on the emulator). The Data Sync screen says so when notifications are off, and the persisted last result covers the missing "complete" notification.
+- **The battery-optimization exemption** only affects restarting after a process kill, as described above.
+
 ## Non-goals
 
 - **Starting the service automatically when `ps_crud > 0` on app exit.** That crosses from a user-initiated FGS to a background-initiated one, which has stricter Android 12+ start rules and would need WorkManager scheduling. It is a different design and gets its own plan if it ever comes up.
@@ -57,7 +65,7 @@ Stand the mechanism up end to end before wiring in sync:
 
 Exit criterion: start the service from the Data Sync screen and confirm the placeholder's timer-based log line still fires (logcat / SyncDebug) in both cases: after pressing **Home**, and after **back-press** (activity destroyed). Also confirm what the native timeout does to the service and its notification.
 
-**Result (API 34 emulator, debug build): passed.** Timers kept firing after Home and after back-press, and the service and its notification went away when the task finished and when a (temporarily shortened) timeout fired. The one thing that did not work as planned is the missing `HeadlessJsTaskSupport` module described above. The trigger for the test is a button on the Sync Debug screen, which the drain task phase replaces with the Full Resync button.
+**Result (API 34 emulator, debug build): passed.** Timers kept firing after Home and after back-press, and the service and its notification went away when the task finished and when a (temporarily shortened) timeout fired. The one thing that did not work as planned is the missing `HeadlessJsTaskSupport` module described above. The trigger for the test is a "Background sync test" button on the Dev page (`TestActivity`), alongside the app's other developer test buttons and out of the sync UI. It starts the service with no React screen open, so it also exercises the cold start.
 
 ### Phase 2: A drain-until-empty task
 
@@ -74,10 +82,10 @@ Replace the placeholder with the real task, in a new file (`src/lib/powersync/ba
 The service owns the terminal state, because only native code sees the timeout. On task finish it:
 
 - **Cancels the ongoing notification unconditionally**, whichever state follows.
-- **Posts a separate, non-ongoing notification** for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused — N ops pending` (timeout with work left; the ops stay queued, so it is not a failure). The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it.
+- **Posts a separate, non-ongoing notification** (when notifications are allowed) for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused — N ops pending` (timeout with work left; the ops stay queued, so it is not a failure). The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it.
 - **Persists three fields** in a dedicated SharedPreferences file: `sync_last_completed_at` (from `CNPlusClockInterface`), `sync_last_completed_ok`, `sync_last_error`.
 
-`SetupSync` reads those fields on mount (a `MyModule` getter) and shows "Sync complete at HH:MM" or the error, so a finished sync is distinguishable from "never synced" after the process has been restarted. If the process is killed mid-drain no terminal state is written at that point. With the battery-optimization exemption the service is redelivered and finishes the drain; without it, the live `ps_crud` count on the screen still shows the ops pending.
+`SetupSync` reads those fields on mount (a `MyModule` getter), notes when notifications are off so background progress won't be shown, and shows "Sync complete at HH:MM" or the error, so a finished sync is distinguishable from "never synced" after the process has been restarted. If the process is killed mid-drain no terminal state is written at that point. With the battery-optimization exemption the service is redelivered and finishes the drain; without it, the live `ps_crud` count on the screen still shows the ops pending.
 
 ### Phase 4: Progress in the ongoing notification
 

@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.ui
 import android.app.Activity
 import android.content.ContentUris
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.view.View
@@ -45,6 +46,7 @@ import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.sync.SyncForegroundService
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.findOrThrow
 import com.github.quarck.calnotify.utils.toLongOrNull
@@ -720,6 +722,12 @@ class TestActivity : Activity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonToggleDebugMonitorClick(v: View) {
         //settings.enableMonitorDebug = findOrThrow<ToggleButton>(R.id.buttonTestToggleDebugMonitor).isChecked
+    }
+
+    /** Starts the background sync service without going through the Data Sync screen */
+    @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonBackgroundSyncTestClick(v: View) {
+        ContextCompat.startForegroundService(this, Intent(this, SyncForegroundService::class.java))
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
