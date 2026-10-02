@@ -33,7 +33,7 @@ Step 2 is the slow part, and it is the part that stops when the app leaves the f
 - **It supports the New Architecture.** With `enableBridgelessArchitecture` it resolves the context through `ReactApplication.reactHost` and starts the host itself on a cold process. `GlobalState` already exposes `reactHost`, so this is not an unknown.
 - **The timeout is native-only.** `HeadlessJsTaskContext` schedules a runnable that calls `finishTask`; the JS promise is never told. Anything that must happen on timeout has to happen in Kotlin.
 - **Every `onStartCommand` starts another task.** A second start while one is running gives two drain tasks.
-- **It returns `START_REDELIVER_INTENT`.** After a process kill the system would restart the service from the background, where `startForeground` can throw on Android 12+. We override to `START_NOT_STICKY`; the queue is persisted and resumes on the next user-initiated sync.
+- **It returns `START_REDELIVER_INTENT`.** After a process kill the system restarts the service from the background and redelivers the intent, so an interrupted sync resumes without you. Android 12+ normally blocks a background `startForeground`, but apps exempt from battery optimizations are excepted, and this app already asks for that exemption (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, prompted in `MainActivityBase`). We keep the default. For anyone who declined or revoked the exemption, the service catches `ForegroundServiceStartNotAllowedException` (API 31+) specifically and stops; the queue is persisted and resumes on the next sync they start.
 - It already holds a partial wake lock for the life of the service.
 
 ## Non-goals
@@ -47,7 +47,7 @@ Step 2 is the slow part, and it is the part that stops when the app leaves the f
 
 Stand the mechanism up end to end before wiring in sync:
 
-- `SyncForegroundService.kt` (new) extends `HeadlessJsTaskService`. `onStartCommand` calls `startForeground` (type `dataSync`) with an ongoing notification and returns `START_NOT_STICKY`. `getTaskConfig` returns a `HeadlessJsTaskConfig("CNPlusBackgroundSync", …, timeout, allowedInForeground = true)`.
+- `SyncForegroundService.kt` (new) extends `HeadlessJsTaskService`. `onStartCommand` calls `startForeground` (type `dataSync`) with an ongoing notification, catching `ForegroundServiceStartNotAllowedException` and stopping if the start is refused. The return value stays the base class's `START_REDELIVER_INTENT`. `getTaskConfig` returns a `HeadlessJsTaskConfig("CNPlusBackgroundSync", …, timeout, allowedInForeground = true)`.
 - The notification's tap target is a `PendingIntent` to `MyReactActivity`, so tapping it opens Data Sync.
 - Add a silent, low-importance `CHANNEL_ID_SYNC` in `NotificationChannels.kt`.
 - Manifest: the `<service android:foregroundServiceType="dataSync">` entry plus the `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` permissions.
@@ -74,7 +74,7 @@ The service owns the terminal state, because only native code sees the timeout. 
 - **Posts a separate, non-ongoing notification** for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused — N ops pending` (timeout with work left; the ops stay queued, so it is not a failure). The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it.
 - **Persists three fields** in a dedicated SharedPreferences file: `sync_last_completed_at` (from `CNPlusClockInterface`), `sync_last_completed_ok`, `sync_last_error`.
 
-`SetupSync` reads those fields on mount (a `MyModule` getter) and shows "Sync complete at HH:MM" or the error, so a finished sync is distinguishable from "never synced" after the process has been restarted. If the process is killed mid-drain no terminal state is written; the live `ps_crud` count on the screen still shows the ops pending.
+`SetupSync` reads those fields on mount (a `MyModule` getter) and shows "Sync complete at HH:MM" or the error, so a finished sync is distinguishable from "never synced" after the process has been restarted. If the process is killed mid-drain no terminal state is written at that point. With the battery-optimization exemption the service is redelivered and finishes the drain; without it, the live `ps_crud` count on the screen still shows the ops pending.
 
 ### Phase 4: Progress in the ongoing notification
 
@@ -107,8 +107,10 @@ The service keeps `total` from `startBackgroundSync(total)`; the task pushes the
   - Notification content: on the sync channel, ongoing, with the tap intent; indeterminate when the total is unknown; determinate at e.g. 3 of 10; and the complete / failed / paused terminal states.
   - `startBackgroundSync` is a no-op when the service is already running.
   - Terminal state writes the three fields with the injected clock's time; a finish with no reported outcome is recorded as paused.
+  - A refused foreground start (`ForegroundServiceStartNotAllowedException`) stops the service without crashing.
 - **Manual on device (required; tests can't observe backgrounding)**:
   - Run a Full Resync with ~150 events, press Home right away, and confirm the Supabase row count reaches the local count and the ongoing notification is replaced by "Sync complete". Repeat with back-press and with the screen off.
+  - Kill the process mid-sync (`adb shell am kill`, battery-optimization exemption granted) and confirm the service restarts and the drain finishes. Repeat with the exemption revoked and confirm there is no crash and the ops stay queued.
   - After the service has finished and the process has been killed, reopen Data Sync and confirm it shows the final "complete at HH:MM" or error state.
 
 ## Open Questions
