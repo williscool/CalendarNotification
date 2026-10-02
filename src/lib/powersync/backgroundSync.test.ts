@@ -6,11 +6,12 @@
 // The real module builds the PowerSync database on import
 jest.mock('./index', () => ({ db: {}, setupPowerSync: jest.fn() }));
 jest.mock('../logging/syncLog', () => ({ emitSyncLog: jest.fn() }));
+jest.mock('../../../modules/my-module', () => ({ reportBackgroundSyncOutcome: jest.fn() }));
 
 import { emitSyncLog } from '../logging/syncLog';
 import type { Settings } from '../hooks/SettingsContext';
 import {
-  BackgroundSyncDeps,
+  BackgroundSyncEnvironment,
   UploadQueue,
   createDevPageFakeQueue,
   runBackgroundSync,
@@ -41,9 +42,11 @@ const createFakeQueue = (pending: number, uploading = false) => {
   return { queue, state, listeners, emit: () => listeners.forEach(listener => listener()) };
 };
 
-const flushPromises = async () => {
-  for (let i = 0; i < 5; i++) await Promise.resolve();
-};
+/** A zero-delay timeout only fires once every queued microtask has run */
+const AFTER_QUEUED_MICROTASKS_MS = 0;
+
+/** Lets every pending promise continuation run before the test asserts, however deep the chain */
+const flushPromises = () => new Promise<void>(resolve => setTimeout(resolve, AFTER_QUEUED_MICROTASKS_MS));
 
 /** Tracks whether a promise has settled without awaiting it */
 const track = (promise: Promise<void>) => {
@@ -52,11 +55,13 @@ const track = (promise: Promise<void>) => {
   return result;
 };
 
-const createDeps = (overrides: Partial<BackgroundSyncDeps> = {}): BackgroundSyncDeps => ({
+const createEnvironment = (overrides: Partial<BackgroundSyncEnvironment> = {}): BackgroundSyncEnvironment => ({
   queue: createFakeQueue(0).queue,
   isConnectStarted: () => true,
   loadSettings: jest.fn(async () => configuredSettings),
   connect: jest.fn(async () => {}),
+  newestFailedOpId: jest.fn(async () => undefined),
+  reportOutcome: jest.fn(async () => {}),
   ...overrides,
 });
 
@@ -109,54 +114,82 @@ describe('waitForDrain', () => {
 
 describe('runBackgroundSync', () => {
   it('does not connect when a connection was already started', async () => {
-    const deps = createDeps();
-    await runBackgroundSync(deps);
+    const environment = createEnvironment();
+    await runBackgroundSync(environment);
 
-    expect(deps.connect).not.toHaveBeenCalled();
-    expect(emitSyncLog).toHaveBeenCalledWith('info', expect.stringContaining('complete'));
+    expect(environment.connect).not.toHaveBeenCalled();
+    expect(environment.reportOutcome).toHaveBeenCalledWith(true, undefined);
   });
 
   it('connects with the stored settings on a cold start, then drains', async () => {
     const fake = createFakeQueue(1);
-    const deps = createDeps({ queue: fake.queue, isConnectStarted: () => false });
-    const result = track(runBackgroundSync(deps));
+    const environment = createEnvironment({ queue: fake.queue, isConnectStarted: () => false });
+    const result = track(runBackgroundSync(environment));
     await flushPromises();
 
-    expect(deps.connect).toHaveBeenCalledWith(configuredSettings);
+    expect(environment.connect).toHaveBeenCalledWith(configuredSettings);
     expect(result.done).toBe(false);
+
+    expect(environment.reportOutcome).not.toHaveBeenCalled();
 
     fake.state.pending = 0;
     fake.emit();
     await flushPromises();
     expect(result.done).toBe(true);
+    expect(environment.reportOutcome).toHaveBeenCalledWith(true, undefined);
   });
 
   it.each([
     ['no settings are stored', null],
     ['sync is disabled', { ...configuredSettings, syncEnabled: false }],
     ['credentials are missing', { ...configuredSettings, powersyncSecret: '' }],
-  ])('finishes without connecting when %s', async (_name, settings) => {
+  ])('reports failure without connecting when %s', async (_name, settings) => {
     const fake = createFakeQueue(3);
-    const deps = createDeps({
+    const environment = createEnvironment({
       queue: fake.queue,
       isConnectStarted: () => false,
       loadSettings: async () => settings as Settings | null,
     });
-    await runBackgroundSync(deps);
+    await runBackgroundSync(environment);
 
-    expect(deps.connect).not.toHaveBeenCalled();
+    expect(environment.connect).not.toHaveBeenCalled();
     expect(fake.listeners.size).toBe(0);
-    expect(emitSyncLog).toHaveBeenCalledWith('warn', expect.stringContaining('not configured'));
+    expect(environment.reportOutcome).toHaveBeenCalledWith(false, 'Sync is not configured');
   });
 
-  it('resolves rather than rejects when connecting fails', async () => {
-    const deps = createDeps({
+  it('resolves and reports the error when connecting fails', async () => {
+    const environment = createEnvironment({
       isConnectStarted: () => false,
       connect: async () => { throw new Error('network down'); },
     });
 
-    await expect(runBackgroundSync(deps)).resolves.toBeUndefined();
-    expect(emitSyncLog).toHaveBeenCalledWith('error', 'Background sync failed', expect.anything());
+    await expect(runBackgroundSync(environment)).resolves.toBeUndefined();
+    expect(environment.reportOutcome).toHaveBeenCalledWith(false, 'network down');
+  });
+
+  it('reports failure when the server rejected an op during the run', async () => {
+    const newestFailedOpId = jest.fn()
+      .mockResolvedValueOnce('older-failure')
+      .mockResolvedValueOnce('eventsV9-42-1700000000000');
+    const environment = createEnvironment({ newestFailedOpId });
+    await runBackgroundSync(environment);
+
+    expect(environment.reportOutcome).toHaveBeenCalledWith(false, expect.stringContaining('rejected by the server'));
+    expect(emitSyncLog).toHaveBeenCalledWith('error', 'Background sync failed', expect.objectContaining({ outcome: 'changesRejected' }));
+  });
+
+  it('reports complete when an earlier rejected op is still on record', async () => {
+    const environment = createEnvironment({ newestFailedOpId: jest.fn(async () => 'older-failure') });
+    await runBackgroundSync(environment);
+
+    expect(environment.reportOutcome).toHaveBeenCalledWith(true, undefined);
+  });
+
+  it('still resolves when the outcome cannot be reported', async () => {
+    const environment = createEnvironment({ reportOutcome: async () => { throw new Error('module gone'); } });
+
+    await expect(runBackgroundSync(environment)).resolves.toBeUndefined();
+    expect(emitSyncLog).toHaveBeenCalledWith('error', expect.stringContaining('report'), expect.anything());
   });
 });
 

@@ -84,6 +84,31 @@ export async function startBackgroundSync(): Promise<void> {
   return await MyModule.startBackgroundSync();
 }
 
+/**
+ * Called by the background sync task just before it finishes. A task that
+ * finishes without reporting is recorded by the service as timed out.
+ */
+export async function reportBackgroundSyncOutcome(ok: boolean, error?: string): Promise<void> {
+  return await MyModule.reportBackgroundSyncOutcome(ok, error ?? null);
+}
+
+export interface BackgroundSyncResult {
+  /** Epoch milliseconds */
+  completedAt: number;
+  ok: boolean;
+  error: string | null;
+}
+
+/** How the last background sync ended, or null if there has never been one. */
+export function getLastBackgroundSyncResult(): BackgroundSyncResult | null {
+  return MyModule.getLastBackgroundSyncResult();
+}
+
+/** False when notifications are turned off, so background sync progress is hidden. */
+export function areNotificationsEnabled(): boolean {
+  return MyModule.areNotificationsEnabled();
+}
+
 const emitter = new EventEmitter(MyModule ?? NativeModulesProxy.MyModule);
 
 export function addChangeListener(listener: (event: ChangeEventPayload) => void): Subscription {

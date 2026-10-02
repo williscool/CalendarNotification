@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState, memo, useMemo } from 'react';
 import { Linking, ScrollView } from 'react-native';
-import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage, startBackgroundSync } from '../../../modules/my-module';
+import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage, startBackgroundSync, getLastBackgroundSyncResult, areNotificationsEnabled } from '../../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -71,6 +71,9 @@ export const SetupSync = () => {
   // Get the active database name from native module (Room or Legacy)
   const eventsDbName = useMemo(() => getActiveEventsDbName(), []);
   const isUsingRoom = useMemo(() => isUsingRoomStorage(), []);
+  // What the background service recorded, so a sync that ended while this screen was closed still shows
+  const lastBackgroundSync = useMemo(() => getLastBackgroundSyncResult(), []);
+  const notificationsEnabled = useMemo(() => areNotificationsEnabled(), []);
   const regDb = useMemo(() => open({ name: eventsDbName }), [eventsDbName]);
   
   const providerDb = useContext(PowerSyncContext);
@@ -279,6 +282,24 @@ export const SetupSync = () => {
             {`Sync complete at ${syncCompleteAt}`}
           </AlertText>
         </WarningBanner>
+      )}
+
+      {!isSyncing && !syncCompleteAt && lastBackgroundSync && (
+        <WarningBanner variant={lastBackgroundSync.ok ? 'info' : 'warning'} testID="last-background-sync-banner">
+          <AlertText className="text-center">
+            {lastBackgroundSync.ok
+              ? `Last background sync completed ${new Date(lastBackgroundSync.completedAt).toLocaleString()}`
+              : `Last background sync did not finish (${new Date(lastBackgroundSync.completedAt).toLocaleString()}): ${lastBackgroundSync.error}`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
+      {!notificationsEnabled && (
+        <WarningBanner
+          variant="info"
+          testID="notifications-off-banner"
+          message="Notifications are off, so background sync progress won't be shown. The sync still runs."
+        />
       )}
 
       <ActionButton
