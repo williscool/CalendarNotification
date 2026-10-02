@@ -25,72 +25,96 @@ Step 2 is the slow part, and it is the part that stops when the app leaves the f
 | Option | Verdict |
 |--------|---------|
 | **Foreground service + Headless JS task** | ✅ Reuses the existing JS connector/queue. The user starts it from a foreground action, so Android 12+ FGS start restrictions are satisfied. An ongoing notification shows progress. |
-| WorkManager / `expo-background-task` | ❌ Deferrable and periodic (15 min minimum). Not suited to a user-initiated job that should run now. A possible later add-on for scheduled sync. |
+| WorkManager / `expo-background-task` | ❌ Deferrable and periodic (15 min minimum). Not suited to a user-initiated job that should run now. |
 | Reimplement upload in Kotlin | ❌ Duplicates `Connector.ts` (retry, fatal-error handling, failed-op storage). Too much surface for the payoff. |
 
-New Architecture (bridgeless `ReactHost`) is enabled (`newArchEnabled=true`), so we need to confirm that `HeadlessJsTaskService` works with `getDefaultReactHost`. That confirmation is the first thing Phase 1 does.
+### What RN 0.81.5's `HeadlessJsTaskService` gives us (read from source)
+
+- **It supports the New Architecture.** With `enableBridgelessArchitecture` it resolves the context through `ReactApplication.reactHost` and starts the host itself on a cold process. `GlobalState` already exposes `reactHost`, so this is not an unknown.
+- **The timeout is native-only.** `HeadlessJsTaskContext` schedules a runnable that calls `finishTask`; the JS promise is never told. Anything that must happen on timeout has to happen in Kotlin.
+- **Every `onStartCommand` starts another task.** A second start while one is running gives two drain tasks.
+- **It returns `START_REDELIVER_INTENT`.** After a process kill the system would restart the service from the background, where `startForeground` can throw on Android 12+. We override to `START_NOT_STICKY`; the queue is persisted and resumes on the next user-initiated sync.
+- It already holds a partial wake lock for the life of the service.
+
+## Non-goals
+
+- **Starting the service automatically when `ps_crud > 0` on app exit.** That crosses from a user-initiated FGS to a background-initiated one, which has stricter Android 12+ start rules and would need WorkManager scheduling. It is a different design and gets its own plan if it ever comes up.
+- Scheduled/periodic sync.
 
 ## Plan
 
-### Phase 1: The foreground service running a no-op headless task (spike)
+### Phase 1: The foreground service running a no-op headless task (smoke test)
 
-Prove the mechanism before wiring in sync:
+Stand the mechanism up end to end before wiring in sync:
 
-- `SyncForegroundService.kt` (new, `com.github.quarck.calnotify.sync` or alongside `MyReactActivity`) extends `HeadlessJsTaskService`. `onStartCommand` calls `startForeground` (type `dataSync`) with an ongoing notification. `getTaskConfig` returns a `HeadlessJsTaskConfig("CNPlusBackgroundSync", …, timeout, allowedInForeground = true)`.
+- `SyncForegroundService.kt` (new) extends `HeadlessJsTaskService`. `onStartCommand` calls `startForeground` (type `dataSync`) with an ongoing notification and returns `START_NOT_STICKY`. `getTaskConfig` returns a `HeadlessJsTaskConfig("CNPlusBackgroundSync", …, timeout, allowedInForeground = true)`.
+- The notification's tap target is a `PendingIntent` to `MyReactActivity`, so tapping it opens Data Sync.
 - Add a silent, low-importance `CHANNEL_ID_SYNC` in `NotificationChannels.kt`.
 - Manifest: the `<service android:foregroundServiceType="dataSync">` entry plus the `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` permissions.
-- `index.tsx`: `AppRegistry.registerHeadlessTask('CNPlusBackgroundSync', …)`, with a placeholder task that logs and resolves.
-- `MyModule.kt`: an `AsyncFunction("startBackgroundSync")` that calls `ContextCompat.startForegroundService`.
+- `index.tsx`: `AppRegistry.registerHeadlessTask('CNPlusBackgroundSync', …)`, with a placeholder task that logs on a timer and resolves.
+- `MyModule.kt`: an `AsyncFunction("startBackgroundSync")` that calls `ContextCompat.startForegroundService`. It is a **no-op when the service is already running**, so a second call never produces a second drain task.
 
-Exit criterion: from the Data Sync screen, start the service, press Home, and the headless task's timer-based log line still fires (visible in logcat / SyncDebug).
+Exit criterion: start the service from the Data Sync screen and confirm the placeholder's timer-based log line still fires (logcat / SyncDebug) in both cases: after pressing **Home**, and after **back-press** (activity destroyed). Also confirm what the native timeout does to the service and its notification.
 
 ### Phase 2: A drain-until-empty task
 
 Replace the placeholder with the real task, in a new file (`src/lib/powersync/backgroundSync.ts`):
 
-1. If `db` isn't connected (the process was cold-started by the service), call `setupPowerSync(settings)` using the settings from storage.
-2. Resolve when `ps_crud` is empty and `currentStatus.dataFlowStatus.uploading` is false. Drive this from `db.registerListener({ statusChanged })` and a count check on each status change. **No polling loop or sleeps**, per the repo rule.
-3. Reject/resolve on the `HeadlessJsTaskConfig` timeout so the service always stops. Anything left in `ps_crud` stays queued for next time.
+1. If `db` isn't connected (the process was cold-started by the service), load settings and call `setupPowerSync(settings)`. This needs a loader that works outside React: extract `loadStoredSettings()` from `SettingsProvider.loadSettings` in `SettingsContext.tsx` and share it between the provider and the task. With no stored (or unconfigured) settings the task ends as failed.
+2. Resolve when `ps_crud` is empty and `currentStatus.dataFlowStatus.uploading` is false. Drive this from `db.registerListener({ statusChanged })`, re-checking the count on each status change. **No polling loop or sleeps**, per the repo rule. If a `db.watch` on `ps_crud` turns out to emit changes it can replace the listener, but the fallback is always "`statusChanged` → re-check count", never a periodic poll.
+3. Before resolving, the task reports its outcome to the service through a `MyModule` function: complete, or failed with a message (could not connect, or ops were discarded as fatal during the run). If the service sees the task finish with no outcome reported, the native timeout fired: that is the paused state.
 
-`SetupSync.handleSync` then calls `startBackgroundSync()` right after `psResyncTable` queues its ops. The in-screen progress banner keeps working as it does today.
+`SetupSync.handleSync` calls `startBackgroundSync(total)` right after `psResyncTable` queues its ops, where `total` is the `ps_crud` count at that moment. The in-screen progress banner keeps working as it does today.
 
-### Phase 3: Progress in the notification
+### Phase 3: Terminal states, so you know what happened while you were away
 
-Add `MyModule` `Function("updateBackgroundSyncProgress")` so the task can push `"X upserted, Y deleted — Z queued"` (from `getUploadProgress()` and the `ps_crud` count) into the ongoing notification, plus a final "Sync complete" / "Sync paused — N ops pending" state. Optional: a Stop action that ends the task.
+The service owns the terminal state, because only native code sees the timeout. On task finish it:
+
+- **Cancels the ongoing notification unconditionally**, whichever state follows.
+- **Posts a separate, non-ongoing notification** for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused — N ops pending` (timeout with work left; the ops stay queued, so it is not a failure). The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it.
+- **Persists three fields** in a dedicated SharedPreferences file: `sync_last_completed_at` (from `CNPlusClockInterface`), `sync_last_completed_ok`, `sync_last_error`.
+
+`SetupSync` reads those fields on mount (a `MyModule` getter) and shows "Sync complete at HH:MM" or the error, so a finished sync is distinguishable from "never synced" after the process has been restarted. If the process is killed mid-drain no terminal state is written; the live `ps_crud` count on the screen still shows the ops pending.
+
+### Phase 4: Progress in the ongoing notification
+
+The service keeps `total` from `startBackgroundSync(total)`; the task pushes the current `ps_crud` count on each status change through a `MyModule` function. The notification shows a progress bar at `total - queued` of `total`, and is indeterminate when the total is unknown (cold start). The numbers do **not** come from `getUploadProgress()`: those counters are module globals and reset to zero if the service cold-starts the process. Optional: a Stop action that ends the task.
 
 ## Files Changed Summary
 
 | File | Change |
 |------|--------|
-| `android/.../SyncForegroundService.kt` | **New.** `HeadlessJsTaskService` + `startForeground(dataSync)` |
+| `android/.../SyncForegroundService.kt` | **New.** `HeadlessJsTaskService` + `startForeground(dataSync)`, terminal-state handling |
 | `android/.../notification/NotificationChannels.kt` | Add a silent sync channel |
 | `android/app/src/main/AndroidManifest.xml` | Service entry and FGS permissions |
-| `modules/my-module/.../MyModule.kt`, `modules/my-module/index.ts` | `startBackgroundSync`, then `updateBackgroundSyncProgress` |
+| `modules/my-module/.../MyModule.kt`, `modules/my-module/index.ts` | `startBackgroundSync(total)`, outcome report, progress update, last-result getter |
 | `index.tsx` | `registerHeadlessTask` |
 | `src/lib/powersync/backgroundSync.ts` | **New.** The drain-until-empty task |
-| `src/lib/features/SetupSync.tsx` | Start the service after queueing a resync |
+| `src/lib/hooks/SettingsContext.tsx` | Extract `loadStoredSettings()` for use outside React |
+| `src/lib/features/SetupSync.tsx` | Start the service after queueing a resync; show the persisted last result |
 
 ## Testing
 
 - **Jest (`backgroundSync.test.ts`)**, driving a fake `db`/status listener:
-  - Resolves when the queue drains.
+  - Resolves when the queue drains, and reports complete.
   - Stays pending while `uploading` is true, even if the count momentarily hits 0.
   - Connects when disconnected and skips connecting when already connected.
+  - Cold start with no stored settings reports failed and resolves.
   - Resolves immediately on an empty queue.
-  - Honors the timeout.
-- **Jest (`SetupSync.test.ts`)**: `handleSync` calls `startBackgroundSync` after `psResyncTable`, and doesn't call it if the resync throws.
-- **Robolectric**:
+- **Jest (`SetupSync.test.ts` / `SetupSync.ui.test.tsx`)**: `handleSync` calls `startBackgroundSync` with the queued count after `psResyncTable`, and doesn't call it if the resync throws. On mount the screen shows the persisted last result.
+- **Robolectric**, with the testable pieces as plain functions rather than `mockkConstructor` (see `constructor-mocking-android.md`; `super.onStartCommand` boots RN, which `GlobalState` skips under Robolectric):
   - `getTaskConfig` returns the right task key, timeout, and `allowedInForeground`.
-  - The notification lands on the sync channel and is ongoing.
-  - Note: `super.onStartCommand` boots RN, which `GlobalState` skips under Robolectric. Keep the testable pieces as plain functions rather than using `mockkConstructor` (see `constructor-mocking-android.md`).
-- **Manual on device (required; tests can't observe backgrounding)**: run a Full Resync with ~150 events, press Home right away, and confirm the Supabase row count reaches the local count and the notification clears. Repeat with back-press (activity destroyed) and with the screen off.
+  - Notification content: on the sync channel, ongoing, with the tap intent; indeterminate when the total is unknown; determinate at e.g. 3 of 10; and the complete / failed / paused terminal states.
+  - `startBackgroundSync` is a no-op when the service is already running.
+  - Terminal state writes the three fields with the injected clock's time; a finish with no reported outcome is recorded as paused.
+- **Manual on device (required; tests can't observe backgrounding)**:
+  - Run a Full Resync with ~150 events, press Home right away, and confirm the Supabase row count reaches the local count and the ongoing notification is replaced by "Sync complete". Repeat with back-press and with the screen off.
+  - After the service has finished and the process has been killed, reopen Data Sync and confirm it shows the final "complete at HH:MM" or error state.
 
 ## Open Questions
 
-- **Does `HeadlessJsTaskService` work in bridgeless mode on RN 0.81?** Phase 1 exists to answer this. If it doesn't, the fallback is a plain FGS that only keeps the process alive, plus a JS-side `HeadlessJsTaskContext` workaround. Decide after the spike.
-- **Does a `db.watch` on `ps_crud` emit changes?** It's an internal table populated by triggers. If it doesn't, the `statusChanged`-plus-count approach in Phase 2 is the plan of record.
+- **Does a `db.watch` on `ps_crud` emit changes?** It's an internal table populated by triggers. Either way the plan of record is `statusChanged` → re-check count.
 - **Timeout value.** A 150-event resync with ~300 sequential requests plus backoff probably takes a few minutes. Start at 15 min. Android 15 caps `dataSync` FGS at 6 h/day, which is far above that.
-- **Should the service also start automatically whenever `ps_crud > 0` on app exit** (covering incremental ops, not just Full Resync)? Leaning no for now: Full Resync is the documented workflow ([data_sync_improvements.md](./data_sync_improvements.md)).
 
 ## References
 
