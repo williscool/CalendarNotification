@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto'
 
-import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
+import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry, BaseObserver } from '@powersync/react-native';
 import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
 import { Settings } from '../hooks/SettingsContext';
@@ -123,6 +123,29 @@ export const resetUploadProgress = (): void => {
   _uploadProgress.updates = 0;
   _uploadProgress.deletes = 0;
 };
+
+type InFlightUploadsListener = { countChanged: () => void };
+
+/**
+ * Ops uploaded from the transaction currently in flight. The upload queue only shrinks when a
+ * whole transaction completes, so this is what moves background sync progress in between.
+ * Listen with `inFlightUploads.registerListener({ countChanged })`, the same way as
+ * `db.registerListener({ statusChanged })`.
+ */
+class InFlightUploads extends BaseObserver<InFlightUploadsListener> {
+  private _count = 0;
+
+  get count(): number {
+    return this._count;
+  }
+
+  set(count: number): void {
+    this._count = count;
+    this.iterateListeners(listener => listener.countChanged?.());
+  }
+}
+
+export const inFlightUploads = new InFlightUploads();
 
 interface SupabaseError {
   code: string;
@@ -385,6 +408,7 @@ export class Connector implements PowerSyncBackendConnector {
                 if (op.op === UpdateType.PUT) _uploadProgress.upserts++;
                 else if (op.op === UpdateType.PATCH) _uploadProgress.updates++;
                 else if (op.op === UpdateType.DELETE) _uploadProgress.deletes++;
+                inFlightUploads.set(inFlightUploads.count + 1);
             }
     
             await transaction.complete();
@@ -428,6 +452,9 @@ export class Connector implements PowerSyncBackendConnector {
                 });
                 throw ex;
             }
+        } finally {
+            // Completed or about to be retried from the start: either way nothing is in flight
+            inFlightUploads.set(0);
         }
     }
 }

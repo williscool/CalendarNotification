@@ -11,6 +11,7 @@ import {
   getLogFilterLevel,
   FailedOperation,
   LogFilterLevel,
+  inFlightUploads,
   POWERSYNC_JWT_AUDIENCE,
   POWERSYNC_JWT_KID,
   POWERSYNC_JWT_EXPIRY_SECONDS,
@@ -275,6 +276,50 @@ describe('Connector', () => {
       expect(mockUpsert).toHaveBeenCalledTimes(3);
       // Should NOT complete transaction (let PowerSync retry later)
       expect(mockTransaction.complete).not.toHaveBeenCalled();
+    });
+
+    it('should count ops uploaded from the transaction in flight and reset when it completes', async () => {
+      mockedCreateClient.mockReturnValue(createMockSupabaseClient({ error: null }) as any);
+      const mockTransaction = createMockTransaction([
+        createMockCrudEntry({ id: 'a' }),
+        createMockCrudEntry({ id: 'b' }),
+        createMockCrudEntry({ id: 'c' }),
+      ]);
+      const seen: number[] = [];
+      const unsubscribe = inFlightUploads.registerListener({ countChanged: () => seen.push(inFlightUploads.count) });
+
+      await new Connector(createMockSettings()).uploadData(createMockDatabase(mockTransaction) as any);
+      unsubscribe();
+
+      expect(seen).toEqual([1, 2, 3, 0]);
+      expect(inFlightUploads.count).toBe(0);
+    });
+
+    it('should reset the in-flight count when the transaction fails and will be retried', async () => {
+      const mockUpsert = jest.fn()
+        .mockResolvedValueOnce({ error: null })
+        .mockResolvedValue({ error: { code: '500', message: 'Server error' } });
+      mockedCreateClient.mockReturnValue({ from: jest.fn().mockReturnValue({ upsert: mockUpsert }) } as any);
+      const mockTransaction = createMockTransaction([
+        createMockCrudEntry({ id: 'a' }),
+        createMockCrudEntry({ id: 'b' }),
+      ]);
+
+      await expect(
+        new Connector(createMockSettings()).uploadData(createMockDatabase(mockTransaction) as any)
+      ).rejects.toBeTruthy();
+
+      expect(inFlightUploads.count).toBe(0);
+    });
+
+    it('should stop notifying an upload progress listener after it unsubscribes', async () => {
+      mockedCreateClient.mockReturnValue(createMockSupabaseClient({ error: null }) as any);
+      const listener = jest.fn();
+      inFlightUploads.registerListener({ countChanged: listener })();
+
+      await new Connector(createMockSettings()).uploadData(createMockDatabase(createMockTransaction()) as any);
+
+      expect(listener).not.toHaveBeenCalled();
     });
   });
 });

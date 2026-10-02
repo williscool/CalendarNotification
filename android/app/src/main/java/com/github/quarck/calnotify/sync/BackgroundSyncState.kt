@@ -20,6 +20,7 @@
 package com.github.quarck.calnotify.sync
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.github.quarck.calnotify.R
 import expo.modules.mymodule.MyModule
 
@@ -38,8 +39,37 @@ class BackgroundSyncState(private val context: Context) {
     val lastError: String?
         get() = prefs.getString(MyModule.PREF_SYNC_LAST_ERROR, null)
 
-    fun clearReportedOutcome() =
-        prefs.edit().remove(MyModule.PREF_SYNC_REPORTED_OK).remove(MyModule.PREF_SYNC_REPORTED_ERROR).apply()
+    /** Uploads done so far out of those queued when the task started; zero total means not known yet */
+    val progressDone: Int
+        get() = prefs.getInt(MyModule.PREF_SYNC_PROGRESS_DONE, 0)
+
+    val progressTotal: Int
+        get() = prefs.getInt(MyModule.PREF_SYNC_PROGRESS_TOTAL, 0)
+
+    // SharedPreferences only holds listeners weakly, so the reference is kept here
+    private var progressListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    /** Calls [onChange] whenever the JS task reports progress, until [stopWatchingProgress] */
+    fun watchProgress(onChange: () -> Unit) {
+        progressListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == MyModule.PREF_SYNC_PROGRESS_DONE || key == MyModule.PREF_SYNC_PROGRESS_TOTAL) onChange()
+        }.also { prefs.registerOnSharedPreferenceChangeListener(it) }
+    }
+
+    fun stopWatchingProgress() {
+        progressListener?.let { prefs.unregisterOnSharedPreferenceChangeListener(it) }
+        progressListener = null
+    }
+
+    /** Clears what the previous run's task reported, so it can't be mistaken for this run's */
+    fun clearReported() =
+        prefs.edit()
+            .remove(MyModule.PREF_SYNC_REPORTED_OK)
+            .remove(MyModule.PREF_SYNC_REPORTED_ERROR)
+            .remove(MyModule.PREF_SYNC_PROGRESS_DONE)
+            .remove(MyModule.PREF_SYNC_PROGRESS_TOTAL)
+            .remove(MyModule.PREF_SYNC_QUEUED)
+            .apply()
 
     /**
      * Records how the sync ended. The JS task reports complete or failed before it finishes, so a
@@ -54,7 +84,7 @@ class BackgroundSyncState(private val context: Context) {
         val error = when (outcome) {
             SyncOutcome.COMPLETE -> null
             SyncOutcome.FAILED -> prefs.getString(MyModule.PREF_SYNC_REPORTED_ERROR, null)
-            SyncOutcome.PAUSED -> context.getString(R.string.sync_result_paused_detail)
+            SyncOutcome.PAUSED -> pausedDetail(prefs.getInt(MyModule.PREF_SYNC_QUEUED, 0))
         }
         prefs.edit()
             .putLong(MyModule.PREF_SYNC_LAST_COMPLETED_AT, now)
@@ -65,4 +95,9 @@ class BackgroundSyncState(private val context: Context) {
             .apply()
         return outcome
     }
+
+    /** The queue count is only known if the task reported progress before it timed out */
+    private fun pausedDetail(queued: Int): String =
+        if (queued > 0) context.resources.getQuantityString(R.plurals.sync_result_paused_detail_count, queued, queued)
+        else context.getString(R.string.sync_result_paused_detail)
 }

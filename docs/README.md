@@ -7,6 +7,7 @@
 - [Clock Implementation](architecture/clock_implementation.md) - CNPlusClockInterface for testable time
 - [Domain Model](architecture/domain_model.md) - Storage classes, Room databases, SharedPreferences
 - [Notification Architecture](architecture/notification_architecture.md) - Channels, sound logic, muting system
+- [Background Data Sync](architecture/background_data_sync.md) - Foreground service + headless JS task that keeps a Full Resync uploading
 - [Next Alert Indicator](architecture/next_alert_architecture.md) - 📅/🔔 next notification display
 - [Storage Lifecycle](architecture/storage_lifecycle.md) - `.use {}` pattern, Room vs Legacy close behavior ⭐ *Key Reference*
 
@@ -21,6 +22,7 @@
 ## Data & Sync
 
 - [Data Sync Setup](DATA_SYNC_README.md) - Supabase/PowerSync configuration
+- [Background Data Sync](architecture/background_data_sync.md) - How sync keeps running after you leave the screen
 
 ## Testing Infrastructure
 
@@ -39,6 +41,7 @@ Historical decisions and completed work, kept for reference:
 - [GitHub Actions Performance](dev_completed/github_actions_performance.md) - CI optimization (ccache, cache warming, test_runner_only) ⭐ *Key Reference*
 - [Constructor Mocking Limitations](dev_completed/constructor-mocking-android.md) ⭐ *Key Reference*
 - [Calendar Backup/Restore Test Isolation](dev_completed/calendar_backup_restore_test_isolation.md)
+- [Background Data Sync](dev_completed/background_data_sync.md) - Sync keeps running in the background ✅
 - [Calendar Sync Refresh](dev_completed/calendar_sync_refresh.md) - Pull-to-refresh in Handled Calendars ✅
 - [Car Mode Bluetooth Crash](dev_completed/car_mode_bluetooth_crash.md) - Android 12+ BLUETOOTH_CONNECT permission ✅
 - [Database Modernization Plan](dev_completed/database_modernization_plan.md) - Room migration complete ✅

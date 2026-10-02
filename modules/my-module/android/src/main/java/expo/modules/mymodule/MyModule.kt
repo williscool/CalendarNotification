@@ -36,6 +36,9 @@ class MyModule : Module() {
     const val SYNC_PREFS_NAME = "background_sync_state"
     const val PREF_SYNC_REPORTED_OK = "reported_ok"
     const val PREF_SYNC_REPORTED_ERROR = "reported_error"
+    const val PREF_SYNC_PROGRESS_DONE = "progress_done"
+    const val PREF_SYNC_PROGRESS_TOTAL = "progress_total"
+    const val PREF_SYNC_QUEUED = "queued"
     const val PREF_SYNC_LAST_COMPLETED_AT = "sync_last_completed_at"
     const val PREF_SYNC_LAST_COMPLETED_OK = "sync_last_completed_ok"
     const val PREF_SYNC_LAST_ERROR = "sync_last_error"
@@ -146,6 +149,17 @@ class MyModule : Module() {
       appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)?.edit()
         ?.putBoolean(PREF_SYNC_REPORTED_OK, ok)
         ?.putString(PREF_SYNC_REPORTED_ERROR, error)
+        ?.apply()
+      Unit
+    }
+
+    // Called by the background sync task as uploads go through. The service watches these
+    // values to update the progress bar in its notification.
+    AsyncFunction("reportBackgroundSyncProgress") { done: Int, total: Int, queued: Int ->
+      appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)?.edit()
+        ?.putInt(PREF_SYNC_PROGRESS_DONE, done)
+        ?.putInt(PREF_SYNC_PROGRESS_TOTAL, total)
+        ?.putInt(PREF_SYNC_QUEUED, queued)
         ?.apply()
       Unit
     }
