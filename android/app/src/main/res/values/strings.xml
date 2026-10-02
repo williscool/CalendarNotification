@@ -468,6 +468,11 @@
     <string name="sync_result_failed">Sync failed</string>
     <string name="sync_result_paused">Sync paused</string>
     <string name="sync_result_paused_detail">Timed out with uploads still queued. They resume the next time you sync.</string>
+    <plurals name="sync_result_paused_detail_count">
+        <item quantity="one">Timed out with %d upload still queued. It resumes the next time you sync.</item>
+        <item quantity="other">Timed out with %d uploads still queued. They resume the next time you sync.</item>
+    </plurals>
+    <string name="sync_notification_progress">%1$d of %2$d uploaded</string>
     
     <!-- Notification channel groups -->
     <string name="notification_group_main">Main</string>

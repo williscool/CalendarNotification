@@ -6,7 +6,10 @@
 // The real module builds the PowerSync database on import
 jest.mock('./index', () => ({ db: {}, setupPowerSync: jest.fn() }));
 jest.mock('../logging/syncLog', () => ({ emitSyncLog: jest.fn() }));
-jest.mock('../../../modules/my-module', () => ({ reportBackgroundSyncOutcome: jest.fn() }));
+jest.mock('../../../modules/my-module', () => ({
+  reportBackgroundSyncOutcome: jest.fn(),
+  reportBackgroundSyncProgress: jest.fn(),
+}));
 
 import { emitSyncLog } from '../logging/syncLog';
 import type { Settings } from '../hooks/SettingsContext';
@@ -62,6 +65,9 @@ const createEnvironment = (overrides: Partial<BackgroundSyncEnvironment> = {}): 
   connect: jest.fn(async () => {}),
   newestFailedOpId: jest.fn(async () => undefined),
   reportOutcome: jest.fn(async () => {}),
+  inFlightUploaded: () => 0,
+  onUploadProgress: () => () => {},
+  reportProgress: jest.fn(async () => {}),
   ...overrides,
 });
 
@@ -190,6 +196,78 @@ describe('runBackgroundSync', () => {
 
     await expect(runBackgroundSync(environment)).resolves.toBeUndefined();
     expect(emitSyncLog).toHaveBeenCalledWith('error', expect.stringContaining('report'), expect.anything());
+  });
+});
+
+describe('progress reporting', () => {
+  /** Stands in for the Connector's in-flight counter and its listeners */
+  const createFakeUploads = () => {
+    const listeners = new Set<() => void>();
+    const state = { inFlight: 0 };
+    return {
+      state,
+      listeners,
+      set: (inFlight: number) => {
+        state.inFlight = inFlight;
+        listeners.forEach(listener => listener());
+      },
+      environment: {
+        inFlightUploaded: () => state.inFlight,
+        onUploadProgress: (listener: () => void) => {
+          listeners.add(listener);
+          return () => { listeners.delete(listener); };
+        },
+      },
+    };
+  };
+
+  it('reports ops uploaded from the transaction in flight before the queue shrinks', async () => {
+    const fake = createFakeQueue(4);
+    const uploads = createFakeUploads();
+    const environment = createEnvironment({ queue: fake.queue, ...uploads.environment });
+    const result = track(runBackgroundSync(environment));
+    await flushPromises();
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(0, 4, 4);
+
+    uploads.set(1);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(1, 4, 4);
+    uploads.set(2);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 4, 4);
+
+    // The transaction completes: its two ops leave the queue and nothing is in flight
+    const reportsBeforeReset = (environment.reportProgress as jest.Mock).mock.calls.length;
+    uploads.set(0);
+    expect(environment.reportProgress).toHaveBeenCalledTimes(reportsBeforeReset);
+    fake.state.pending = 2;
+    fake.emit();
+    await flushPromises();
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 4, 2);
+
+    fake.state.pending = 0;
+    fake.emit();
+    await flushPromises();
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(4, 4, 0);
+    expect(result.done).toBe(true);
+    expect(uploads.listeners.size).toBe(0);
+  });
+
+  it('never reports more done than the total when a retried transaction re-uploads', async () => {
+    const fake = createFakeQueue(2);
+    const uploads = createFakeUploads();
+    const environment = createEnvironment({ queue: fake.queue, ...uploads.environment });
+    track(runBackgroundSync(environment));
+    await flushPromises();
+
+    uploads.set(5);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 2, 2);
+  });
+
+  it('still finishes when progress cannot be reported', async () => {
+    const environment = createEnvironment({ reportProgress: async () => { throw new Error('module gone'); } });
+
+    await runBackgroundSync(environment);
+    await flushPromises();
+    expect(environment.reportOutcome).toHaveBeenCalledWith(true, undefined);
   });
 });
 
