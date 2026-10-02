@@ -30,8 +30,9 @@ Step 2 is the slow part, and it is the part that stops when the app leaves the f
 
 ### What RN 0.81.5's `HeadlessJsTaskService` gives us (read from source)
 
-- **It supports the New Architecture.** With `enableBridgelessArchitecture` it resolves the context through `ReactApplication.reactHost` and starts the host itself on a cold process. `GlobalState` already exposes `reactHost`, so this is not an unknown.
-- **The timeout is native-only.** `HeadlessJsTaskContext` schedules a runnable that calls `finishTask`; the JS promise is never told. Anything that must happen on timeout has to happen in Kotlin.
+- **The service supports the New Architecture, but task completion does not.** With `enableBridgelessArchitecture` the service resolves the context through `ReactApplication.reactHost` and starts the host itself on a cold process. However, JS reports a finished task through the `HeadlessJsTaskSupport` native module, and RN only registers that for the old architecture (`CoreModulesPackage`, not `runtime/CoreReactPackage`). The class is `internal`, so we can't register RN's own. Found in the smoke test: without it the task never ends and the service runs until its timeout. The app supplies an equivalent module under the same name (`HeadlessTaskSupportModule`).
+- **A rejected task never finishes.** `AppRegistry.startHeadlessTask` only reports a finish when the promise resolves (or rejects with `HeadlessJsTaskError`). The task must catch its own errors and resolve.
+- **The timeout is native-only.** `HeadlessJsTaskContext` schedules a runnable that calls `finishTask`; the JS promise is never told. Anything that must happen on timeout has to happen in Kotlin. Confirmed in the smoke test: the service stops, its notification clears, and with the app in the background the JS timers simply stop firing.
 - **Every `onStartCommand` starts another task.** A second start while one is running gives two drain tasks.
 - **It returns `START_REDELIVER_INTENT`.** After a process kill the system restarts the service from the background and redelivers the intent, so an interrupted sync resumes without you. Android 12+ normally blocks a background `startForeground`, but apps exempt from battery optimizations are excepted, and this app already asks for that exemption (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, prompted in `MainActivityBase`). We keep the default. For anyone who declined or revoked the exemption, the service catches `ForegroundServiceStartNotAllowedException` (API 31+) specifically and stops; the queue is persisted and resumes on the next sync they start.
 - It already holds a partial wake lock for the life of the service.
@@ -55,6 +56,8 @@ Stand the mechanism up end to end before wiring in sync:
 - `MyModule.kt`: an `AsyncFunction("startBackgroundSync")` that calls `ContextCompat.startForegroundService`. It is a **no-op when the service is already running**, so a second call never produces a second drain task.
 
 Exit criterion: start the service from the Data Sync screen and confirm the placeholder's timer-based log line still fires (logcat / SyncDebug) in both cases: after pressing **Home**, and after **back-press** (activity destroyed). Also confirm what the native timeout does to the service and its notification.
+
+**Result (API 34 emulator, debug build): passed.** Timers kept firing after Home and after back-press, and the service and its notification went away when the task finished and when a (temporarily shortened) timeout fired. The one thing that did not work as planned is the missing `HeadlessJsTaskSupport` module described above. The trigger for the test is a button on the Sync Debug screen, which the drain task phase replaces with the Full Resync button.
 
 ### Phase 2: A drain-until-empty task
 
@@ -85,6 +88,7 @@ The service keeps `total` from `startBackgroundSync(total)`; the task pushes the
 | File | Change |
 |------|--------|
 | `android/.../SyncForegroundService.kt` | **New.** `HeadlessJsTaskService` + `startForeground(dataSync)`, terminal-state handling |
+| `android/.../react/HeadlessTaskSupportModule.kt` | **New.** Reports task completion to native, which RN omits under the New Architecture |
 | `android/.../notification/NotificationChannels.kt` | Add a silent sync channel |
 | `android/app/src/main/AndroidManifest.xml` | Service entry and FGS permissions |
 | `modules/my-module/.../MyModule.kt`, `modules/my-module/index.ts` | `startBackgroundSync(total)`, outcome report, progress update, last-result getter |
