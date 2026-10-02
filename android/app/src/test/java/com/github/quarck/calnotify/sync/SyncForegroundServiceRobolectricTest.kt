@@ -80,6 +80,14 @@ class SyncForegroundServiceRobolectricTest {
         assertEquals(SyncForegroundService.TASK_KEY, config.taskKey)
         assertEquals(SyncForegroundService.TASK_TIMEOUT_MS, config.timeout)
         assertTrue(config.isAllowedInForeground)
+        assertFalse(config.data.getBoolean(SyncForegroundService.EXTRA_DEV_PAGE_FAKE_QUEUE))
+    }
+
+    @Test
+    fun `task config passes the Dev page fake queue flag to the JS task`() {
+        val intent = Intent().putExtra(SyncForegroundService.EXTRA_DEV_PAGE_FAKE_QUEUE, true)
+
+        assertTrue(service.getTaskConfig(intent).data.getBoolean(SyncForegroundService.EXTRA_DEV_PAGE_FAKE_QUEUE))
     }
 
     @Test

@@ -31,6 +31,7 @@ jest.mock('../../../../modules/my-module', () => ({
   addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
   getActiveEventsDbName: jest.fn(() => 'RoomEvents'),
   isUsingRoomStorage: jest.fn(() => true),
+  startBackgroundSync: jest.fn(() => Promise.resolve()),
   PI: 100,
 }));
 

@@ -724,10 +724,13 @@ class TestActivity : Activity() {
         //settings.enableMonitorDebug = findOrThrow<ToggleButton>(R.id.buttonTestToggleDebugMonitor).isChecked
     }
 
-    /** Starts the background sync service without going through the Data Sync screen */
+    /** Runs the background sync service against a fake upload queue, so no backend is touched */
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonBackgroundSyncTestClick(v: View) {
-        ContextCompat.startForegroundService(this, Intent(this, SyncForegroundService::class.java))
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, SyncForegroundService::class.java).putExtra(SyncForegroundService.EXTRA_DEV_PAGE_FAKE_QUEUE, true)
+        )
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
