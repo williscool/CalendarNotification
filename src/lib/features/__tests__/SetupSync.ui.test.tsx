@@ -19,6 +19,7 @@ jest.mock('../../../../modules/my-module', () => ({
   hello: jest.fn(() => 'Hello world!'),
   sendRescheduleConfirmations: jest.fn(),
   addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+  startBackgroundSync: jest.fn(() => Promise.resolve()),
   PI: 100,
 }));
 
@@ -38,10 +39,12 @@ jest.mock('@lib/cr-sqlite/install', () => ({
 jest.mock('@lib/orm', () => ({
   psInsertDbTable: jest.fn(() => Promise.resolve()),
   psClearTable: jest.fn(() => Promise.resolve()),
+  psResyncTable: jest.fn(() => Promise.resolve()),
+  getPendingCrudCount: jest.fn(() => Promise.resolve(0)),
 }));
 
 import React from 'react';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { getColors } from '@lib/theme/colors';
 
 // Test state - use object so mutations are visible to hoisted mocks
@@ -97,6 +100,8 @@ jest.mock('@lib/logging/syncLog', () => ({
 
 // Import after mocks are set up
 import { SetupSync } from '../SetupSync';
+import { psResyncTable } from '@lib/orm';
+import { startBackgroundSync } from '../../../../modules/my-module';
 
 // Helper to configure test scenarios
 const configureSettings = (configured: boolean) => {
@@ -323,6 +328,29 @@ describe('SetupSync UI States', () => {
       await renderAndWaitForStatus(<SetupSync />);
       const button = screen.getByTestId('danger-zone-button');
       expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('starts the background sync service after queueing a resync', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('sync-button'));
+      });
+
+      expect(psResyncTable).toHaveBeenCalledTimes(1);
+      expect(startBackgroundSync).toHaveBeenCalledTimes(1);
+      expect((psResyncTable as jest.Mock).mock.invocationCallOrder[0])
+        .toBeLessThan((startBackgroundSync as jest.Mock).mock.invocationCallOrder[0]);
+    });
+
+    it('does not start the background sync service when the resync fails', async () => {
+      (psResyncTable as jest.Mock).mockRejectedValueOnce(new Error('resync failed'));
+      await renderAndWaitForStatus(<SetupSync />);
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('sync-button'));
+      });
+
+      expect(psResyncTable).toHaveBeenCalledTimes(1);
+      expect(startBackgroundSync).not.toHaveBeenCalled();
     });
   });
 });

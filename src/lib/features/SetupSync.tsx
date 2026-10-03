@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState, memo, useMemo } from 'react';
 import { Linking, ScrollView } from 'react-native';
-import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage } from '../../../modules/my-module';
+import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage, startBackgroundSync } from '../../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
@@ -11,6 +11,7 @@ import type { UploadProgress } from '@lib/powersync/Connector';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { isSettingsConfigured } from '@lib/hooks/settingsStorage';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner, AlertText } from '@lib/components/ui';
@@ -38,13 +39,7 @@ const PollingTimestamp = memo(({ color }: { color: string }) => {
   );
 });
 
-/** Check if all required sync credentials are configured */
-export const isSettingsConfigured = (settings: Settings): boolean => Boolean(
-  settings.supabaseUrl &&
-  settings.supabaseAnonKey &&
-  settings.powersyncUrl &&
-  settings.powersyncSecret
-);
+export { isSettingsConfigured };
 
 export const SetupSync = () => {
   const navigation = useNavigation<AppNavigationProp>();
@@ -167,6 +162,8 @@ export const SetupSync = () => {
       setUploadProgress({ upserts: 0, updates: 0, deletes: 0 });
       setSyncCompleteAt(null);
       await psResyncTable(eventsDbName, 'eventsV9', providerDb);
+      // Keeps the upload going if this screen is left before the queue drains
+      await startBackgroundSync();
       const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
         setSqliteEvents(result.rows || []);

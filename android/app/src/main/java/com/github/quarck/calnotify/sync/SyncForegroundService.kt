@@ -56,8 +56,11 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         return startHeadlessTask(intent, flags, startId)
     }
 
-    public override fun getTaskConfig(intent: Intent?): HeadlessJsTaskConfig =
-        HeadlessJsTaskConfig(TASK_KEY, createTaskData(), TASK_TIMEOUT_MS, true)
+    public override fun getTaskConfig(intent: Intent?): HeadlessJsTaskConfig {
+        val data = createTaskData()
+        data.putBoolean(EXTRA_DEV_PAGE_FAKE_QUEUE, intent?.getBooleanExtra(EXTRA_DEV_PAGE_FAKE_QUEUE, false) ?: false)
+        return HeadlessJsTaskConfig(TASK_KEY, data, TASK_TIMEOUT_MS, true)
+    }
 
     internal open fun createTaskData(): WritableMap = Arguments.createMap()
 
@@ -99,6 +102,9 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         /** Must match the task registered in index.tsx */
         const val TASK_KEY = "CNPlusBackgroundSync"
         const val TASK_TIMEOUT_MS = 15 * Consts.MINUTE_IN_MILLISECONDS
+
+        /** Dev page only: the task drains a fake queue instead of the real upload queue */
+        const val EXTRA_DEV_PAGE_FAKE_QUEUE = "devPageFakeQueue"
 
         fun buildNotification(context: Context): Notification {
             val openDataSync = PendingIntent.getActivity(

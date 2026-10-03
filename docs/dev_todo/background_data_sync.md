@@ -73,13 +73,17 @@ Replace the placeholder with the real task, in a new file (`src/lib/powersync/ba
 
 1. If `db` isn't connected (the process was cold-started by the service), load settings and call `setupPowerSync(settings)`. This needs a loader that works outside React: extract `loadStoredSettings()` from `SettingsProvider.loadSettings` in `SettingsContext.tsx` and share it between the provider and the task. With no stored (or unconfigured) settings the task ends as failed.
 2. Resolve when `ps_crud` is empty and `currentStatus.dataFlowStatus.uploading` is false. Drive this from `db.registerListener({ statusChanged })`, re-checking the count on each status change. **No polling loop or sleeps**, per the repo rule. If a `db.watch` on `ps_crud` turns out to emit changes it can replace the listener, but the fallback is always "`statusChanged` → re-check count", never a periodic poll.
-3. Before resolving, the task reports its outcome to the service through a `MyModule` function: complete, or failed with a message (could not connect, or ops were discarded as fatal during the run). If the service sees the task finish with no outcome reported, the native timeout fired: that is the paused state.
+3. The task always resolves, catching its own errors, because RN never reports a rejected task as finished.
 
-`SetupSync.handleSync` calls `startBackgroundSync(total)` right after `psResyncTable` queues its ops, where `total` is the `ps_crud` count at that moment. The in-screen progress banner keeps working as it does today.
+`SetupSync.handleSync` calls `startBackgroundSync()` right after `psResyncTable` queues its ops. The in-screen progress banner keeps working as it does today.
+
+The Dev page button runs the same task against a **fake queue** that drains one op per tick, passed as a `devPageFakeQueue` flag from the intent through the task data. That exercises the service and the drain logic on an emulator without touching a backend.
+
+**Built as planned, with two things moved to the phases that use them:** the outcome report from the task to the service now lands with the terminal states (Phase 3), and the `total` argument to `startBackgroundSync` lands with the progress bar (Phase 4). `loadStoredSettings()` and `isSettingsConfigured()` live in a new `src/lib/hooks/settingsStorage.ts`, since the UI tests mock `SettingsContext` wholesale.
 
 ### Phase 3: Terminal states, so you know what happened while you were away
 
-The service owns the terminal state, because only native code sees the timeout. On task finish it:
+The service owns the terminal state, because only native code sees the timeout. Before resolving, the task reports its outcome to the service through a `MyModule` function: complete, or failed with a message (could not connect, or ops were discarded as fatal during the run). A finish with no outcome reported means the native timeout fired: that is the paused state. On task finish the service:
 
 - **Cancels the ongoing notification unconditionally**, whichever state follows.
 - **Posts a separate, non-ongoing notification** (when notifications are allowed) for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused — N ops pending` (timeout with work left; the ops stay queued, so it is not a failure). The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it.
@@ -89,7 +93,7 @@ The service owns the terminal state, because only native code sees the timeout. 
 
 ### Phase 4: Progress in the ongoing notification
 
-The service keeps `total` from `startBackgroundSync(total)`; the task pushes the current `ps_crud` count on each status change through a `MyModule` function. The notification shows a progress bar at `total - queued` of `total`, and is indeterminate when the total is unknown (cold start). The numbers do **not** come from `getUploadProgress()`: those counters are module globals and reset to zero if the service cold-starts the process. Optional: a Stop action that ends the task.
+`SetupSync` passes the `ps_crud` count right after queueing as `startBackgroundSync(total)`. The service keeps that `total`; the task pushes the current `ps_crud` count on each status change through a `MyModule` function. The notification shows a progress bar at `total - queued` of `total`, and is indeterminate when the total is unknown (cold start). The numbers do **not** come from `getUploadProgress()`: those counters are module globals and reset to zero if the service cold-starts the process. Optional: a Stop action that ends the task.
 
 ## Files Changed Summary
 
@@ -102,7 +106,8 @@ The service keeps `total` from `startBackgroundSync(total)`; the task pushes the
 | `modules/my-module/.../MyModule.kt`, `modules/my-module/index.ts` | `startBackgroundSync(total)`, outcome report, progress update, last-result getter |
 | `index.tsx` | `registerHeadlessTask` |
 | `src/lib/powersync/backgroundSync.ts` | **New.** The drain-until-empty task |
-| `src/lib/hooks/SettingsContext.tsx` | Extract `loadStoredSettings()` for use outside React |
+| `src/lib/hooks/settingsStorage.ts` | **New.** `loadStoredSettings()` and `isSettingsConfigured()`, usable outside React |
+| `android/.../ui/TestActivity.kt` | Dev page button that runs the service against the fake queue |
 | `src/lib/features/SetupSync.tsx` | Start the service after queueing a resync; show the persisted last result |
 
 ## Testing
@@ -120,7 +125,7 @@ The service keeps `total` from `startBackgroundSync(total)`; the task pushes the
   - `startBackgroundSync` is a no-op when the service is already running.
   - Terminal state writes the three fields with the injected clock's time; a finish with no reported outcome is recorded as paused.
   - A refused foreground start (`ForegroundServiceStartNotAllowedException`) stops the service without crashing.
-- **Manual on an emulator (required; tests can't observe backgrounding).** No backend is needed: the service behaviour is exercised with a debug stand-in task that drains a fake queue on a timer, and adb forces the conditions.
+- **Manual on an emulator (required; tests can't observe backgrounding).** No backend is needed: the service behaviour is exercised with the Dev page fake queue, which drains on a timer, and adb forces the conditions.
   - Start a sync, press Home right away, and confirm the progress keeps moving and the ongoing notification is replaced by "Sync complete". Repeat with back-press and with the screen off (`adb shell dumpsys deviceidle force-idle`).
   - Kill the process mid-sync (`adb shell am kill`, battery-optimization exemption granted) and confirm the service restarts and the drain finishes. Repeat with the exemption revoked and confirm there is no crash.
   - After the service has finished and the process has been killed, reopen Data Sync and confirm it shows the final "complete at HH:MM" or error state.
