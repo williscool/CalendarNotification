@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.identitystorage
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.calendar.CalendarProvider
@@ -91,6 +92,7 @@ class CalendarResolutionRobolectricTest {
         listOf(OLD_CALENDAR, NEW_CALENDAR, OTHER_OLD, OTHER_NEW)
             .forEach { settings.clearCalendarIsHandled(it) }
         ApplicationController.resetSettings()
+        ApplicationController.rethrowUnexpectedIdentityErrors = BuildConfig.DEBUG
         unmockkAll()
     }
 
@@ -328,6 +330,18 @@ class CalendarResolutionRobolectricTest {
             android.database.SQLException("disk full")
 
         ApplicationController.resolveEventCalendars(context)
+    }
+
+    @Test
+    fun anUnexpectedRuntimeExceptionDoesNotPropagateInRelease() {
+        ApplicationController.rethrowUnexpectedIdentityErrors = false
+        seed(100L, storedCalendarId = OLD_CALENDAR)
+        every { CalendarProvider.getCalendars(any()) } throws
+            NullPointerException("unexpected bug")
+
+        ApplicationController.resolveEventCalendars(context)
+
+        assertEquals(OLD_CALENDAR, storedCalendarIdOf(100L))
     }
 
     companion object {

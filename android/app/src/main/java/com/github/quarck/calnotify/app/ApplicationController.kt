@@ -24,6 +24,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
 import android.util.Log
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequestMonitor
@@ -217,6 +218,20 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     /**
+     * Whether an unexpected RuntimeException in a best-effort identity pass is
+     * rethrown. On in debug builds so tests and CI still fail loudly; off in
+     * release, where a bug in a restore-time feature must not crash the app on
+     * every launch (#298). Settable for tests.
+     */
+    var rethrowUnexpectedIdentityErrors: Boolean = BuildConfig.DEBUG
+
+    private fun onUnexpectedIdentityFailure(pass: String, ex: RuntimeException) {
+        DevLog.error(LOG_TAG, "$pass failed unexpectedly: ${ex.detailed}")
+        if (rethrowUnexpectedIdentityErrors)
+            throw ex
+    }
+
+    /**
      * Re-attach stored events to the right calendar on this device.
      *
      * The companion to [captureEventIdentities]. Capture flags rows whose stored
@@ -315,6 +330,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
         catch (ex: LinkageError) {
             DevLog.error(LOG_TAG, "Calendar re-link unavailable (native SQLite missing): ${ex.message}")
+        }
+        catch (ex: RuntimeException) {
+            onUnexpectedIdentityFailure("Calendar re-link", ex)
         }
     }
 
@@ -437,6 +455,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
         catch (ex: LinkageError) {
             DevLog.error(LOG_TAG, "Event re-key unavailable (native SQLite missing): ${ex.message}")
+        }
+        catch (ex: RuntimeException) {
+            onUnexpectedIdentityFailure("Event re-key", ex)
         }
     }
 
@@ -576,6 +597,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             // ones throw NoClassDefFoundError from the cached failed class init;
             // LinkageError is their common supertype.
             DevLog.error(LOG_TAG, "Identity capture unavailable (native SQLite missing): ${ex.message}")
+        }
+        catch (ex: RuntimeException) {
+            onUnexpectedIdentityFailure("Identity capture", ex)
         }
     }
 
