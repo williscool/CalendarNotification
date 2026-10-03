@@ -76,6 +76,14 @@ export function isUsingRoomStorage(): boolean {
   return MyModule.isUsingRoomStorage();
 }
 
+/**
+ * Starts the foreground service that keeps the sync upload running after the
+ * Data Sync screen is left. Safe to call while it is already running.
+ */
+export async function startBackgroundSync(): Promise<void> {
+  return await MyModule.startBackgroundSync();
+}
+
 const emitter = new EventEmitter(MyModule ?? NativeModulesProxy.MyModule);
 
 export function addChangeListener(listener: (event: ChangeEventPayload) => void): Subscription {

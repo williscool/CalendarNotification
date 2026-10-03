@@ -30,6 +30,10 @@
     <!-- Android 13+ (API 33) - Required for posting notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Background data sync runs in a dataSync foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
 
     <application
         android:name=".GlobalState"
@@ -198,6 +202,11 @@
         <service android:name=".notification.NotificationActionDismissService" android:exported="false" />
         <service android:name=".notification.NotificationActionSnoozeService" android:exported="false" />
         <service android:name=".notification.NotificationActionMuteToggleService" android:exported="false" />
+
+        <service
+            android:name=".sync.SyncForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <receiver 
             android:name=".broadcastreceivers.AppUpdatedBroadcastReceiver"

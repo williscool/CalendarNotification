@@ -459,6 +459,9 @@
     <string name="notification_channel_reminders_desc">Reminders for missed events</string>
     <string name="notification_channel_alarm_reminders">Alarm Reminders</string>
     <string name="notification_channel_alarm_reminders_desc">Reminders for missed events played with alarm volume</string>
+    <string name="notification_channel_sync">Data Sync</string>
+    <string name="notification_channel_sync_desc">Shown while events are syncing in the background</string>
+    <string name="sync_notification_title">Syncing events…</string>
     
     <!-- Notification channel groups -->
     <string name="notification_group_main">Main</string>

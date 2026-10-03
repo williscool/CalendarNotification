@@ -68,6 +68,8 @@ class NotificationChannelsRobolectricTest {
             channelIds.contains(NotificationChannels.CHANNEL_ID_REMINDERS))
         assertTrue("Alarm reminders channel should exist", 
             channelIds.contains(NotificationChannels.CHANNEL_ID_ALARM_REMINDERS))
+        assertTrue("Sync channel should exist", 
+            channelIds.contains(NotificationChannels.CHANNEL_ID_SYNC))
     }
 
     @Test
@@ -76,9 +78,9 @@ class NotificationChannelsRobolectricTest {
         NotificationChannels.createChannels(context)
         NotificationChannels.createChannels(context)
 
-        // Assert - should still have exactly 5 channels (no duplicates)
+        // Assert - should still have exactly 6 channels (no duplicates)
         val channels = notificationManager.notificationChannels
-        assertEquals("Should have exactly 5 channels", 5, channels.size)
+        assertEquals("Should have exactly 6 channels", 6, channels.size)
     }
 
     @Test
@@ -103,6 +105,18 @@ class NotificationChannelsRobolectricTest {
         assertNotNull("Silent channel should exist", silentChannel)
         assertEquals("Silent channel should have low importance",
             NotificationManager.IMPORTANCE_LOW, silentChannel?.importance)
+    }
+
+    @Test
+    fun `sync channel has low importance`() {
+        // Act
+        NotificationChannels.createChannels(context)
+
+        // Assert
+        val syncChannel = notificationManager.getNotificationChannel(NotificationChannels.CHANNEL_ID_SYNC)
+        assertNotNull("Sync channel should exist", syncChannel)
+        assertEquals("Sync channel should have low importance",
+            NotificationManager.IMPORTANCE_LOW, syncChannel?.importance)
     }
 
     // === Channel group tests ===

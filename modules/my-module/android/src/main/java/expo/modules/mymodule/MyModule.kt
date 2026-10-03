@@ -29,6 +29,9 @@ class MyModule : Module() {
     // Database name constants (must match EventsDatabase.kt)
     const val ROOM_DATABASE_NAME = "RoomEvents"
     const val LEGACY_DATABASE_NAME = "Events"
+
+    // CONTRACT: must match SyncForegroundService in the main app
+    const val SYNC_SERVICE_CLASS = "com.github.quarck.calnotify.sync.SyncForegroundService"
   }
 
   override fun definition() = ModuleDefinition {
@@ -108,6 +111,23 @@ class MyModule : Module() {
       
       Log.i(TAG, "isUsingRoomStorage: $isRoom")
       isRoom
+    }
+
+    // Starts the foreground service that keeps the sync upload running in the background.
+    // The service ignores a start while it is already running.
+    AsyncFunction("startBackgroundSync") {
+      val context = appContext.reactContext
+      if (context == null) {
+        Log.w(TAG, "startBackgroundSync: context is null, not starting")
+      } else {
+        val intent = Intent().setClassName(context, SYNC_SERVICE_CLASS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          context.startForegroundService(intent)
+        } else {
+          context.startService(intent)
+        }
+      }
+      Unit
     }
 
     // Enables the module to be used as a native view. Definition components that are accepted as part of

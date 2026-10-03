@@ -47,6 +47,7 @@ object NotificationChannels {
     const val CHANNEL_ID_SILENT = "calendar_silent"
     const val CHANNEL_ID_REMINDERS = "calendar_reminders"
     const val CHANNEL_ID_ALARM_REMINDERS = "calendar_alarm_reminders"
+    const val CHANNEL_ID_SYNC = "data_sync"
     
     /**
      * Creates all notification channels and groups. Safe to call multiple times -
@@ -140,12 +141,25 @@ object NotificationChannels {
             setSound(null, null)
         }
         
+        // Ongoing "sync in progress" notification for the background data sync service (Silent group)
+        val syncChannel = NotificationChannel(
+            CHANNEL_ID_SYNC,
+            context.getString(R.string.notification_channel_sync),
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = context.getString(R.string.notification_channel_sync_desc)
+            group = GROUP_ID_SILENT
+            enableVibration(false)
+            setSound(null, null)
+        }
+        
         notificationManager.createNotificationChannels(listOf(
             defaultChannel,
             remindersChannel,
             alarmChannel,
             alarmRemindersChannel,
-            silentChannel
+            silentChannel,
+            syncChannel
         ))
     }
     
