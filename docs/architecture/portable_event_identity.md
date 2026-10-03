@@ -189,25 +189,12 @@ Fixing `cid` was an in-place `UPDATE`. Fixing `eventId` is not: `eventId` is hal
 
 ### The four databases
 
-```
-┌──────────────────────┬────────────────────────────────────────────┐
-│ eventsV9             │ the event row itself                       │
-│                      │ PK is (id, instanceStartTime)              │
-│                      │ → delete + re-insert                       │
-├──────────────────────┼────────────────────────────────────────────┤
-│ eventIdentityV1      │ the captured identity                      │
-│                      │ → UPDATE eventId (native reKey)            │
-│                      │   originalEventId is never touched         │
-├──────────────────────┼────────────────────────────────────────────┤
-│ dismissedEventsV2    │ history of prior dismissals                │
-│                      │ → UPDATE eventId                           │
-├──────────────────────┼────────────────────────────────────────────┤
-│ manualAlertsV1       │ pending alerts                             │
-│                      │ → UPDATE eventId, scoped by istart         │
-│                      │   (a repeating event has one row per       │
-│                      │   occurrence — must not cross-write)       │
-└──────────────────────┴────────────────────────────────────────────┘
-```
+| Table | Holds | How it moves |
+|---|---|---|
+| `eventsV9` | the event row itself; PK is `(id, instanceStartTime)` | delete + re-insert |
+| `eventIdentityV1` | the captured identity | `UPDATE eventId` (native `reKey`); `originalEventId` is never touched |
+| `dismissedEventsV2` | history of prior dismissals | `UPDATE eventId` |
+| `manualAlertsV1` | pending alerts | `UPDATE eventId`, scoped by `istart` — a repeating event has one row per occurrence, so it must not cross-write |
 
 Room databases are separate files, so no shared transaction spans them. The pattern follows `ApplicationController.unsnoozeToUpcoming`: numbered writes, best-effort rollback of earlier steps if a later one fails.
 
@@ -221,25 +208,13 @@ The planner is a pure function — provider lookup and live-event lookup are pas
 
 `EventIdRekeyApplier.applyOne()` applies **one** change at a time, in a fixed order. Per-event, not per-batch, so one bad event does not abort the pass:
 
-```
-    ┌────────────────────────────────────────────────────────────┐
-    │ 1. readEvent(oldId, istart)                                │
-    │    → null: plan is stale, EventRowMissing (no writes)      │
-    ├────────────────────────────────────────────────────────────┤
-    │ 2. deleteEvent(oldId, istart)                              │
-    │    insertEvent(newRow with newId)                          │
-    │    → fail: tryReinsert(oldRow), EventsWriteFailed          │
-    ├────────────────────────────────────────────────────────────┤
-    │ 3. reKeyIdentity(oldId, istart, newId)                     │
-    │    → fail: rollbackEvent                                   │
-    ├────────────────────────────────────────────────────────────┤
-    │ 4. reKeyDismissed(oldId, newId)                            │
-    │    → fail: rollbackAfterIdentity                           │
-    ├────────────────────────────────────────────────────────────┤
-    │ 5. reKeyMonitorAlerts(oldId, newId, istart)                │
-    │    → fail: rollbackAfterDismissed                          │
-    └────────────────────────────────────────────────────────────┘
-```
+| Step | Call | On failure |
+|---|---|---|
+| 1 | `readEvent(oldId, istart)` | null → plan is stale, `EventRowMissing` (no writes) |
+| 2 | `deleteEvent(oldId, istart)`, then `insertEvent(newRow with newId)` | `tryReinsert(oldRow)`, `EventsWriteFailed` |
+| 3 | `reKeyIdentity(oldId, istart, newId)` | `rollbackEvent` |
+| 4 | `reKeyDismissed(oldId, newId)` | `rollbackAfterIdentity` |
+| 5 | `reKeyMonitorAlerts(oldId, newId, istart)` | `rollbackAfterDismissed` |
 
 The ordering is deliberate — sources of truth first, derived data after:
 
