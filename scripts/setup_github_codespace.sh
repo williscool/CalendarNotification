@@ -18,7 +18,9 @@ git config --global alias.log "log --color=always"
 # Install McFly using Homebrew
 touch $HOME/.bash_history
 echo "Installing McFly..."
-brew install mcfly
+# postCreateCommand has no one to answer brew's "[y/n]" prompt (it asks when it
+# has to pull in its own git/curl), so auto-answer or setup hangs forever.
+yes | brew install mcfly
 cp .devcontainer/mcfly_history.db ~/.local/share/mcfly/history.db
 
 # Configure McFly for bash
