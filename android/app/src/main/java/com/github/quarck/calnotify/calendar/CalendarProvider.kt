@@ -1790,13 +1790,16 @@ object CalendarProvider : CalendarProviderInterface {
 
         context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
+                // Any of these can be null (e.g. local calendars on de-Googled phones).
+                // Default to "" exactly as getCalendars does, so captured tuples
+                // compare equal to the ones the resolver matches against.
                 return CalendarBackupInfo(
                     calendarId = cursor.getLong(0),
-                    accountName = cursor.getString(1),
-                    accountType = cursor.getString(2),
-                    ownerAccount = cursor.getString(3),
-                    displayName = cursor.getString(4),
-                    name = cursor.getString(5)
+                    accountName = cursor.getString(1) ?: "",
+                    accountType = cursor.getString(2) ?: "",
+                    ownerAccount = cursor.getString(3) ?: "",
+                    displayName = cursor.getString(4) ?: "",
+                    name = cursor.getString(5) ?: ""
                 )
             }
         }
