@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.identitystorage
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.calendar.CalendarEventDetails
@@ -38,6 +39,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -174,6 +176,7 @@ class EventIdentityCaptureRobolectricTest {
         ApplicationController.eventIdentityStorageProvider = null
         ApplicationController.eventsStorageProvider = null
         ApplicationController.dismissedEventsStorageProvider = null
+        ApplicationController.rethrowUnexpectedIdentityErrors = BuildConfig.DEBUG
         unmockkAll()
     }
 
@@ -334,6 +337,30 @@ class EventIdentityCaptureRobolectricTest {
             throw AssertionError(
                 "capture must swallow provider failures, but threw: ${ex.cause}"
             )
+        }
+    }
+
+    @Test
+    fun anUnexpectedRuntimeExceptionDoesNotPropagateInRelease() {
+        // #298 shape: a bug outside the listed failure types. In a release
+        // build it must cost this pass, not crash the app on open.
+        ApplicationController.rethrowUnexpectedIdentityErrors = false
+        every { CalendarProvider.getCalendarBackupInfo(any(), any()) } throws
+            NullPointerException("getString(...) must not be null")
+
+        capture(listOf(alertRecord(100L)))
+
+        assertTrue(identityStorage.stored.isEmpty())
+    }
+
+    @Test
+    fun anUnexpectedRuntimeExceptionIsRethrownInDebug() {
+        ApplicationController.rethrowUnexpectedIdentityErrors = true
+        every { CalendarProvider.getCalendarBackupInfo(any(), any()) } throws
+            NullPointerException("getString(...) must not be null")
+
+        assertThrows(NullPointerException::class.java) {
+            capture(listOf(alertRecord(100L)))
         }
     }
 
