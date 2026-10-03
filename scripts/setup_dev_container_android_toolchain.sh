@@ -1,6 +1,7 @@
 #!/bin/bash
 # Setup script for devcontainer aka GitHub Codespace android development environment
-brew install ccache
+# Auto-answer brew's "[y/n]" prompt; this runs unattended from postCreateCommand.
+yes | brew install ccache
 
 ## begin ephemeral android sdk setup. will have to do this every time.
 # so I can run this everytime if I want
