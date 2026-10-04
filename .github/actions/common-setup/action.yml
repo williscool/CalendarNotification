@@ -54,6 +54,10 @@ inputs:
     description: 'Skip free disk space cleanup (for jobs that dont need extra space)'
     required: false
     default: "false"
+  min_free_disk_gb:
+    description: 'Run the full disk cleanup only when the runner has less than this many GB free'
+    required: false
+    default: "40"
 
 outputs:
   build-outputs-cache-hit:
@@ -95,8 +99,24 @@ runs:
 
     # Free Disk Space - skip for test_runner_only or skip_disk_space
     # (emulator + APKs, or coverage merge jobs fit comfortably in default runner disk space)
-    - name: Free Disk Space
+    #
+    # Only when the runner is actually short on space. This became unconditional
+    # in #116 (Dec 2025), when runners had ~14-20GB free and bloated Gradle caches
+    # filled them. Hosted runners now have a 145GB disk with ~86GB free, and the
+    # cleanup costs ~1.7m on the build's critical path. The bloat itself is
+    # handled by "Pre-cleanup old Gradle caches" below, which always runs.
+    - name: Check free disk space
+      id: disk
       if: inputs.test_runner_only != 'true' && inputs.skip_disk_space != 'true'
+      shell: bash
+      run: |
+        free_gb=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+        low=false; [ "$free_gb" -lt "${{ inputs.min_free_disk_gb }}" ] && low=true
+        echo "Free disk: ${free_gb}GB, cleanup threshold ${{ inputs.min_free_disk_gb }}GB, cleanup: $low"
+        echo "low=$low" >> $GITHUB_OUTPUT
+
+    - name: Free Disk Space
+      if: steps.disk.outputs.low == 'true'
       uses: endersonmenezes/free-disk-space@v3
       with:
         remove_android: false        # Keep Android SDK
