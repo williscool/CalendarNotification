@@ -473,6 +473,9 @@
         <item quantity="other">Timed out with %d uploads still queued. They resume the next time you sync.</item>
     </plurals>
     <string name="sync_notification_progress">%1$d of %2$d uploaded</string>
+    <string name="sync_notification_progress_deleting">Deleting old remote copies: %1$d of %2$d</string>
+    <string name="sync_notification_progress_uploading">Uploading events: %1$d of %2$d</string>
+    <string name="sync_notification_progress_updating">Updating events: %1$d of %2$d</string>
     
     <!-- Notification channel groups -->
     <string name="notification_group_main">Main</string>

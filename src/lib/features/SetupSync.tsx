@@ -138,6 +138,14 @@ export const SetupSync = () => {
               emitSyncLog('info', 'Sync complete — upload queue drained');
               setSyncCompleteAt(new Date().toLocaleTimeString());
             }
+            // PowerSync starts uploading whatever is queued as soon as it connects, including
+            // changes left over from an interrupted sync, and Full Resync is disabled meanwhile.
+            // Start the service so that upload also survives leaving this screen.
+            if (count > 0 && !prevPendingOps) {
+              startBackgroundSync().catch(error =>
+                emitSyncLog('warn', 'Failed to start background sync', { error })
+              );
+            }
             prevPendingOps = count;
             setPendingOps(count);
           }

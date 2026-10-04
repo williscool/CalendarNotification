@@ -102,7 +102,7 @@ jest.mock('@lib/logging/syncLog', () => ({
 
 // Import after mocks are set up
 import { SetupSync } from '../SetupSync';
-import { psResyncTable } from '@lib/orm';
+import { psResyncTable, getPendingCrudCount } from '@lib/orm';
 import { startBackgroundSync, getLastBackgroundSyncResult, areNotificationsEnabled } from '../../../../modules/my-module';
 
 // Helper to configure test scenarios
@@ -162,6 +162,11 @@ const renderAndWaitForStatus = async (ui: React.ReactElement) => {
   return result;
 };
 
+// Changes still waiting to upload when the screen opens; any non-zero count will do
+const LEFTOVER_QUEUED_OPS = 1138;
+// How often SetupSync polls the PowerSync status and queue count
+const STATUS_POLL_MS = 1000;
+
 // Any fixed time will do: the banner tests only check the wording around it
 const LAST_SYNC_COMPLETED_AT_MS = 1700000000000;
 
@@ -169,7 +174,8 @@ describe('SetupSync UI States', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    // Reset to defaults
+    // Reset to defaults (clearAllMocks keeps implementations a test has overridden)
+    (getPendingCrudCount as jest.Mock).mockImplementation(() => Promise.resolve(0));
     configureSettings(false);
     configurePowerSyncStatus(null);
   });
@@ -357,6 +363,30 @@ describe('SetupSync UI States', () => {
       (areNotificationsEnabled as jest.Mock).mockReturnValueOnce(false);
       await renderAndWaitForStatus(<SetupSync />);
       expect(screen.getByTestId('notifications-off-banner')).toHaveTextContent(/Notifications are off/);
+    });
+
+    it('starts the background sync service when it finds changes already queued', async () => {
+      // e.g. left over from a sync that was interrupted before this version
+      (getPendingCrudCount as jest.Mock).mockResolvedValue(LEFTOVER_QUEUED_OPS);
+      await renderAndWaitForStatus(<SetupSync />);
+
+      expect(startBackgroundSync).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts the background sync service only once while the queue stays non-empty', async () => {
+      (getPendingCrudCount as jest.Mock).mockResolvedValue(LEFTOVER_QUEUED_OPS);
+      await renderAndWaitForStatus(<SetupSync />);
+      await act(async () => {
+        jest.advanceTimersByTime(STATUS_POLL_MS * 3);
+      });
+
+      expect(startBackgroundSync).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not start the background sync service when nothing is queued', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+
+      expect(startBackgroundSync).not.toHaveBeenCalled();
     });
 
     it('starts the background sync service after queueing a resync', async () => {

@@ -37,8 +37,10 @@ export interface BackgroundSyncEnvironment {
   inFlightUploaded(): number;
   /** Returns a function that removes the listener */
   onUploadProgress(listener: () => void): () => void;
-  /** Feeds the progress bar in the service's notification */
-  reportProgress(done: number, total: number, queued: number): Promise<void>;
+  /** What the op being uploaded does (PowerSync's PUT, PATCH or DELETE), or null before the first one */
+  currentOperation(): string | null;
+  /** Feeds the progress bar and text in the service's notification */
+  reportProgress(done: number, total: number, queued: number, operation: string | null): Promise<void>;
 }
 
 /**
@@ -114,7 +116,7 @@ const drainReportingProgress = async (environment: BackgroundSyncEnvironment): P
   const warn = (error: unknown) => emitSyncLog('warn', 'Failed to report background sync progress', { error });
   const report = () => {
     const done = Math.max(0, Math.min(total, total - queued + environment.inFlightUploaded()));
-    environment.reportProgress(done, total, queued).catch(warn);
+    environment.reportProgress(done, total, queued, environment.currentOperation()).catch(warn);
   };
   // The queue shrinks a whole transaction at a time, and each completion is a status change
   const stopWatchingQueue = environment.queue.onStatusChanged(() => {
@@ -211,5 +213,6 @@ export const backgroundSyncTask = (data?: { devPageFakeQueue?: boolean }): Promi
     reportOutcome: reportBackgroundSyncOutcome,
     inFlightUploaded: () => inFlightUploads.count,
     onUploadProgress: listener => inFlightUploads.registerListener({ countChanged: listener }),
+    currentOperation: () => inFlightUploads.operation,
     reportProgress: reportBackgroundSyncProgress,
   });

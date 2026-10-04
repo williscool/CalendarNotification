@@ -55,17 +55,29 @@ open class SyncForegroundService : HeadlessJsTaskService() {
 
     private val state by lazy { BackgroundSyncState(this) }
 
+    /** Fixed timestamp for the ongoing notification, so its many updates don't re-rank it */
+    private var syncStartedAt = 0L
+
+    /** When the ongoing notification was last re-posted with new progress */
+    private var lastProgressPostAt = 0L
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // The previous run's progress must be gone before the notification is first built
-        if (!taskStarted) state.clearReported()
+        if (!taskStarted) {
+            state.clearReported()
+            syncStartedAt = clock.currentTimeMillis()
+        }
         // Every start has to enter the foreground, but only the first one starts a task
         if (!enterForegroundOrStop()) return START_NOT_STICKY
         if (taskStarted) return START_REDELIVER_INTENT
         taskStarted = true
         state.watchProgress {
+            val now = clock.currentTimeMillis()
+            if (now - lastProgressPostAt < PROGRESS_NOTIFICATION_MIN_INTERVAL_MS) return@watchProgress
+            lastProgressPostAt = now
             notificationManager.notify(
                 Consts.NOTIFICATION_ID_SYNC,
-                buildNotification(this, state.progressDone, state.progressTotal)
+                buildNotification(this, syncStartedAt, state.progressDone, state.progressTotal, state.progressOperation)
             )
         }
         notificationManager.cancel(Consts.NOTIFICATION_ID_SYNC_RESULT)
@@ -110,7 +122,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         super.onStartCommand(intent, flags, startId)
 
     internal open fun enterForeground() {
-        val notification = buildNotification(this, state.progressDone, state.progressTotal)
+        val notification = buildNotification(this, syncStartedAt, state.progressDone, state.progressTotal, state.progressOperation)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(Consts.NOTIFICATION_ID_SYNC, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -145,15 +157,49 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         const val TASK_KEY = "CNPlusBackgroundSync"
         const val TASK_TIMEOUT_MS = 15 * Consts.MINUTE_IN_MILLISECONDS
 
+        /**
+         * Progress arrives with every uploaded op, several per second. Android drops an app's
+         * notification posts above about 5 a second, and a bar doesn't need more than one.
+         */
+        const val PROGRESS_NOTIFICATION_MIN_INTERVAL_MS = 1000L
+
         /** Dev page only: the task drains a fake queue instead of the real upload queue */
         const val EXTRA_DEV_PAGE_FAKE_QUEUE = "devPageFakeQueue"
 
-        /** The bar is indeterminate until the task has reported how much is queued ([total] of zero) */
-        fun buildNotification(context: Context, done: Int = 0, total: Int = 0): Notification =
+        // PowerSync's UpdateType values, as reported by the JS task
+        private const val OPERATION_DELETE = "DELETE"
+        private const val OPERATION_PUT = "PUT"
+        private const val OPERATION_PATCH = "PATCH"
+
+        /**
+         * The bar is indeterminate until the task has reported how much is queued ([total] of zero).
+         * The text says what the op being uploaded does, since a Full Resync spends its first half
+         * deleting.
+         */
+        fun buildNotification(
+            context: Context,
+            startedAt: Long,
+            done: Int = 0,
+            total: Int = 0,
+            operation: String? = null
+        ): Notification =
             notificationBuilder(context)
+                // Android ranks notifications by this timestamp. Left to default it is the time of
+                // each update, so every progress update re-ranked the notification and, once the
+                // channel isn't silent, shuffled the event notifications in and out of view.
+                .setWhen(startedAt)
+                .setShowWhen(false)
                 .setContentTitle(context.getString(R.string.sync_notification_title))
                 .setContentText(
-                    if (total > 0) context.getString(R.string.sync_notification_progress, done, total) else null
+                    if (total > 0) {
+                        val progressText = when (operation) {
+                            OPERATION_DELETE -> R.string.sync_notification_progress_deleting
+                            OPERATION_PUT -> R.string.sync_notification_progress_uploading
+                            OPERATION_PATCH -> R.string.sync_notification_progress_updating
+                            else -> R.string.sync_notification_progress
+                        }
+                        context.getString(progressText, done, total)
+                    } else null
                 )
                 .setProgress(total, done, total == 0)
                 .setOngoing(true)

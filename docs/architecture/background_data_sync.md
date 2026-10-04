@@ -30,16 +30,17 @@ A Full Resync queues its changes locally in a moment (`psResyncTable` writes int
 | `powersync/backgroundSync.ts` | The headless task: connect if needed, wait for the queue to drain while reporting progress, report the outcome. Registered in `index.tsx`. |
 | `powersync/Connector.ts` | `inFlightUploads`: counts ops uploaded from the transaction in flight (a PowerSync `BaseObserver`). |
 | `hooks/settingsStorage.ts` | `loadStoredSettings()`, usable outside React when the service cold-starts the app. |
-| `features/SetupSync.tsx` | Full Resync starts the service; the screen shows the last result and a note when notifications are off. |
+| `features/SetupSync.tsx` | Starts the service from Full Resync, and whenever its queue poll goes from empty to non-empty; shows the last result and a note when notifications are off. |
 
 ## What runs each sync
 
 ```
-Full Resync (SetupSync.handleSync)              Dev page "BACKGROUND SYNC TEST"
-    │                                                │
-    ├─ psResyncTable()      queues deletes + inserts  │  (intent extra: fake queue)
-    └─ startBackgroundSync() ───────┐                │
-                                    ▼                ▼
+Full Resync (SetupSync.handleSync)     Data Sync sees a       Dev page "BACKGROUND
+    │                                  non-empty queue        SYNC TEST"
+    ├─ psResyncTable()                     │                      │
+    │    queues deletes + inserts          │                      │ (intent extra:
+    └─ startBackgroundSync() ─────┐        │                      │  fake queue)
+                                  ▼        ▼                      ▼
 SyncForegroundService.onStartCommand         (dataSync foreground service, wake lock)
     │
     ├─ clear the last run's reports            (before the notification is first built)
@@ -86,7 +87,7 @@ Both sides share one SharedPreferences file, `background_sync_state`. JS writes 
 | Key | Written by | Read by |
 |-----|-----------|---------|
 | `reported_ok`, `reported_error` | JS task, just before it finishes | Service, when the task ends. Missing means the timeout ended it. |
-| `progress_done`, `progress_total`, `queued` | JS task, as uploads go through | Service (watches for changes, re-posts the progress notification). `queued` also feeds the paused text. |
+| `progress_done`, `progress_total`, `queued`, `progress_operation` | JS task, as uploads go through | Service (watches for changes, re-posts the progress notification). `queued` also feeds the paused text. |
 | `sync_last_completed_at`, `sync_last_completed_ok`, `sync_last_error` | Service, when the task ends | Data Sync screen, on open (`getLastBackgroundSyncResult`) |
 
 The service clears the reported and progress keys at the start of each run. The file is not in `backup_rules.xml`, so a restore never brings back a stale result.
@@ -95,7 +96,7 @@ The service clears the reported and progress keys at the start of each run. The 
 
 | | Notification ID | Channel | Group |
 |--|-----------------|---------|-------|
-| Ongoing "Syncing events… X of Y uploaded" | `NOTIFICATION_ID_SYNC` | `data_sync` (low importance, silent, Silent group) | `BACKGROUND_SYNC` |
+| Ongoing "Syncing events…" with "Deleting old remote copies / Uploading events: X of Y" | `NOTIFICATION_ID_SYNC` | `data_sync` (low importance, silent, Silent group) | `BACKGROUND_SYNC` |
 | "Sync complete" | `NOTIFICATION_ID_SYNC_RESULT` | `data_sync` | `BACKGROUND_SYNC` |
 | "Sync failed" / "Sync paused" | `NOTIFICATION_ID_SYNC_RESULT` | `data_sync_problems` (default importance, Main group) | `BACKGROUND_SYNC` |
 
@@ -116,6 +117,7 @@ PowerSync removes rows from `ps_crud` only when a whole transaction completes, a
 - **A rejected task never finishes.** `AppRegistry.startHeadlessTask` only reports a finish when the promise resolves. `runBackgroundSync` catches everything and always resolves.
 - **The timeout is native-only.** JS is never told; the service records a finish with nothing reported as paused.
 - **Restart after a process kill.** The service keeps React Native's `START_REDELIVER_INTENT`, so Android restarts it and the drain resumes. That background restart is allowed on Android 12+ because the app is exempt from battery optimizations. Without the exemption the service catches `ForegroundServiceStartNotAllowedException` and stops; the queue stays persisted.
+- **PowerSync uploads without being asked.** Once connected it starts on whatever is queued, including changes left over from an interrupted sync, and Full Resync stays disabled while anything is queued. So Data Sync starts the service whenever its queue poll goes from empty to non-empty, not only from Full Resync. Found on a phone whose 9.30 sync never finished: the leftover upload ran with no service, so it would have stalled once the screen was left.
 - **Permissions.** `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` are granted at install. If notifications are denied the sync still runs; only its notifications are hidden, and the Data Sync screen says so.
 
 ## Testing

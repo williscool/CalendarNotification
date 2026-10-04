@@ -70,8 +70,14 @@ class SyncForegroundServiceRobolectricTest {
         }
     }
 
+    companion object {
+        /** Any gap will do: long enough that a fresh timestamp would differ */
+        private const val PROGRESS_UPDATE_GAP_MS = 30_000L
+    }
+
     private lateinit var context: Context
     private lateinit var service: TestService
+    private lateinit var clock: CNPlusUnitTestClock
 
     private val prefs
         get() = context.getSharedPreferences(MyModule.SYNC_PREFS_NAME, Context.MODE_PRIVATE)
@@ -84,7 +90,8 @@ class SyncForegroundServiceRobolectricTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         service = Robolectric.buildService(TestService::class.java).create().get()
-        service.clock = CNPlusUnitTestClock(TestTimeConstants.STANDARD_TEST_TIME)
+        clock = CNPlusUnitTestClock(TestTimeConstants.STANDARD_TEST_TIME)
+        service.clock = clock
     }
 
     @After
@@ -125,7 +132,7 @@ class SyncForegroundServiceRobolectricTest {
 
     @Test
     fun `notification is ongoing on the sync channel and opens Data Sync`() {
-        val notification = SyncForegroundService.buildNotification(context)
+        val notification = SyncForegroundService.buildNotification(context, TestTimeConstants.STANDARD_TEST_TIME)
 
         assertEquals(NotificationChannels.CHANNEL_ID_SYNC, notification.channelId)
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
@@ -238,11 +245,12 @@ class SyncForegroundServiceRobolectricTest {
     // === Progress ===
 
     /** What MyModule.reportBackgroundSyncProgress writes as uploads go through */
-    private fun reportProgress(done: Int, total: Int, queued: Int) {
+    private fun reportProgress(done: Int, total: Int, queued: Int, operation: String? = null) {
         prefs.edit()
             .putInt(MyModule.PREF_SYNC_PROGRESS_DONE, done)
             .putInt(MyModule.PREF_SYNC_PROGRESS_TOTAL, total)
             .putInt(MyModule.PREF_SYNC_QUEUED, queued)
+            .putString(MyModule.PREF_SYNC_PROGRESS_OPERATION, operation)
             .commit()
         shadowOf(android.os.Looper.getMainLooper()).idle()
     }
@@ -253,7 +261,7 @@ class SyncForegroundServiceRobolectricTest {
 
     @Test
     fun `notification progress is indeterminate until the task reports a total`() {
-        val notification = SyncForegroundService.buildNotification(context)
+        val notification = SyncForegroundService.buildNotification(context, TestTimeConstants.STANDARD_TEST_TIME)
 
         assertTrue(shadowOf(notification).isIndeterminate)
         assertNull(shadowOf(notification).contentText)
@@ -261,12 +269,58 @@ class SyncForegroundServiceRobolectricTest {
 
     @Test
     fun `notification shows determinate progress once a total is known`() {
-        val notification = SyncForegroundService.buildNotification(context, done = 3, total = 10)
+        val notification = SyncForegroundService.buildNotification(context, TestTimeConstants.STANDARD_TEST_TIME, done = 3, total = 10)
 
         assertFalse(shadowOf(notification).isIndeterminate)
         assertEquals(3, shadowOf(notification).progress)
         assertEquals(10, shadowOf(notification).max)
         assertEquals("3 of 10 uploaded", shadowOf(notification).contentText)
+    }
+
+    @Test
+    fun `notification says what the op being uploaded does`() {
+        fun text(operation: String?) =
+            shadowOf(SyncForegroundService.buildNotification(context, TestTimeConstants.STANDARD_TEST_TIME, done = 3, total = 10, operation = operation)).contentText
+
+        assertEquals("Deleting old remote copies: 3 of 10", text("DELETE"))
+        assertEquals("Uploading events: 3 of 10", text("PUT"))
+        assertEquals("Updating events: 3 of 10", text("PATCH"))
+        assertEquals("3 of 10 uploaded", text(null))
+    }
+
+    @Test
+    fun `progress is re-posted at most once per interval`() {
+        service.onStartCommand(null, 0, 1)
+        reportProgress(done = 1, total = 10, queued = 10)
+
+        reportProgress(done = 2, total = 10, queued = 10)
+        assertEquals("1 of 10 uploaded", shadowOf(ongoingNotification).contentText)
+
+        clock.advanceBy(SyncForegroundService.PROGRESS_NOTIFICATION_MIN_INTERVAL_MS)
+        reportProgress(done = 3, total = 10, queued = 10)
+        assertEquals("3 of 10 uploaded", shadowOf(ongoingNotification).contentText)
+    }
+
+    @Test
+    fun `progress updates keep the timestamp of when the sync started`() {
+        service.onStartCommand(null, 0, 1)
+        clock.advanceBy(PROGRESS_UPDATE_GAP_MS)
+
+        reportProgress(done = 5, total = 10, queued = 10)
+
+        assertEquals(TestTimeConstants.STANDARD_TEST_TIME, ongoingNotification.`when`)
+        assertFalse(ongoingNotification.extras.getBoolean(Notification.EXTRA_SHOW_WHEN, true))
+    }
+
+    @Test
+    fun `a change of operation alone updates the ongoing notification`() {
+        service.onStartCommand(null, 0, 1)
+        reportProgress(done = 5, total = 10, queued = 10, operation = "DELETE")
+        clock.advanceBy(SyncForegroundService.PROGRESS_NOTIFICATION_MIN_INTERVAL_MS)
+
+        reportProgress(done = 5, total = 10, queued = 10, operation = "PUT")
+
+        assertEquals("Uploading events: 5 of 10", shadowOf(ongoingNotification).contentText)
     }
 
     @Test
