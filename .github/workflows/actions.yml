@@ -121,6 +121,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: true
+        # PRs restore master's ccache; only master saves (see Update Caches)
+        save: ${{ github.ref == 'refs/heads/master' }}
 
     # Set repository name as env variable
     - name: Set repository name as env variable
@@ -211,9 +213,13 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-    # Update all caches (skip saves for caches that were already hit)
+    # Update all caches (skip saves for caches that were already hit).
+    # Master only: PR runs restore master's caches (kept warm by cache-warming.yml
+    # on every merge), and PR-scoped saves bought nothing -- later pushes to a PR
+    # built no faster than first pushes (median 9.6m both) -- while adding ~1.3m
+    # to the build job and churning the 100GB cache budget.
     - name: Update Caches
-      if: always()
+      if: always() && github.ref == 'refs/heads/master'
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
@@ -431,6 +437,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: true
+        # PRs restore master's ccache; only master saves (see Update Caches)
+        save: ${{ github.ref == 'refs/heads/master' }}
 
     # Execute the common setup
     # Skip disk cleanup - unit tests are pure Kotlin/Java, don't use emulator
@@ -898,9 +906,10 @@ jobs:
         path: emulator.log
         retention-days: 90
 
-    # Only save Android cache for test runners (Node/Yarn/Gradle not restored)
+    # Only save Android cache for test runners (Node/Yarn/Gradle not restored).
+    # Master only, like the build job's Update Caches.
     - name: Update Caches
-      if: always()
+      if: always() && github.ref == 'refs/heads/master'
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
