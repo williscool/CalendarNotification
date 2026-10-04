@@ -19,10 +19,9 @@ TEST_PACKAGE="${APP_PACKAGE}.test"
 TEST_RUNNER="com.atiurin.ultron.allure.UltronAllureTestRunner"
 UI_TEST_PACKAGE="com.github.quarck.calnotify.ui"
 
-# Sharding strategy (with 4 shards):
-#   Shards 0-1: UI tests (slow) - get 2 shards
-#   Shards 2-3: Non-UI tests (fast) - get 2 shards
-UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
+# Sharding strategy: the first half of the shards run UI tests (slow), the
+# second half non-UI tests. With 8 shards: 0-3 UI, 4-7 non-UI.
+# UI_SHARD_COUNT is set from NUM_SHARDS once arguments are parsed.
 
 # --- Default Configuration (from env vars or defaults) ---
 SHARD_INDEX="${SHARD_INDEX:-}"
@@ -155,7 +154,7 @@ build_instrument_command() {
   cmd+=" -e reportFile \"$xml_report_path\""
 
   # Smart sharding: UI tests get shards 0-(UI_SHARD_COUNT-1), non-UI get the rest
-  # With 4 total shards and UI_SHARD_COUNT=2:
+  # With 4 total shards and UI_SHARD_COUNT=2 (8 shards scale the same way):
   #   Shard 0: UI tests, shard 0 of 2
   #   Shard 1: UI tests, shard 1 of 2
   #   Shard 2: Non-UI tests, shard 0 of 2
@@ -210,6 +209,7 @@ pull_allure_results() {
 # --- Main ---
 main() {
   parse_args "$@"
+  UI_SHARD_COUNT=$(( ${NUM_SHARDS:-0} / 2 ))  # Shards dedicated to UI tests
 
   # Print configuration
   echo "=== Matrix Android Test Runner ==="
