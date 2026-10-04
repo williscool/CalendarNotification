@@ -58,6 +58,9 @@ open class SyncForegroundService : HeadlessJsTaskService() {
     /** Fixed timestamp for the ongoing notification, so its many updates don't re-rank it */
     private var syncStartedAt = 0L
 
+    /** When the ongoing notification was last re-posted with new progress */
+    private var lastProgressPostAt = 0L
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // The previous run's progress must be gone before the notification is first built
         if (!taskStarted) {
@@ -69,6 +72,9 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         if (taskStarted) return START_REDELIVER_INTENT
         taskStarted = true
         state.watchProgress {
+            val now = clock.currentTimeMillis()
+            if (now - lastProgressPostAt < PROGRESS_NOTIFICATION_MIN_INTERVAL_MS) return@watchProgress
+            lastProgressPostAt = now
             notificationManager.notify(
                 Consts.NOTIFICATION_ID_SYNC,
                 buildNotification(this, syncStartedAt, state.progressDone, state.progressTotal, state.progressOperation)
@@ -150,6 +156,12 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         /** Must match the task registered in index.tsx */
         const val TASK_KEY = "CNPlusBackgroundSync"
         const val TASK_TIMEOUT_MS = 15 * Consts.MINUTE_IN_MILLISECONDS
+
+        /**
+         * Progress arrives with every uploaded op, several per second. Android drops an app's
+         * notification posts above about 5 a second, and a bar doesn't need more than one.
+         */
+        const val PROGRESS_NOTIFICATION_MIN_INTERVAL_MS = 1000L
 
         /** Dev page only: the task drains a fake queue instead of the real upload queue */
         const val EXTRA_DEV_PAGE_FAKE_QUEUE = "devPageFakeQueue"

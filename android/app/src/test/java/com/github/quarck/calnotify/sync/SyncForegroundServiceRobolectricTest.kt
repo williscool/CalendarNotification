@@ -289,6 +289,19 @@ class SyncForegroundServiceRobolectricTest {
     }
 
     @Test
+    fun `progress is re-posted at most once per interval`() {
+        service.onStartCommand(null, 0, 1)
+        reportProgress(done = 1, total = 10, queued = 10)
+
+        reportProgress(done = 2, total = 10, queued = 10)
+        assertEquals("1 of 10 uploaded", shadowOf(ongoingNotification).contentText)
+
+        clock.advanceBy(SyncForegroundService.PROGRESS_NOTIFICATION_MIN_INTERVAL_MS)
+        reportProgress(done = 3, total = 10, queued = 10)
+        assertEquals("3 of 10 uploaded", shadowOf(ongoingNotification).contentText)
+    }
+
+    @Test
     fun `progress updates keep the timestamp of when the sync started`() {
         service.onStartCommand(null, 0, 1)
         clock.advanceBy(PROGRESS_UPDATE_GAP_MS)
@@ -303,6 +316,7 @@ class SyncForegroundServiceRobolectricTest {
     fun `a change of operation alone updates the ongoing notification`() {
         service.onStartCommand(null, 0, 1)
         reportProgress(done = 5, total = 10, queued = 10, operation = "DELETE")
+        clock.advanceBy(SyncForegroundService.PROGRESS_NOTIFICATION_MIN_INTERVAL_MS)
 
         reportProgress(done = 5, total = 10, queued = 10, operation = "PUT")
 
