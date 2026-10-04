@@ -233,9 +233,9 @@ android {
   testOptions {
     unitTests.all {
       // Run test classes across parallel JVMs; the suite (~1000 tests, mostly
-      // Robolectric) took ~5m in one fork on CI's 4-core runner. Half the cores
-      // leaves headroom for the Gradle daemon (-Xmx8g) and Robolectric's memory.
-      maxParallelForks = Math.max(1, Runtime.runtime.availableProcessors().intdiv(2))
+      // Robolectric) took ~5m in one fork on CI's 4-core runner.
+      // EXPERIMENT: one fork per core (2 forks: ~4.1m)
+      maxParallelForks = Runtime.runtime.availableProcessors()
       jacoco {
         includeNoLocationClasses = true
         excludes = ['jdk.internal.*']
