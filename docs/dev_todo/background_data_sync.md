@@ -79,14 +79,14 @@ Replace the placeholder with the real task, in a new file (`src/lib/powersync/ba
 
 The Dev page button runs the same task against a **fake queue** that drains one op per tick, passed as a `devPageFakeQueue` flag from the intent through the task data. That exercises the service and the drain logic on an emulator without touching a backend.
 
-**Built as planned, with two things moved to the phases that use them:** the outcome report from the task to the service now lands with the terminal states (Phase 3), and the `total` argument to `startBackgroundSync` lands with the progress bar (Phase 4). `loadStoredSettings()` and `isSettingsConfigured()` live in a new `src/lib/hooks/settingsStorage.ts`, since the UI tests mock `SettingsContext` wholesale.
+**Built as planned, with two things moved to the phases that use them:** the outcome report from the task to the service now lands with the terminal states (Phase 3), and the `total` argument to `startBackgroundSync` was left for the progress bar (Phase 4), which turned out not to need it. `loadStoredSettings()` and `isSettingsConfigured()` live in a new `src/lib/hooks/settingsStorage.ts`, since the UI tests mock `SettingsContext` wholesale.
 
 ### Phase 3: Terminal states, so you know what happened while you were away
 
 The service owns the terminal state, because only native code sees the timeout. Before resolving, the task reports its outcome to the service through a `MyModule` function: complete, or failed with a message (could not connect, or ops were discarded as fatal during the run). A finish with no outcome reported means the native timeout fired: that is the paused state. On task finish the service:
 
 - **Cancels the ongoing notification unconditionally**, whichever state follows.
-- **Posts a separate, non-ongoing notification** (when notifications are allowed; its own notification ID so it outlives the service) for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused` (timeout with work left; the ops stay queued, so it is not a failure). The pending count joins the paused text in the progress phase, when the service starts tracking it. The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it. Complete stays on the silent sync channel. Failed and paused go on a separate "Data Sync problems" channel at default importance, because Android sets sound and pop-up per channel and the sync channel is silent so progress updates don't buzz.
+- **Posts a separate, non-ongoing notification** (when notifications are allowed; its own notification ID so it outlives the service) for one of three states: `Sync complete`, `Sync failed` (tap opens Data Sync), or `Sync paused` (timeout with work left; the ops stay queued, so it is not a failure). The paused text gains the pending count in the progress phase, when the service starts tracking it. The complete notification is suppressed when `MyReactActivity` is resumed, since the screen already shows it. Complete stays on the silent sync channel. Failed and paused go on a separate "Data Sync problems" channel at default importance, because Android sets sound and pop-up per channel and the sync channel is silent so progress updates don't buzz.
 - **Persists three fields** in a dedicated SharedPreferences file: `sync_last_completed_at` (from `CNPlusClockInterface`), `sync_last_completed_ok`, `sync_last_error`.
 
 Failed means the task could not connect (including sync not being configured), or the server rejected an op during the run: rejected ops are dropped from the queue, so it drains without them, and the task spots this by comparing the newest entry in the failed-operations list before and after.
@@ -97,7 +97,16 @@ The JS task writes its report into the same SharedPreferences file through `MyMo
 
 ### Phase 4: Progress in the ongoing notification
 
-`SetupSync` passes the `ps_crud` count right after queueing as `startBackgroundSync(total)`. The service keeps that `total`; the task pushes the current `ps_crud` count on each status change through a `MyModule` function. The notification shows a progress bar at `total - queued` of `total`, and is indeterminate when the total is unknown (cold start). The numbers do **not** come from `getUploadProgress()`: those counters are module globals and reset to zero if the service cold-starts the process. Optional: a Stop action that ends the task.
+The notification shows a progress bar and "X of Y uploaded", and is indeterminate until the task has reported a total.
+
+**The queue count alone is too coarse to drive the bar.** PowerSync removes rows from `ps_crud` only when a whole transaction completes (`handleCrudCheckpoint` deletes everything up to the transaction's last id), and a Full Resync queues its ops as two large writes: one `DELETE` statement, then one `executeBatch` insert (op-sqlite runs a batch as a single transaction). Read from the SDK source, not yet observed on a device: a bar built on `total - queued`, as first planned, would sit at 0, jump to half, and jump to done. So:
+
+- `Connector` counts the ops uploaded from the transaction in flight (reset when it completes or fails) and notifies listeners.
+- The task takes `total` as the queue count when it starts, and reports `done = (total - queued) + in flight`. That needs nothing passed in from `SetupSync`, so `startBackgroundSync` takes no argument, and it survives a cold start because nothing depends on counters from an earlier process.
+- The task writes `done`, `total` and `queued` through `MyModule` into the same SharedPreferences file as the outcome; the service watches that file and re-posts its notification. An intent per update could restart a service that has already stopped.
+- On a timeout, the paused text uses the last reported `queued`: "Timed out with N uploads still queued".
+
+Not built: the optional Stop action.
 
 ## Files Changed Summary
 
@@ -107,7 +116,8 @@ The JS task writes its report into the same SharedPreferences file through `MyMo
 | `android/.../react/HeadlessTaskSupportModule.kt` | **New.** Reports task completion to native, which RN omits under the New Architecture |
 | `android/.../notification/NotificationChannels.kt` | Add a silent sync channel |
 | `android/app/src/main/AndroidManifest.xml` | Service entry and FGS permissions |
-| `modules/my-module/.../MyModule.kt`, `modules/my-module/index.ts` | `startBackgroundSync(total)`, outcome report, progress update, last-result getter |
+| `modules/my-module/.../MyModule.kt`, `modules/my-module/index.ts` | `startBackgroundSync()`, outcome report, progress report, last-result getter, notifications-enabled check |
+| `src/lib/powersync/Connector.ts` | Count of ops uploaded from the transaction in flight, with listeners |
 | `index.tsx` | `registerHeadlessTask` |
 | `src/lib/powersync/backgroundSync.ts` | **New.** The drain-until-empty task |
 | `src/lib/hooks/settingsStorage.ts` | **New.** `loadStoredSettings()` and `isSettingsConfigured()`, usable outside React |

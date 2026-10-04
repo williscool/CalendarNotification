@@ -3,9 +3,9 @@ import { emitSyncLog } from '../logging/syncLog';
 import { getPendingCrudCount } from '../orm';
 import { isSettingsConfigured, loadStoredSettings } from '../hooks/settingsStorage';
 import type { Settings } from '../hooks/SettingsContext';
-import { getFailedOperations } from './Connector';
+import { getFailedOperations, getInFlightUploaded, subscribeUploadProgress } from './Connector';
 import { db, setupPowerSync } from './index';
-import { reportBackgroundSyncOutcome } from '../../../modules/my-module';
+import { reportBackgroundSyncOutcome, reportBackgroundSyncProgress } from '../../../modules/my-module';
 
 /** Must match TASK_KEY in SyncForegroundService.kt */
 export const BACKGROUND_SYNC_TASK = 'CNPlusBackgroundSync';
@@ -33,18 +33,26 @@ export interface BackgroundSyncEnvironment {
   newestFailedOpId(): Promise<string | undefined>;
   /** Tells the service how the task ended; without it the service records a timeout */
   reportOutcome(ok: boolean, error?: string): Promise<void>;
+  /** Ops uploaded from the transaction in flight; the queue only shrinks when a whole transaction completes */
+  inFlightUploaded(): number;
+  /** Returns a function that removes the listener */
+  onUploadProgress(listener: () => void): () => void;
+  /** Feeds the progress bar in the service's notification */
+  reportProgress(done: number, total: number, queued: number): Promise<void>;
 }
 
 /**
  * Resolves once nothing is queued and nothing is uploading. Re-checks on every
  * PowerSync status change rather than polling.
  */
-export const waitForDrain = (queue: UploadQueue): Promise<void> =>
+export const waitForDrain = (queue: UploadQueue, onPending?: (pending: number) => void): Promise<void> =>
   new Promise((resolve, reject) => {
     let unsubscribe = () => {};
     const check = async () => {
       try {
-        if ((await queue.pendingCount()) > 0 || queue.isUploading()) return;
+        const pending = await queue.pendingCount();
+        onPending?.(pending);
+        if (pending > 0 || queue.isUploading()) return;
         unsubscribe();
         resolve();
       } catch (error) {
@@ -91,10 +99,38 @@ const connectAndDrain = async (environment: BackgroundSyncEnvironment): Promise<
     await environment.connect(settings);
   }
   const failedBefore = await environment.newestFailedOpId();
-  await waitForDrain(environment.queue);
+  await drainReportingProgress(environment);
   return (await environment.newestFailedOpId()) === failedBefore
     ? { kind: 'complete' }
     : { kind: 'changesRejected' };
+};
+
+/**
+ * Waits for the queue to drain, reporting progress against what was queued when the
+ * task started. Done is what has left the queue plus what the transaction in flight
+ * has uploaded so far.
+ */
+const drainReportingProgress = async (environment: BackgroundSyncEnvironment): Promise<void> => {
+  const total = await environment.queue.pendingCount();
+  let queued = total;
+  const report = () => {
+    const done = Math.max(0, Math.min(total, total - queued + environment.inFlightUploaded()));
+    environment.reportProgress(done, total, queued).catch(error =>
+      emitSyncLog('warn', 'Failed to report background sync progress', { error })
+    );
+  };
+  // A reset to zero is followed by a status change, which reports with a fresh queue count
+  const unsubscribe = environment.onUploadProgress(() => {
+    if (environment.inFlightUploaded() > 0) report();
+  });
+  try {
+    await waitForDrain(environment.queue, pending => {
+      queued = pending;
+      report();
+    });
+  } finally {
+    unsubscribe();
+  }
 };
 
 /**
@@ -168,4 +204,7 @@ export const backgroundSyncTask = (data?: { devPageFakeQueue?: boolean }): Promi
     connect: setupPowerSync,
     newestFailedOpId: async () => (await getFailedOperations())[0]?.id,
     reportOutcome: reportBackgroundSyncOutcome,
+    inFlightUploaded: getInFlightUploaded,
+    onUploadProgress: subscribeUploadProgress,
+    reportProgress: reportBackgroundSyncProgress,
   });

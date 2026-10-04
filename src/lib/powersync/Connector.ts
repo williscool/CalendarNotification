@@ -124,6 +124,20 @@ export const resetUploadProgress = (): void => {
   _uploadProgress.deletes = 0;
 };
 
+// Ops uploaded from the transaction currently in flight. The upload queue only shrinks when a
+// whole transaction completes, so this is what moves background sync progress in between.
+let _inFlightUploaded = 0;
+const _uploadProgressListeners = new Set<() => void>();
+export const getInFlightUploaded = (): number => _inFlightUploaded;
+export const subscribeUploadProgress = (listener: () => void): (() => void) => {
+  _uploadProgressListeners.add(listener);
+  return () => { _uploadProgressListeners.delete(listener); };
+};
+const setInFlightUploaded = (count: number): void => {
+  _inFlightUploaded = count;
+  _uploadProgressListeners.forEach(listener => listener());
+};
+
 interface SupabaseError {
   code: string;
   message?: string;
@@ -385,6 +399,7 @@ export class Connector implements PowerSyncBackendConnector {
                 if (op.op === UpdateType.PUT) _uploadProgress.upserts++;
                 else if (op.op === UpdateType.PATCH) _uploadProgress.updates++;
                 else if (op.op === UpdateType.DELETE) _uploadProgress.deletes++;
+                setInFlightUploaded(_inFlightUploaded + 1);
             }
     
             await transaction.complete();
@@ -428,6 +443,9 @@ export class Connector implements PowerSyncBackendConnector {
                 });
                 throw ex;
             }
+        } finally {
+            // Completed or about to be retried from the start: either way nothing is in flight
+            setInFlightUploaded(0);
         }
     }
 }

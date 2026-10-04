@@ -232,4 +232,82 @@ class SyncForegroundServiceRobolectricTest {
         assertNull(resultNotification)
         assertFalse(prefs.contains(MyModule.PREF_SYNC_REPORTED_OK))
     }
+
+    // === Progress ===
+
+    /** What MyModule.reportBackgroundSyncProgress writes as uploads go through */
+    private fun reportProgress(done: Int, total: Int, queued: Int) {
+        prefs.edit()
+            .putInt(MyModule.PREF_SYNC_PROGRESS_DONE, done)
+            .putInt(MyModule.PREF_SYNC_PROGRESS_TOTAL, total)
+            .putInt(MyModule.PREF_SYNC_QUEUED, queued)
+            .commit()
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+    }
+
+    private val ongoingNotification: Notification
+        get() = shadowOf(context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .getNotification(Consts.NOTIFICATION_ID_SYNC) ?: shadowOf(service).lastForegroundNotification
+
+    @Test
+    fun `notification progress is indeterminate until the task reports a total`() {
+        val notification = SyncForegroundService.buildNotification(context)
+
+        assertTrue(shadowOf(notification).isIndeterminate)
+        assertNull(shadowOf(notification).contentText)
+    }
+
+    @Test
+    fun `notification shows determinate progress once a total is known`() {
+        val notification = SyncForegroundService.buildNotification(context, done = 3, total = 10)
+
+        assertFalse(shadowOf(notification).isIndeterminate)
+        assertEquals(3, shadowOf(notification).progress)
+        assertEquals(10, shadowOf(notification).max)
+        assertEquals("3 of 10 uploaded", shadowOf(notification).contentText)
+    }
+
+    @Test
+    fun `progress reported by the task updates the ongoing notification`() {
+        service.onStartCommand(null, 0, 1)
+
+        reportProgress(done = 3, total = 10, queued = 10)
+
+        assertEquals(3, shadowOf(ongoingNotification).progress)
+        assertEquals(10, shadowOf(ongoingNotification).max)
+        assertTrue(ongoingNotification.flags and Notification.FLAG_ONGOING_EVENT != 0)
+    }
+
+    @Test
+    fun `progress left over from the previous run is not shown when a sync starts`() {
+        reportProgress(done = 9, total = 10, queued = 1)
+
+        service.onStartCommand(null, 0, 1)
+
+        assertTrue(shadowOf(shadowOf(service).lastForegroundNotification).isIndeterminate)
+    }
+
+    @Test
+    fun `timeout records how many uploads were still queued`() {
+        service.onStartCommand(null, 0, 1)
+        reportProgress(done = 4, total = 10, queued = 6)
+
+        service.onHeadlessJsTaskFinish(1)
+
+        val detail = "Timed out with 6 uploads still queued. They resume the next time you sync."
+        assertRecorded(ok = false, error = detail)
+        assertEquals(detail, shadowOf(resultNotification!!).contentText)
+    }
+
+    @Test
+    fun `progress reported after the task has finished does not bring the ongoing notification back`() {
+        service.onStartCommand(null, 0, 1)
+        service.onHeadlessJsTaskFinish(1)
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancelAll()
+
+        reportProgress(done = 5, total = 10, queued = 5)
+
+        assertNull(shadowOf(manager).getNotification(Consts.NOTIFICATION_ID_SYNC))
+    }
 }
