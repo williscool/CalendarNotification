@@ -55,9 +55,15 @@ open class SyncForegroundService : HeadlessJsTaskService() {
 
     private val state by lazy { BackgroundSyncState(this) }
 
+    /** Fixed timestamp for the ongoing notification, so its many updates don't re-rank it */
+    private var syncStartedAt = 0L
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // The previous run's progress must be gone before the notification is first built
-        if (!taskStarted) state.clearReported()
+        if (!taskStarted) {
+            state.clearReported()
+            syncStartedAt = clock.currentTimeMillis()
+        }
         // Every start has to enter the foreground, but only the first one starts a task
         if (!enterForegroundOrStop()) return START_NOT_STICKY
         if (taskStarted) return START_REDELIVER_INTENT
@@ -65,7 +71,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         state.watchProgress {
             notificationManager.notify(
                 Consts.NOTIFICATION_ID_SYNC,
-                buildNotification(this, state.progressDone, state.progressTotal, state.progressOperation)
+                buildNotification(this, syncStartedAt, state.progressDone, state.progressTotal, state.progressOperation)
             )
         }
         notificationManager.cancel(Consts.NOTIFICATION_ID_SYNC_RESULT)
@@ -110,7 +116,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         super.onStartCommand(intent, flags, startId)
 
     internal open fun enterForeground() {
-        val notification = buildNotification(this, state.progressDone, state.progressTotal, state.progressOperation)
+        val notification = buildNotification(this, syncStartedAt, state.progressDone, state.progressTotal, state.progressOperation)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(Consts.NOTIFICATION_ID_SYNC, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -158,8 +164,19 @@ open class SyncForegroundService : HeadlessJsTaskService() {
          * The text says what the op being uploaded does, since a Full Resync spends its first half
          * deleting.
          */
-        fun buildNotification(context: Context, done: Int = 0, total: Int = 0, operation: String? = null): Notification =
+        fun buildNotification(
+            context: Context,
+            startedAt: Long,
+            done: Int = 0,
+            total: Int = 0,
+            operation: String? = null
+        ): Notification =
             notificationBuilder(context)
+                // Android ranks notifications by this timestamp. Left to default it is the time of
+                // each update, so every progress update re-ranked the notification and, once the
+                // channel isn't silent, shuffled the event notifications in and out of view.
+                .setWhen(startedAt)
+                .setShowWhen(false)
                 .setContentTitle(context.getString(R.string.sync_notification_title))
                 .setContentText(
                     if (total > 0) {
