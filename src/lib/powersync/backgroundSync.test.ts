@@ -68,6 +68,7 @@ const createEnvironment = (overrides: Partial<BackgroundSyncEnvironment> = {}): 
   inFlightUploaded: () => 0,
   onUploadProgress: () => () => {},
   reportProgress: jest.fn(async () => {}),
+  currentOperation: () => null,
   ...overrides,
 });
 
@@ -227,12 +228,12 @@ describe('progress reporting', () => {
     const environment = createEnvironment({ queue: fake.queue, ...uploads.environment });
     const result = track(runBackgroundSync(environment));
     await flushPromises();
-    expect(environment.reportProgress).toHaveBeenLastCalledWith(0, 4, 4);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(0, 4, 4, null);
 
     uploads.set(1);
-    expect(environment.reportProgress).toHaveBeenLastCalledWith(1, 4, 4);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(1, 4, 4, null);
     uploads.set(2);
-    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 4, 4);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 4, 4, null);
 
     // The transaction completes: its two ops leave the queue and nothing is in flight
     const reportsBeforeReset = (environment.reportProgress as jest.Mock).mock.calls.length;
@@ -241,14 +242,27 @@ describe('progress reporting', () => {
     fake.state.pending = 2;
     fake.emit();
     await flushPromises();
-    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 4, 2);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 4, 2, null);
 
     fake.state.pending = 0;
     fake.emit();
     await flushPromises();
-    expect(environment.reportProgress).toHaveBeenLastCalledWith(4, 4, 0);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(4, 4, 0, null);
     expect(result.done).toBe(true);
     expect(uploads.listeners.size).toBe(0);
+  });
+
+  it('reports what the op being uploaded does', async () => {
+    const fake = createFakeQueue(4);
+    const uploads = createFakeUploads();
+    let operation: string | null = null;
+    const environment = createEnvironment({ queue: fake.queue, ...uploads.environment, currentOperation: () => operation });
+    track(runBackgroundSync(environment));
+    await flushPromises();
+
+    operation = 'DELETE';
+    uploads.set(1);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(1, 4, 4, 'DELETE');
   });
 
   it('never reports more done than the total when a retried transaction re-uploads', async () => {
@@ -259,7 +273,7 @@ describe('progress reporting', () => {
     await flushPromises();
 
     uploads.set(5);
-    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 2, 2);
+    expect(environment.reportProgress).toHaveBeenLastCalledWith(2, 2, 2, null);
   });
 
   it('still finishes when progress cannot be reported', async () => {

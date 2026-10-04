@@ -87,7 +87,7 @@ Both sides share one SharedPreferences file, `background_sync_state`. JS writes 
 | Key | Written by | Read by |
 |-----|-----------|---------|
 | `reported_ok`, `reported_error` | JS task, just before it finishes | Service, when the task ends. Missing means the timeout ended it. |
-| `progress_done`, `progress_total`, `queued` | JS task, as uploads go through | Service (watches for changes, re-posts the progress notification). `queued` also feeds the paused text. |
+| `progress_done`, `progress_total`, `queued`, `progress_operation` | JS task, as uploads go through | Service (watches for changes, re-posts the progress notification). `queued` also feeds the paused text. |
 | `sync_last_completed_at`, `sync_last_completed_ok`, `sync_last_error` | Service, when the task ends | Data Sync screen, on open (`getLastBackgroundSyncResult`) |
 
 The service clears the reported and progress keys at the start of each run. The file is not in `backup_rules.xml`, so a restore never brings back a stale result.
@@ -96,7 +96,7 @@ The service clears the reported and progress keys at the start of each run. The 
 
 | | Notification ID | Channel | Group |
 |--|-----------------|---------|-------|
-| Ongoing "Syncing events… X of Y uploaded" | `NOTIFICATION_ID_SYNC` | `data_sync` (low importance, silent, Silent group) | `BACKGROUND_SYNC` |
+| Ongoing "Syncing events…" with "Deleting old remote copies / Uploading events: X of Y" | `NOTIFICATION_ID_SYNC` | `data_sync` (low importance, silent, Silent group) | `BACKGROUND_SYNC` |
 | "Sync complete" | `NOTIFICATION_ID_SYNC_RESULT` | `data_sync` | `BACKGROUND_SYNC` |
 | "Sync failed" / "Sync paused" | `NOTIFICATION_ID_SYNC_RESULT` | `data_sync_problems` (default importance, Main group) | `BACKGROUND_SYNC` |
 

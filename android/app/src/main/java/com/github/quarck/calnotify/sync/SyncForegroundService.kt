@@ -65,7 +65,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         state.watchProgress {
             notificationManager.notify(
                 Consts.NOTIFICATION_ID_SYNC,
-                buildNotification(this, state.progressDone, state.progressTotal)
+                buildNotification(this, state.progressDone, state.progressTotal, state.progressOperation)
             )
         }
         notificationManager.cancel(Consts.NOTIFICATION_ID_SYNC_RESULT)
@@ -110,7 +110,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         super.onStartCommand(intent, flags, startId)
 
     internal open fun enterForeground() {
-        val notification = buildNotification(this, state.progressDone, state.progressTotal)
+        val notification = buildNotification(this, state.progressDone, state.progressTotal, state.progressOperation)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(Consts.NOTIFICATION_ID_SYNC, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -148,12 +148,29 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         /** Dev page only: the task drains a fake queue instead of the real upload queue */
         const val EXTRA_DEV_PAGE_FAKE_QUEUE = "devPageFakeQueue"
 
-        /** The bar is indeterminate until the task has reported how much is queued ([total] of zero) */
-        fun buildNotification(context: Context, done: Int = 0, total: Int = 0): Notification =
+        // PowerSync's UpdateType values, as reported by the JS task
+        private const val OPERATION_DELETE = "DELETE"
+        private const val OPERATION_PUT = "PUT"
+        private const val OPERATION_PATCH = "PATCH"
+
+        /**
+         * The bar is indeterminate until the task has reported how much is queued ([total] of zero).
+         * The text says what the op being uploaded does, since a Full Resync spends its first half
+         * deleting.
+         */
+        fun buildNotification(context: Context, done: Int = 0, total: Int = 0, operation: String? = null): Notification =
             notificationBuilder(context)
                 .setContentTitle(context.getString(R.string.sync_notification_title))
                 .setContentText(
-                    if (total > 0) context.getString(R.string.sync_notification_progress, done, total) else null
+                    if (total > 0) {
+                        val progressText = when (operation) {
+                            OPERATION_DELETE -> R.string.sync_notification_progress_deleting
+                            OPERATION_PUT -> R.string.sync_notification_progress_uploading
+                            OPERATION_PATCH -> R.string.sync_notification_progress_updating
+                            else -> R.string.sync_notification_progress
+                        }
+                        context.getString(progressText, done, total)
+                    } else null
                 )
                 .setProgress(total, done, total == 0)
                 .setOngoing(true)

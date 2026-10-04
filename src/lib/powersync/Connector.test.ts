@@ -295,6 +295,15 @@ describe('Connector', () => {
       expect(inFlightUploads.count).toBe(0);
     });
 
+    it('should record what the op being uploaded does', async () => {
+      mockedCreateClient.mockReturnValue(createMockSupabaseClient({ error: null }) as any);
+      const mockTransaction = createMockTransaction([createMockCrudEntry({ id: 'a', op: 'DELETE' })]);
+
+      await new Connector(createMockSettings()).uploadData(createMockDatabase(mockTransaction) as any);
+
+      expect(inFlightUploads.operation).toBe('DELETE');
+    });
+
     it('should reset the in-flight count when the transaction fails and will be retried', async () => {
       const mockUpsert = jest.fn()
         .mockResolvedValueOnce({ error: null })

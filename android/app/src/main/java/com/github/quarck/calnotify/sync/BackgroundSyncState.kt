@@ -46,13 +46,17 @@ class BackgroundSyncState(private val context: Context) {
     val progressTotal: Int
         get() = prefs.getInt(MyModule.PREF_SYNC_PROGRESS_TOTAL, 0)
 
+    /** PowerSync's PUT, PATCH or DELETE for the op being uploaded; null before the first one */
+    val progressOperation: String?
+        get() = prefs.getString(MyModule.PREF_SYNC_PROGRESS_OPERATION, null)
+
     // SharedPreferences only holds listeners weakly, so the reference is kept here
     private var progressListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     /** Calls [onChange] whenever the JS task reports progress, until [stopWatchingProgress] */
     fun watchProgress(onChange: () -> Unit) {
         progressListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == MyModule.PREF_SYNC_PROGRESS_DONE || key == MyModule.PREF_SYNC_PROGRESS_TOTAL) onChange()
+            if (key in PROGRESS_KEYS) onChange()
         }.also { prefs.registerOnSharedPreferenceChangeListener(it) }
     }
 
@@ -69,6 +73,7 @@ class BackgroundSyncState(private val context: Context) {
             .remove(MyModule.PREF_SYNC_PROGRESS_DONE)
             .remove(MyModule.PREF_SYNC_PROGRESS_TOTAL)
             .remove(MyModule.PREF_SYNC_QUEUED)
+            .remove(MyModule.PREF_SYNC_PROGRESS_OPERATION)
             .apply()
 
     /**
@@ -94,6 +99,14 @@ class BackgroundSyncState(private val context: Context) {
             .remove(MyModule.PREF_SYNC_REPORTED_ERROR)
             .apply()
         return outcome
+    }
+
+    private companion object {
+        val PROGRESS_KEYS = setOf(
+            MyModule.PREF_SYNC_PROGRESS_DONE,
+            MyModule.PREF_SYNC_PROGRESS_TOTAL,
+            MyModule.PREF_SYNC_PROGRESS_OPERATION
+        )
     }
 
     /** The queue count is only known if the task reported progress before it timed out */

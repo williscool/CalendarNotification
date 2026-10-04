@@ -134,9 +134,19 @@ type InFlightUploadsListener = { countChanged: () => void };
  */
 class InFlightUploads extends BaseObserver<InFlightUploadsListener> {
   private _count = 0;
+  private _operation: UpdateType | null = null;
 
   get count(): number {
     return this._count;
+  }
+
+  /** What the op being uploaded does. A Full Resync deletes everything, then inserts everything. */
+  get operation(): UpdateType | null {
+    return this._operation;
+  }
+
+  setOperation(operation: UpdateType): void {
+    this._operation = operation;
   }
 
   set(count: number): void {
@@ -404,6 +414,7 @@ export class Connector implements PowerSyncBackendConnector {
         try {
             for (const op of transaction.crud) {
                 lastOp = op;
+                inFlightUploads.setOperation(op.op);
                 await this.executeWithRetry(op);
                 if (op.op === UpdateType.PUT) _uploadProgress.upserts++;
                 else if (op.op === UpdateType.PATCH) _uploadProgress.updates++;

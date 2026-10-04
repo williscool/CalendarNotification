@@ -93,8 +93,13 @@ export async function reportBackgroundSyncOutcome(ok: boolean, error?: string): 
 }
 
 /** Feeds the progress bar in the background sync notification. */
-export async function reportBackgroundSyncProgress(done: number, total: number, queued: number): Promise<void> {
-  return await MyModule.reportBackgroundSyncProgress(done, total, queued);
+export async function reportBackgroundSyncProgress(
+  done: number,
+  total: number,
+  queued: number,
+  operation: string | null
+): Promise<void> {
+  return await MyModule.reportBackgroundSyncProgress(done, total, queued, operation);
 }
 
 export interface BackgroundSyncResult {

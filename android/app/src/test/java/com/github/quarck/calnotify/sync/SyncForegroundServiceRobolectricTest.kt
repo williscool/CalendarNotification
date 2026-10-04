@@ -238,11 +238,12 @@ class SyncForegroundServiceRobolectricTest {
     // === Progress ===
 
     /** What MyModule.reportBackgroundSyncProgress writes as uploads go through */
-    private fun reportProgress(done: Int, total: Int, queued: Int) {
+    private fun reportProgress(done: Int, total: Int, queued: Int, operation: String? = null) {
         prefs.edit()
             .putInt(MyModule.PREF_SYNC_PROGRESS_DONE, done)
             .putInt(MyModule.PREF_SYNC_PROGRESS_TOTAL, total)
             .putInt(MyModule.PREF_SYNC_QUEUED, queued)
+            .putString(MyModule.PREF_SYNC_PROGRESS_OPERATION, operation)
             .commit()
         shadowOf(android.os.Looper.getMainLooper()).idle()
     }
@@ -267,6 +268,27 @@ class SyncForegroundServiceRobolectricTest {
         assertEquals(3, shadowOf(notification).progress)
         assertEquals(10, shadowOf(notification).max)
         assertEquals("3 of 10 uploaded", shadowOf(notification).contentText)
+    }
+
+    @Test
+    fun `notification says what the op being uploaded does`() {
+        fun text(operation: String?) =
+            shadowOf(SyncForegroundService.buildNotification(context, done = 3, total = 10, operation = operation)).contentText
+
+        assertEquals("Deleting old remote copies: 3 of 10", text("DELETE"))
+        assertEquals("Uploading events: 3 of 10", text("PUT"))
+        assertEquals("Updating events: 3 of 10", text("PATCH"))
+        assertEquals("3 of 10 uploaded", text(null))
+    }
+
+    @Test
+    fun `a change of operation alone updates the ongoing notification`() {
+        service.onStartCommand(null, 0, 1)
+        reportProgress(done = 5, total = 10, queued = 10, operation = "DELETE")
+
+        reportProgress(done = 5, total = 10, queued = 10, operation = "PUT")
+
+        assertEquals("Uploading events: 5 of 10", shadowOf(ongoingNotification).contentText)
     }
 
     @Test
