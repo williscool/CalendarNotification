@@ -45,7 +45,7 @@ import com.github.quarck.calnotify.utils.CNPlusSystemClock
  *
  * React Native only fires JS timers in the background while a headless task is active, and the
  * upload depends on them. The foreground service keeps the process alive while that task runs.
- * See docs/dev_todo/background_data_sync.md.
+ * See docs/architecture/background_data_sync.md.
  */
 open class SyncForegroundService : HeadlessJsTaskService() {
 
@@ -53,12 +53,21 @@ open class SyncForegroundService : HeadlessJsTaskService() {
 
     internal var clock: CNPlusClockInterface = CNPlusSystemClock()
 
+    private val state by lazy { BackgroundSyncState(this) }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The previous run's progress must be gone before the notification is first built
+        if (!taskStarted) state.clearReported()
         // Every start has to enter the foreground, but only the first one starts a task
         if (!enterForegroundOrStop()) return START_NOT_STICKY
         if (taskStarted) return START_REDELIVER_INTENT
         taskStarted = true
-        BackgroundSyncState(this).clearReportedOutcome()
+        state.watchProgress {
+            notificationManager.notify(
+                Consts.NOTIFICATION_ID_SYNC,
+                buildNotification(this, state.progressDone, state.progressTotal)
+            )
+        }
         notificationManager.cancel(Consts.NOTIFICATION_ID_SYNC_RESULT)
         return startHeadlessTask(intent, flags, startId)
     }
@@ -68,7 +77,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
      * a timeout, so the result is recorded and announced here rather than in the task.
      */
     override fun onHeadlessJsTaskFinish(taskId: Int) {
-        val state = BackgroundSyncState(this)
+        state.stopWatchingProgress()
         val outcome = state.recordResult(clock.currentTimeMillis())
         stopForeground(STOP_FOREGROUND_REMOVE)
         // The Data Sync screen already shows a completed sync while it is open
@@ -101,7 +110,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         super.onStartCommand(intent, flags, startId)
 
     internal open fun enterForeground() {
-        val notification = buildNotification(this)
+        val notification = buildNotification(this, state.progressDone, state.progressTotal)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(Consts.NOTIFICATION_ID_SYNC, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -139,10 +148,16 @@ open class SyncForegroundService : HeadlessJsTaskService() {
         /** Dev page only: the task drains a fake queue instead of the real upload queue */
         const val EXTRA_DEV_PAGE_FAKE_QUEUE = "devPageFakeQueue"
 
-        fun buildNotification(context: Context): Notification =
+        /** The bar is indeterminate until the task has reported how much is queued ([total] of zero) */
+        fun buildNotification(context: Context, done: Int = 0, total: Int = 0): Notification =
             notificationBuilder(context)
                 .setContentTitle(context.getString(R.string.sync_notification_title))
+                .setContentText(
+                    if (total > 0) context.getString(R.string.sync_notification_progress, done, total) else null
+                )
+                .setProgress(total, done, total == 0)
                 .setOngoing(true)
+                .setOnlyAlertOnce(true)
                 .build()
 
         /** A completed sync stays on the silent sync channel; failed and paused ones go where they make a sound */
@@ -165,7 +180,14 @@ open class SyncForegroundService : HeadlessJsTaskService() {
                 .setAutoCancel(true)
                 .build()
 
-        /** Calendar icon and a tap that opens Data Sync */
+        /**
+         * Sync notifications get a group of their own. Without one, Android bundles an app's
+         * ungrouped notifications together, which hid the progress bar inside the collapsed
+         * "N more events" bundle.
+         */
+        const val NOTIFICATION_GROUP = "BACKGROUND_SYNC"
+
+        /** Calendar icon, the sync group, and a tap that opens Data Sync */
         private fun notificationBuilder(
             context: Context,
             channelId: String = NotificationChannels.CHANNEL_ID_SYNC
@@ -179,6 +201,7 @@ open class SyncForegroundService : HeadlessJsTaskService() {
             )
             return NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(R.drawable.stat_notify_calendar)
+                .setGroup(NOTIFICATION_GROUP)
                 .setContentIntent(openDataSync)
         }
     }
