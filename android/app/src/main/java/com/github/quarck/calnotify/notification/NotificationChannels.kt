@@ -48,6 +48,7 @@ object NotificationChannels {
     const val CHANNEL_ID_REMINDERS = "calendar_reminders"
     const val CHANNEL_ID_ALARM_REMINDERS = "calendar_alarm_reminders"
     const val CHANNEL_ID_SYNC = "data_sync"
+    const val CHANNEL_ID_SYNC_PROBLEMS = "data_sync_problems"
     
     /**
      * Creates all notification channels and groups. Safe to call multiple times -
@@ -153,13 +154,25 @@ object NotificationChannels {
             setSound(null, null)
         }
         
+        // A background sync that failed or stopped before finishing (Main group). Separate from the
+        // silent sync channel because importance is per channel: these should make a sound.
+        val syncProblemsChannel = NotificationChannel(
+            CHANNEL_ID_SYNC_PROBLEMS,
+            context.getString(R.string.notification_channel_sync_problems),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = context.getString(R.string.notification_channel_sync_problems_desc)
+            group = GROUP_ID_MAIN
+        }
+        
         notificationManager.createNotificationChannels(listOf(
             defaultChannel,
             remindersChannel,
             alarmChannel,
             alarmRemindersChannel,
             silentChannel,
-            syncChannel
+            syncChannel,
+            syncProblemsChannel
         ))
     }
     

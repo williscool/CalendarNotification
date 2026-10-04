@@ -1,5 +1,6 @@
 package expo.modules.mymodule
 
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -29,6 +30,15 @@ class MyModule : Module() {
     // Database name constants (must match EventsDatabase.kt)
     const val ROOM_DATABASE_NAME = "RoomEvents"
     const val LEGACY_DATABASE_NAME = "Events"
+
+    // Background sync state. BackgroundSyncState in the main app uses these same constants:
+    // the JS task reports its outcome here, and the service records the last result.
+    const val SYNC_PREFS_NAME = "background_sync_state"
+    const val PREF_SYNC_REPORTED_OK = "reported_ok"
+    const val PREF_SYNC_REPORTED_ERROR = "reported_error"
+    const val PREF_SYNC_LAST_COMPLETED_AT = "sync_last_completed_at"
+    const val PREF_SYNC_LAST_COMPLETED_OK = "sync_last_completed_ok"
+    const val PREF_SYNC_LAST_ERROR = "sync_last_error"
 
     // CONTRACT: must match SyncForegroundService in the main app
     const val SYNC_SERVICE_CLASS = "com.github.quarck.calnotify.sync.SyncForegroundService"
@@ -128,6 +138,35 @@ class MyModule : Module() {
         }
       }
       Unit
+    }
+
+    // Called by the background sync task just before it finishes. The service reads this when
+    // the task ends; if nothing was reported, it knows the task timed out.
+    AsyncFunction("reportBackgroundSyncOutcome") { ok: Boolean, error: String? ->
+      appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)?.edit()
+        ?.putBoolean(PREF_SYNC_REPORTED_OK, ok)
+        ?.putString(PREF_SYNC_REPORTED_ERROR, error)
+        ?.apply()
+      Unit
+    }
+
+    // How the last background sync ended, or null if there has never been one
+    Function("getLastBackgroundSyncResult") {
+      val prefs = appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)
+      if (prefs == null || !prefs.contains(PREF_SYNC_LAST_COMPLETED_AT)) {
+        return@Function null
+      }
+      mapOf(
+        "completedAt" to prefs.getLong(PREF_SYNC_LAST_COMPLETED_AT, 0).toDouble(),
+        "ok" to prefs.getBoolean(PREF_SYNC_LAST_COMPLETED_OK, false),
+        "error" to prefs.getString(PREF_SYNC_LAST_ERROR, null)
+      )
+    }
+
+    // False when the user has turned notifications off, so background sync progress is hidden
+    Function("areNotificationsEnabled") {
+      val manager = appContext.reactContext?.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+      manager?.areNotificationsEnabled() ?: true
     }
 
     // Enables the module to be used as a native view. Definition components that are accepted as part of

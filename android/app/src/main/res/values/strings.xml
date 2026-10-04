@@ -461,7 +461,13 @@
     <string name="notification_channel_alarm_reminders_desc">Reminders for missed events played with alarm volume</string>
     <string name="notification_channel_sync">Data Sync</string>
     <string name="notification_channel_sync_desc">Shown while events are syncing in the background</string>
+    <string name="notification_channel_sync_problems">Data Sync problems</string>
+    <string name="notification_channel_sync_problems_desc">When a background sync fails or stops before finishing</string>
     <string name="sync_notification_title">Syncing events…</string>
+    <string name="sync_result_complete">Sync complete</string>
+    <string name="sync_result_failed">Sync failed</string>
+    <string name="sync_result_paused">Sync paused</string>
+    <string name="sync_result_paused_detail">Timed out with uploads still queued. They resume the next time you sync.</string>
     
     <!-- Notification channel groups -->
     <string name="notification_group_main">Main</string>

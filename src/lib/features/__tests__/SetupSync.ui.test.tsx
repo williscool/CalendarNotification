@@ -20,6 +20,8 @@ jest.mock('../../../../modules/my-module', () => ({
   sendRescheduleConfirmations: jest.fn(),
   addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
   startBackgroundSync: jest.fn(() => Promise.resolve()),
+  getLastBackgroundSyncResult: jest.fn(() => null),
+  areNotificationsEnabled: jest.fn(() => true),
   PI: 100,
 }));
 
@@ -101,7 +103,7 @@ jest.mock('@lib/logging/syncLog', () => ({
 // Import after mocks are set up
 import { SetupSync } from '../SetupSync';
 import { psResyncTable } from '@lib/orm';
-import { startBackgroundSync } from '../../../../modules/my-module';
+import { startBackgroundSync, getLastBackgroundSyncResult, areNotificationsEnabled } from '../../../../modules/my-module';
 
 // Helper to configure test scenarios
 const configureSettings = (configured: boolean) => {
@@ -159,6 +161,9 @@ const renderAndWaitForStatus = async (ui: React.ReactElement) => {
   });
   return result;
 };
+
+// Any fixed time will do: the banner tests only check the wording around it
+const LAST_SYNC_COMPLETED_AT_MS = 1700000000000;
 
 describe('SetupSync UI States', () => {
   beforeEach(() => {
@@ -328,6 +333,30 @@ describe('SetupSync UI States', () => {
       await renderAndWaitForStatus(<SetupSync />);
       const button = screen.getByTestId('danger-zone-button');
       expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('shows no background sync banners when there is nothing to report', async () => {
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.queryByTestId('last-background-sync-banner')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('notifications-off-banner')).not.toBeInTheDocument();
+    });
+
+    it('shows a background sync that completed while the screen was closed', async () => {
+      (getLastBackgroundSyncResult as jest.Mock).mockReturnValueOnce({ completedAt: LAST_SYNC_COMPLETED_AT_MS, ok: true, error: null });
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.getByTestId('last-background-sync-banner')).toHaveTextContent(/Last background sync completed/);
+    });
+
+    it('shows why the last background sync did not finish', async () => {
+      (getLastBackgroundSyncResult as jest.Mock).mockReturnValueOnce({ completedAt: LAST_SYNC_COMPLETED_AT_MS, ok: false, error: 'network down' });
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.getByTestId('last-background-sync-banner')).toHaveTextContent(/did not finish.*network down/);
+    });
+
+    it('notes when notifications are off', async () => {
+      (areNotificationsEnabled as jest.Mock).mockReturnValueOnce(false);
+      await renderAndWaitForStatus(<SetupSync />);
+      expect(screen.getByTestId('notifications-off-banner')).toHaveTextContent(/Notifications are off/);
     });
 
     it('starts the background sync service after queueing a resync', async () => {

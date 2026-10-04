@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.sync
 
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -29,7 +30,12 @@ import com.facebook.react.bridge.JavaOnlyMap
 import com.facebook.react.bridge.WritableMap
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.notification.NotificationChannels
+import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.ui.MyReactActivity
+import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
+import expo.modules.mymodule.MyModule
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -67,10 +73,37 @@ class SyncForegroundServiceRobolectricTest {
     private lateinit var context: Context
     private lateinit var service: TestService
 
+    private val prefs
+        get() = context.getSharedPreferences(MyModule.SYNC_PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val resultNotification: Notification?
+        get() = shadowOf(context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .getNotification(Consts.NOTIFICATION_ID_SYNC_RESULT)
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         service = Robolectric.buildService(TestService::class.java).create().get()
+        service.clock = CNPlusUnitTestClock(TestTimeConstants.STANDARD_TEST_TIME)
+    }
+
+    @After
+    fun tearDown() {
+        MyReactActivity.isResumed = false
+    }
+
+    /** What MyModule.reportBackgroundSyncOutcome writes when the JS task reports before finishing */
+    private fun reportOutcome(ok: Boolean, error: String? = null) {
+        prefs.edit()
+            .putBoolean(MyModule.PREF_SYNC_REPORTED_OK, ok)
+            .putString(MyModule.PREF_SYNC_REPORTED_ERROR, error)
+            .commit()
+    }
+
+    private fun assertRecorded(ok: Boolean, error: String?) {
+        assertEquals(TestTimeConstants.STANDARD_TEST_TIME, prefs.getLong(MyModule.PREF_SYNC_LAST_COMPLETED_AT, 0))
+        assertEquals(ok, prefs.getBoolean(MyModule.PREF_SYNC_LAST_COMPLETED_OK, !ok))
+        assertEquals(error, prefs.getString(MyModule.PREF_SYNC_LAST_ERROR, null))
     }
 
     @Test
@@ -126,5 +159,77 @@ class SyncForegroundServiceRobolectricTest {
         assertEquals(Service.START_NOT_STICKY, result)
         assertEquals(0, service.tasksStarted)
         assertTrue(shadowOf(service).isStoppedBySelf)
+    }
+
+    // === Terminal states ===
+
+    @Test
+    fun `reported complete is recorded and announced with a dismissable notification`() {
+        service.onStartCommand(null, 0, 1)
+        reportOutcome(ok = true)
+
+        service.onHeadlessJsTaskFinish(1)
+
+        assertRecorded(ok = true, error = null)
+        val notification = resultNotification!!
+        assertEquals(context.getString(R.string.sync_result_complete), shadowOf(notification).contentTitle)
+        assertEquals(0, notification.flags and Notification.FLAG_ONGOING_EVENT)
+        assertEquals(NotificationChannels.CHANNEL_ID_SYNC, notification.channelId)
+        assertEquals(MyReactActivity::class.java.name, shadowOf(notification.contentIntent).savedIntent.component?.className)
+        assertTrue(shadowOf(service).isStoppedBySelf)
+    }
+
+    @Test
+    fun `complete is recorded but not announced while the Data Sync screen is showing`() {
+        MyReactActivity.isResumed = true
+        service.onStartCommand(null, 0, 1)
+        reportOutcome(ok = true)
+
+        service.onHeadlessJsTaskFinish(1)
+
+        assertRecorded(ok = true, error = null)
+        assertNull(resultNotification)
+    }
+
+    @Test
+    fun `reported failure is recorded and announced even while the Data Sync screen is showing`() {
+        MyReactActivity.isResumed = true
+        service.onStartCommand(null, 0, 1)
+        reportOutcome(ok = false, error = "network down")
+
+        service.onHeadlessJsTaskFinish(1)
+
+        assertRecorded(ok = false, error = "network down")
+        val notification = resultNotification!!
+        assertEquals(context.getString(R.string.sync_result_failed), shadowOf(notification).contentTitle)
+        assertEquals(NotificationChannels.CHANNEL_ID_SYNC_PROBLEMS, notification.channelId)
+        assertEquals("network down", shadowOf(notification).contentText)
+    }
+
+    @Test
+    fun `finish with nothing reported is a timeout and is recorded as paused`() {
+        service.onStartCommand(null, 0, 1)
+
+        service.onHeadlessJsTaskFinish(1)
+
+        val pausedDetail = context.getString(R.string.sync_result_paused_detail)
+        assertRecorded(ok = false, error = pausedDetail)
+        val notification = resultNotification!!
+        assertEquals(context.getString(R.string.sync_result_paused), shadowOf(notification).contentTitle)
+        assertEquals(NotificationChannels.CHANNEL_ID_SYNC_PROBLEMS, notification.channelId)
+        assertEquals(pausedDetail, shadowOf(notification).contentText)
+    }
+
+    @Test
+    fun `starting a sync clears the previous run's report and result notification`() {
+        service.onStartCommand(null, 0, 1)
+        service.onHeadlessJsTaskFinish(1)
+        assertNotNull(resultNotification)
+        reportOutcome(ok = true)
+
+        Robolectric.buildService(TestService::class.java).create().get().onStartCommand(null, 0, 1)
+
+        assertNull(resultNotification)
+        assertFalse(prefs.contains(MyModule.PREF_SYNC_REPORTED_OK))
     }
 }
