@@ -980,19 +980,44 @@ jobs:
           find android/app/build/outputs/code_coverage/ -name "*.ec" -ls 2>/dev/null || echo "No .ec files found"
 
       # Skip codegen and disk cleanup - this job only runs JaCoCo report generation
-      - name: Common Setup
-        uses: ./.github/actions/common-setup
-        with:
-          optional_cache_key: "merge-coverage"
-          gradle_max_workers: "4"
-          node_version: "22.x"
-          arch: x86_64
-          skip_codegen: "true"
-          skip_disk_space: "true"
-
+      # The same report app/build.gradle's jacocoAndroidTestReport task makes
+      # (same class filters, same output paths), via JaCoCo's CLI. The classes
+      # and shard .ec files are already downloaded above, so this skips the
+      # ~2.7m Node/Yarn/JS-bundle/Gradle setup plus ~1.1m of Gradle, at the
+      # end of the critical path.
       - name: Generate Merged JaCoCo Report
+        env:
+          # What Gradle's jacocoAndroidTestReport actually ran (its HTML footer says
+          # 0.8.12, despite jacoco.toolVersion = 0.8.14 in app/build.gradle). Pinned
+          # so coverage numbers don't shift; verified identical to the Gradle report.
+          JACOCO_VERSION: "0.8.12"
+          BUILD_DIR: android/app/build
+          DEBUG_VARIANT: x8664Debug
         run: |
-          cd android && ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace
+          curl -sSfL -o jacococli.jar "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/$JACOCO_VERSION/org.jacoco.cli-$JACOCO_VERSION-nodeps.jar"
+
+          # Mirrors jacocoAndroidTestReport's classDirectories includes/excludes
+          mkdir -p coverage-classes
+          for dir in "$BUILD_DIR/tmp/kotlin-classes/$DEBUG_VARIANT" "$BUILD_DIR/intermediates/javac/$DEBUG_VARIANT/classes"; do
+            [ -d "$dir" ] || continue
+            rsync -a --exclude 'R.class' --exclude 'R$*.class' --exclude 'BuildConfig.*' \
+              --exclude 'Manifest*.*' --exclude '*Test*.*' \
+              --exclude 'com/facebook/react/' --exclude 'com/facebook/hermes/' --exclude 'com/facebook/jni/' \
+              --exclude 'org/jacoco/' --exclude 'com/android/tools/jacoco/' \
+              "$dir/" coverage-classes/
+          done
+          echo "Classes: $(find coverage-classes -name '*.class' | wc -l)"
+
+          mapfile -t exec_files < <(find "$BUILD_DIR/outputs" -name '*.ec')
+          echo "Coverage files: ${#exec_files[@]}"
+          [ "${#exec_files[@]}" -gt 0 ] || { echo "::error::No shard .ec files found"; exit 1; }
+
+          OUT="$BUILD_DIR/reports/jacoco/jacocoAndroidTestReport"
+          mkdir -p "$OUT/xml" "$OUT/csv"  # the CLI doesn't create these
+          java -jar jacococli.jar report "${exec_files[@]}" \
+            --classfiles coverage-classes \
+            --sourcefiles android/app/src/main/java \
+            --html "$OUT/html" --xml "$OUT/xml/report.xml" --csv "$OUT/csv/report.csv"
 
       - name: Upload Merged Coverage Report
         if: always()
@@ -1057,6 +1082,8 @@ jobs:
       # Process and generate coverage report from Jacoco XML files
       - name: Generate JaCoCo Coverage Report
         id: jacoco
+        # The action only supports pull_request and push events
+        if: github.event_name != 'workflow_dispatch'
         uses: madrapps/jacoco-report@v1.6.1
         with:
           paths: |
