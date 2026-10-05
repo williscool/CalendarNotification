@@ -250,6 +250,27 @@ android {
       def halfTheCores = Runtime.runtime.availableProcessors().intdiv(2)
       def cappedForks = Math.min(halfTheCores, maxUnitTestForks)
       maxParallelForks = Math.max(1, cappedForks)
+
+      // Optional sharding for CI: -PunitTestShardCount=N -PunitTestShardIndex=I
+      // runs only the test classes whose outer class path hashes to shard I.
+      // Without these properties every test runs, as before.
+      //
+      //   com/github/.../FooTest.class      -> key "com/github/.../FooTest"
+      //   com/github/.../FooTest$Inner.class -> same key, so it stays with FooTest
+      //
+      // With 2 shards the hash split is near even: 3.7m / 3.6m of test-class
+      // time (36 / 31 classes) on the Oct 2026 suite.
+      def unitTestShardCount = (project.findProperty('unitTestShardCount') ?: '1') as int
+      def unitTestShardIndex = (project.findProperty('unitTestShardIndex') ?: '0') as int
+      if (unitTestShardCount > 1) {
+        exclude { element ->
+          if (element.directory) return false
+          // Cut at the first '$' (inner class) and drop ".class"
+          def outerClassPath = element.relativePath.pathString.takeWhile { it != '$' } - '.class'
+          def shard = Math.floorMod(outerClassPath.hashCode(), unitTestShardCount)
+          return shard != unitTestShardIndex
+        }
+      }
       jacoco {
         includeNoLocationClasses = true
         excludes = ['jdk.internal.*']

@@ -471,8 +471,13 @@ jobs:
         path: coverage/
         retention-days: 90
 
+  # Unit tests split across UNIT_TEST_SHARDS jobs by test-class hash (see
+  # unitTestShardCount in app/build.gradle). Each shard uploads its results,
+  # coverage data and compiled classes; merge-unit-test-coverage builds the
+  # reports. Each job pays ~4.3m of fixed setup/config/compile, so 2 shards:
+  # the unit tests then finish around when build + sign do.
   unit-tests:
-    name: Run Unit Tests
+    name: Unit Tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: set_build_datetime
     if: needs.set_build_datetime.outputs.code_changed == 'true'
@@ -480,7 +485,10 @@ jobs:
     strategy:
       matrix:
         arch: [x86_64] # Only test on x86_64 to save time and resources
+        shard: [0, 1]  # keep in step with UNIT_TEST_SHARDS
       fail-fast: false
+    env:
+      UNIT_TEST_SHARDS: 2
     steps:
     - uses: actions/checkout@v3
       with:
@@ -514,64 +522,117 @@ jobs:
                   -PreactNativeArchitectures="${{ matrix.arch }}" \
                   :${{ env.main_project_module }}:generatePackageList \
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
-                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-                  :${{ env.main_project_module }}:jacocoUnitTestReport \
+                  -PunitTestShardCount=$UNIT_TEST_SHARDS \
+                  -PunitTestShardIndex=${{ matrix.shard }} \
         --continue \
         -Pandroid.externalNativeBuild.skip=true \
         -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
-    # Generate Jacoco coverage report
-    # always() is used to ensure the coverage report is generated even if the tests fail
-    - name: Generate Jacoco Coverage Report
-      if: always()
-      run: |
-        cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace \
-        -Pandroid.externalNativeBuild.skip=true
-
-    # Debug: List coverage report files
-    - name: List Coverage Report Files
-      if: always()
-      run: |
-        echo "=== JaCoCo Execution Data Files (.exec) ==="
-        find android/app/build -name "*.exec" -ls 2>/dev/null || echo "No .exec files found"
-        echo ""
-        echo "=== JaCoCo Directory Contents ==="
-        ls -la android/app/build/jacoco/ 2>/dev/null || echo "No jacoco directory"
-        echo ""
-        echo "=== Unit Test Coverage Reports ==="
-        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -30 || echo "No XML/CSV files found"
-        echo ""
-        echo "=== JaCoCo CSV Reports (Unit Tests) ==="
-        find android/app/build/reports/jacoco -name "*.csv" 2>/dev/null || echo "No JaCoCo CSV files found"
-        echo ""
-        echo "=== Coverage directory structure ==="
-        find android/app/build/reports/coverage -type f 2>/dev/null | head -20 || echo "No coverage directory"
-
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
       uses: dorny/test-reporter@v2
       if: always()
       with:
-        name: 'Unit Tests'
+        name: 'Unit Tests (shard ${{ matrix.shard }})'
         path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
         reporter: java-junit
         use-actions-summary: 'true'
         fail-on-error: true
 
-    # Upload test results and coverage
-    - name: Upload Unit Test Results and Coverage
+    # Results, coverage data and compiled classes for merge-unit-test-coverage
+    - name: Upload Unit Test Shard
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
+        name: unit-test-shard-${{ matrix.shard }}
         path: |
-          android/app/build/reports/
           android/app/build/test-results/
-          android/app/build/outputs/logs/
-        retention-days: 90
+          android/app/build/reports/tests/
+          android/app/build/outputs/unit_test_code_coverage/
+          android/app/build/tmp/kotlin-classes/x8664Debug/
+          android/app/build/intermediates/javac/x8664Debug/
+        retention-days: 1
+        if-no-files-found: error
+
+  # Builds the two unit-test coverage reports the old single job produced, from
+  # the shards' coverage data, with JaCoCo's CLI (as merge-integration-coverage
+  # does) -- same class filters, output paths and artifact name, so
+  # coverage-report and test-summary.yml are unchanged:
+  #   reports/coverage/test/x8664/debug   AGP's report (read by the PR comment)
+  #   reports/jacoco/unitTestCoverage     jacocoUnitTestReport's (also excludes
+  #                                       *Test* and com/facebook/react)
+  merge-unit-test-coverage:
+    name: Merge Unit Test Coverage
+    needs: [set_build_datetime, unit-tests]
+    runs-on: ubuntu-latest
+    if: always() && needs.unit-tests.result != 'cancelled' && needs.set_build_datetime.outputs.code_changed == 'true'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Download unit test shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: unit-test-shard-*
+          path: shards/
+
+      - name: Generate merged unit test coverage reports
+        env:
+          JACOCO_VERSION: "0.8.12"  # what the Gradle reports ran (HTML footer); see merge-integration-coverage
+          BUILD_DIR: android/app/build
+          DEBUG_VARIANT: x8664Debug
+        run: |
+          curl -sSfL -o jacococli.jar "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/$JACOCO_VERSION/org.jacoco.cli-$JACOCO_VERSION-nodeps.jar"
+
+          # Test result XMLs from every shard, under the paths the single job used
+          mkdir -p "$BUILD_DIR"
+          for shard in shards/unit-test-shard-*; do
+            rsync -a --include='*/' --include='*.xml' --exclude='*' "$shard/test-results/" "$BUILD_DIR/test-results/"
+          done
+
+          # Every shard compiled the same classes; take them from shard 0
+          classes_root=shards/unit-test-shard-0
+          stage_classes() {  # stage_classes <dest> <extra rsync excludes...>
+            local dest=$1; shift
+            mkdir -p "$dest"
+            for dir in "$classes_root/tmp/kotlin-classes/$DEBUG_VARIANT" "$classes_root/intermediates/javac/$DEBUG_VARIANT/classes"; do
+              [ -d "$dir" ] || continue
+              rsync -a --exclude 'R.class' --exclude 'R$*.class' --exclude 'BuildConfig.*' --exclude 'Manifest*.*' "$@" "$dir/" "$dest/"
+            done
+            echo "$dest: $(find "$dest" -name '*.class' | wc -l) classes"
+          }
+          stage_classes agp-classes
+          stage_classes custom-classes --exclude '*Test*.*' \
+            --exclude 'com/facebook/react/' --exclude 'com/facebook/hermes/' --exclude 'com/facebook/jni/' --exclude 'org/jacoco/'
+
+          mapfile -t exec_files < <(find shards -name '*.exec')
+          echo "Coverage files: ${#exec_files[@]}"
+          [ "${#exec_files[@]}" -gt 0 ] || { echo "::error::No unit test .exec files found"; exit 1; }
+
+          AGP_OUT="$BUILD_DIR/reports/coverage/test/x8664/debug"
+          CUSTOM_OUT="$BUILD_DIR/reports/jacoco/unitTestCoverage"
+          mkdir -p "$AGP_OUT" "$CUSTOM_OUT/xml" "$CUSTOM_OUT/csv"  # the CLI doesn't create these
+          java -jar jacococli.jar report "${exec_files[@]}" --classfiles agp-classes \
+            --sourcefiles android/app/src/main/java \
+            --html "$AGP_OUT" --xml "$AGP_OUT/report.xml"
+          java -jar jacococli.jar report "${exec_files[@]}" --classfiles custom-classes \
+            --sourcefiles android/app/src/main/java \
+            --html "$CUSTOM_OUT/html" --xml "$CUSTOM_OUT/xml/report.xml" --csv "$CUSTOM_OUT/csv/report.csv"
+
+      - name: Upload Unit Test Results and Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          retention-days: 90
 
   # NOTE: this single cAT integration test is just to make sure cAT isn't broken
   # if we revert back to cAT as the main integration test, we can remove this job
@@ -1082,7 +1143,7 @@ jobs:
 
   coverage-report:
     name: Process Code Coverage
-    needs: [set_build_datetime, unit-tests, build, merge-integration-coverage]
+    needs: [set_build_datetime, unit-tests, merge-unit-test-coverage, build, merge-integration-coverage]
     if: always() && needs.set_build_datetime.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
