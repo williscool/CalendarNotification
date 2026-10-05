@@ -232,6 +232,24 @@ android {
   // Add proper JaCoCo instrumentation for tests
   testOptions {
     unitTests.all {
+      // Run test classes across parallel JVMs: one per two cores, capped at
+      // maxUnitTestForks, and never fewer than one.
+      //
+      //   machine          cores  cores/2  capped at 4  at least 1  -> forks
+      //   CI runner          4       2          2            2          2
+      //   8-core laptop      8       4          4            4          4
+      //   16-core desktop   16       8          4            4          4
+      //   1-core box         1       0          0            1          1
+      //
+      // Why half the cores: on CI's 4-core runner the test task took ~5.1m
+      // with 1 fork and ~4.1m with 2. With 4, the forks fought the Gradle
+      // daemon for CPU -- every class ran 2-2.5x slower, and the task took
+      // 3.6m on one run and 5.0m on another. The cap keeps a many-core dev
+      // machine from starting too many memory-hungry Robolectric JVMs.
+      def maxUnitTestForks = 4
+      def halfTheCores = Runtime.runtime.availableProcessors().intdiv(2)
+      def cappedForks = Math.min(halfTheCores, maxUnitTestForks)
+      maxParallelForks = Math.max(1, cappedForks)
       jacoco {
         includeNoLocationClasses = true
         excludes = ['jdk.internal.*']
