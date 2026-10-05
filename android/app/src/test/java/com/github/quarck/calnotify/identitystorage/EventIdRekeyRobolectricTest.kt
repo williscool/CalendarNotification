@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.identitystorage
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.calendar.CalendarProvider
@@ -102,6 +103,7 @@ class EventIdRekeyRobolectricTest {
         ApplicationController.dismissedEventsStorageProvider = null
         ApplicationController.monitorStorageProvider = null
         ApplicationController.resetSettings()
+        ApplicationController.rethrowUnexpectedIdentityErrors = BuildConfig.DEBUG
         unmockkAll()
     }
 
@@ -269,6 +271,19 @@ class EventIdRekeyRobolectricTest {
         } throws SecurityException("calendar permission revoked")
 
         // Must not throw.
+        ApplicationController.resolveEventIds(context)
+
+        assertEquals(100L, eventsStorage.events.single().eventId)
+    }
+
+    @Test
+    fun anUnexpectedRuntimeExceptionDoesNotPropagateInRelease() {
+        ApplicationController.rethrowUnexpectedIdentityErrors = false
+        seed(eventId = 100L, syncId = "sync-100")
+        every {
+            CalendarProvider.findEventIdBySyncId(any(), any(), any(), any())
+        } throws NullPointerException("unexpected bug")
+
         ApplicationController.resolveEventIds(context)
 
         assertEquals(100L, eventsStorage.events.single().eventId)
