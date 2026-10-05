@@ -54,6 +54,10 @@ inputs:
     description: 'Skip free disk space cleanup (for jobs that dont need extra space)'
     required: false
     default: "false"
+  skip_js_bundle:
+    description: 'Skip restoring/generating the JS bundle (for jobs that never package an APK, e.g. unit tests)'
+    required: false
+    default: "false"
   min_free_disk_gb:
     description: 'Run the full disk cleanup only when the runner has less than this many GB free'
     required: false
@@ -230,7 +234,7 @@ runs:
 
     # Cache JS Bundle and Assets
     - name: Restore JS Bundle and Assets Cache
-      if: inputs.test_runner_only != 'true'
+      if: inputs.test_runner_only != 'true' && inputs.skip_js_bundle != 'true'
       uses: actions/cache/restore@v4
       id: js-bundle-cache-restore
       with:
@@ -245,7 +249,7 @@ runs:
 
     # Generate JS bundle if needed
     - name: Generate JS Bundle
-      if: inputs.test_runner_only != 'true' && steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
+      if: inputs.test_runner_only != 'true' && inputs.skip_js_bundle != 'true' && steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
       run: yarn bundle:android --dev=true
       shell: bash
 
