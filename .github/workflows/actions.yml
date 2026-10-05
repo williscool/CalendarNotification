@@ -597,17 +597,22 @@ jobs:
 
           # Every shard compiled the same classes; take them from shard 0
           classes_root=shards/unit-test-shard-0
-          stage_classes() {  # stage_classes <dest> <extra rsync excludes...>
-            local dest=$1; shift
+          stage_classes() {  # stage_classes <dest> <javac classes dir> <extra rsync excludes...>
+            local dest=$1 javac_dir=$2; shift 2
             mkdir -p "$dest"
-            for dir in "$classes_root/tmp/kotlin-classes/$DEBUG_VARIANT" "$classes_root/intermediates/javac/$DEBUG_VARIANT/classes"; do
+            for dir in "$classes_root/tmp/kotlin-classes/$DEBUG_VARIANT" "$javac_dir"; do
               [ -d "$dir" ] || continue
               rsync -a --exclude 'R.class' --exclude 'R$*.class' --exclude 'BuildConfig.*' --exclude 'Manifest*.*' "$@" "$dir/" "$dest/"
             done
             echo "$dest: $(find "$dest" -name '*.class' | wc -l) classes"
           }
-          stage_classes agp-classes
-          stage_classes custom-classes --exclude '*Test*.*' \
+          # AGP 8 writes javac output (e.g. the generated PackageList) under
+          # intermediates/javac/<variant>/compile<Variant>JavaWithJavac/classes;
+          # AGP's report includes it. jacocoUnitTestReport's pattern still names
+          # the old intermediates/javac/<variant>/classes, so its report has none.
+          agp_javac=$(find "$classes_root/intermediates/javac/$DEBUG_VARIANT" -type d -name classes | head -1)
+          stage_classes agp-classes "$agp_javac"
+          stage_classes custom-classes "$classes_root/intermediates/javac/$DEBUG_VARIANT/classes" --exclude '*Test*.*' \
             --exclude 'com/facebook/react/' --exclude 'com/facebook/hermes/' --exclude 'com/facebook/jni/' --exclude 'org/jacoco/'
 
           mapfile -t exec_files < <(find shards -name '*.exec')
