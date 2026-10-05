@@ -416,16 +416,15 @@ jobs:
               You can download these artifacts from the "Artifacts" section of the workflow run.`
             });
 
-  unit-tests:
-    name: Run Unit Tests
+  # Jest (TypeScript/JavaScript) tests, split out of unit-tests: they need only
+  # Node and node_modules, and running them in parallel takes ~0.3m off the
+  # unit-tests job, which gates the required CI Result check.
+  jest-tests:
+    name: Run Jest Tests
     runs-on: ubuntu-latest
     needs: set_build_datetime
     if: needs.set_build_datetime.outputs.code_changed == 'true'
-    timeout-minutes: 25  # Increased for cache rebuilds after dependency updates
-    strategy:
-      matrix:
-        arch: [x86_64] # Only test on x86_64 to save time and resources
-      fail-fast: false
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v3
       with:
@@ -433,24 +432,18 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2
+    - name: Use Node.js 22.x
+      uses: actions/setup-node@v3
       with:
-        create-symlink: true
-        # PRs restore master's ccache; only master saves (see Update Caches)
-        save: ${{ github.ref == 'refs/heads/master' }}
+        node-version: "22.x"
+        cache: "yarn"
 
-    # Execute the common setup
-    # Skip disk cleanup - unit tests are pure Kotlin/Java, don't use emulator
-    # Note: codegen IS needed because native modules depend on generated React Native specs
-    - name: Common Setup
-      uses: ./.github/actions/common-setup
-      with:
-        optional_cache_key: "unit-tests"
-        gradle_max_workers: "4"
-        node_version: "22.x"
-        arch: ${{ matrix.arch }}
-        skip_disk_space: "true"
+    - name: Install dependencies
+      run: yarn install --immutable --inline-builds
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: 'false'
+        YARN_NM_MODE: 'hardlinks-local'
+        HUSKY: '0'
 
     # Run Jest tests (TypeScript/JavaScript unit tests) with coverage
     - name: Run Jest Tests
@@ -477,6 +470,41 @@ jobs:
         name: jest-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
         path: coverage/
         retention-days: 90
+
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: set_build_datetime
+    if: needs.set_build_datetime.outputs.code_changed == 'true'
+    timeout-minutes: 25  # Increased for cache rebuilds after dependency updates
+    strategy:
+      matrix:
+        arch: [x86_64] # Only test on x86_64 to save time and resources
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 1
+
+    # No ccache here: the unit-test run passes -Pandroid.externalNativeBuild.skip=true
+    # (since #76), so nothing native is compiled. `ccache -s` showed zero
+    # compiler calls on both warm and cold (Sept 2026, cache warmer down) runs.
+
+    # Execute the common setup
+    # Skip disk cleanup - unit tests are pure Kotlin/Java, don't use emulator
+    # Skip the JS bundle - Robolectric never packages an APK
+    # Note: codegen IS needed because native modules depend on generated React Native specs
+    - name: Common Setup
+      uses: ./.github/actions/common-setup
+      with:
+        optional_cache_key: "unit-tests"
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
+        skip_disk_space: "true"
+        skip_js_bundle: "true"
 
     # Run the unit tests
     - name: Run Unit Tests
@@ -1180,7 +1208,7 @@ jobs:
   ci-result:
     name: CI Result
     if: always()
-    needs: [set_build_datetime, safety_checks, build, sign, unit-tests]
+    needs: [set_build_datetime, safety_checks, build, sign, unit-tests, jest-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any gated job failed or was cancelled
