@@ -148,12 +148,19 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
+        # Overlap bundling (~0.6m when JS changed) with the cache restores and
+        # codegen; Gradle only needs it when it packages the APK
+        js_bundle_in_background: "true"
 
     - name: Ccachify the Native Modules
       shell: bash
       run: |
         chmod +x scripts/ccachify_native_modules.sh
         ./scripts/ccachify_native_modules.sh
+
+    - name: Wait for the background JS bundle
+      if: steps.common-setup.outputs.js-bundle-cache-hit != 'true'
+      run: ./scripts/wait_for_js_bundle.sh
 
     # Debug always; release too unless this is a pull request (see BUILD_RELEASE)
     - name: Build Android APKs with Gradle

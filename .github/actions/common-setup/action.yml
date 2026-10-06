@@ -58,6 +58,10 @@ inputs:
     description: 'Skip restoring/generating the JS bundle (for jobs that never package an APK, e.g. unit tests)'
     required: false
     default: "false"
+  js_bundle_in_background:
+    description: 'Generate the JS bundle in the background; the caller must run scripts/wait_for_js_bundle.sh before Gradle packages the APK'
+    required: false
+    default: "false"
   min_free_disk_gb:
     description: 'Run the full disk cleanup only when the runner has less than this many GB free'
     required: false
@@ -257,7 +261,21 @@ runs:
     # Generate JS bundle if needed
     - name: Generate JS Bundle
       if: inputs.test_runner_only != 'true' && inputs.skip_js_bundle != 'true' && steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
-      run: yarn bundle:android --dev=true
+      run: |
+        if [ "${{ inputs.js_bundle_in_background }}" != "true" ]; then
+          yarn bundle:android --dev=true
+          exit 0
+        fi
+        # Take the lock here, before the bundler starts, so there's no window
+        # where scripts/wait_for_js_bundle.sh could get it first. The background
+        # bundler inherits fd 9, keeping the lock held until it finishes, after
+        # this step's shell has exited.
+        exec 9>"$RUNNER_TEMP/js-bundle.lock"
+        flock 9
+        rm -f "$RUNNER_TEMP/js-bundle.status"
+        ( yarn bundle:android --dev=true > "$RUNNER_TEMP/js-bundle.log" 2>&1
+          echo $? > "$RUNNER_TEMP/js-bundle.status" ) &
+        echo "JS bundle generating in the background (log: $RUNNER_TEMP/js-bundle.log)"
       shell: bash
 
     # Note: JS Bundle is an exception - we need to save it immediately if generated
