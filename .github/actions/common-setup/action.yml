@@ -377,11 +377,11 @@ runs:
           ~/.android/avd
           ~/.android/adb_usb.ini
           /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
-        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+        key: ${{ runner.os }}-android-avd-snapshot-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
         # Broader fallbacks to share AVD caches when target/arch might differ slightly
         restore-keys: |
-          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-
-          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-
+          ${{ runner.os }}-android-avd-snapshot-${{ inputs.android_api_level }}-${{ inputs.android_target }}-
+          ${{ runner.os }}-android-avd-snapshot-${{ inputs.android_api_level }}-
 
     # Setup Android SDK for emulator if needed and not cached
     #
@@ -421,7 +421,10 @@ runs:
         arch: ${{ inputs.arch }}
         profile: ${{ inputs.android_profile }}
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+        # No -no-snapshot: on shutdown the emulator saves its quick-boot snapshot
+        # into the AVD, which gets cached. Options must match the test run's
+        # (including -memory) or the snapshot is rejected and it cold-boots.
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
         script: |
           adb wait-for-device

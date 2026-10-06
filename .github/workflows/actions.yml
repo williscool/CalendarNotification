@@ -925,7 +925,8 @@ jobs:
         arch: ${{ matrix.arch }}
         profile: ${{ env.ANDROID_PROFILE }}
         force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
+        # Boot from the cached AVD's quick-boot snapshot, never overwrite it
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
         script: ./scripts/wait_for_emulator.sh && ./scripts/matrix_run_android_tests.sh --shard-index ${{ matrix.shard }} --num-shards ${{ env.NUM_SHARDS }} --arch ${{ matrix.arch }} --module ${{ env.main_project_module }} --timeout 25m && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ matrix.shard }}
 

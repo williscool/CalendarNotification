@@ -163,4 +163,4 @@ runs:
           ~/.android/avd
           ~/.android/adb_usb.ini
           /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
-        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+        key: ${{ runner.os }}-android-avd-snapshot-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
