@@ -90,6 +90,24 @@ android {
     pickFirst '**/*.so'
   }
 
+  // Get the architecture from environment variable or project property or default to supporting both
+  def buildArch = providers.gradleProperty('BUILD_ARCH')
+    .orElse(providers.environmentVariable('BUILD_ARCH'))
+    .forUseAtConfigurationTime()
+
+  // Native ABIs this build compiles and packages: a per-arch build
+  // (BUILD_ARCH, as CI sets) gets only its own ABI; without BUILD_ARCH, both.
+  //
+  // Keep abiFilters ONLY in defaultConfig below. AGP unions abiFilters across
+  // defaultConfig, product flavors and build types, so listing both ABIs at
+  // any other level (as the build types and this block once did) silently
+  // brings the other ABI back -- why every per-arch build compiled both.
+  // The second ABI was dead weight anyway: React Native libraries honour
+  // -PreactNativeArchitectures, so e.g. the x86_64 APK's arm64-v8a folder
+  // already lacked libreanimated, librnscreens, libworklets and
+  // libexpo-modules-core, and couldn't run on arm64.
+  def nativeAbis = buildArch.orNull ? [buildArch.get()] : ['x86_64', 'arm64-v8a']
+
   defaultConfig {
     applicationId "com.github.quarck.calnotify"
     minSdkVersion rootProject.ext.minSdkVersion
@@ -119,12 +137,12 @@ android {
 
     externalNativeBuild {
       cmake{
-        abiFilters 'x86_64', 'arm64-v8a'
+        abiFilters(*nativeAbis)
       }
     }
     
     ndk { 
-      abiFilters 'x86_64', 'arm64-v8a'
+      abiFilters(*nativeAbis)
     }
 
     // Add packagingOptions to include necessary .so files
@@ -141,11 +159,6 @@ android {
   // Define specific build variants for each architecture
   flavorDimensions "abi"
   
-  // Get the architecture from environment variable or project property or default to supporting both
-  def buildArch = providers.gradleProperty('BUILD_ARCH')
-    .orElse(providers.environmentVariable('BUILD_ARCH'))
-    .forUseAtConfigurationTime()
-
   println "Building for architecture: ${buildArch.orNull ?: 'defaulting to x86_64'}"
   
   productFlavors {
@@ -154,9 +167,6 @@ android {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
-        ndk {
-          abiFilters 'arm64-v8a'  // Only include arm64-v8a libraries
-        }
       }
     }
     
@@ -165,9 +175,6 @@ android {
       x8664 {
         dimension "abi"
         versionNameSuffix "-x86_64"
-        ndk {
-          abiFilters 'x86_64'  // Only include x86_64 libraries
-        }
       }
     }
   }
@@ -180,9 +187,6 @@ android {
         javaMaxHeapSize "4g"
         preDexLibraries true
         threadCount = 4
-      }
-      ndk {
-        abiFilters 'x86_64', 'arm64-v8a'
       }
     }
     release {
@@ -200,9 +204,6 @@ android {
       lintOptions {
         disable 'MissingTranslation'
         abortOnError false
-      }
-      ndk {
-        abiFilters 'x86_64', 'arm64-v8a'
       }
     }
 
