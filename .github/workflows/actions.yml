@@ -93,24 +93,30 @@ jobs:
           chmod +x ./scripts/check_dev_page_hidden.sh
           ./scripts/check_dev_page_hidden.sh
 
-  build:
+  # The build is two jobs, not one 2-arch matrix, so the emulator tests (which
+  # only need the x86_64 APKs) can start as soon as x86_64 is built instead of
+  # waiting for arm64 too. Each keeps a one-entry matrix so ${{ matrix.arch }}
+  # and the check names ("Build Android App (x86_64)" / "(arm64-v8a)") are
+  # unchanged; build-arm64 reuses this job's env, outputs and steps via YAML
+  # anchors, so edit them here.
+  build-x86_64:
     name: Build Android App
     needs: [set_build_datetime, safety_checks]
     if: needs.set_build_datetime.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [arm64-v8a, x86_64]
+        arch: [x86_64]
       fail-fast: false
-    env:
+    env: &build-env
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
-    outputs:
+    outputs: &build-outputs
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
 
-    steps:
+    steps: &build-steps
     - uses: actions/checkout@v3
       with:
         # For PRs, checkout the actual PR head commit, not the merge commit
@@ -232,9 +238,23 @@ jobs:
         build-outputs-cache-hit: ${{ steps.common-setup.outputs.build-outputs-cache-hit }}
         react-native-cache-hit: ${{ steps.common-setup.outputs.react-native-cache-hit }}
 
+  build-arm64:
+    name: Build Android App
+    needs: [set_build_datetime, safety_checks]
+    if: needs.set_build_datetime.outputs.code_changed == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a]
+      fail-fast: false
+    env: *build-env
+    timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
+    outputs: *build-outputs
+    steps: *build-steps
+
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
-    needs: [set_build_datetime, build]
+    needs: [set_build_datetime, build-x86_64, build-arm64]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -253,7 +273,7 @@ jobs:
       # Import build variables from build job
       - name: Set build variables
         run: |
-          echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
+          echo "repository_name=${{ needs.build-x86_64.outputs.repository_name }}" >> $GITHUB_ENV
 
       # Download build artifacts for current architecture
       - name: Download APK artifacts
@@ -804,7 +824,7 @@ jobs:
   # 2. we need to get the xml file that does the test results for the dorny thing
   integration-test:
     name: Test Android App (Shard ${{ matrix.shard }})
-    needs: [set_build_datetime, build]
+    needs: [set_build_datetime, build-x86_64]  # x86_64 APKs only; doesn't wait for arm64
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -977,7 +997,7 @@ jobs:
 
   merge-integration-coverage:
     name: Merge Integration Test Coverage
-    needs: [set_build_datetime, build, integration-test]
+    needs: [set_build_datetime, build-x86_64, integration-test]
     runs-on: ubuntu-latest
     if: always() && needs.integration-test.result != 'cancelled' && needs.set_build_datetime.outputs.code_changed == 'true'
     timeout-minutes: 15
@@ -1104,7 +1124,7 @@ jobs:
 
   coverage-report:
     name: Process Code Coverage
-    needs: [set_build_datetime, unit-tests, merge-unit-test-coverage, build, merge-integration-coverage]
+    needs: [set_build_datetime, unit-tests, merge-unit-test-coverage, build-x86_64, build-arm64, merge-integration-coverage]
     if: always() && needs.set_build_datetime.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -1230,7 +1250,7 @@ jobs:
   ci-result:
     name: CI Result
     if: always()
-    needs: [set_build_datetime, safety_checks, build, sign, unit-tests, merge-unit-test-coverage, jest-tests]
+    needs: [set_build_datetime, safety_checks, build-x86_64, build-arm64, sign, unit-tests, merge-unit-test-coverage, jest-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any gated job failed or was cancelled
