@@ -291,7 +291,10 @@ jobs:
           # Organize APKs by type
           find artifacts/apk/ -path "*/debug/*" -name "*.apk" -exec cp {} signing/apk/debug/ \;
           find artifacts/apk/ -path "*/release/*" -name "*.apk" -exec cp {} signing/apk/release/ \;
-          find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          # No bundle artifact on PRs (release isn't built there)
+          if [ -d artifacts/bundle ]; then
+            find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          fi
 
           # Verify contents
           echo "Files to sign:"
