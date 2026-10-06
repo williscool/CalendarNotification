@@ -180,6 +180,13 @@ jobs:
       with:
         limit-access-to-actor: true
 
+    # Release isn't built on PRs, but the restored build-outputs cache (saved by
+    # cache warming, which builds release) can still hold a release APK/AAB from
+    # another commit. Drop them so a stale release never reaches the artifacts.
+    - name: Remove stale release outputs
+      if: env.BUILD_RELEASE != 'true'
+      run: rm -rf android/${{ env.main_project_module }}/build/outputs/apk/*/release android/${{ env.main_project_module }}/build/outputs/bundle
+
     # Save the build artifacts to be used in other jobs
     - name: List APKs before upload
       run: |
