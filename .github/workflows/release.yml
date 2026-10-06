@@ -12,7 +12,9 @@ jobs:
       # Give the default GITHUB_TOKEN write permission to commit and push the
       # added or changed files to the repository.
       contents: write
-    if: startsWith(github.event.head_commit.message, 'build:')
+    # Only version-bump.yml's "build: version bump X" commit, so a hand-written
+    # build: commit can't tag a release without the build.gradle version bump
+    if: "startsWith(github.event.head_commit.message, 'build: version bump ')"
     steps:
 
       - name: Checkout code

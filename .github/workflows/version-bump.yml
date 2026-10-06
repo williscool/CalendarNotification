@@ -15,8 +15,10 @@ jobs:
       # added or changed files to the repository.
       contents: write
 
-    # Only run if the commit message does not start with 'build:'
-    if: startsWith(github.event.head_commit.message, 'build:') != true
+    # Skip only this workflow's own "build: version bump X" commits (which
+    # release.yml handles). Other build: commits are analyzed like any other;
+    # under the conventionalcommits preset they never cut a release.
+    if: "startsWith(github.event.head_commit.message, 'build: version bump ') != true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
