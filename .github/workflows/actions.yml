@@ -13,8 +13,8 @@ env:
   # Explicitly set CI flag to true for our Gradle task
   CI: true
 
-  # Release APKs and AABs are only built (and signed) off pull requests:
-  # tags, manual runs. PRs build debug + the emulator test APK only.
+  # Pull requests build only the debug APK and the emulator test APK.
+  # Release APKs and AABs are built and signed only for tags and manual runs.
   BUILD_RELEASE: ${{ github.event_name != 'pull_request' }}
 
   # Android Emulator Configuration
@@ -149,7 +149,8 @@ jobs:
         chmod +x scripts/ccachify_native_modules.sh
         ./scripts/ccachify_native_modules.sh
 
-    - name: Build Android APKs (Debug, plus Release off PRs) with Gradle
+    # Debug always; release too unless this is a pull request (see BUILD_RELEASE)
+    - name: Build Android APKs with Gradle
       run: |
         echo "Building for architecture: $BUILD_ARCH (release: $BUILD_RELEASE)"
         tasks=(
