@@ -131,6 +131,10 @@ jobs:
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
         echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
 
+    # skip_codegen: the assemble/bundle run below triggers the same codegen
+    # tasks through preBuild, so a separate codegen Gradle run (~1m) only paid
+    # for a second Gradle startup and configuration. Unit tests still need the
+    # separate step: they run with -x preBuild.
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
@@ -138,6 +142,7 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
+        skip_codegen: "true"
 
     - name: Ccachify the Native Modules
       shell: bash
