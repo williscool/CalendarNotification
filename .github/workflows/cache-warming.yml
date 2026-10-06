@@ -46,6 +46,7 @@ jobs:
           create-symlink: true
 
       - name: Common Setup
+        id: common-setup
         uses: ./.github/actions/common-setup
         with:
           gradle_max_workers: "4"
@@ -72,6 +73,9 @@ jobs:
         uses: ./.github/actions/cache-update
         with:
           arch: ${{ matrix.arch }}
+          # The only job that saves the JS bundle cache (PR runs don't save)
+          js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
+          js-bundle-cache-key: ${{ steps.common-setup.outputs.js-bundle-cache-key }}
 
   warm-test-caches:
     name: Warm Test Caches

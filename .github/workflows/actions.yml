@@ -226,6 +226,7 @@ jobs:
         yarn-cache-hit: ${{ steps.common-setup.outputs.yarn-cache-hit }}
         yarn-install-state-cache-hit: ${{ steps.common-setup.outputs.yarn-install-state-cache-hit }}
         js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
+        js-bundle-cache-key: ${{ steps.common-setup.outputs.js-bundle-cache-key }}
         gradle-deps-cache-hit: ${{ steps.common-setup.outputs.gradle-deps-cache-hit }}
         gradle-cache-hit: ${{ steps.common-setup.outputs.gradle-cache-hit }}
         build-outputs-cache-hit: ${{ steps.common-setup.outputs.build-outputs-cache-hit }}

@@ -79,6 +79,9 @@ outputs:
   js-bundle-cache-hit:
     description: 'Whether the JS bundle cache was hit'
     value: ${{ steps.js-bundle-cache-restore.outputs.cache-hit }}
+  js-bundle-cache-key:
+    description: 'Key the JS bundle cache was looked up under; cache-update saves under the same key'
+    value: ${{ steps.js-bundle-cache-restore.outputs.cache-primary-key }}
   gradle-deps-cache-hit:
     description: 'Whether the Gradle dependencies cache was hit'
     value: ${{ steps.gradle-deps-cache-restore.outputs.cache-hit }}
@@ -242,7 +245,11 @@ runs:
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'app/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}', 'global.css', 'tailwind.config.js') }}
+        # Everything that can change the bundle. hashFiles doesn't expand braces
+        # (src/**/*.{js,ts} matches nothing), so whole directories. This key is
+        # published as the js-bundle-cache-key output and saved under verbatim
+        # by cache-update, so lookup and save can't drift apart again.
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**', 'modules/**', 'app/**', 'lib/**', 'index.*', 'App.*', 'global.css', 'tailwind.config.js', 'babel.config.js', 'metro.config.js', 'app.json') }}
         restore-keys: |
           ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
           ${{ runner.os }}-js-bundle-
