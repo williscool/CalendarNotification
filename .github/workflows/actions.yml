@@ -1229,7 +1229,7 @@ jobs:
   ci-result:
     name: CI Result
     if: always()
-    needs: [set_build_datetime, safety_checks, build, sign, unit-tests, jest-tests]
+    needs: [set_build_datetime, safety_checks, build, sign, unit-tests, merge-unit-test-coverage, jest-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any gated job failed or was cancelled
