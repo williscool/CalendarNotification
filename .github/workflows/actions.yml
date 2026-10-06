@@ -13,6 +13,10 @@ env:
   # Explicitly set CI flag to true for our Gradle task
   CI: true
 
+  # Pull requests build only the debug APK and the emulator test APK.
+  # Release APKs and AABs are built and signed only for tags and manual runs.
+  BUILD_RELEASE: ${{ github.event_name != 'pull_request' }}
+
   # Android Emulator Configuration
   ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
   ANDROID_API_LEVEL: 34
@@ -145,28 +149,44 @@ jobs:
         chmod +x scripts/ccachify_native_modules.sh
         ./scripts/ccachify_native_modules.sh
 
-    - name: Build Android APKs (Debug and Release) with Gradle
+    # Debug always; release too unless this is a pull request (see BUILD_RELEASE)
+    - name: Build Android APKs with Gradle
       run: |
-        echo "Building for architecture: $BUILD_ARCH"
+        echo "Building for architecture: $BUILD_ARCH (release: $BUILD_RELEASE)"
+        tasks=(
+          ":${{ env.main_project_module }}:assemble${VARIANT_ARCH}Debug"
+          ":${{ env.main_project_module }}:assemble${VARIANT_ARCH}DebugAndroidTest"
+        )
+        if [ "$BUILD_RELEASE" = "true" ]; then
+          tasks+=(
+            ":${{ env.main_project_module }}:assemble${VARIANT_ARCH}Release"
+            ":${{ env.main_project_module }}:bundle${VARIANT_ARCH}Release"
+          )
+        fi
         cd android && \
         # Pass BUILD_ARCH directly to Gradle process to ensure it's available during configuration
         ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
                   -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
+                  "${tasks[@]}" \
         --parallel --max-workers=$MAX_WORKERS --build-cache
 
       env:
         # Explicitly set BUILD_ARCH for Gradle process
         BUILD_ARCH: ${{ matrix.arch }}
+        VARIANT_ARCH: ${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}
 
     - name: Setup tmate session
       if: ${{ failure() && inputs.enable_tmate == true }}
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
+
+    # Release isn't built on PRs, but the restored build-outputs cache (saved by
+    # cache warming, which builds release) can still hold a release APK/AAB from
+    # another commit. Drop them so a stale release never reaches the artifacts.
+    - name: Remove stale release outputs
+      if: env.BUILD_RELEASE != 'true'
+      run: rm -rf android/${{ env.main_project_module }}/build/outputs/apk/*/release android/${{ env.main_project_module }}/build/outputs/bundle
 
     # Save the build artifacts to be used in other jobs
     - name: List APKs before upload
@@ -206,6 +226,7 @@ jobs:
         if-no-files-found: error
 
     - name: Upload Bundle artifacts
+      if: env.BUILD_RELEASE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: android-bundle-artifacts-${{ matrix.arch }}
@@ -263,6 +284,7 @@ jobs:
           path: artifacts/apk/
 
       - name: Download Bundle artifacts
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/download-artifact@v4
         with:
           name: android-bundle-artifacts-${{ matrix.arch }}
@@ -278,7 +300,10 @@ jobs:
           # Organize APKs by type
           find artifacts/apk/ -path "*/debug/*" -name "*.apk" -exec cp {} signing/apk/debug/ \;
           find artifacts/apk/ -path "*/release/*" -name "*.apk" -exec cp {} signing/apk/release/ \;
-          find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          # No bundle artifact on PRs (release isn't built there)
+          if [ -d artifacts/bundle ]; then
+            find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          fi
 
           # Verify contents
           echo "Files to sign:"
@@ -299,6 +324,7 @@ jobs:
 
       - uses: r0adkll/sign-android-release@v1
         name: Sign RELEASE app APKs
+        if: env.BUILD_RELEASE == 'true'
         id: sign_release_app
         with:
           releaseDirectory: signing/apk/release/
@@ -311,6 +337,7 @@ jobs:
 
       - uses: r0adkll/sign-android-release@v1
         name: Sign RELEASE app AABs
+        if: env.BUILD_RELEASE == 'true'
         id: sign_release_aab
         with:
           releaseDirectory: signing/bundle/release/
@@ -377,12 +404,14 @@ jobs:
           path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
       - name: Upload SIGNED APK RELEASE
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
       - name: Upload SIGNED AAB (App Bundle) Release
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
@@ -411,8 +440,7 @@ jobs:
               body: `Build artifacts for PR #${context.issue.number} (commit [\`${shortSha}\`](${commitUrl})) are available:
 
               - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [AAB](${workflowUrl}#artifacts)
+              Release APKs and AABs are built for tagged releases only.
 
               You can download these artifacts from the "Artifacts" section of the workflow run.`
             });
