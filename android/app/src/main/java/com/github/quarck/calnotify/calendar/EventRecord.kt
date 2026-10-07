@@ -108,7 +108,27 @@ data class EventRecord(
         val eventId: Long,
         val details: CalendarEventDetails,
         var eventStatus: EventStatus = EventStatus.Confirmed,
-        var attendanceStatus: AttendanceStatus = AttendanceStatus.None
+        var attendanceStatus: AttendanceStatus = AttendanceStatus.None,
+        /**
+         * `Events._SYNC_ID` — the server-assigned event id, stable across devices.
+         *
+         * The primary identifier for portable event identity: unlike [eventId],
+         * which is a row number local to this device's provider, this value is
+         * the same on every device that syncs the event. Null when the event has
+         * never synced to an account (local-only calendars).
+         *
+         * See docs/dev_todo/portable_event_identity.md.
+         */
+        val syncId: String? = null,
+        /**
+         * `Events.UID_2445` — the iCalendar UID.
+         *
+         * Read opportunistically. Measured null for all 4761 events on a real
+         * Google-synced device (https://issuetracker.google.com/issues/37053160),
+         * but other providers may populate it, so it is captured rather than
+         * depended upon. Prefer [syncId].
+         */
+        val uid2445: String? = null
 ) {
     val title: String get() = details.title
     val desc: String get() = details.desc

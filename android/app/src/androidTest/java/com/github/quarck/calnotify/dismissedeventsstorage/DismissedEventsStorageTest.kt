@@ -27,7 +27,6 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import org.junit.After
 import org.junit.Assert.*
@@ -54,13 +53,13 @@ class DismissedEventsStorageTest {
     fun setup() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         storage = DismissedEventsStorage(context)
-        storage.classCustomUse { it.clearHistory() }
+        storage.use { it.clearHistory() }
         DevLog.info(LOG_TAG, "Test setup complete, isUsingRoom=${storage.isUsingRoom}")
     }
     
     @After
     fun cleanup() {
-        storage.classCustomUse { it.clearHistory() }
+        storage.use { it.clearHistory() }
         DevLog.info(LOG_TAG, "Test cleanup complete")
     }
     
@@ -95,13 +94,13 @@ class DismissedEventsStorageTest {
     fun test_eventsForDisplay_sorts_by_dismissTime_descending() {
         DevLog.info(LOG_TAG, "=== test_eventsForDisplay_sorts_by_dismissTime_descending ===")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 1000, createTestEvent(1))
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 3000, createTestEvent(2))
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 2000, createTestEvent(3))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         
         assertEquals(3, sorted.size)
         assertEquals("Most recent dismiss first", 2L, sorted[0].event.eventId)
@@ -111,17 +110,17 @@ class DismissedEventsStorageTest {
     
     @Test
     fun test_eventsForDisplay_empty_returns_emptyList() {
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         assertTrue("Empty storage should return empty list", sorted.isEmpty())
     }
     
     @Test
     fun test_eventsForDisplay_single_event() {
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 1000, createTestEvent(1))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         assertEquals(1, sorted.size)
         assertEquals(1L, sorted[0].event.eventId)
     }
@@ -130,13 +129,13 @@ class DismissedEventsStorageTest {
     fun test_eventsForDisplay_same_dismissTime_is_stable() {
         DevLog.info(LOG_TAG, "=== test_eventsForDisplay_same_dismissTime_is_stable ===")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 1000, createTestEvent(1))
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 1000, createTestEvent(2))
             db.addEvent(EventDismissType.ManuallyDismissedFromNotification, 1000, createTestEvent(3))
         }
         
-        val sorted = storage.classCustomUse { it.eventsForDisplay }
+        val sorted = storage.use { it.eventsForDisplay }
         
         assertEquals(3, sorted.size)
         // All have same dismissTime - just verify all are present

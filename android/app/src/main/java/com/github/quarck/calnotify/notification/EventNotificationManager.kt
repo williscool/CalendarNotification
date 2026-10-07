@@ -33,7 +33,6 @@ import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.notification.NotificationChannels
 import com.github.quarck.calnotify.utils.pendingIntentFlagCompat
 import com.github.quarck.calnotify.calendar.*
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.pebble.PebbleUtils
@@ -45,7 +44,6 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.ui.MainActivity
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
 import com.github.quarck.calnotify.utils.*
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -72,7 +70,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
     override fun onEventRestored(context: Context, formatter: EventFormatterInterface, event: EventAlertRecord) {
 
         if (event.displayStatus != EventDisplayStatus.Hidden) {
-            EventsStorage(context).classCustomUse {
+            EventsStorage(context).use {
                 it.updateEvent(event, displayStatus = EventDisplayStatus.Hidden)
             }
         }
@@ -230,7 +228,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
 
         var updatedAnything = false
 
-        EventsStorage(context).classCustomUse {
+        EventsStorage(context).use {
             db ->
 
             val (recentEvents, collapsedEvents) = arrangeEvents(db, currentTime, settings)
@@ -302,7 +300,7 @@ open class EventNotificationManager : EventNotificationManagerInterface {
         val quietHoursManager = QuietHoursManager(context, clock)
         val isQuietPeriodActive = !hasActiveAlarms && (quietHoursManager.getSilentUntil(settings) != 0L)
 
-        EventsStorage(context).classCustomUse {
+        EventsStorage(context).use {
             db ->
 
             val notificationSettings = settings.loadNotificationSettings().let {

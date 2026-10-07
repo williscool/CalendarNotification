@@ -28,9 +28,11 @@ import androidx.core.content.ContextCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
@@ -43,11 +45,12 @@ import com.github.quarck.calnotify.app.UndoManager
 import com.github.quarck.calnotify.app.UndoState
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.isSpecial
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
 import com.google.android.material.snackbar.Snackbar
 
@@ -55,15 +58,23 @@ import com.google.android.material.snackbar.Snackbar
  * Fragment for displaying active event notifications.
  * Migrated from MainActivity's event list functionality.
  */
-class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
+class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment, SelectionModeCallback {
 
     private lateinit var settings: Settings
+    private val clock: CNPlusClockInterface get() = getClock()
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: EventListAdapter
+    private var totalEventCount: Int = 0
     private var newUIBanner: LinearLayout? = null
+    
+    // Selection mode UI elements
+    private var selectionActionBar: LinearLayout? = null
+    private var selectionBottomBar: LinearLayout? = null
+    private var selectionCountText: TextView? = null
+    private var backPressedCallback: OnBackPressedCallback? = null
     
     private val dataUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -92,6 +103,7 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         emptyView.text = getString(R.string.empty_active)
         
         adapter = EventListAdapter(requireContext(), this)
+        adapter.selectionModeCallback = this
         recyclerView.layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView.adapter = adapter
         adapter.recyclerView = recyclerView
@@ -102,6 +114,9 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         
         // Setup new UI banner
         setupNewUIBanner(view)
+        
+        // Setup selection mode UI
+        setupSelectionModeUI(view)
     }
     
     private fun setupNewUIBanner(view: View) {
@@ -124,6 +139,77 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         dismissButton?.setOnClickListener {
             dismissBanner()
         }
+    }
+    
+    private fun setupSelectionModeUI(view: View) {
+        selectionActionBar = view.findViewById(R.id.selection_action_bar)
+        selectionBottomBar = view.findViewById(R.id.selection_bottom_bar)
+        selectionCountText = view.findViewById(R.id.selection_count_text)
+        
+        // Close selection button
+        view.findViewById<ImageButton>(R.id.btn_close_selection)?.setOnClickListener {
+            adapter.exitSelectionMode()
+        }
+        
+        // Select all button
+        view.findViewById<TextView>(R.id.btn_select_all)?.setOnClickListener {
+            adapter.selectAllVisible()
+        }
+        
+        // Snooze selected button
+        view.findViewById<Button>(R.id.btn_snooze_selected)?.setOnClickListener {
+            showSnoozeSelectedDialog()
+        }
+        
+        // Setup back press callback for exiting selection mode
+        backPressedCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                if (adapter.selectionMode) {
+                    adapter.exitSelectionMode()
+                }
+            }
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback!!)
+    }
+    
+    private fun showSnoozeSelectedDialog() {
+        val selectedEvents = adapter.getSelectedEvents()
+        if (selectedEvents.isEmpty()) return
+        
+        val ctx = context ?: return
+        
+        // Determine if this is a "change" (all snoozed) or "snooze" (some active)
+        val hasActiveEvents = selectedEvents.any { it.snoozedUntil == 0L }
+        val isChange = !hasActiveEvents
+        
+        // Pass selected event keys to SnoozeAllActivity via intent
+        val eventKeys = selectedEvents.map { it.key.toIntentString() }.toTypedArray()
+        
+        // Get filter/search context for display
+        val filterState = getFilterState()
+        val searchQuery = getSearchQuery()
+        val totalFilteredCount = adapter.itemCount  // Total visible (filtered) events
+        
+        val intent = Intent(ctx, SnoozeAllActivity::class.java)
+            .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
+            .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
+            .putExtra(INTENT_SELECTED_EVENT_KEYS, eventKeys)
+            .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, selectedEvents.size)
+            .putExtra(INTENT_TOTAL_FILTERED_COUNT, totalFilteredCount)
+            .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        
+        // Pass filter/search info if active
+        if (!searchQuery.isNullOrEmpty()) {
+            intent.putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
+        }
+        if (filterState.hasActiveFilters()) {
+            intent.putExtra(Consts.INTENT_FILTER_STATE, filterState.toBundle())
+        }
+        
+        startActivity(intent)
+        
+        // Exit selection mode after launching snooze
+        adapter.exitSelectionMode()
     }
     
     private fun dismissBanner() {
@@ -164,12 +250,17 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        val now = clock.currentTimeMillis()
+        
         background {
-            val events = getEventsStorage(ctx).classCustomUse { db ->
-                db.eventsForDisplay.toTypedArray()
+            val (total, events) = getEventsStorage(ctx).use { db ->
+                val allDbEvents = db.eventsForDisplay
+                Pair(allDbEvents.size, filterState.filterEvents(allDbEvents, now))
             }
             
             activity?.runOnUiThread {
+                totalEventCount = total
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
@@ -178,9 +269,42 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             }
         }
     }
+    
+    private fun getFilterState(): FilterState {
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
+    }
 
     private fun updateEmptyState() {
-        emptyView.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+        if (!isAdded) return  // Fragment detached, skip update
+        
+        val isEmpty = adapter.itemCount == 0
+        emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        
+        if (isEmpty) {
+            val filterState = getFilterState()
+            val searchQuery = getSearchQuery()
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState.hasActiveFilters()
+            
+            val tabName = getString(R.string.nav_active)
+            val itemType = getString(R.string.notifications_lowercase)
+            val baseMessage = getString(R.string.empty_active)
+            val message = when {
+                hasSearch && hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_search_and_filters, tabName, itemType, searchQuery, filterDesc)
+                }
+                hasSearch -> getString(R.string.empty_state_with_search, tabName, itemType, searchQuery)
+                hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_filters, tabName, itemType, filterDesc)
+                }
+                else -> baseMessage
+            }
+            emptyView.text = message
+        }
     }
 
     // EventListCallback implementation
@@ -201,53 +325,15 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
             )
         }
     }
-
-    override fun onItemDismiss(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemDismiss, pos=$position, eventId=$eventId")
+    
+    override fun onItemLongClick(v: View, position: Int, eventId: Long): Boolean {
+        DevLog.info(LOG_TAG, "onItemLongClick, pos=$position, eventId=$eventId")
         
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            DevLog.info(LOG_TAG, "Removing event id ${event.eventId} from DB and dismissing notification id ${event.notificationId}")
-            ApplicationController.dismissEvent(ctx, EventDismissType.ManuallyDismissedFromActivity, event)
-            
-            // Use applicationContext for UndoManager since it persists across activity recreation
-            val appContext = ctx.applicationContext
-            UndoManager.addUndoState(
-                UndoState(
-                    undo = Runnable { ApplicationController.restoreEvent(appContext, event) }
-                )
-            )
-            
-            adapter.removeEvent(event)
-            updateEmptyState()
-            
-            view?.let { v ->
-                Snackbar.make(v, getString(R.string.event_dismissed), Snackbar.LENGTH_LONG)
-                    .setAction(getString(R.string.undo)) { 
-                        UndoManager.undo()
-                        loadEvents()
-                    }
-                    .show()
-            }
-        }
-    }
-
-    override fun onItemSnooze(v: View, position: Int, eventId: Long) {
-        DevLog.info(LOG_TAG, "onItemSnooze, pos=$position, eventId=$eventId")
+        val event = adapter.getEventAtPosition(position, eventId) ?: return false
+        if (event.isSpecial) return false
         
-        val ctx = context ?: return
-        val event = adapter.getEventAtPosition(position, eventId)
-        if (event != null) {
-            startActivity(
-                Intent(ctx, ViewEventActivity::class.java)
-                    .putExtra(Consts.INTENT_NOTIFICATION_ID_KEY, event.notificationId)
-                    .putExtra(Consts.INTENT_EVENT_ID_KEY, event.eventId)
-                    .putExtra(Consts.INTENT_INSTANCE_START_TIME_KEY, event.instanceStartTime)
-                    .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
-                    .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            )
-        }
+        adapter.enterSelectionMode(event)
+        return true
     }
 
     override fun onItemRemoved(event: EventAlertRecord) {
@@ -264,6 +350,23 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
         updateEmptyState()
     }
 
+    override fun onPinToggle(event: EventAlertRecord) {
+        val ctx = context ?: return
+        background {
+            getEventsStorage(ctx).use { db ->
+                val current = db.getEvent(event.eventId, event.instanceStartTime)
+                if (current != null) {
+                    current.isPinned = !current.isPinned
+                    db.updateEvent(current)
+                }
+            }
+            activity?.runOnUiThread {
+                loadEvents()
+                activity?.invalidateOptionsMenu()
+            }
+        }
+    }
+
     override fun onScrollPositionChange(newPos: Int) {
         // Not needed for fragments - handled within adapter if needed
     }
@@ -272,31 +375,123 @@ class ActiveEventsFragment : Fragment(), EventListCallback, SearchableFragment {
     
     override fun setSearchQuery(query: String?) {
         adapter.setSearchText(query)
+        updateEmptyState()
     }
     
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
     
+    override fun getTotalEventCount(): Int = totalEventCount
+    
     override fun getDisplayedEventCount(): Int = adapter.itemCount
     
     override fun hasActiveEvents(): Boolean = adapter.hasActiveEvents
     
+    override fun hasUnpinnedActiveEvents(): Boolean = adapter.hasUnpinnedActiveEvents
+    
     override fun supportsSnoozeAll(): Boolean = true
+    
+    override fun supportsMuteAll(): Boolean = true
+    
+    override fun supportsDismissAll(): Boolean = true
+    
+    override fun anyForMuteAll(): Boolean = adapter.anyForMute
+    
+    override fun anyForDismissAll(): Boolean = adapter.anyForDismissAllButRecentAndSnoozed
+    
+    override fun supportsPinAll(): Boolean = true
+    
+    override fun anyForPinAll(): Boolean = adapter.anyForPinAll
+    
+    override fun anyForUnpinAll(): Boolean = adapter.anyForUnpinAll
+    
+    override fun getPinnedEventCount(): Int = adapter.pinnedCount
+    
+    override fun onMuteAllComplete() {
+        loadEvents()
+    }
+    
+    override fun onDismissAllComplete() {
+        loadEvents()
+    }
+    
+    override fun onPinAllComplete() {
+        loadEvents()
+    }
+    
+    override fun onFilterChanged() {
+        loadEvents()
+    }
+    
+    // SelectionModeCallback implementation
+    
+    override fun onSelectionModeChanged(active: Boolean) {
+        selectionActionBar?.visibility = if (active) View.VISIBLE else View.GONE
+        selectionBottomBar?.visibility = if (active) View.VISIBLE else View.GONE
+        
+        // Hide the new UI banner when in selection mode
+        if (active) {
+            newUIBanner?.visibility = View.GONE
+        } else if (settings.showNewUIBanner) {
+            newUIBanner?.visibility = View.VISIBLE
+        }
+        
+        // Enable/disable back press callback
+        backPressedCallback?.isEnabled = active
+        
+        // Notify activity to hide/show its toolbar and FAB
+        (activity as? MainActivityModern)?.onSelectionModeChanged(active)
+    }
+    
+    override fun onSelectionCountChanged(selected: Int, visible: Int, hiddenSelected: Int) {
+        val text = if (hiddenSelected > 0) {
+            getString(R.string.selection_count_with_hidden, selected, hiddenSelected)
+        } else {
+            resources.getQuantityString(R.plurals.selection_count, selected, selected)
+        }
+        selectionCountText?.text = text
+    }
+    
+    /** Check if fragment is currently in selection mode */
+    fun isInSelectionMode(): Boolean = adapter.selectionMode
+    
+    /** Exit selection mode if active */
+    fun exitSelectionMode() {
+        if (adapter.selectionMode) {
+            adapter.exitSelectionMode()
+        }
+    }
 
     companion object {
         private const val LOG_TAG = "ActiveEventsFragment"
         
+        /** Intent extra for passing selected event keys to SnoozeAllActivity */
+        const val INTENT_SELECTED_EVENT_KEYS = "selected_event_keys"
+        const val INTENT_TOTAL_FILTERED_COUNT = "total_filtered_count"
+        
         /** Provider for EventsStorage - enables DI for testing */
         var eventsStorageProvider: ((Context) -> EventsStorageInterface)? = null
+        
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
+        
+        /** Provider for Clock - enables DI for testing */
+        var clockProvider: (() -> CNPlusClockInterface)? = null
         
         /** Gets EventsStorage - uses provider if set, otherwise creates real instance */
         fun getEventsStorage(ctx: Context): EventsStorageInterface =
             eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
         
+        /** Gets Clock - uses provider if set, otherwise returns real instance */
+        fun getClock(): CNPlusClockInterface =
+            clockProvider?.invoke() ?: CNPlusSystemClock()
+        
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             eventsStorageProvider = null
+            filterStateProvider = null
+            clockProvider = null
         }
     }
 }

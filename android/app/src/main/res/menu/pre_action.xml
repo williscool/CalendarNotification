@@ -1,0 +1,24 @@
+<menu
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".ui.PreActionActivity" >
+
+    <item
+        android:id="@+id/action_pre_dismiss"
+        android:title="@string/pre_dismiss" />
+
+    <item
+        android:id="@+id/action_pre_mute"
+        android:title="@string/pre_mute"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/action_pre_unmute"
+        android:title="@string/pre_unmute"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/action_open_in_calendar"
+        android:title="@string/open_in_calendar" />
+
+</menu>

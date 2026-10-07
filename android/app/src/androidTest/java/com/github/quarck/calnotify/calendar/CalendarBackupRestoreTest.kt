@@ -16,7 +16,6 @@ import org.junit.runner.RunWith
 import android.Manifest
 import android.net.Uri
 import android.content.ContentUris
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
@@ -42,6 +41,7 @@ class CalendarBackupRestoreTest {
     private lateinit var context: Context
     private var testCalendarId1: Long = -1
     private var testCalendarId2: Long = -1
+    private val extraCalendarIds = mutableListOf<Long>()
     private lateinit var testClock: CNPlusTestClock
     private var originalLocale: Locale? = null
     private lateinit var uniqueSuffix: String // Add variable for unique suffix
@@ -102,6 +102,14 @@ class CalendarBackupRestoreTest {
             )
         }
         
+        extraCalendarIds.forEach {
+            context.contentResolver.delete(
+                CalendarContract.Calendars.CONTENT_URI,
+                "${CalendarContract.Calendars._ID} = ?",
+                arrayOf(it.toString())
+            )
+        }
+
         originalLocale?.let { Locale.setDefault(it) }
     }
 
@@ -115,6 +123,37 @@ class CalendarBackupRestoreTest {
         assertEquals("Account name should match", "source_$uniqueSuffix@local", backupInfo?.accountName)
         assertEquals("Account type should match", CalendarContract.ACCOUNT_TYPE_LOCAL, backupInfo?.accountType)
         assertEquals("Display name should match", "Test Calendar Source $uniqueSuffix", backupInfo?.displayName)
+    }
+
+    /** Issue #298: local calendars on de-Googled phones can lack an owner and name. */
+    @Test
+    fun testGetCalendarBackupInfo_CalendarWithoutOwnerOrName() {
+        val calendarId = createTestCalendar(
+            displayName = "No Owner $uniqueSuffix",
+            accountName = "no_owner_$uniqueSuffix@local",
+            ownerAccount = null,
+            name = null
+        ).also { extraCalendarIds.add(it) }
+
+        // Precondition: the real provider stores these as null rather than
+        // defaulting them -- otherwise this test exercises nothing.
+        context.contentResolver.query(
+            ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, calendarId),
+            arrayOf(CalendarContract.Calendars.OWNER_ACCOUNT, CalendarContract.Calendars.NAME),
+            null, null, null
+        )!!.use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("provider kept OWNER_ACCOUNT null", cursor.isNull(0))
+            assertTrue("provider kept NAME null", cursor.isNull(1))
+        }
+
+        val backupInfo = CalendarProvider.getCalendarBackupInfo(context, calendarId)
+
+        assertNotNull(backupInfo)
+        assertEquals("", backupInfo?.ownerAccount)
+        assertEquals("", backupInfo?.name)
+        assertEquals("no_owner_$uniqueSuffix@local", backupInfo?.accountName)
+        assertEquals("No Owner $uniqueSuffix", backupInfo?.displayName)
     }
 
     @Test
@@ -248,7 +287,7 @@ class CalendarBackupRestoreTest {
         advanceTimer(1000)
         
         // Get the restored event from our local storage
-        val restoredEvent = EventsStorage(context).classCustomUse { db ->
+        val restoredEvent = EventsStorage(context).use { db ->
             db.getEvent(eventId, originalEvent.instanceStartTime)
         }
         
@@ -268,15 +307,16 @@ class CalendarBackupRestoreTest {
     private fun createTestCalendar(
         displayName: String,
         accountName: String,
-        ownerAccount: String
+        ownerAccount: String?,
+        name: String? = displayName
     ): Long {
         val values = ContentValues().apply {
             put(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, displayName)
-            put(CalendarContract.Calendars.NAME, displayName)
+            name?.let { put(CalendarContract.Calendars.NAME, it) }
             put(CalendarContract.Calendars.VISIBLE, 1)
             put(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
             put(CalendarContract.Calendars.ACCOUNT_NAME, accountName)
-            put(CalendarContract.Calendars.OWNER_ACCOUNT, ownerAccount)
+            ownerAccount?.let { put(CalendarContract.Calendars.OWNER_ACCOUNT, it) }
             put(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL, CalendarContract.Calendars.CAL_ACCESS_OWNER)
             put(CalendarContract.Calendars.SYNC_EVENTS, 1)
             put(CalendarContract.Calendars.CALENDAR_TIME_ZONE, "UTC")

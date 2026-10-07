@@ -7,7 +7,9 @@
 - [Clock Implementation](architecture/clock_implementation.md) - CNPlusClockInterface for testable time
 - [Domain Model](architecture/domain_model.md) - Storage classes, Room databases, SharedPreferences
 - [Notification Architecture](architecture/notification_architecture.md) - Channels, sound logic, muting system
+- [Background Data Sync](architecture/background_data_sync.md) - Foreground service + headless JS task that keeps a Full Resync uploading
 - [Next Alert Indicator](architecture/next_alert_architecture.md) - 📅/🔔 next notification display
+- [Storage Lifecycle](architecture/storage_lifecycle.md) - `.use {}` pattern, Room vs Legacy close behavior ⭐ *Key Reference*
 
 ## Build & Development
 
@@ -15,10 +17,12 @@
 - [CR-SQLite Build](build/CR_SQLITE_BUILD.md) - Building cr-sqlite native library
 - [Debug Guide](build/DEBUG.md) - Debugging tips (Chrome/Hermes limitations)
 - [WSL Log Cleaning](build/wsl_test_log_clean.md) - Log cleaning scripts for sharing
+- [WSL/Unison Environment](build/wsl_unison_environment.md) - Dual-filesystem dev setup, sync, Windows-only instrumentation tests
 
 ## Data & Sync
 
 - [Data Sync Setup](DATA_SYNC_README.md) - Supabase/PowerSync configuration
+- [Background Data Sync](architecture/background_data_sync.md) - How sync keeps running after you leave the screen
 
 ## Testing Infrastructure
 
@@ -34,8 +38,10 @@
 
 Historical decisions and completed work, kept for reference:
 
+- [GitHub Actions Performance](dev_completed/github_actions_performance.md) - CI optimization (ccache, cache warming, test_runner_only) ⭐ *Key Reference*
 - [Constructor Mocking Limitations](dev_completed/constructor-mocking-android.md) ⭐ *Key Reference*
 - [Calendar Backup/Restore Test Isolation](dev_completed/calendar_backup_restore_test_isolation.md)
+- [Background Data Sync](dev_completed/background_data_sync.md) - Sync keeps running in the background ✅
 - [Calendar Sync Refresh](dev_completed/calendar_sync_refresh.md) - Pull-to-refresh in Handled Calendars ✅
 - [Car Mode Bluetooth Crash](dev_completed/car_mode_bluetooth_crash.md) - Android 12+ BLUETOOTH_CONNECT permission ✅
 - [Database Modernization Plan](dev_completed/database_modernization_plan.md) - Room migration complete ✅
@@ -55,6 +61,12 @@ Historical decisions and completed work, kept for reference:
 
 Features and changes under consideration:
 
+- [Events View Lookahead](dev_todo/events_view_lookahead.md) - Upcoming events tab, pre-actions, filter pills ⭐ *Active*
+  - [Milestone 2: Pre-Actions](dev_todo/event_lookahead_milestone2_pre_actions.md) - Pre-mute, pre-snooze, pre-dismiss ✅
+  - [Milestone 3: Filter Pills](dev_todo/event_lookahead_milestone3_filter_pills.md) - Status, Time, Calendar filters 🚧
+  - [Upcoming Time Filter](dev_todo/upcoming_time_filter.md) - Time filter for Upcoming tab ([#216](https://github.com/williscool/CalendarNotification/issues/216))
+  - [Snoozed Until Filter Pill](dev_todo/snoozed_until_filter_pill.md) - Filter chip by snooze wake time ([#255](https://github.com/williscool/CalendarNotification/issues/255))
+- [Pre-Action View Parity](dev_todo/pre_action_view_parity.md) - Align upcoming event view with main event view ([#249](https://github.com/williscool/CalendarNotification/issues/249))
 - [Deprecated Features Removal](dev_todo/deprecated_features.md) - QuietHours, CalendarEditor
 - [Android Modernization](dev_todo/android_modernization.md) - Coroutines, Hilt DI opportunities
 - [Raise Min SDK](dev_todo/raise_min_sdk.md) - API 24 → 26+ considerations

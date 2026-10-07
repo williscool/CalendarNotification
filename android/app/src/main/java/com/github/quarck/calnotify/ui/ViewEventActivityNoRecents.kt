@@ -43,6 +43,7 @@ import com.github.quarck.calnotify.quiethours.QuietHoursManager
 import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import com.github.quarck.calnotify.utils.*
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import java.util.*
 import com.github.quarck.calnotify.*
 import com.github.quarck.calnotify.logs.DevLog
@@ -52,9 +53,6 @@ import android.os.Build
 import android.os.Handler
 import androidx.core.content.ContextCompat
 import android.text.method.ScrollingMovementMethod
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
-
 // TODO: add repeating rule and calendar name somewhere on the snooze activity
 
 enum class ViewEventActivityStateCode(val code: Int) {
@@ -188,7 +186,7 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         find<Toolbar?>(R.id.toolbar)?.visibility = View.GONE
 
         // load event if it is not a "snooze all"
-        getEventsStorage(this).classCustomUse {
+        getEventsStorage(this).use {
             db ->
 
             var dbEvent = db.getEvent(eventId, instanceStartTime)
@@ -317,6 +315,9 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
 
         window.statusBarColor = color.scaleColor(0.7f)
 
+        // Set status bar spacer height (for edge-to-edge displays)
+        setupStatusBarSpacer()
+
 //        val shouldOfferMove = (!event.isRepeating) && (DateTimeUtils.isUTCTodayOrInThePast(event.startTime))
         val shouldOfferMove = (DateTimeUtils.isUTCTodayOrInThePast(event.startTime))
         if (shouldOfferMove) {
@@ -413,6 +414,15 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
             menuItemUnMute.isVisible = event.isMuted
         }
 
+        popup.menu.findItem(R.id.action_pin_event)?.isVisible = !event.isPinned
+        popup.menu.findItem(R.id.action_unpin_event)?.isVisible = event.isPinned
+
+        // Show "Back to upcoming" for snoozed events whose alert time hasn't passed
+        val menuItemUnsnooze = popup.menu.findItem(R.id.action_unsnooze_to_upcoming)
+        if (menuItemUnsnooze != null) {
+            menuItemUnsnooze.isVisible = event.canUnsnoozeToUpcoming(clock.currentTimeMillis())
+        }
+
         if (event.isTask) {
             val menuItemDismiss = popup.menu.findItem(R.id.action_dismiss_event)
             val menuItemDone = popup.menu.findItem(R.id.action_done_event)
@@ -485,8 +495,27 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
                     true
                 }
 
+                R.id.action_pin_event -> {
+                    togglePinForEvent(true)
+                    true
+                }
+
+                R.id.action_unpin_event -> {
+                    togglePinForEvent(false)
+                    true
+                }
+
                 R.id.action_open_in_calendar -> {
                     openEventInCalendar(event)
+                    finish()
+                    true
+                }
+
+                R.id.action_unsnooze_to_upcoming -> {
+                    val success = ApplicationController.unsnoozeToUpcoming(this, event)
+                    if (success) {
+                        Toast.makeText(this, R.string.event_restored_to_upcoming, Toast.LENGTH_SHORT).show()
+                    }
                     finish()
                     true
                 }
@@ -495,6 +524,19 @@ open class ViewEventActivityNoRecents : AppCompatActivity() {
         }
 
         popup.show()
+    }
+
+    private fun togglePinForEvent(pinned: Boolean) {
+        event.isPinned = pinned
+        background {
+            getEventsStorage(this).use { db ->
+                val current = db.getEvent(event.eventId, event.instanceStartTime)
+                if (current != null) {
+                    current.isPinned = pinned
+                    db.updateEvent(current)
+                }
+            }
+        }
     }
 
     private fun formatPreset(preset: Long): String {

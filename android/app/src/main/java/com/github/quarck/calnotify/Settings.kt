@@ -23,6 +23,7 @@ import android.content.Context
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.prefs.PreferenceUtils
 import com.github.quarck.calnotify.utils.PersistentStorageBase
@@ -239,6 +240,22 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
 
     fun setCalendarIsHandled(calendarId: Long, enabled: Boolean) =
             setBoolean("$CALENDAR_IS_HANDLED_KEY_PREFIX.$calendarId", enabled)
+
+    /**
+     * Whether the user ever set this calendar's handled flag.
+     *
+     * [getCalendarIsHandled] defaults to true, so a plain read cannot tell
+     * "the user enabled it" from "nobody ever touched it". Re-associating
+     * calendars after a restore needs the difference: moving a setting that was
+     * never configured would write a row that says nothing while making this
+     * check answer yes from then on.
+     */
+    fun hasCalendarIsHandledSetting(calendarId: Long) =
+            hasKey("$CALENDAR_IS_HANDLED_KEY_PREFIX.$calendarId")
+
+    /** Drops the setting, restoring the default. Used when a calendar id moves. */
+    fun clearCalendarIsHandled(calendarId: Long) =
+            remove("$CALENDAR_IS_HANDLED_KEY_PREFIX.$calendarId")
 
     var versionCodeFirstInstalled: Long
         get() = getLong(VERSION_CODE_FIRST_INSTALLED_KEY, 0L)
@@ -468,12 +485,65 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
             .coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR)
         set(value) = setString(UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY, value.coerceIn(MIN_DAY_BOUNDARY_HOUR, MAX_DAY_BOUNDARY_HOUR).toString())
     
-    /** Fixed hours lookahead (1-48, default 8). Bounded to prevent misconfiguration. */
+    /** Fixed hours lookahead (1-48, default 8). Legacy property — prefer upcomingEventsFixedLookaheadMillis. */
     var upcomingEventsFixedHours: Int
         get() = (getString(UPCOMING_EVENTS_FIXED_HOURS_KEY, DEFAULT_UPCOMING_EVENTS_FIXED_HOURS.toString())
             .toIntOrNull() ?: DEFAULT_UPCOMING_EVENTS_FIXED_HOURS)
             .coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS)
         set(value) = setString(UPCOMING_EVENTS_FIXED_HOURS_KEY, value.coerceIn(MIN_FIXED_HOURS, MAX_FIXED_HOURS).toString())
+    
+    /** Fixed lookahead in milliseconds. Clamped to MAX_LOOKAHEAD_MILLIS (scan window).
+     *  Falls back to legacy upcomingEventsFixedHours if no millis value is stored. */
+    var upcomingEventsFixedLookaheadMillis: Long
+        get() {
+            val raw = getLong(UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY, -1L)
+            if (raw > 0) return raw.coerceAtMost(MAX_LOOKAHEAD_MILLIS)
+            return (upcomingEventsFixedHours.toLong() * Consts.HOUR_IN_MILLISECONDS).coerceAtMost(MAX_LOOKAHEAD_MILLIS)
+        }
+        set(value) = setLong(UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY, value.coerceIn(1L, MAX_LOOKAHEAD_MILLIS))
+    
+    /** Raw configurable upcoming time presets string (e.g., "4h, 8h, 1d, 3d, 1w") */
+    val upcomingTimePresetsRaw: String
+        get() = getString(UPCOMING_TIME_PRESETS_KEY, DEFAULT_UPCOMING_TIME_PRESETS)
+    
+    /** Parsed upcoming time presets in milliseconds. Filters out negative and >30d values. */
+    val upcomingTimePresets: LongArray
+        get() {
+            val ret = PreferenceUtils.parseSnoozePresets(upcomingTimePresetsRaw)
+                ?: PreferenceUtils.parseSnoozePresets(DEFAULT_UPCOMING_TIME_PRESETS)
+                ?: return longArrayOf()
+            return ret.filter { it > 0 && it <= MAX_LOOKAHEAD_MILLIS }
+                .take(MAX_UPCOMING_TIME_PRESETS)
+                .toLongArray()
+        }
+    
+    /** Raw configurable snoozed-until filter presets string (e.g., "12h, 1d, 3d, 7d, 4w") */
+    val snoozedUntilPresetsRaw: String
+        get() = getString(SNOOZED_UNTIL_PRESETS_KEY, DEFAULT_SNOOZED_UNTIL_PRESETS)
+    
+    /** Parsed snoozed-until filter presets in milliseconds. Filters out negative values. */
+    val snoozedUntilPresets: LongArray
+        get() {
+            val ret = PreferenceUtils.parseSnoozePresets(snoozedUntilPresetsRaw)
+                ?: PreferenceUtils.parseSnoozePresets(DEFAULT_SNOOZED_UNTIL_PRESETS)
+                ?: return longArrayOf()
+            return ret.filter { it > 0 }
+                .take(MAX_SNOOZED_UNTIL_PRESETS)
+                .toLongArray()
+        }
+    
+    /** Max calendars to show in calendar filter. 0 = no limit (show all). */
+    val calendarFilterMaxItems: Int
+        get() = getString(CALENDAR_FILTER_MAX_ITEMS_KEY, DEFAULT_CALENDAR_FILTER_MAX_ITEMS.toString())
+            .toIntOrNull() ?: DEFAULT_CALENDAR_FILTER_MAX_ITEMS
+    
+    /** Show search box in calendar filter. Default: true */
+    val calendarFilterShowSearch: Boolean
+        get() = getBoolean(CALENDAR_FILTER_SHOW_SEARCH_KEY, true)
+    
+    /** Show calendar IDs in calendar filter. Default: true if dev mode, false otherwise */
+    val calendarFilterShowIds: Boolean
+        get() = getBoolean(CALENDAR_FILTER_SHOW_IDS_KEY, BuildConfig.DEV_PAGE_ENABLED || devModeEnabled)
 
     /** Number of days to keep dismissed events in the bin. 0 means forever. */
     val keepHistoryDays: Int
@@ -572,6 +642,12 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         private const val UPCOMING_EVENTS_MODE_KEY = "upcoming_events_mode"
         private const val UPCOMING_EVENTS_DAY_BOUNDARY_HOUR_KEY = "upcoming_events_day_boundary_hour"
         private const val UPCOMING_EVENTS_FIXED_HOURS_KEY = "upcoming_events_fixed_hours"
+        private const val UPCOMING_FIXED_LOOKAHEAD_MILLIS_KEY = "upcoming_fixed_lookahead_millis"
+        private const val UPCOMING_TIME_PRESETS_KEY = "pref_upcoming_time_presets"
+        private const val SNOOZED_UNTIL_PRESETS_KEY = "pref_snoozed_until_presets"
+        private const val CALENDAR_FILTER_MAX_ITEMS_KEY = "calendar_filter_max_items"
+        private const val CALENDAR_FILTER_SHOW_SEARCH_KEY = "calendar_filter_show_search"
+        private const val CALENDAR_FILTER_SHOW_IDS_KEY = "calendar_filter_show_ids"
 
         // Default values
         /** Default theme mode: follow system (-1 = MODE_NIGHT_FOLLOW_SYSTEM) */
@@ -590,6 +666,14 @@ class Settings(context: Context) : PersistentStorageBase(context), SettingsInter
         internal const val MAX_DAY_BOUNDARY_HOUR = 10  // 10am (max slack for night owls)
         internal const val MIN_FIXED_HOURS = 1
         internal const val MAX_FIXED_HOURS = 48
+        internal const val DEFAULT_UPCOMING_TIME_PRESETS = "4h, 8h, 1d, 3d, 1w"
+        internal const val MAX_UPCOMING_TIME_PRESETS = 10
+        internal const val MAX_LOOKAHEAD_DAYS = 30L
+        internal const val MAX_LOOKAHEAD_MILLIS = MAX_LOOKAHEAD_DAYS * Consts.DAY_IN_MILLISECONDS
+        internal const val DEFAULT_SNOOZED_UNTIL_PRESETS = "12h, 1d, 3d, 7d, 4w"
+        internal const val MAX_SNOOZED_UNTIL_PRESETS = 10
+        /** Default max calendars in filter (0 = no limit) */
+        internal const val DEFAULT_CALENDAR_FILTER_MAX_ITEMS = 20
     }
 }
 

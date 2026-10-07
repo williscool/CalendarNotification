@@ -1,5 +1,6 @@
 package expo.modules.mymodule
 
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -29,6 +30,22 @@ class MyModule : Module() {
     // Database name constants (must match EventsDatabase.kt)
     const val ROOM_DATABASE_NAME = "RoomEvents"
     const val LEGACY_DATABASE_NAME = "Events"
+
+    // Background sync state. BackgroundSyncState in the main app uses these same constants:
+    // the JS task reports its outcome here, and the service records the last result.
+    const val SYNC_PREFS_NAME = "background_sync_state"
+    const val PREF_SYNC_REPORTED_OK = "reported_ok"
+    const val PREF_SYNC_REPORTED_ERROR = "reported_error"
+    const val PREF_SYNC_PROGRESS_DONE = "progress_done"
+    const val PREF_SYNC_PROGRESS_TOTAL = "progress_total"
+    const val PREF_SYNC_QUEUED = "queued"
+    const val PREF_SYNC_PROGRESS_OPERATION = "progress_operation"
+    const val PREF_SYNC_LAST_COMPLETED_AT = "sync_last_completed_at"
+    const val PREF_SYNC_LAST_COMPLETED_OK = "sync_last_completed_ok"
+    const val PREF_SYNC_LAST_ERROR = "sync_last_error"
+
+    // CONTRACT: must match SyncForegroundService in the main app
+    const val SYNC_SERVICE_CLASS = "com.github.quarck.calnotify.sync.SyncForegroundService"
   }
 
   override fun definition() = ModuleDefinition {
@@ -108,6 +125,64 @@ class MyModule : Module() {
       
       Log.i(TAG, "isUsingRoomStorage: $isRoom")
       isRoom
+    }
+
+    // Starts the foreground service that keeps the sync upload running in the background.
+    // The service ignores a start while it is already running.
+    AsyncFunction("startBackgroundSync") {
+      val context = appContext.reactContext
+      if (context == null) {
+        Log.w(TAG, "startBackgroundSync: context is null, not starting")
+      } else {
+        val intent = Intent().setClassName(context, SYNC_SERVICE_CLASS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          context.startForegroundService(intent)
+        } else {
+          context.startService(intent)
+        }
+      }
+      Unit
+    }
+
+    // Called by the background sync task just before it finishes. The service reads this when
+    // the task ends; if nothing was reported, it knows the task timed out.
+    AsyncFunction("reportBackgroundSyncOutcome") { ok: Boolean, error: String? ->
+      appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)?.edit()
+        ?.putBoolean(PREF_SYNC_REPORTED_OK, ok)
+        ?.putString(PREF_SYNC_REPORTED_ERROR, error)
+        ?.apply()
+      Unit
+    }
+
+    // Called by the background sync task as uploads go through. The service watches these
+    // values to update the progress bar in its notification.
+    AsyncFunction("reportBackgroundSyncProgress") { done: Int, total: Int, queued: Int, operation: String? ->
+      appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)?.edit()
+        ?.putInt(PREF_SYNC_PROGRESS_DONE, done)
+        ?.putInt(PREF_SYNC_PROGRESS_TOTAL, total)
+        ?.putInt(PREF_SYNC_QUEUED, queued)
+        ?.putString(PREF_SYNC_PROGRESS_OPERATION, operation)
+        ?.apply()
+      Unit
+    }
+
+    // How the last background sync ended, or null if there has never been one
+    Function("getLastBackgroundSyncResult") {
+      val prefs = appContext.reactContext?.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)
+      if (prefs == null || !prefs.contains(PREF_SYNC_LAST_COMPLETED_AT)) {
+        return@Function null
+      }
+      mapOf(
+        "completedAt" to prefs.getLong(PREF_SYNC_LAST_COMPLETED_AT, 0).toDouble(),
+        "ok" to prefs.getBoolean(PREF_SYNC_LAST_COMPLETED_OK, false),
+        "error" to prefs.getString(PREF_SYNC_LAST_ERROR, null)
+      )
+    }
+
+    // False when the user has turned notifications off, so background sync progress is hidden
+    Function("areNotificationsEnabled") {
+      val manager = appContext.reactContext?.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+      manager?.areNotificationsEnabled() ?: true
     }
 
     // Enables the module to be used as a native view. Definition components that are accepted as part of

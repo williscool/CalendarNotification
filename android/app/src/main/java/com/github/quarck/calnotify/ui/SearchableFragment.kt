@@ -32,12 +32,54 @@ interface SearchableFragment {
     /** Get the total number of events (for search placeholder) */
     fun getEventCount(): Int
     
+    /** Get total event count before filter pills (for "X of Y" hint) */
+    fun getTotalEventCount(): Int = getEventCount()
+    
     /** Get the count of currently displayed events (after filtering) */
     fun getDisplayedEventCount(): Int = getEventCount()
     
     /** Whether there are active (non-snoozed) events - for snooze all label */
     fun hasActiveEvents(): Boolean = true
     
+    /** Whether there are active non-pinned events (for snooze-vs-change-all decision) */
+    fun hasUnpinnedActiveEvents(): Boolean = hasActiveEvents()
+    
     /** Whether this fragment supports snooze all action */
     fun supportsSnoozeAll(): Boolean = false
+    
+    /** Whether this fragment supports mute all action */
+    fun supportsMuteAll(): Boolean = false
+    
+    /** Whether this fragment supports dismiss all action */
+    fun supportsDismissAll(): Boolean = false
+    
+    /** Whether there are any events eligible for mute all */
+    fun anyForMuteAll(): Boolean = false
+    
+    /** Whether there are any events eligible for dismiss all */
+    fun anyForDismissAll(): Boolean = false
+    
+    /** Whether this fragment supports pin all action */
+    fun supportsPinAll(): Boolean = false
+    
+    /** Whether there are any events eligible for pin all */
+    fun anyForPinAll(): Boolean = false
+    
+    /** Whether there are any events eligible for unpin all */
+    fun anyForUnpinAll(): Boolean = false
+    
+    /** Get count of pinned events in current displayed set (for snooze all exclusion message) */
+    fun getPinnedEventCount(): Int = 0
+    
+    /** Called when mute all action is triggered - fragment should reload data */
+    fun onMuteAllComplete() {}
+    
+    /** Called when dismiss all action is triggered - fragment should reload data */
+    fun onDismissAllComplete() {}
+    
+    /** Called when pin/unpin all action is triggered - fragment should reload data */
+    fun onPinAllComplete() {}
+    
+    /** Called when filter state changes - fragment should reload data with new filter */
+    fun onFilterChanged() {}
 }

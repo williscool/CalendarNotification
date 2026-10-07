@@ -99,6 +99,7 @@ object EventAlertFlags {
     const val IS_MUTED = 1L
     const val IS_TASK = 2L
     const val IS_ALARM = 4L
+    const val IS_PINNED = 8L
 }
 
 fun Long.isFlagSet(flag: Long)
@@ -110,7 +111,22 @@ fun Long.setFlag(flag: Long, value: Boolean)
         else
             this and flag.inv()
 
-data class EventAlertRecordKey(val eventId: Long, val instanceStartTime: Long)
+data class EventAlertRecordKey(val eventId: Long, val instanceStartTime: Long) {
+    
+    /** Serialize for Intent extras */
+    fun toIntentString(): String = "$eventId:$instanceStartTime"
+    
+    companion object {
+        /** Parse from Intent extras */
+        fun fromIntentString(key: String): EventAlertRecordKey? {
+            val parts = key.split(":")
+            if (parts.size != 2) return null
+            val eventId = parts[0].toLongOrNull() ?: return null
+            val instanceStartTime = parts[1].toLongOrNull() ?: return null
+            return EventAlertRecordKey(eventId, instanceStartTime)
+        }
+    }
+}
 
 data class EventAlertRecord(
         val calendarId: Long,
@@ -151,6 +167,10 @@ data class EventAlertRecord(
         get() = flags.isFlagSet(EventAlertFlags.IS_ALARM)
         set(value) { flags = flags.setFlag(EventAlertFlags.IS_ALARM, value) }
 
+    var isPinned: Boolean
+        get() = flags.isFlagSet(EventAlertFlags.IS_PINNED)
+        set(value) { flags = flags.setFlag(EventAlertFlags.IS_PINNED, value) }
+
     val isUnmutedAlarm: Boolean
         get() = isAlarm && !isMuted
 
@@ -158,6 +178,19 @@ data class EventAlertRecord(
         get() = EventAlertRecordKey(eventId, instanceStartTime)
 
     val titleAsOneLine: String by lazy { title.replace("\r\n", " ").replace("\n", " ")}
+    
+    /**
+     * Returns true if this event's alert time has already passed.
+     * Used to determine if an event should appear in "Upcoming" vs "Active" lists.
+     */
+    fun hasAlertFired(currentTime: Long): Boolean = alertTime <= currentTime
+    
+    /**
+     * Returns true if this event can be unsnoozed back to the Upcoming list.
+     * Requirements: must be snoozed AND alert time hasn't passed yet.
+     */
+    fun canUnsnoozeToUpcoming(currentTime: Long): Boolean = 
+        snoozedUntil != 0L && !hasAlertFired(currentTime)
 }
 
 fun EventAlertRecord.updateFrom(newEvent: EventAlertRecord): Boolean {

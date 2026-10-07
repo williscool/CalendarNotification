@@ -1,6 +1,7 @@
 package com.github.quarck.calnotify.ui
 
 import android.os.Bundle
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -105,8 +106,8 @@ class ViewEventActivityStateTest {
     fun `toBundle and fromBundle roundtrip preserves DatePicker state`() {
         val original = ViewEventActivityState(
             state = ViewEventActivityStateCode.SnoozeUntilOpenedDatePicker,
-            timeAMillis = System.currentTimeMillis(),
-            timeBMillis = System.currentTimeMillis() + 3600000
+            timeAMillis = TestTimeConstants.STANDARD_TEST_TIME,
+            timeBMillis = TestTimeConstants.STANDARD_TEST_TIME + 3600000
         )
         
         val bundle = Bundle()

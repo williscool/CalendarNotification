@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.utils
 
+import java.text.SimpleDateFormat
 import java.util.*
 
 object DateTimeUtils {
@@ -94,6 +95,61 @@ object DateTimeUtils {
         val time = createUTCCalendarTime(timeInUTC)
         val now = createCalendarTime(clock.currentTimeMillis())
         return calendarDayEqualsOrLess(time, now)
+    }
+    
+    // ===== Time Filter Utilities =====
+    
+    /**
+     * Check if a timestamp falls on today (local timezone).
+     */
+    fun isToday(timestamp: Long, now: Long): Boolean {
+        val nowCal = createCalendarTime(now)
+        val tsCal = createCalendarTime(timestamp)
+        return calendarDayEquals(nowCal, tsCal)
+    }
+    
+    /**
+     * Check if a timestamp falls within the current calendar week (local timezone).
+     * Uses range-based calculation to correctly handle year boundaries.
+     */
+    fun isThisWeek(timestamp: Long, now: Long): Boolean {
+        val nowCal = createCalendarTime(now)
+        
+        // Get the start of the current week (Sunday or Monday depending on locale)
+        val weekStart = nowCal.clone() as Calendar
+        weekStart.set(Calendar.DAY_OF_WEEK, weekStart.firstDayOfWeek)
+        weekStart.set(Calendar.HOUR_OF_DAY, 0)
+        weekStart.set(Calendar.MINUTE, 0)
+        weekStart.set(Calendar.SECOND, 0)
+        weekStart.set(Calendar.MILLISECOND, 0)
+        
+        // Get the end of the current week
+        val weekEnd = weekStart.clone() as Calendar
+        weekEnd.add(Calendar.DAY_OF_WEEK, 7)
+        
+        return timestamp >= weekStart.timeInMillis && timestamp < weekEnd.timeInMillis
+    }
+    
+    /**
+     * Check if a timestamp falls within the current calendar month (local timezone).
+     */
+    fun isThisMonth(timestamp: Long, now: Long): Boolean {
+        val nowCal = createCalendarTime(now)
+        val tsCal = createCalendarTime(timestamp)
+        return nowCal.get(Calendar.YEAR) == tsCal.get(Calendar.YEAR) &&
+               nowCal.get(Calendar.MONTH) == tsCal.get(Calendar.MONTH)
+    }
+
+    /**
+     * Format an hour-of-day (0-23) as a locale-aware time string (e.g., "4 AM", "16:00").
+     */
+    fun formatHourOfDay(hour: Int): String {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, 0)
+        }
+        val format = SimpleDateFormat.getTimeInstance(SimpleDateFormat.SHORT)
+        return format.format(cal.time)
     }
 }
 

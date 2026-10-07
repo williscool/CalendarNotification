@@ -5,13 +5,18 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventOrigin
-import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
+import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
 import com.github.quarck.calnotify.reminders.ReminderStateInterface
 import com.github.quarck.calnotify.persistentState
+import com.github.quarck.calnotify.testutils.MockDismissedEventsStorage
 import com.github.quarck.calnotify.testutils.MockEventsStorage
+import com.github.quarck.calnotify.testutils.MockMonitorStorage
+import com.github.quarck.calnotify.ui.FilterState
+import com.github.quarck.calnotify.ui.StatusOption
+import com.github.quarck.calnotify.ui.TimeFilter
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import io.mockk.*
 import org.junit.After
@@ -36,9 +41,10 @@ class ApplicationControllerCoreRobolectricTest {
     private lateinit var context: Context
     private lateinit var testClock: CNPlusUnitTestClock
     private lateinit var mockEventsStorage: MockEventsStorage
+    private lateinit var mockMonitorStorage: MockMonitorStorage
+    private lateinit var mockDismissedEventsStorage: MockDismissedEventsStorage
     private lateinit var mockNotificationManager: EventNotificationManagerInterface
     private lateinit var mockAlarmScheduler: AlarmSchedulerInterface
-    private lateinit var mockDismissedEventsStorage: DismissedEventsStorage
     private lateinit var mockReminderState: ReminderStateInterface
 
     private val baseTime = 1635724800000L // 2021-11-01 00:00:00 UTC
@@ -48,10 +54,11 @@ class ApplicationControllerCoreRobolectricTest {
         context = ApplicationProvider.getApplicationContext()
         testClock = CNPlusUnitTestClock(baseTime)
         mockEventsStorage = MockEventsStorage()
+        mockMonitorStorage = MockMonitorStorage()
+        mockDismissedEventsStorage = MockDismissedEventsStorage()
 
         mockNotificationManager = mockk(relaxed = true)
         mockAlarmScheduler = mockk(relaxed = true)
-        mockDismissedEventsStorage = mockk(relaxed = true)
         mockReminderState = mockk(relaxed = true)
 
         mockkObject(ApplicationController)
@@ -62,17 +69,22 @@ class ApplicationControllerCoreRobolectricTest {
         // Inject mock storage and reminder state
         ApplicationController.eventsStorageProvider = { mockEventsStorage }
         ApplicationController.reminderStateProvider = { mockReminderState }
+        ApplicationController.monitorStorageProvider = { mockMonitorStorage }
+        ApplicationController.dismissedEventsStorageProvider = { mockDismissedEventsStorage }
     }
 
     @After
     fun cleanup() {
         ApplicationController.eventsStorageProvider = null
         ApplicationController.reminderStateProvider = null
+        ApplicationController.monitorStorageProvider = null
+        ApplicationController.dismissedEventsStorageProvider = null
         unmockkAll()
     }
 
     private fun createTestEvent(
         eventId: Long = 1L,
+        calendarId: Long = 1L,
         instanceStartTime: Long = baseTime,
         snoozedUntil: Long = 0L,
         isMuted: Boolean = false,
@@ -80,7 +92,7 @@ class ApplicationControllerCoreRobolectricTest {
         lastStatusChangeTime: Long = baseTime
     ): EventAlertRecord {
         val event = EventAlertRecord(
-            calendarId = 1L,
+            calendarId = calendarId,
             eventId = eventId,
             isAllDay = false,
             isRepeating = false,
@@ -354,6 +366,184 @@ class ApplicationControllerCoreRobolectricTest {
         assertFalse("No events should be muted", events.any { it.isMuted })
     }
 
+    @Test
+    fun testMuteAllVisibleEvents_mutesPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 1, isMuted = false).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, isMuted = false))
+
+        ApplicationController.muteAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        val pinned = events.find { it.eventId == 1L }
+        val normal = events.find { it.eventId == 2L }
+        
+        assertTrue("Pinned event should be muted (pinning only affects batch snooze)", pinned?.isMuted == true)
+        assertTrue("Normal event should be muted", normal?.isMuted == true)
+    }
+
+    // === pinAllVisibleEvents / unpinAllVisibleEvents tests ===
+
+    @Test
+    fun testPinAllVisibleEvents_pinsVisibleEvents() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertTrue("All events should be pinned", events.all { it.isPinned })
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsSnoozedEvents() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, snoozedUntil = baseTime + 3600000L))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        val snoozed = events.find { it.eventId == 1L }
+        val visible = events.find { it.eventId == 2L }
+
+        assertFalse("Snoozed event should NOT be pinned", snoozed?.isPinned == true)
+        assertTrue("Visible event should be pinned", visible?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_pinsTaskEvents() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, isTask = true))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        val task = events.find { it.eventId == 1L }
+        val normal = events.find { it.eventId == 2L }
+
+        assertTrue("Task event should be pinned (pinning is orthogonal to task status)", task?.isPinned == true)
+        assertTrue("Normal event should be pinned", normal?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsAlreadyPinned() {
+        val alreadyPinned = createTestEvent(eventId = 1).apply { isPinned = true }
+        mockEventsStorage.addEvent(alreadyPinned)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertTrue("All events should be pinned", events.all { it.isPinned })
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_unpinsAllPinnedEvents() {
+        val pinned1 = createTestEvent(eventId = 1).apply { isPinned = true }
+        val pinned2 = createTestEvent(eventId = 2).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinned1)
+        mockEventsStorage.addEvent(pinned2)
+
+        ApplicationController.unpinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertFalse("No events should be pinned", events.any { it.isPinned })
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_leavesUnpinnedAlone() {
+        val pinned = createTestEvent(eventId = 1).apply { isPinned = true }
+        val unpinned = createTestEvent(eventId = 2)
+        mockEventsStorage.addEvent(pinned)
+        mockEventsStorage.addEvent(unpinned)
+
+        ApplicationController.unpinAllVisibleEvents(context)
+
+        val events = mockEventsStorage.events
+        assertFalse("No events should be pinned after unpin all", events.any { it.isPinned })
+    }
+
+    // === filter-aware muteAllVisibleEvents tests ===
+
+    @Test
+    fun testMuteAllVisibleEvents_respectsSearchQuery() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1).apply { title = "Meeting with Alice" })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).apply { title = "Lunch with Bob" })
+
+        ApplicationController.muteAllVisibleEvents(context, searchQuery = "Alice")
+
+        val events = mockEventsStorage.events
+        assertTrue("Matching event should be muted", events.find { it.eventId == 1L }?.isMuted == true)
+        assertFalse("Non-matching event should NOT be muted", events.find { it.eventId == 2L }?.isMuted == true)
+    }
+
+    @Test
+    fun testMuteAllVisibleEvents_respectsFilterState() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, calendarId = 10L))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, calendarId = 20L))
+
+        val filter = FilterState(selectedCalendarIds = setOf(10L))
+        ApplicationController.muteAllVisibleEvents(context, filterState = filter)
+
+        val events = mockEventsStorage.events
+        assertTrue("Filtered-in event should be muted", events.find { it.eventId == 1L }?.isMuted == true)
+        assertFalse("Filtered-out event should NOT be muted", events.find { it.eventId == 2L }?.isMuted == true)
+    }
+
+    // === filter-aware pinAllVisibleEvents tests ===
+
+    @Test
+    fun testPinAllVisibleEvents_respectsSearchQuery() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1).apply { title = "Meeting with Alice" })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).apply { title = "Lunch with Bob" })
+
+        ApplicationController.pinAllVisibleEvents(context, searchQuery = "Alice")
+
+        val events = mockEventsStorage.events
+        assertTrue("Matching event should be pinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertFalse("Non-matching event should NOT be pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_respectsFilterState() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, calendarId = 10L))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, calendarId = 20L))
+
+        val filter = FilterState(selectedCalendarIds = setOf(10L))
+        ApplicationController.pinAllVisibleEvents(context, filterState = filter)
+
+        val events = mockEventsStorage.events
+        assertTrue("Filtered-in event should be pinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertFalse("Filtered-out event should NOT be pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
+    // === filter-aware unpinAllVisibleEvents tests ===
+
+    @Test
+    fun testUnpinAllVisibleEvents_respectsSearchQuery() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1).apply { isPinned = true; title = "Meeting with Alice" })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).apply { isPinned = true; title = "Lunch with Bob" })
+
+        ApplicationController.unpinAllVisibleEvents(context, searchQuery = "Alice")
+
+        val events = mockEventsStorage.events
+        assertFalse("Matching event should be unpinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertTrue("Non-matching event should stay pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_respectsFilterState() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, calendarId = 10L).apply { isPinned = true })
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, calendarId = 20L).apply { isPinned = true })
+
+        val filter = FilterState(selectedCalendarIds = setOf(10L))
+        ApplicationController.unpinAllVisibleEvents(context, filterState = filter)
+
+        val events = mockEventsStorage.events
+        assertFalse("Filtered-in event should be unpinned", events.find { it.eventId == 1L }?.isPinned == true)
+        assertTrue("Filtered-out event should stay pinned", events.find { it.eventId == 2L }?.isPinned == true)
+    }
+
     // === onEventAlarm tests ===
 
     @Test
@@ -407,6 +597,850 @@ class ApplicationControllerCoreRobolectricTest {
 
         // Verify late alarm was NOT reported
         verify(exactly = 0) { ApplicationController.onSnoozeAlarmLate(any(), any(), any()) }
+    }
+
+    // === restoreEvent tests ===
+
+    @Test
+    fun testRestoreEvent_alertTimeInFuture_restoresToUpcoming() {
+        // Event with alertTime in the future (hasn't fired yet)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = true (was pre-dismissed)
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Add event to dismissed storage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        
+        // Restore the event
+        ApplicationController.restoreEvent(context, event, null, mockDismissedEventsStorage)
+        
+        // Verify alert's wasHandled flag is cleared (restored to Upcoming)
+        val restoredAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", restoredAlert)
+        assertFalse("wasHandled should be cleared for restore to Upcoming", restoredAlert!!.wasHandled)
+        
+        // Verify event was removed from DismissedEventsStorage
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+        
+        // Verify event was NOT added to EventsStorage (Active)
+        assertEquals("Event should NOT be added to EventsStorage", 0, mockEventsStorage.events.size)
+    }
+
+    @Test
+    fun testRestoreEvent_alertTimePassed_restoresToActive() {
+        // Event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add event to dismissed storage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        
+        // Restore the event
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify event was added to EventsStorage (Active)
+        assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
+        val restoredEvent = mockEventsStorage.events.first()
+        assertEquals("Restored event should have correct eventId", event.eventId, restoredEvent.eventId)
+        
+        // Verify event was removed from DismissedEventsStorage
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testRestoreEvent_alertTimeExactlyNow_restoresToActive() {
+        // Event with alertTime exactly at current time (edge case - treat as fired)
+        val event = createTestEvent(
+            eventId = 3,
+            instanceStartTime = baseTime
+        ).copy(alertTime = baseTime)
+        
+        // Add event to dismissed storage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromActivity, event)
+        
+        // Restore the event
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify event was added to EventsStorage (Active) - alertTime == currentTime means it's fired
+        assertEquals("Event should be added to EventsStorage", 1, mockEventsStorage.events.size)
+    }
+
+    // === unsnoozeToUpcoming tests ===
+
+    @Test
+    fun testUnsnoozeToUpcoming_alertTimeInFuture_succeeds() {
+        // Snoozed event with alertTime in the future
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L,
+            snoozedUntil = baseTime + 1800000L // Snoozed for 30 mins
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add event to EventsStorage (it's snoozed/active)
+        mockEventsStorage.addEvent(event)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Unsnooze to upcoming
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertTrue("Unsnooze should succeed", result)
+        
+        // Verify event was removed from EventsStorage
+        assertEquals("Event should be removed from EventsStorage", 0, mockEventsStorage.events.size)
+        
+        // Verify wasHandled flag is cleared in MonitorStorage
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
+        assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
+        
+        // Verify notification was dismissed (critical for proper notification cleanup)
+        verify { mockNotificationManager.onEventsDismissing(any(), match { it.any { e -> e.eventId == event.eventId } }) }
+        
+        // Verify alarms were rescheduled (critical for upcoming event to fire at correct time)
+        verify { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+    }
+
+    @Test
+    fun testUnsnoozeToUpcoming_alertTimePassed_fails() {
+        // Snoozed event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L,
+            snoozedUntil = baseTime + 1800000L // Snoozed for later
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add event to EventsStorage
+        mockEventsStorage.addEvent(event)
+        
+        // Unsnooze to upcoming should fail
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertFalse("Unsnooze should fail for past alert time", result)
+        
+        // Verify event was NOT removed from EventsStorage
+        assertEquals("Event should still be in EventsStorage", 1, mockEventsStorage.events.size)
+    }
+
+    // === preDismissEvent tests ===
+
+    @Test
+    fun testPreDismissEvent_alertInFuture_succeeds() {
+        // Event with alertTime in the future (hasn't fired yet)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = false
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Pre-dismiss the event
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
+        
+        assertTrue("Pre-dismiss should succeed", result)
+        
+        // Verify alert's wasHandled flag is set
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist in MonitorStorage", updatedAlert)
+        assertTrue("wasHandled should be set after pre-dismiss", updatedAlert!!.wasHandled)
+        
+        // Verify event was added to DismissedEventsStorage
+        assertEquals("Event should be in DismissedEventsStorage", 1, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testPreDismissEvent_alertNotFound_fails() {
+        // Event with alertTime in the future but no alert in MonitorStorage
+        val futureAlertTime = baseTime + 3600000L
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Don't add alert to MonitorStorage - simulates orphaned event
+        
+        // Pre-dismiss should fail
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
+        
+        assertFalse("Pre-dismiss should fail when alert not found", result)
+        
+        // Verify nothing was added to DismissedEventsStorage
+        assertEquals("Event should NOT be in DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testPreDismissEvent_alertAlreadyFired_dismissesFromActive() {
+        // Race condition: alert fired just before we set wasHandled
+        // Event is already in EventsStorage (Active) when preDismissEvent runs
+        
+        val alertTime = baseTime // Alert time is now (just fired)
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 3600000L
+        ).copy(alertTime = alertTime)
+        
+        // Add alert to MonitorStorage
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Simulate race: event already in EventsStorage (alert fired just before)
+        mockEventsStorage.addEvent(event)
+        assertEquals("Event should be in Active", 1, mockEventsStorage.events.size)
+        
+        // Pre-dismiss - should detect event in Active and dismiss from there
+        val result = ApplicationController.preDismissEvent(context, event, mockDismissedEventsStorage)
+        
+        assertTrue("Pre-dismiss should succeed", result)
+        
+        // Verify event was removed from EventsStorage (dismissed from Active)
+        assertEquals("Event should be removed from Active", 0, mockEventsStorage.events.size)
+        
+        // Verify wasHandled was set (prevents future firing)
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)
+        assertTrue("wasHandled should be set", updatedAlert!!.wasHandled)
+        
+        // Verify notification was dismissed (singular dismiss for single event)
+        verify { mockNotificationManager.onEventDismissing(any(), any(), any()) }
+    }
+
+    // === Alarm/Notification scheduling tests for pre-actions ===
+
+    @Test
+    fun testRestoreToActive_postsNotification() {
+        // Event with alertTime in the past (already fired)
+        val pastAlertTime = baseTime - 3600000L // 1 hour ago
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime
+        ).copy(alertTime = pastAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = pastAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Add event to DismissedEventsStorage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        
+        // Restore the event (alertTime in past -> restores to Active)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify notification was posted via onEventRestored
+        verify { mockNotificationManager.onEventRestored(any(), any(), match { it.eventId == event.eventId }) }
+        
+        // Verify event was added to EventsStorage
+        assertEquals("Event should be in EventsStorage", 1, mockEventsStorage.events.size)
+    }
+
+    @Test
+    fun testRestoreToUpcoming_clearsWasHandledFlag() {
+        // Event with alertTime in the future (hasn't fired)
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = futureAlertTime + 3600000L
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add alert to MonitorStorage with wasHandled = true (was pre-dismissed)
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Add event to DismissedEventsStorage
+        mockDismissedEventsStorage.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+        
+        // Restore the event (alertTime in future -> restores to Upcoming)
+        ApplicationController.restoreEvent(context, event, mockEventsStorage, mockDismissedEventsStorage)
+        
+        // Verify wasHandled was cleared (event will fire when Android sends EVENT_REMINDER)
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertNotNull("Alert should still exist", updatedAlert)
+        assertFalse("wasHandled should be cleared for restored event", updatedAlert!!.wasHandled)
+        
+        // Verify NO notification was posted (event goes to Upcoming, not Active)
+        verify(exactly = 0) { mockNotificationManager.onEventRestored(any(), any(), any()) }
+        
+        // Verify event was NOT added to EventsStorage (it's in Upcoming, not Active)
+        assertEquals("Event should NOT be in EventsStorage", 0, mockEventsStorage.events.size)
+        
+        // Verify event was removed from DismissedEventsStorage
+        assertEquals("Event should be removed from DismissedEventsStorage", 0, mockDismissedEventsStorage.eventCount)
+    }
+
+    @Test
+    fun testAfterCalendarEventFired_reschedulesAlarms() {
+        // This is called by PreActionActivity after pre-snooze to schedule the snooze alarm
+        
+        // Clear any previous mock interactions
+        clearMocks(mockAlarmScheduler, answers = false)
+        
+        // Call afterCalendarEventFired (this is what PreActionActivity calls after pre-snooze)
+        ApplicationController.afterCalendarEventFired(context)
+        
+        // Verify alarms were rescheduled (this schedules the snooze alarm)
+        verify(exactly = 1) { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+    }
+
+    @Test
+    fun testUnsnoozeToUpcoming_cancelsSnoozeAlarmAndReschedules() {
+        // Snoozed event with alertTime in the future
+        val futureAlertTime = baseTime + 3600000L // 1 hour from now
+        val snoozeUntil = baseTime + 1800000L // 30 mins from now
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime + 7200000L,
+            snoozedUntil = snoozeUntil
+        ).copy(alertTime = futureAlertTime)
+        
+        // Add event to EventsStorage (it's snoozed/active)
+        mockEventsStorage.addEvent(event)
+        
+        // Add alert to MonitorStorage with wasHandled = true
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = futureAlertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = true,
+            flags = 0
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Clear any previous mock interactions
+        clearMocks(mockNotificationManager, mockAlarmScheduler, answers = false)
+        
+        // Unsnooze to upcoming
+        val result = ApplicationController.unsnoozeToUpcoming(context, event, mockEventsStorage)
+        
+        assertTrue("Unsnooze should succeed", result)
+        
+        // Verify snooze notification was dismissed
+        verify(exactly = 1) { mockNotificationManager.onEventsDismissing(any(), match { events -> 
+            events.any { it.eventId == event.eventId }
+        }) }
+        
+        // Verify alarms were rescheduled (cancels snooze alarm since event is no longer snoozed)
+        verify(exactly = 1) { mockAlarmScheduler.rescheduleAlarms(any(), any(), any()) }
+        
+        // Verify wasHandled was cleared
+        val updatedAlert = mockMonitorStorage.getAlert(event.eventId, futureAlertTime, event.instanceStartTime)
+        assertFalse("wasHandled should be cleared", updatedAlert!!.wasHandled)
+    }
+
+    // === registerNewEvent (singular) pre-mute tests ===
+    // This tests the EVENT_REMINDER broadcast path which uses registerNewEvent directly
+    
+    @Test
+    fun testRegisterNewEvent_appliesPreMutedFlagFromMonitorStorage() {
+        // This tests the bug where registerNewEvent (singular, used by EVENT_REMINDER broadcast)
+        // didn't look up the preMuted flag from MonitorStorage, causing pre-muted events
+        // to still make sound when they fired via the broadcast path.
+        
+        val alertTime = baseTime
+        val event = createTestEvent(eventId = 42, instanceStartTime = baseTime + 3600000L, isMuted = false)
+            .copy(alertTime = alertTime)
+        
+        // Pre-mute the alert in MonitorStorage (user did this from Upcoming view)
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry.PRE_MUTED_FLAG // preMuted = true
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Verify alert is pre-muted
+        assertTrue("Alert should be pre-muted", mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)!!.preMuted)
+        
+        // Verify event starts unmuted
+        assertFalse("Event should start unmuted", event.isMuted)
+        
+        // Call registerNewEvent (singular) - this is what EVENT_REMINDER broadcast calls
+        val result = ApplicationController.registerNewEvent(context, event, mockEventsStorage)
+        
+        assertTrue("Event should be registered successfully", result)
+        
+        // THE BUG: Event in storage should have isMuted = true (from preMuted flag)
+        // Before the fix, this would be false
+        val storedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
+        assertNotNull("Event should be in storage", storedEvent)
+        assertTrue("Event in storage should be muted (from preMuted flag in MonitorStorage)", storedEvent!!.isMuted)
+    }
+
+    @Test
+    fun testRegisterNewEvent_doesNotMuteWhenNotPreMuted() {
+        val alertTime = baseTime
+        val event = createTestEvent(eventId = 43, instanceStartTime = baseTime + 3600000L, isMuted = false)
+            .copy(alertTime = alertTime)
+        
+        // Alert in MonitorStorage WITHOUT preMuted flag
+        val alert = com.github.quarck.calnotify.calendar.MonitorEventAlertEntry(
+            eventId = event.eventId,
+            alertTime = alertTime,
+            isAllDay = false,
+            instanceStartTime = event.instanceStartTime,
+            instanceEndTime = event.instanceEndTime,
+            alertCreatedByUs = false,
+            wasHandled = false,
+            flags = 0 // preMuted = false
+        )
+        mockMonitorStorage.addAlert(alert)
+        
+        // Verify alert is NOT pre-muted
+        assertFalse("Alert should NOT be pre-muted", mockMonitorStorage.getAlert(event.eventId, alertTime, event.instanceStartTime)!!.preMuted)
+        
+        // Call registerNewEvent
+        val result = ApplicationController.registerNewEvent(context, event, mockEventsStorage)
+        
+        assertTrue("Event should be registered successfully", result)
+        
+        // Event in storage should NOT be muted
+        val storedEvent = mockEventsStorage.getEvent(event.eventId, event.instanceStartTime)
+        assertNotNull("Event should be in storage", storedEvent)
+        assertFalse("Event in storage should NOT be muted", storedEvent!!.isMuted)
+    }
+    
+    // === snoozeAllEvents with FilterState tests ===
+    
+    @Test
+    fun testSnoozeAllEvents_withNoFilter_snoozesAllEvents() {
+        // Add multiple events
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 3))
+        
+        val snoozeDelay = 3600000L // 1 hour
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, null
+        )
+        
+        // All events should be snoozed
+        val events = mockEventsStorage.events
+        assertEquals(3, events.size)
+        assertTrue("All events should be snoozed", events.all { it.snoozedUntil > 0 })
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withStatusFilter_onlySnoozesMatchingEvents() {
+        // Add active and snoozed events
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, snoozedUntil = 0L)) // Active
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2, snoozedUntil = baseTime + 1000L)) // Snoozed
+        mockEventsStorage.addEvent(createTestEvent(eventId = 3, snoozedUntil = 0L)) // Active
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        // Only active events (1 and 3) should be newly snoozed
+        val events = mockEventsStorage.events
+        val event1 = events.find { it.eventId == 1L }
+        val event2 = events.find { it.eventId == 2L }
+        val event3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 should be snoozed", event1!!.snoozedUntil > baseTime)
+        // Event 2 was already snoozed and doesn't match ACTIVE filter
+        assertEquals("Event 2 should keep original snooze time", baseTime + 1000L, event2!!.snoozedUntil)
+        assertTrue("Event 3 should be snoozed", event3!!.snoozedUntil > baseTime)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withCalendarFilter_onlySnoozesMatchingCalendars() {
+        // Add events from different calendars
+        val event1 = createTestEvent(eventId = 1).copy(calendarId = 1L)
+        val event2 = createTestEvent(eventId = 2).copy(calendarId = 2L)
+        val event3 = createTestEvent(eventId = 3).copy(calendarId = 1L)
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
+        mockEventsStorage.addEvent(event3)
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(selectedCalendarIds = setOf(1L)) // Only calendar 1
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        // Only events from calendar 1 should be snoozed
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        val e3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 (cal 1) should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Event 2 (cal 2) should NOT be snoozed", 0L, e2!!.snoozedUntil)
+        assertTrue("Event 3 (cal 1) should be snoozed", e3!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withSearchAndFilter_combinesBothPredicates() {
+        // Add events with different titles and calendars
+        val event1 = createTestEvent(eventId = 1).copy(calendarId = 1L, title = "Meeting with Bob")
+        val event2 = createTestEvent(eventId = 2).copy(calendarId = 1L, title = "Lunch break")
+        val event3 = createTestEvent(eventId = 3).copy(calendarId = 2L, title = "Meeting with Alice")
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
+        mockEventsStorage.addEvent(event3)
+        
+        val snoozeDelay = 3600000L
+        val searchQuery = "Meeting" // Match events 1 and 3
+        val filterState = FilterState(selectedCalendarIds = setOf(1L)) // Only calendar 1
+        
+        // Should only snooze event 1 (matches "Meeting" AND calendar 1)
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, searchQuery, filterState
+        )
+        
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        val e3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 (Meeting, cal 1) should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Event 2 (Lunch, cal 1) should NOT be snoozed (no match)", 0L, e2!!.snoozedUntil)
+        assertEquals("Event 3 (Meeting, cal 2) should NOT be snoozed (wrong cal)", 0L, e3!!.snoozedUntil)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withEmptyCalendarFilter_snoozesNoEvents() {
+        // Empty calendar set means "none selected" - should match no events
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(selectedCalendarIds = emptySet()) // None selected
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        // No events should be snoozed
+        val events = mockEventsStorage.events
+        assertTrue("No events should be snoozed with empty calendar filter", events.all { it.snoozedUntil == 0L })
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withNullFilterState_behavesAsNoFilter() {
+        // null filterState should behave same as no filter (all events)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        val snoozeDelay = 3600000L
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, null
+        )
+        
+        // All events should be snoozed
+        val events = mockEventsStorage.events
+        assertTrue("All events should be snoozed with null filter", events.all { it.snoozedUntil > 0 })
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_withTimeFilter_onlySnoozesEventsMatchingTime() {
+        // Event that ended in the past
+        val pastEvent = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime - 7200000L // 2 hours ago
+        ).copy(
+            instanceEndTime = baseTime - 3600000L // 1 hour ago (ended)
+        )
+        
+        // Event still ongoing
+        val ongoingEvent = createTestEvent(
+            eventId = 2,
+            instanceStartTime = baseTime - 3600000L // 1 hour ago
+        ).copy(
+            instanceEndTime = baseTime + 3600000L // 1 hour from now
+        )
+        
+        mockEventsStorage.addEvent(pastEvent)
+        mockEventsStorage.addEvent(ongoingEvent)
+        
+        val snoozeDelay = 3600000L
+        val filterState = FilterState(timeFilter = TimeFilter.PAST) // Only ended events
+        
+        ApplicationController.snoozeAllEvents(
+            context, snoozeDelay, false, false, null, filterState
+        )
+        
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        
+        assertTrue("Past event should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Ongoing event should NOT be snoozed", 0L, e2!!.snoozedUntil)
+    }
+    
+    // === snoozeSelectedEvents tests (Multi-Select) ===
+    
+    @Test
+    fun testSnoozeSelectedEvents_snoozesOnlySelectedEvents() {
+        val event1 = createTestEvent(eventId = 1, instanceStartTime = baseTime)
+        val event2 = createTestEvent(eventId = 2, instanceStartTime = baseTime + 1000)
+        val event3 = createTestEvent(eventId = 3, instanceStartTime = baseTime + 2000)
+        mockEventsStorage.addEvent(event1)
+        mockEventsStorage.addEvent(event2)
+        mockEventsStorage.addEvent(event3)
+        
+        val snoozeDelay = 3600000L
+        // Only select events 1 and 3
+        val selectedKeys = setOf(
+            "${event1.eventId}:${event1.instanceStartTime}",
+            "${event3.eventId}:${event3.instanceStartTime}"
+        )
+        
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, false)
+        
+        val events = mockEventsStorage.events
+        val e1 = events.find { it.eventId == 1L }
+        val e2 = events.find { it.eventId == 2L }
+        val e3 = events.find { it.eventId == 3L }
+        
+        assertTrue("Event 1 should be snoozed", e1!!.snoozedUntil > 0)
+        assertEquals("Event 2 should NOT be snoozed", 0L, e2!!.snoozedUntil)
+        assertTrue("Event 3 should be snoozed", e3!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_withEmptySet_returnsNull() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1))
+        
+        val result = ApplicationController.snoozeSelectedEvents(
+            context, emptySet(), 3600000L, false
+        )
+        
+        assertNull("Should return null for empty selection", result)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_withInvalidKeys_handlesGracefully() {
+        mockEventsStorage.addEvent(createTestEvent(eventId = 1, instanceStartTime = baseTime))
+        
+        val invalidKeys = setOf(
+            "invalid",
+            "not:a:valid:key",
+            "abc:def"
+        )
+        
+        val result = ApplicationController.snoozeSelectedEvents(
+            context, invalidKeys, 3600000L, false
+        )
+        
+        // Should not snooze anything since no valid keys
+        val events = mockEventsStorage.events
+        assertTrue("No events should be snoozed with invalid keys", events.all { it.snoozedUntil == 0L })
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_returnsSnoozeResult() {
+        val event = createTestEvent(eventId = 1, instanceStartTime = baseTime)
+        mockEventsStorage.addEvent(event)
+        
+        val snoozeDelay = 3600000L
+        val selectedKeys = setOf("${event.eventId}:${event.instanceStartTime}")
+        
+        val result = ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, false)
+        
+        assertNotNull("Should return SnoozeResult", result)
+        assertEquals(SnoozeType.Snoozed, result!!.type)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_isChange_snoozesAlreadySnoozedEvents() {
+        val event = createTestEvent(
+            eventId = 1, 
+            instanceStartTime = baseTime,
+            snoozedUntil = baseTime + 1800000L // Already snoozed 30 min
+        )
+        mockEventsStorage.addEvent(event)
+        
+        val snoozeDelay = 3600000L // 1 hour
+        val selectedKeys = setOf("${event.eventId}:${event.instanceStartTime}")
+        
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, true)
+        
+        val updatedEvent = mockEventsStorage.events.first()
+        // New snooze should be ~1 hour from now
+        assertTrue("Snoozed until should be updated to new time", 
+            updatedEvent.snoozedUntil > baseTime + 3500000L)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_notChange_doesNotShortenExistingSnooze() {
+        val event = createTestEvent(
+            eventId = 1,
+            instanceStartTime = baseTime,
+            snoozedUntil = baseTime + 7200000L // Already snoozed 2 hours
+        )
+        mockEventsStorage.addEvent(event)
+        
+        val snoozeDelay = 1800000L // 30 minutes (shorter than existing)
+        val selectedKeys = setOf("${event.eventId}:${event.instanceStartTime}")
+        
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, snoozeDelay, false)
+        
+        val updatedEvent = mockEventsStorage.events.first()
+        // Original snooze should remain since it's longer
+        assertEquals("Should not shorten existing snooze", 
+            baseTime + 7200000L, updatedEvent.snoozedUntil)
+    }
+    
+    // === Pinned event exclusion from snoozeAllEvents ===
+    
+    @Test
+    fun testSnoozeAllEvents_skipsPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 1).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        ApplicationController.snoozeAllEvents(context, 3600000L, false, false, null, null)
+        
+        val pinned = mockEventsStorage.events.find { it.eventId == 1L }
+        val normal = mockEventsStorage.events.find { it.eventId == 2L }
+        
+        assertEquals("Pinned event should NOT be snoozed", 0L, pinned!!.snoozedUntil)
+        assertTrue("Normal event should be snoozed", normal!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_allPinned_returnsNull() {
+        val pinned1 = createTestEvent(eventId = 1).apply { isPinned = true }
+        val pinned2 = createTestEvent(eventId = 2).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinned1)
+        mockEventsStorage.addEvent(pinned2)
+        
+        val result = ApplicationController.snoozeAllEvents(context, 3600000L, false, false, null, null)
+        
+        assertNull("Result should be null when all events are pinned", result)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_pinnedExcludedEvenWhenMatchingSearch() {
+        val pinnedEvent = createTestEvent(eventId = 1).apply { isPinned = true }
+        pinnedEvent.title = "Important Meeting"
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2).also { it.title = "Important Lunch" })
+        
+        ApplicationController.snoozeAllEvents(
+            context, 3600000L, false, false, searchQuery = "Important", filterState = null
+        )
+        
+        val pinned = mockEventsStorage.events.find { it.eventId == 1L }
+        val normal = mockEventsStorage.events.find { it.eventId == 2L }
+        
+        assertEquals("Pinned event should NOT be snoozed even though it matches search", 
+            0L, pinned!!.snoozedUntil)
+        assertTrue("Unpinned matching event should be snoozed", normal!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeAllEvents_pinnedExcludedEvenWhenMatchingFilter() {
+        val pinnedEvent = createTestEvent(eventId = 1).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        mockEventsStorage.addEvent(createTestEvent(eventId = 2))
+        
+        val filterState = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        
+        ApplicationController.snoozeAllEvents(
+            context, 3600000L, false, false, null, filterState
+        )
+        
+        val pinned = mockEventsStorage.events.find { it.eventId == 1L }
+        val normal = mockEventsStorage.events.find { it.eventId == 2L }
+        
+        assertEquals("Pinned event should NOT be snoozed even when matching filter", 
+            0L, pinned!!.snoozedUntil)
+        assertTrue("Unpinned event should be snoozed", normal!!.snoozedUntil > 0)
+    }
+    
+    @Test
+    fun testSnoozeSelectedEvents_includesPinnedEvents() {
+        val pinnedEvent = createTestEvent(eventId = 1, instanceStartTime = baseTime).apply { isPinned = true }
+        mockEventsStorage.addEvent(pinnedEvent)
+        
+        val selectedKeys = setOf("${pinnedEvent.eventId}:${pinnedEvent.instanceStartTime}")
+        ApplicationController.snoozeSelectedEvents(context, selectedKeys, 3600000L, false)
+        
+        val updated = mockEventsStorage.events.first()
+        assertTrue("Explicitly selected pinned event SHOULD be snoozed", updated.snoozedUntil > 0)
     }
 }
 

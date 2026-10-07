@@ -13,6 +13,10 @@ env:
   # Explicitly set CI flag to true for our Gradle task
   CI: true
 
+  # Pull requests build only the debug APK and the emulator test APK.
+  # Release APKs and AABs are built and signed only for tags and manual runs.
+  BUILD_RELEASE: ${{ github.event_name != 'pull_request' }}
+
   # Android Emulator Configuration
   ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
   ANDROID_API_LEVEL: 34
@@ -41,6 +45,11 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      enable_tmate:
+        description: 'Enable tmate SSH session on failure'
+        type: boolean
+        default: false
 
 jobs:
   set_build_datetime:
@@ -51,8 +60,24 @@ jobs:
         id: set_date
         run: |
           echo "build_datetime=$(date +'%Y-%m-%d %H_%M_%S')" >> $GITHUB_OUTPUT
+
+      # Docs-only PRs skip the heavy jobs; a skipped job counts as passing for
+      # required checks. Evaluated over the whole PR diff, so a code change
+      # added later brings everything back. Tags and manual runs always build.
+      - name: Detect docs-only PR
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          code_changed=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            files=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate -q '.[].filename')
+            echo "$files" | grep -qvE '^docs/|\.md$' || code_changed=false
+          fi
+          echo "code_changed=$code_changed" | tee -a $GITHUB_OUTPUT
     outputs:
       build_datetime: ${{ steps.set_date.outputs.build_datetime }}
+      code_changed: ${{ steps.changes.outputs.code_changed }}
 
   safety_checks:
     name: Safety Checks
@@ -60,6 +85,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           sparse-checkout: |
             android/app/src/main/res/menu/main.xml
@@ -70,31 +97,42 @@ jobs:
           chmod +x ./scripts/check_dev_page_hidden.sh
           ./scripts/check_dev_page_hidden.sh
 
-  build:
+  # The build is two jobs, not one 2-arch matrix, so the emulator tests (which
+  # only need the x86_64 APKs) can start as soon as x86_64 is built instead of
+  # waiting for arm64 too. Each keeps a one-entry matrix so ${{ matrix.arch }}
+  # and the check names ("Build Android App (x86_64)" / "(arm64-v8a)") are
+  # unchanged; build-arm64 reuses this job's env, outputs and steps via YAML
+  # anchors, so edit them here.
+  build-x86_64:
     name: Build Android App
     needs: [set_build_datetime, safety_checks]
+    if: needs.set_build_datetime.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [arm64-v8a, x86_64]
+        arch: [x86_64]
       fail-fast: false
-    env:
+    env: &build-env
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
     timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
-    outputs:
+    outputs: &build-outputs
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
 
-    steps:
+    steps: &build-steps
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: true
+        # PRs restore master's ccache; only master saves (see Update Caches)
+        save: ${{ github.ref == 'refs/heads/master' }}
 
     # Set repository name as env variable
     - name: Set repository name as env variable
@@ -110,24 +148,9 @@ jobs:
         gradle_max_workers: "4"
         node_version: "22.x"
         arch: ${{ matrix.arch }}
-
-    # Debug Main Build Task Graph
-    - name: Debug Main Build Task Graph
-      run: |
-        cd android && \
-        echo "=== Main Build Task Graph ===" && \
-        ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
-                  -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
-                  --dry-run \
-                  --info \
-                  --console=verbose \
-                  --parallel --max-workers=$MAX_WORKERS --build-cache
-      env:
-        BUILD_ARCH: ${{ matrix.arch }}
+        # Overlap bundling (~0.6m when JS changed) with the cache restores and
+        # codegen; Gradle only needs it when it packages the APK
+        js_bundle_in_background: "true"
 
     - name: Ccachify the Native Modules
       shell: bash
@@ -135,28 +158,48 @@ jobs:
         chmod +x scripts/ccachify_native_modules.sh
         ./scripts/ccachify_native_modules.sh
 
-    - name: Build Android APKs (Debug and Release) with Gradle
+    - name: Wait for the background JS bundle
+      if: steps.common-setup.outputs.js-bundle-cache-hit != 'true'
+      run: ./scripts/wait_for_js_bundle.sh
+
+    # Debug always; release too unless this is a pull request (see BUILD_RELEASE)
+    - name: Build Android APKs with Gradle
       run: |
-        echo "Building for architecture: $BUILD_ARCH"
+        echo "Building for architecture: $BUILD_ARCH (release: $BUILD_RELEASE)"
+        tasks=(
+          ":${{ env.main_project_module }}:assemble${VARIANT_ARCH}Debug"
+          ":${{ env.main_project_module }}:assemble${VARIANT_ARCH}DebugAndroidTest"
+        )
+        if [ "$BUILD_RELEASE" = "true" ]; then
+          tasks+=(
+            ":${{ env.main_project_module }}:assemble${VARIANT_ARCH}Release"
+            ":${{ env.main_project_module }}:bundle${VARIANT_ARCH}Release"
+          )
+        fi
         cd android && \
         # Pass BUILD_ARCH directly to Gradle process to ensure it's available during configuration
         ./gradlew -PBUILD_ARCH="${BUILD_ARCH}" \
                   -PreactNativeArchitectures="${BUILD_ARCH}" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:bundle${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release" \
-                  ":${{ env.main_project_module }}:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest" \
+                  "${tasks[@]}" \
         --parallel --max-workers=$MAX_WORKERS --build-cache
 
       env:
         # Explicitly set BUILD_ARCH for Gradle process
         BUILD_ARCH: ${{ matrix.arch }}
+        VARIANT_ARCH: ${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}
 
     - name: Setup tmate session
-      if: ${{ failure() }}
+      if: ${{ failure() && inputs.enable_tmate == true }}
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
+
+    # Release isn't built on PRs, but the restored build-outputs cache (saved by
+    # cache warming, which builds release) can still hold a release APK/AAB from
+    # another commit. Drop them so a stale release never reaches the artifacts.
+    - name: Remove stale release outputs
+      if: env.BUILD_RELEASE != 'true'
+      run: rm -rf android/${{ env.main_project_module }}/build/outputs/apk/*/release android/${{ env.main_project_module }}/build/outputs/bundle
 
     # Save the build artifacts to be used in other jobs
     - name: List APKs before upload
@@ -196,6 +239,7 @@ jobs:
         if-no-files-found: error
 
     - name: Upload Bundle artifacts
+      if: env.BUILD_RELEASE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: android-bundle-artifacts-${{ matrix.arch }}
@@ -203,16 +247,42 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-    # Update all caches
+    # Update all caches (skip saves for caches that were already hit).
+    # Master only: PR runs restore master's caches (kept warm by cache-warming.yml
+    # on every merge), and PR-scoped saves bought nothing -- later pushes to a PR
+    # built no faster than first pushes (median 9.6m both) -- while adding ~1.3m
+    # to the build job and churning the 100GB cache budget.
     - name: Update Caches
-      if: always()
+      if: always() && github.ref == 'refs/heads/master'
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
+        yarn-cache-hit: ${{ steps.common-setup.outputs.yarn-cache-hit }}
+        yarn-install-state-cache-hit: ${{ steps.common-setup.outputs.yarn-install-state-cache-hit }}
+        js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
+        js-bundle-cache-key: ${{ steps.common-setup.outputs.js-bundle-cache-key }}
+        gradle-deps-cache-hit: ${{ steps.common-setup.outputs.gradle-deps-cache-hit }}
+        gradle-cache-hit: ${{ steps.common-setup.outputs.gradle-cache-hit }}
+        build-outputs-cache-hit: ${{ steps.common-setup.outputs.build-outputs-cache-hit }}
+        react-native-cache-hit: ${{ steps.common-setup.outputs.react-native-cache-hit }}
+
+  build-arm64:
+    name: Build Android App
+    needs: [set_build_datetime, safety_checks]
+    if: needs.set_build_datetime.outputs.code_changed == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a]
+      fail-fast: false
+    env: *build-env
+    timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
+    outputs: *build-outputs
+    steps: *build-steps
 
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
-    needs: [set_build_datetime, build]
+    needs: [set_build_datetime, build-x86_64, build-arm64]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -224,12 +294,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Import build variables from build job
       - name: Set build variables
         run: |
-          echo "repository_name=${{ needs.build.outputs.repository_name }}" >> $GITHUB_ENV
+          echo "repository_name=${{ needs.build-x86_64.outputs.repository_name }}" >> $GITHUB_ENV
 
       # Download build artifacts for current architecture
       - name: Download APK artifacts
@@ -239,6 +311,7 @@ jobs:
           path: artifacts/apk/
 
       - name: Download Bundle artifacts
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/download-artifact@v4
         with:
           name: android-bundle-artifacts-${{ matrix.arch }}
@@ -254,7 +327,10 @@ jobs:
           # Organize APKs by type
           find artifacts/apk/ -path "*/debug/*" -name "*.apk" -exec cp {} signing/apk/debug/ \;
           find artifacts/apk/ -path "*/release/*" -name "*.apk" -exec cp {} signing/apk/release/ \;
-          find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          # No bundle artifact on PRs (release isn't built there)
+          if [ -d artifacts/bundle ]; then
+            find artifacts/bundle/ -name "*.aab" -exec cp {} signing/bundle/release/ \;
+          fi
 
           # Verify contents
           echo "Files to sign:"
@@ -275,6 +351,7 @@ jobs:
 
       - uses: r0adkll/sign-android-release@v1
         name: Sign RELEASE app APKs
+        if: env.BUILD_RELEASE == 'true'
         id: sign_release_app
         with:
           releaseDirectory: signing/apk/release/
@@ -287,6 +364,7 @@ jobs:
 
       - uses: r0adkll/sign-android-release@v1
         name: Sign RELEASE app AABs
+        if: env.BUILD_RELEASE == 'true'
         id: sign_release_aab
         with:
           releaseDirectory: signing/bundle/release/
@@ -311,10 +389,10 @@ jobs:
             VERSION=${GITHUB_REF#refs/tags/v}
             SUFFIX="-${VERSION}"
           elif [[ $GITHUB_REF == refs/pull/* ]]; then
-            # For pull requests
+            # For pull requests - use actual PR head SHA, not merge commit SHA
             PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
             BRANCH_NAME=$(sanitize_branch_name "$GITHUB_HEAD_REF")
-            SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+            SHORT_SHA=$(echo $PR_HEAD_SHA | cut -c1-7)
             SUFFIX="-pr-${PR_NUMBER}-${BRANCH_NAME}-${SHORT_SHA}"
           else
             # For pushes to branches other than main
@@ -341,6 +419,9 @@ jobs:
           # List all renamed files
           echo "Renamed files:"
           ls -la renamed_apks/
+        env:
+          # For PRs, this is the actual PR head commit; for other events it's empty (not used)
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
       # Upload signed artifacts
       - name: Upload SIGNED APK Debug
@@ -350,12 +431,14 @@ jobs:
           path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
       - name: Upload SIGNED APK RELEASE
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
       - name: Upload SIGNED AAB (App Bundle) Release
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
@@ -373,46 +456,50 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const workflowUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            // Use the actual PR head commit SHA, not the merge commit SHA
+            const commitSha = context.payload.pull_request.head.sha;
+            const shortSha = commitSha.substring(0, 7);
+            const commitUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${commitSha}`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `Build artifacts for PR #${context.issue.number} (commit ${context.sha}) are available:
+              body: `Build artifacts for PR #${context.issue.number} (commit [\`${shortSha}\`](${commitUrl})) are available:
 
               - [Debug APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [Release APKs (arm64-v8a, x86_64)](${workflowUrl}#artifacts)
-              - [AAB](${workflowUrl}#artifacts)
+              Release APKs and AABs are built for tagged releases only.
 
               You can download these artifacts from the "Artifacts" section of the workflow run.`
             });
 
-  unit-tests:
-    name: Run Unit Tests
+  # Jest (TypeScript/JavaScript) tests, split out of unit-tests: they need only
+  # Node and node_modules, and running them in parallel takes ~0.3m off the
+  # unit-tests job, which gates the required CI Result check.
+  jest-tests:
+    name: Run Jest Tests
     runs-on: ubuntu-latest
     needs: set_build_datetime
-    timeout-minutes: 25  # Increased for cache rebuilds after dependency updates
-    strategy:
-      matrix:
-        arch: [x86_64] # Only test on x86_64 to save time and resources
-      fail-fast: false
+    if: needs.set_build_datetime.outputs.code_changed == 'true'
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2
+    - name: Use Node.js 22.x
+      uses: actions/setup-node@v3
       with:
-        create-symlink: true
+        node-version: "22.x"
+        cache: "yarn"
 
-    # Execute the common setup
-    - name: Common Setup
-      uses: ./.github/actions/common-setup
-      with:
-        optional_cache_key: "unit-tests"
-        gradle_max_workers: "4"
-        node_version: "22.x"
-        arch: ${{ matrix.arch }}
+    - name: Install dependencies
+      run: yarn install --immutable --inline-builds
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: 'false'
+        YARN_NM_MODE: 'hardlinks-local'
+        HUSKY: '0'
 
     # Run Jest tests (TypeScript/JavaScript unit tests) with coverage
     - name: Run Jest Tests
@@ -440,21 +527,48 @@ jobs:
         path: coverage/
         retention-days: 90
 
-    # Debug unit test task graph
-    - name: Debug Unit Test Task Graph
-      run: |
-        cd android && \
-        echo "=== Unit Test Task Graph ===" && \
-        ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
-                  -PreactNativeArchitectures="${{ matrix.arch }}" \
-                  :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
-                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
-                  --dry-run \
-                  --info \
-                  --console=verbose \
-                  --continue
-      env:
-        BUILD_ARCH: ${{ matrix.arch }}
+  # Unit tests split across UNIT_TEST_SHARDS jobs by test-class hash (see
+  # unitTestShardCount in app/build.gradle). Each shard uploads its results,
+  # coverage data and compiled classes; merge-unit-test-coverage builds the
+  # reports. Each job pays ~4.3m of fixed setup/config/compile, so 2 shards:
+  # the unit tests then finish around when build + sign do.
+  unit-tests:
+    name: Unit Tests (shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    needs: set_build_datetime
+    if: needs.set_build_datetime.outputs.code_changed == 'true'
+    timeout-minutes: 25  # Increased for cache rebuilds after dependency updates
+    strategy:
+      matrix:
+        arch: [x86_64] # Only test on x86_64 to save time and resources
+        shard: [0, 1, 2]  # keep in step with UNIT_TEST_SHARDS
+      fail-fast: false
+    env:
+      UNIT_TEST_SHARDS: 3
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 1
+
+    # No ccache here: the unit-test run passes -Pandroid.externalNativeBuild.skip=true
+    # (since #76), so nothing native is compiled. `ccache -s` showed zero
+    # compiler calls on both warm and cold (Sept 2026, cache warmer down) runs.
+
+    # Execute the common setup
+    # Skip disk cleanup - unit tests are pure Kotlin/Java, don't use emulator
+    # Skip the JS bundle - Robolectric never packages an APK
+    # Note: codegen IS needed because native modules depend on generated React Native specs
+    - name: Common Setup
+      uses: ./.github/actions/common-setup
+      with:
+        optional_cache_key: "unit-tests"
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
+        skip_disk_space: "true"
+        skip_js_bundle: "true"
 
     # Run the unit tests
     - name: Run Unit Tests
@@ -464,143 +578,77 @@ jobs:
                   -PreactNativeArchitectures="${{ matrix.arch }}" \
                   :${{ env.main_project_module }}:generatePackageList \
                   :${{ env.main_project_module }}:test${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTest \
-                  :${{ env.main_project_module }}:create${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugUnitTestCoverageReport \
+                  -PunitTestShardCount=$UNIT_TEST_SHARDS \
+                  -PunitTestShardIndex=${{ matrix.shard }} \
         --continue \
         -Pandroid.externalNativeBuild.skip=true \
         -x preBuild -x preDebugBuild -x preReleaseBuild
       env:
         BUILD_ARCH: ${{ matrix.arch }}
 
-    # Generate Jacoco coverage report
-    # always() is used to ensure the coverage report is generated even if the tests fail
-    - name: Generate Jacoco Coverage Report
-      if: always()
-      run: |
-        cd android && \
-        ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace \
-        -Pandroid.externalNativeBuild.skip=true
-
-    # Debug: List coverage report files
-    - name: List Coverage Report Files
-      if: always()
-      run: |
-        echo "=== Unit Test Coverage Reports ==="
-        find android/app/build/reports -name "*.xml" -o -name "*.csv" 2>/dev/null | head -20 || echo "No XML/CSV files found"
-        echo ""
-        echo "=== Coverage directory structure ==="
-        find android/app/build/reports/coverage -type f 2>/dev/null | head -20 || echo "No coverage directory"
-
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
       uses: dorny/test-reporter@v2
       if: always()
       with:
-        name: 'Unit Tests'
+        name: 'Unit Tests (shard ${{ matrix.shard }})'
         path: 'android/${{ env.main_project_module }}/build/test-results/test*DebugUnitTest/**/*.xml'
         reporter: java-junit
         use-actions-summary: 'true'
         fail-on-error: true
 
-    # Upload test results and coverage
-    - name: Upload Unit Test Results and Coverage
+    # Results, coverage data and compiled classes for merge-unit-test-coverage
+    - name: Upload Unit Test Shard
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
+        name: unit-test-shard-${{ matrix.shard }}
         path: |
-          android/app/build/reports/
           android/app/build/test-results/
-          android/app/build/outputs/logs/
-        retention-days: 90
+          android/app/build/reports/tests/
+          android/app/build/outputs/unit_test_code_coverage/
+          android/app/build/tmp/kotlin-classes/x8664Debug/
+          android/app/build/intermediates/javac/x8664Debug/
+        retention-days: 1
+        if-no-files-found: error
 
-  # NOTE: this single cAT integration test is just to make sure cAT isn't broken
-  # if we revert back to cAT as the main integration test, we can remove this job
-  verify-connected-android-test-working-single-integration-test:
-    name: "Verify Connected Android Test Still Works (Working Single Integration Test)"
-    needs: [set_build_datetime]
+  # Builds the two unit-test coverage reports the old single job produced, from
+  # the shards' coverage data, with JaCoCo's CLI (as merge-integration-coverage
+  # does) -- same class filters, output paths and artifact name, so
+  # coverage-report and test-summary.yml are unchanged:
+  #   reports/coverage/test/x8664/debug   AGP's report (read by the PR comment)
+  #   reports/jacoco/unitTestCoverage     jacocoUnitTestReport's (also excludes
+  #                                       *Test* and com/facebook/react)
+  merge-unit-test-coverage:
+    name: Merge Unit Test Coverage
+    needs: [set_build_datetime, unit-tests]
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [x86_64] # Only test on x86_64 to save time and resources
-      fail-fast: false
-    env:
-      ENTRY_FILE: "index.tsx"
-      GRADLE_ABI: ${{ matrix.arch }}
-      BUILD_ARCH: ${{ matrix.arch }}
-    timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
-
+    if: always() && needs.unit-tests.result != 'cancelled' && needs.set_build_datetime.outputs.code_changed == 'true'
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
 
-    # Execute the common setup with emulator configuration
-    - name: Common Setup
-      id: common-setup
-      uses: ./.github/actions/common-setup
-      with:
-        optional_cache_key: "integration-test"
-        gradle_max_workers: "4"
-        node_version: "22.x"
-        arch: ${{ matrix.arch }}
-        android_api_level: ${{ env.ANDROID_API_LEVEL }}
-        android_target: ${{ env.ANDROID_TARGET }}
-        android_profile: ${{ env.ANDROID_PROFILE }}
-        run_emulator_setup: "true"
+      - name: Download unit test shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: unit-test-shard-*
+          path: shards/
 
-    - name: Make scripts executable
-      run: |
-        chmod +x scripts/wait_for_emulator.sh
-        chmod +x scripts/run_verify_connected_android_test.sh
+      - name: Generate merged unit test coverage reports
+        run: ./scripts/merge_unit_test_coverage.sh shards
 
-    - name: Debug directory structure
-      run: |
-        echo "Directory structure after download:"
-        if [ -d "android/${{ env.main_project_module }}/build/" ]; then
-          find android/${{ env.main_project_module }}/build/ -type d
-        else
-          echo "Directory android/${{ env.main_project_module }}/build/ doesn't exist"
-        fi
-
-    - name: Run Android Tests
-      id: run_tests
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: ${{ env.ANDROID_API_LEVEL }}
-        target: ${{ env.ANDROID_TARGET }}
-        arch: ${{ matrix.arch }}
-        profile: ${{ env.ANDROID_PROFILE }}
-        force-avd-creation: false
-        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
-        disable-animations: true
-        # TODO: make a PR so this thing can properly take a multiline script call
-        # too easy to make mistakes with line this long
-        # super annoying to have to make yet another script to forget to chmod +x on accident
-        script: ./scripts/wait_for_emulator.sh && ./scripts/run_verify_connected_android_test.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
-
-    # Publish integration test results
-    - name: Publish Integration Test Results
-      uses: dorny/test-reporter@v2
-      if: always()
-      with:
-        name: 'Integration Tests'
-        path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
-        reporter: java-junit
-        fail-on-error: true
-
-    - name: Upload Emulator Log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: verify-connected-android-test-emulator-log
-        path: verify-connected-android-test-emulator.log
-        retention-days: 90
-
-    - name: Setup tmate session
-      if: ${{ failure() }}
-      uses: mxschmitt/action-tmate@v3
-      with:
-        limit-access-to-actor: true
+      - name: Upload Unit Test Results and Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          retention-days: 90
 
   # connected-android-integration-test:
   #   name: Test Android App
@@ -719,38 +767,40 @@ jobs:
   # 2. we need to get the xml file that does the test results for the dorny thing
   integration-test:
     name: Test Android App (Shard ${{ matrix.shard }})
-    needs: [set_build_datetime, build]
+    needs: [set_build_datetime, build-x86_64]  # x86_64 APKs only; doesn't wait for arm64
     runs-on: ubuntu-latest
     strategy:
       matrix:
         arch: [x86_64]
-        shard: [0, 1, 2, 3]  # 4 parallel shards (2 UI + 2 non-UI) - 8 was too flaky
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]  # 8 parallel shards (4 UI + 4 non-UI); keep in step with NUM_SHARDS
       fail-fast: false
     env:
       ENTRY_FILE: "index.tsx"
       GRADLE_ABI: ${{ matrix.arch }}
       BUILD_ARCH: ${{ matrix.arch }}
-      NUM_SHARDS: 4
+      NUM_SHARDS: 8
     timeout-minutes: 35  # Increased for cache rebuilds after dependency updates
 
     steps:
     - uses: actions/checkout@v3
       with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
-    # Execute the common setup with emulator configuration
+    # Execute minimal setup for running pre-built APKs on emulator
+    # Skip Node.js, Yarn, Gradle, JS bundle - only need JDK and emulator
     - name: Common Setup
       id: common-setup
       uses: ./.github/actions/common-setup
       with:
         optional_cache_key: "integration-test"
-        gradle_max_workers: "4"
-        node_version: "22.x"
         arch: ${{ matrix.arch }}
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
         android_profile: ${{ env.ANDROID_PROFILE }}
         run_emulator_setup: "true"
+        test_runner_only: "true"
 
     - name: Make scripts executable
       run: |
@@ -797,6 +847,19 @@ jobs:
         emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
         disable-animations: true
         script: ./scripts/wait_for_emulator.sh && ./scripts/matrix_run_android_tests.sh --shard-index ${{ matrix.shard }} --num-shards ${{ env.NUM_SHARDS }} --arch ${{ matrix.arch }} --module ${{ env.main_project_module }} --timeout 25m && ./scripts/generate_android_coverage.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ matrix.shard }}
+
+    # Full logcat is in the emulator-log-shard-N artifact. On a crash, surface the
+    # app process's last lines before it here so the cause is in the job log.
+    - name: App logcat before crash (Shard ${{ matrix.shard }})
+      if: failure()
+      run: |
+        [ -f emulator.log ] || exit 0
+        grep -n "FATAL EXCEPTION" emulator.log | while IFS=: read -r line _; do
+          pid=$(sed -n "${line}p" emulator.log | awk '{print $3}')
+          echo "::group::App logcat up to crash at emulator.log:$line (pid $pid)"
+          head -n "$((line + 60))" emulator.log | awk -v p="$pid" '$3 == p' | tail -n 200
+          echo "::endgroup::"
+        done
 
     # Note: JaCoCo report generation moved to merge-integration-coverage job
 
@@ -856,31 +919,36 @@ jobs:
         path: emulator.log
         retention-days: 90
 
-    # Update all caches
+    # Only save Android cache for test runners (Node/Yarn/Gradle not restored).
+    # Master only, like the build job's Update Caches.
     - name: Update Caches
-      if: always()
+      if: always() && github.ref == 'refs/heads/master'
       uses: ./.github/actions/cache-update
       with:
         arch: ${{ matrix.arch }}
         run_emulator_setup: "true"
         android_api_level: ${{ env.ANDROID_API_LEVEL }}
         android_target: ${{ env.ANDROID_TARGET }}
+        android-cache-hit: ${{ steps.common-setup.outputs.android-cache-hit }}
+        test_runner_only: "true"
 
     - name: Setup tmate session
-      if: ${{ failure() }}
+      if: ${{ failure() && inputs.enable_tmate == true }}
       uses: mxschmitt/action-tmate@v3
       with:
         limit-access-to-actor: true
 
   merge-integration-coverage:
     name: Merge Integration Test Coverage
-    needs: [set_build_datetime, build, integration-test]
+    needs: [set_build_datetime, build-x86_64, integration-test]
     runs-on: ubuntu-latest
-    if: always() && needs.integration-test.result != 'cancelled'
+    if: always() && needs.integration-test.result != 'cancelled' && needs.set_build_datetime.outputs.code_changed == 'true'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Fail early if any integration test shard failed (prevents release with broken tests)
@@ -924,17 +992,45 @@ jobs:
           echo "=== Merged coverage files ==="
           find android/app/build/outputs/code_coverage/ -name "*.ec" -ls 2>/dev/null || echo "No .ec files found"
 
-      - name: Common Setup
-        uses: ./.github/actions/common-setup
-        with:
-          optional_cache_key: "merge-coverage"
-          gradle_max_workers: "4"
-          node_version: "22.x"
-          arch: x86_64
-
+      # Skip codegen and disk cleanup - this job only runs JaCoCo report generation
+      # The same report app/build.gradle's jacocoAndroidTestReport task makes
+      # (same class filters, same output paths), via JaCoCo's CLI. The classes
+      # and shard .ec files are already downloaded above, so this skips the
+      # ~2.7m Node/Yarn/JS-bundle/Gradle setup plus ~1.1m of Gradle, at the
+      # end of the critical path.
       - name: Generate Merged JaCoCo Report
+        env:
+          # What Gradle's jacocoAndroidTestReport actually ran (its HTML footer says
+          # 0.8.12, despite jacoco.toolVersion = 0.8.14 in app/build.gradle). Pinned
+          # so coverage numbers don't shift; verified identical to the Gradle report.
+          JACOCO_VERSION: "0.8.12"
+          BUILD_DIR: android/app/build
+          DEBUG_VARIANT: x8664Debug
         run: |
-          cd android && ./gradlew jacocoAndroidTestReport --parallel --max-workers=$MAX_WORKERS --build-cache --info --stacktrace
+          curl -sSfL -o jacococli.jar "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/$JACOCO_VERSION/org.jacoco.cli-$JACOCO_VERSION-nodeps.jar"
+
+          # Mirrors jacocoAndroidTestReport's classDirectories includes/excludes
+          mkdir -p coverage-classes
+          for dir in "$BUILD_DIR/tmp/kotlin-classes/$DEBUG_VARIANT" "$BUILD_DIR/intermediates/javac/$DEBUG_VARIANT/classes"; do
+            [ -d "$dir" ] || continue
+            rsync -a --exclude 'R.class' --exclude 'R$*.class' --exclude 'BuildConfig.*' \
+              --exclude 'Manifest*.*' --exclude '*Test*.*' \
+              --exclude 'com/facebook/react/' --exclude 'com/facebook/hermes/' --exclude 'com/facebook/jni/' \
+              --exclude 'org/jacoco/' --exclude 'com/android/tools/jacoco/' \
+              "$dir/" coverage-classes/
+          done
+          echo "Classes: $(find coverage-classes -name '*.class' | wc -l)"
+
+          mapfile -t exec_files < <(find "$BUILD_DIR/outputs" -name '*.ec')
+          echo "Coverage files: ${#exec_files[@]}"
+          [ "${#exec_files[@]}" -gt 0 ] || { echo "::error::No shard .ec files found"; exit 1; }
+
+          OUT="$BUILD_DIR/reports/jacoco/jacocoAndroidTestReport"
+          mkdir -p "$OUT/xml" "$OUT/csv"  # the CLI doesn't create these
+          java -jar jacococli.jar report "${exec_files[@]}" \
+            --classfiles coverage-classes \
+            --sourcefiles android/app/src/main/java \
+            --html "$OUT/html" --xml "$OUT/xml/report.xml" --csv "$OUT/csv/report.csv"
 
       - name: Upload Merged Coverage Report
         if: always()
@@ -949,8 +1045,11 @@ jobs:
             android/app/build/test-results/
           retention-days: 90
 
+      # v1.15+ is required: earlier images lack findutils, so the action's own
+      # script dies with "xargs is not available" and produces no report.
+      # See https://github.com/simple-elf/allure-report-action/pull/78
       - name: Generate Allure HTML Report
-        uses: simple-elf/allure-report-action@v1.13
+        uses: simple-elf/allure-report-action@v1.15
         if: always()
         with:
           allure_results: android/app/build/outputs/allure-results
@@ -968,12 +1067,14 @@ jobs:
 
   coverage-report:
     name: Process Code Coverage
-    needs: [set_build_datetime, unit-tests, build, merge-integration-coverage]
-    if: always()
+    needs: [set_build_datetime, unit-tests, merge-unit-test-coverage, build-x86_64, build-arm64, merge-integration-coverage]
+    if: always() && needs.set_build_datetime.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
+          # For PRs, checkout the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Download coverage results from both unit and integration tests
@@ -994,6 +1095,8 @@ jobs:
       # Process and generate coverage report from Jacoco XML files
       - name: Generate JaCoCo Coverage Report
         id: jacoco
+        # The action only supports pull_request and push events
+        if: github.event_name != 'workflow_dispatch'
         uses: madrapps/jacoco-report@v1.6.1
         with:
           paths: |
@@ -1053,6 +1156,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
+          # For tags this is a no-op (falls back to github.sha), but consistent pattern
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Download all artifacts
@@ -1078,3 +1183,19 @@ jobs:
         with:
           body_path: ${{ github.workspace }}-CHANGELOG.txt
           files: release_files/*
+
+  # The single required status check for master. Required checks can't name
+  # the per-arch jobs directly: when a matrix job is skipped (docs-only PRs) it
+  # reports one check under its unexpanded name, so "Build Android App
+  # (x86_64)" never appears. Passes when every gated job succeeded or was
+  # skipped; set_build_datetime is included so a failed docs-only detection
+  # can't skip everything and still pass.
+  ci-result:
+    name: CI Result
+    if: always()
+    needs: [set_build_datetime, safety_checks, build-x86_64, build-arm64, sign, unit-tests, merge-unit-test-coverage, jest-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any gated job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

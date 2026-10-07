@@ -30,6 +30,10 @@
     <!-- Android 13+ (API 33) - Required for posting notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Background data sync runs in a dataSync foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
 
     <application
         android:name=".GlobalState"
@@ -42,6 +46,7 @@
         android:usesCleartextTraffic="true"
         android:extractNativeLibs="true"
         >
+        <!-- Router activity that delegates to Legacy or Modern MainActivity -->
         <activity
             android:name=".ui.MainActivity"
             android:label="@string/main_activity_title"
@@ -55,6 +60,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Legacy MainActivity: monolithic UI with single RecyclerView -->
+        <activity
+            android:name=".ui.MainActivityLegacy"
+            android:label="@string/main_activity_title"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing"
+            android:exported="false" />
+        <!-- Modern MainActivity: fragment-based navigation with bottom tabs -->
+        <activity
+            android:name=".ui.MainActivityModern"
+            android:label="@string/main_activity_title"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustNothing"
+            android:exported="false" />
         <activity
             android:name=".ui.SettingsActivityX"
             android:label="@string/settings_name"
@@ -69,6 +90,12 @@
             android:name=".ui.ViewEventActivityNoRecents"
             android:excludeFromRecents="true"
             android:label="@string/view_event"
+            android:noHistory="true"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".ui.PreActionActivity"
+            android:excludeFromRecents="true"
+            android:label="@string/pre_snooze"
             android:noHistory="true"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
@@ -175,6 +202,11 @@
         <service android:name=".notification.NotificationActionDismissService" android:exported="false" />
         <service android:name=".notification.NotificationActionSnoozeService" android:exported="false" />
         <service android:name=".notification.NotificationActionMuteToggleService" android:exported="false" />
+
+        <service
+            android:name=".sync.SyncForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <receiver 
             android:name=".broadcastreceivers.AppUpdatedBroadcastReceiver"

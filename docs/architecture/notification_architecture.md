@@ -29,7 +29,7 @@ The helper function `computeIsReminderForEvent()` encapsulates this logic.
 
 ## Notification Channels
 
-Android 8+ (API 26) requires notification channels. The app defines 5 channels in `NotificationChannels.kt`:
+Android 8+ (API 26) requires notification channels. The app defines 7 channels in `NotificationChannels.kt`:
 
 | Channel ID | Name | Importance | Sound/Vibrate | Purpose |
 |------------|------|------------|---------------|---------|
@@ -38,6 +38,8 @@ Android 8+ (API 26) requires notification channels. The app defines 5 channels i
 | `calendar_silent` | SILENT | LOW | ❌ No | Muted notifications |
 | `calendar_reminders` | REMINDERS | HIGH | ✅ Yes | **Already tracked** - snooze returns, periodic reminders, expanding from collapsed |
 | `calendar_alarm_reminders` | ALARM_REMINDERS | HIGH | ✅ Yes | **Already tracked** - alarm event reminders |
+| `data_sync` | SYNC | LOW | ❌ No | Background data sync progress and "Sync complete" ([details](background_data_sync.md#notifications)) |
+| `data_sync_problems` | SYNC_PROBLEMS | DEFAULT | ✅ Yes | Background data sync failed or paused |
 
 ### Channel Selection Logic
 
@@ -370,11 +372,14 @@ fun `applyReminderSoundOverride - muted events stay silent when playReminderSoun
 | `NOTIFICATION_ID_COLLAPSED` | Fixed ID | Collapsed summary notification |
 | `event.notificationId` | Per-event | Individual event notifications |
 | `NOTIFICATION_ID_DEBUG*` | Debug IDs | Debug notifications |
+| `NOTIFICATION_ID_SYNC` | Fixed ID | Background data sync, ongoing progress |
+| `NOTIFICATION_ID_SYNC_RESULT` | Fixed ID | Background data sync result (complete / failed / paused) |
 
 ## Related Documentation
 
 - [Calendar Monitoring](calendar_monitoring.md) - How events trigger notifications
 - [Clock Implementation](clock_implementation.md) - Time handling in notifications
+- [Background Data Sync](background_data_sync.md) - The sync notifications, channels, and group
 
 ---
 

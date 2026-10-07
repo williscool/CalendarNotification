@@ -12,6 +12,8 @@ import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.testutils.TestTimeConstants
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -30,12 +32,17 @@ class ApplicationControllerCoreTest {
 
     private val LOG_TAG = "ApplicationControllerCoreTest"
     private lateinit var context: Context
-    private val baseTime = System.currentTimeMillis()
+    private val baseTime = TestTimeConstants.STANDARD_TEST_TIME
+    private lateinit var testClock: CNPlusTestClock
 
     @Before
     fun setup() {
         DevLog.info(LOG_TAG, "Setting up test")
         context = InstrumentationRegistry.getInstrumentation().targetContext
+        
+        // Set up test clock to use the same time as our test events
+        testClock = CNPlusTestClock(baseTime)
+        ApplicationController.clockProvider = { testClock }
         
         // Clear any existing test events
         EventsStorage(context).use { db ->
@@ -48,6 +55,9 @@ class ApplicationControllerCoreTest {
     @After
     fun cleanup() {
         DevLog.info(LOG_TAG, "Cleaning up test")
+        // Reset the clock provider to avoid test pollution
+        ApplicationController.resetClockProvider()
+        
         // Clean up test events
         EventsStorage(context).use { db ->
             db.events.filter { it.title.startsWith("Test Event") }.forEach {
@@ -235,7 +245,7 @@ class ApplicationControllerCoreTest {
         // Recent event
         val recentEvent = createTestEvent(
             eventId = eventId,
-            lastStatusChangeTime = System.currentTimeMillis() // Just now
+            lastStatusChangeTime = baseTime // Just now (relative to baseTime)
         )
         EventsStorage(context).use { db ->
             db.addEvent(recentEvent)
@@ -258,7 +268,7 @@ class ApplicationControllerCoreTest {
         val snoozedEvent = createTestEvent(
             eventId = eventId,
             lastStatusChangeTime = baseTime - Consts.DISMISS_ALL_THRESHOLD - 60000L,
-            snoozedUntil = System.currentTimeMillis() + 3600000L
+            snoozedUntil = baseTime + 3600000L
         )
         EventsStorage(context).use { db ->
             db.addEvent(snoozedEvent)
@@ -299,7 +309,7 @@ class ApplicationControllerCoreTest {
         val eventId = 100031L
         val event = createTestEvent(
             eventId = eventId,
-            snoozedUntil = System.currentTimeMillis() + 3600000L,
+            snoozedUntil = baseTime + 3600000L,
             isMuted = false
         )
         EventsStorage(context).use { db ->
@@ -330,6 +340,87 @@ class ApplicationControllerCoreTest {
             db.getEvent(eventId, baseTime)
         }
         assertFalse("Task event should NOT be muted", updatedEvent?.isMuted == true)
+    }
+
+    // === muteAllVisibleEvents does NOT skip pinned (pinning only affects batch snooze) ===
+
+    @Test
+    fun testMuteAllVisibleEvents_mutesPinnedEvents() {
+        DevLog.info(LOG_TAG, "Running testMuteAllVisibleEvents_mutesPinnedEvents")
+        
+        val pinnedEventId = 100040L
+        val normalEventId = 100041L
+        val pinnedEvent = createTestEvent(eventId = pinnedEventId, isMuted = false).apply { isPinned = true }
+        val normalEvent = createTestEvent(eventId = normalEventId, isMuted = false)
+        EventsStorage(context).use { db ->
+            db.addEvent(pinnedEvent)
+            db.addEvent(normalEvent)
+        }
+
+        ApplicationController.muteAllVisibleEvents(context)
+
+        EventsStorage(context).use { db ->
+            val updatedPinned = db.getEvent(pinnedEventId, baseTime)
+            val updatedNormal = db.getEvent(normalEventId, baseTime)
+            assertTrue("Pinned event should be muted (pinning only affects batch snooze)", updatedPinned?.isMuted == true)
+            assertTrue("Normal event should be muted", updatedNormal?.isMuted == true)
+        }
+    }
+
+    // === pinAllVisibleEvents / unpinAllVisibleEvents ===
+
+    @Test
+    fun testPinAllVisibleEvents_pinsVisibleEvents() {
+        DevLog.info(LOG_TAG, "Running testPinAllVisibleEvents_pinsVisibleEvents")
+        
+        val eventId = 100042L
+        val event = createTestEvent(eventId = eventId)
+        EventsStorage(context).use { db ->
+            db.addEvent(event)
+        }
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val updatedEvent = EventsStorage(context).use { db ->
+            db.getEvent(eventId, baseTime)
+        }
+        assertTrue("Visible event should be pinned", updatedEvent?.isPinned == true)
+    }
+
+    @Test
+    fun testPinAllVisibleEvents_skipsSnoozedEvents() {
+        DevLog.info(LOG_TAG, "Running testPinAllVisibleEvents_skipsSnoozedEvents")
+        
+        val eventId = 100043L
+        val event = createTestEvent(eventId = eventId, snoozedUntil = baseTime + 3600000L)
+        EventsStorage(context).use { db ->
+            db.addEvent(event)
+        }
+
+        ApplicationController.pinAllVisibleEvents(context)
+
+        val updatedEvent = EventsStorage(context).use { db ->
+            db.getEvent(eventId, baseTime)
+        }
+        assertFalse("Snoozed event should NOT be pinned", updatedEvent?.isPinned == true)
+    }
+
+    @Test
+    fun testUnpinAllVisibleEvents_unpinsAll() {
+        DevLog.info(LOG_TAG, "Running testUnpinAllVisibleEvents_unpinsAll")
+        
+        val eventId = 100044L
+        val event = createTestEvent(eventId = eventId).apply { isPinned = true }
+        EventsStorage(context).use { db ->
+            db.addEvent(event)
+        }
+
+        ApplicationController.unpinAllVisibleEvents(context)
+
+        val updatedEvent = EventsStorage(context).use { db ->
+            db.getEvent(eventId, baseTime)
+        }
+        assertFalse("Event should be unpinned", updatedEvent?.isPinned == true)
     }
 }
 

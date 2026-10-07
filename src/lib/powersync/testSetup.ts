@@ -23,6 +23,8 @@ jest.mock('js-logger', () => ({
 
 // Mock @powersync/react-native
 jest.mock('@powersync/react-native', () => ({
+  // The real class (re-exported by @powersync/react-native), not a stand-in
+  BaseObserver: jest.requireActual('@powersync/common').BaseObserver,
   UpdateType: {
     PUT: 'PUT',
     PATCH: 'PATCH',

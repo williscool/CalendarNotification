@@ -223,6 +223,11 @@
     <string name="snooze_on_swipe">"Glisser pour répéter"</string>
     <string name="snooze_on_swipe_summary">"Le glissement de la notificaton 'répètera' l'évenement au lieu de le rejeter (le 1er paramètre sera utilisé)"</string>
 
+    <plurals name="search_placeholder_filtered">
+      <item quantity="one">Rechercher %1$d sur %2$d événement %3$s…</item>
+      <item quantity="other">Rechercher %1$d sur %2$d événements %3$s…</item>
+    </plurals>
+
 </resources>
 
 

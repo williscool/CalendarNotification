@@ -26,8 +26,6 @@ import com.github.quarck.calnotify.database.SQLiteOpenHelper
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
 //import com.github.quarck.calnotify.logs.Logger
-import java.io.Closeable
-
 import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 
 
@@ -37,7 +35,7 @@ import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
  * Used as fallback when Room migration fails.
  */
 class LegacyMonitorStorage(val context: Context)
-    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), Closeable, MonitorStorageInterface {
+    : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_CURRENT_VERSION), MonitorStorageInterface {
 
     private var impl: MonitorStorageImplInterface
 
@@ -100,6 +98,13 @@ class LegacyMonitorStorage(val context: Context)
 
     override fun getAlertsForAlertRange(scanFrom: Long, scanTo: Long): List<MonitorEventAlertEntry>
             = synchronized(LegacyMonitorStorage::class.java) { readableDatabase.customUse { impl.getAlertsForAlertRange(it, scanFrom, scanTo) } }
+
+    /**
+     * Legacy path stays as a not-implemented no-op: this storage is deprecated,
+     * only reached if Room migration failed, and re-keying identity in a
+     * degraded state would layer new failures on top of existing ones.
+     */
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long, instanceStart: Long): Int = 0
 
     companion object {
         private const val LOG_TAG = "LegacyMonitorStorage"

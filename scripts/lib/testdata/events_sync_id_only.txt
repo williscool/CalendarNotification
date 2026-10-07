@@ -1,0 +1,4 @@
+Row: 0 calendar_id=7, uid2445=NULL, _sync_id=s1, deleted=0
+Row: 1 calendar_id=7, uid2445=NULL, _sync_id=s2, deleted=0
+Row: 2 calendar_id=7, uid2445=NULL, _sync_id=s3, deleted=0
+Row: 3 calendar_id=7, uid2445=NULL, _sync_id=s4, deleted=0

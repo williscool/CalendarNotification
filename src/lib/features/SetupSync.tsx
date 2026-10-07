@@ -1,14 +1,17 @@
 import React, { useContext, useEffect, useState, memo, useMemo } from 'react';
 import { Linking, ScrollView } from 'react-native';
-import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage } from '../../../modules/my-module';
+import { hello, sendRescheduleConfirmations, addChangeListener, getActiveEventsDbName, isUsingRoomStorage, startBackgroundSync, getLastBackgroundSyncResult, areNotificationsEnabled } from '../../../modules/my-module';
 import { open } from '@op-engineering/op-sqlite';
 import { useQuery } from '@powersync/react';
 import { PowerSyncContext } from "@powersync/react";
 import { installCrsqliteOnTable } from '@lib/cr-sqlite/install';
-import { psInsertDbTable, psClearTable } from '@lib/orm';
+import { psResyncTable, psClearTable, getPendingCrudCount } from '@lib/orm';
+import { getUploadProgress, resetUploadProgress } from '@lib/powersync/Connector';
+import type { UploadProgress } from '@lib/powersync/Connector';
 import { useNavigation } from '@react-navigation/native';
 import type { AppNavigationProp } from '@lib/navigation/types';
 import { useSettings } from '@lib/hooks/SettingsContext';
+import { isSettingsConfigured } from '@lib/hooks/settingsStorage';
 import { useTheme } from '@lib/theme/ThemeContext';
 import { GITHUB_README_URL } from '@lib/constants';
 import { ActionButton, WarningBanner, AlertText } from '@lib/components/ui';
@@ -36,13 +39,7 @@ const PollingTimestamp = memo(({ color }: { color: string }) => {
   );
 });
 
-/** Check if all required sync credentials are configured */
-export const isSettingsConfigured = (settings: Settings): boolean => Boolean(
-  settings.supabaseUrl &&
-  settings.supabaseAnonKey &&
-  settings.powersyncUrl &&
-  settings.powersyncSecret
-);
+export { isSettingsConfigured };
 
 export const SetupSync = () => {
   const navigation = useNavigation<AppNavigationProp>();
@@ -52,6 +49,11 @@ export const SetupSync = () => {
   const [showDangerZone, setShowDangerZone] = useState(false);
   const [showDebugOutput, setShowDebugOutput] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [pendingOps, setPendingOps] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ upserts: 0, updates: 0, deletes: 0 });
+  const [syncCompleteAt, setSyncCompleteAt] = useState<string | null>(null);
+  const [syncInFlight, setSyncInFlight] = useState(false);
+  const isSyncing = syncInFlight || (pendingOps !== null && pendingOps > 0);
 
   const isConfigured = isSettingsConfigured(settings);
 
@@ -69,6 +71,9 @@ export const SetupSync = () => {
   // Get the active database name from native module (Room or Legacy)
   const eventsDbName = useMemo(() => getActiveEventsDbName(), []);
   const isUsingRoom = useMemo(() => isUsingRoomStorage(), []);
+  // What the background service recorded, so a sync that ended while this screen was closed still shows
+  const lastBackgroundSync = useMemo(() => getLastBackgroundSyncResult(), []);
+  const notificationsEnabled = useMemo(() => areNotificationsEnabled(), []);
   const regDb = useMemo(() => open({ name: eventsDbName }), [eventsDbName]);
   
   const providerDb = useContext(PowerSyncContext);
@@ -105,12 +110,13 @@ export const SetupSync = () => {
     // Track previous values to avoid unnecessary re-renders for expensive updates
     let prevStatus = '';
     let prevConnected: boolean | null = null;
+    let prevPendingOps: number | null = null;
+    let prevUploadProgress = '';
     
-    const statusInterval = setInterval(() => {
+    const statusInterval = setInterval(async () => {
       if (providerDb) {
         const newStatus = JSON.stringify(providerDb.currentStatus);
         
-        // Only update dbStatus if it actually changed (avoid expensive re-render)
         if (newStatus !== prevStatus) {
           prevStatus = newStatus;
           setDbStatus(newStatus);
@@ -123,6 +129,35 @@ export const SetupSync = () => {
             setIsConnected(newConnected);
           }
         }
+
+        // Always poll pending ops + uploaded counter — survives navigation
+        try {
+          const count = await getPendingCrudCount(providerDb);
+          if (count !== prevPendingOps) {
+            if (count === 0 && prevPendingOps !== null && prevPendingOps > 0) {
+              emitSyncLog('info', 'Sync complete — upload queue drained');
+              setSyncCompleteAt(new Date().toLocaleTimeString());
+            }
+            // PowerSync starts uploading whatever is queued as soon as it connects, including
+            // changes left over from an interrupted sync, and Full Resync is disabled meanwhile.
+            // Start the service so that upload also survives leaving this screen.
+            if (count > 0 && !prevPendingOps) {
+              startBackgroundSync().catch(error =>
+                emitSyncLog('warn', 'Failed to start background sync', { error })
+              );
+            }
+            prevPendingOps = count;
+            setPendingOps(count);
+          }
+          const progress = getUploadProgress();
+          const progressKey = `${progress.upserts},${progress.updates},${progress.deletes}`;
+          if (progressKey !== prevUploadProgress) {
+            prevUploadProgress = progressKey;
+            setUploadProgress(progress);
+          }
+        } catch (error) {
+          emitSyncLog('warn', 'Failed to poll pending ops count', { error });
+        }
       }
     }, 1000);
 
@@ -132,14 +167,22 @@ export const SetupSync = () => {
   const handleSync = async () => {
     if (!providerDb || !settings.syncEnabled) return;
 
+    setSyncInFlight(true);
     try {
-      await psInsertDbTable(eventsDbName, 'eventsV9', providerDb);
+      resetUploadProgress();
+      setUploadProgress({ upserts: 0, updates: 0, deletes: 0 });
+      setSyncCompleteAt(null);
+      await psResyncTable(eventsDbName, 'eventsV9', providerDb);
+      // Keeps the upload going if this screen is left before the queue drains
+      await startBackgroundSync();
       const result = await regDb.execute(debugDisplayQuery);
       if (result?.rows) {
         setSqliteEvents(result.rows || []);
       }
     } catch (error) {
       emitSyncLog('error', 'Failed to sync data', { error });
+    } finally {
+      setSyncInFlight(false);
     }
   };
 
@@ -233,13 +276,47 @@ export const SetupSync = () => {
         </Card>
       )}
 
+      {isSyncing && (
+        <WarningBanner variant="info" testID="sync-progress-banner">
+          <AlertText className="text-center">
+            {`${uploadProgress.deletes} deleted, ${uploadProgress.upserts} upserted, ${uploadProgress.updates} updated — ${pendingOps} queued`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
+      {!isSyncing && syncCompleteAt && (
+        <WarningBanner variant="info" testID="sync-complete-banner">
+          <AlertText className="text-center">
+            {`Sync complete at ${syncCompleteAt}`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
+      {!isSyncing && !syncCompleteAt && lastBackgroundSync && (
+        <WarningBanner variant={lastBackgroundSync.ok ? 'info' : 'warning'} testID="last-background-sync-banner">
+          <AlertText className="text-center">
+            {lastBackgroundSync.ok
+              ? `Last background sync completed ${new Date(lastBackgroundSync.completedAt).toLocaleString()}`
+              : `Last background sync did not finish (${new Date(lastBackgroundSync.completedAt).toLocaleString()}): ${lastBackgroundSync.error}`}
+          </AlertText>
+        </WarningBanner>
+      )}
+
+      {!notificationsEnabled && (
+        <WarningBanner
+          variant="info"
+          testID="notifications-off-banner"
+          message="Notifications are off, so background sync progress won't be shown. The sync still runs."
+        />
+      )}
+
       <ActionButton
         onPress={handleSync}
         variant="success"
-        disabled={!isConnected}
+        disabled={!isConnected || isSyncing}
         testID="sync-button"
       >
-        Sync Events Local To PowerSync Now
+        {isSyncing ? 'Syncing...' : 'Full Resync to Remote'}
       </ActionButton>
 
       <ActionButton

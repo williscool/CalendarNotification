@@ -24,6 +24,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
 import android.util.Log
+import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.calendareditor.CalendarChangeRequestMonitor
@@ -32,10 +33,13 @@ import com.github.quarck.calnotify.calendar.*
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitor
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
 import com.github.quarck.calnotify.globalState
+import com.github.quarck.calnotify.monitorstorage.MonitorStorage
+import com.github.quarck.calnotify.monitorstorage.MonitorStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
@@ -48,14 +52,25 @@ import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.ui.UINotifier
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManagerInterface
 import com.github.quarck.calnotify.calendareditor.CalendarChangeManager
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.utils.background
 import com.github.quarck.calnotify.utils.detailed
+import android.database.SQLException
+import com.github.quarck.calnotify.calendar.CalendarBackupInfo
+import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.identitystorage.CalendarResolutionApplier
+import com.github.quarck.calnotify.identitystorage.CalendarResolutionPlan
+import com.github.quarck.calnotify.identitystorage.EventIdentityEntity
+import com.github.quarck.calnotify.identitystorage.EventIdentityStorage
+import com.github.quarck.calnotify.identitystorage.EventIdRekeyApplier
+import com.github.quarck.calnotify.identitystorage.EventIdRekeyPlan
+import com.github.quarck.calnotify.identitystorage.IdentityCapturePlan
+import com.github.quarck.calnotify.identitystorage.EventIdentityVerdict
+import com.github.quarck.calnotify.identitystorage.checkEventIdentity
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.customUse
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissResult
+import com.github.quarck.calnotify.ui.FilterState
 import expo.modules.mymodule.JsRescheduleConfirmationObject
 import kotlinx.serialization.json.Json
 
@@ -80,7 +95,7 @@ interface ApplicationControllerInterface {
     fun onMainActivityStarted(context: Context?)
     fun onMainActivityResumed(context: Context?, shouldRepost: Boolean, monitorSettingsChanged: Boolean)
     fun onTimeChanged(context: Context)
-    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean, dismissedEventsStorage: DismissedEventsStorage? = null)
+    fun dismissEvents(context: Context, db: EventsStorageInterface, events: Collection<EventAlertRecord>, dismissType: EventDismissType, notifyActivity: Boolean, dismissedEventsStorage: DismissedEventsStorageInterface? = null)
     fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord)
     fun dismissAndDeleteEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord): Boolean
     fun dismissEvent(
@@ -91,14 +106,24 @@ interface ApplicationControllerInterface {
         notificationId: Int,
         notifyActivity: Boolean,
         db: EventsStorageInterface? = null,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter here too
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     )
     fun restoreEvent(
         context: Context, 
         event: EventAlertRecord,
         db: EventsStorageInterface? = null,
-        dismissedEventsStorage: DismissedEventsStorage? = null
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     )
+    fun unsnoozeToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface? = null
+    ): Boolean
+    fun preDismissEvent(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
+    ): Boolean
     fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean
     fun moveAsCopy(context: Context, calendar: CalendarRecord, event: EventAlertRecord, addTime: Long): Long
     fun forceRepostNotifications(context: Context)
@@ -116,7 +141,7 @@ interface ApplicationControllerInterface {
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     ): List<Pair<EventAlertRecord, EventDismissResult>>
 
     fun safeDismissEventsById(
@@ -125,13 +150,22 @@ interface ApplicationControllerInterface {
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     ): List<Pair<Long, EventDismissResult>>
 }
 
 object ApplicationController : ApplicationControllerInterface, EventMovedHandler {
 
     private const val LOG_TAG = "App"
+
+    /**
+     * How many `Ambiguous` matches to include in the calendar re-link log line.
+     *
+     * The full list can be arbitrarily long on a mis-synced device and the log
+     * message goes to `Log.w`, which line-truncates. A sample is enough to
+     * diagnose the shape of the collision; the total count is logged either way.
+     */
+    private const val AMBIGUOUS_MATCH_LOG_SAMPLE_SIZE = 3
 
     private var settings: Settings? = null
     private fun getSettings(ctx: Context): Settings {
@@ -155,11 +189,418 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         return eventsStorageProvider?.invoke(ctx) ?: EventsStorage(ctx)
     }
 
+    // Injectable MonitorStorage provider for testing - when null, uses real MonitorStorage
+    var monitorStorageProvider: ((Context) -> MonitorStorageInterface)? = null
+
+    private fun getMonitorStorage(ctx: Context): MonitorStorageInterface {
+        return monitorStorageProvider?.invoke(ctx) ?: MonitorStorage(ctx)
+    }
+
     // Injectable ReminderState provider for testing - when null, uses real ReminderState
     var reminderStateProvider: ((Context) -> ReminderStateInterface)? = null
 
     private fun getReminderState(ctx: Context): ReminderStateInterface {
         return reminderStateProvider?.invoke(ctx) ?: ReminderState(ctx)
+    }
+
+    // Injectable DismissedEventsStorage provider for testing - when null, uses real DismissedEventsStorage
+    var dismissedEventsStorageProvider: ((Context) -> DismissedEventsStorageInterface)? = null
+
+    private fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface {
+        return dismissedEventsStorageProvider?.invoke(ctx) ?: DismissedEventsStorage(ctx)
+    }
+
+    /** Injectable EventIdentityStorage provider for testing - when null, uses real storage */
+    var eventIdentityStorageProvider: ((Context) -> EventIdentityStorage)? = null
+
+    private fun getEventIdentityStorage(ctx: Context): EventIdentityStorage {
+        return eventIdentityStorageProvider?.invoke(ctx) ?: EventIdentityStorage(ctx)
+    }
+
+    /**
+     * Whether an unexpected RuntimeException in a best-effort identity pass is
+     * rethrown. On in debug builds so tests and CI still fail loudly; off in
+     * release, where a bug in a restore-time feature must not crash the app on
+     * every launch (#298). Settable for tests.
+     */
+    var rethrowUnexpectedIdentityErrors: Boolean = BuildConfig.DEBUG
+
+    private fun onUnexpectedIdentityFailure(pass: String, ex: RuntimeException) {
+        DevLog.error(LOG_TAG, "$pass failed unexpectedly: ${ex.detailed}")
+        if (rethrowUnexpectedIdentityErrors)
+            throw ex
+    }
+
+    /**
+     * Re-attach stored events to the right calendar on this device.
+     *
+     * The companion to [captureEventIdentities]. Capture flags rows whose stored
+     * ids no longer mean what they used to; this fixes the calendar half of
+     * those rows, using the account tuple captured on the old device.
+     *
+     * **Calendar only.** `cid` is a payload column of `eventsV9`, so moving it
+     * is an ordinary update Room applies in place. The event `id` is half the
+     * primary key, so changing that means delete + re-insert across four
+     * databases -- a separate, much riskier step. Fixing `cid` alone already
+     * restores calendar attribution, the filter pills, and the per-calendar
+     * handled settings.
+     *
+     * Runs on the same wake-locked background service as capture, straight
+     * after it, and swallows its own failures for the same reason: a missed
+     * re-link costs some accuracy at restore time, while a propagated exception
+     * would cost the user a notification.
+     */
+    fun resolveEventCalendars(context: Context) {
+        try {
+            val identityStorage = getEventIdentityStorage(context)
+            val identities = identityStorage.getAll()
+            if (identities.isEmpty())
+                return
+
+            val calendars = calendarProvider.getCalendars(context)
+            if (calendars.isEmpty()) {
+                // Mid-sync, or permissions revoked. Matching against an empty
+                // list would report every event as calendar-not-found, so stop
+                // rather than log a misleading result.
+                DevLog.info(LOG_TAG, "Calendar re-link skipped: no calendars visible yet")
+                return
+            }
+
+            getEventsStorage(context).use { db ->
+                val eventsByKey = db.events.associateBy { it.eventId to it.instanceStartTime }
+                if (eventsByKey.isEmpty())
+                    return
+
+                val plan = CalendarResolutionPlan.compute(
+                    identities = identities,
+                    calendars = calendars,
+                    currentCalendarIdOf = {
+                        eventsByKey[it.eventId to it.instanceStartTime]?.calendarId
+                            ?: it.originalCalendarId
+                    }
+                )
+
+                if (plan.ambiguous.isNotEmpty()) {
+                    // Never guessed at -- attaching events to an arbitrary one
+                    // of several candidates is corruption that looks like
+                    // success. Logged so it is diagnosable if it ever happens.
+                    DevLog.warn(LOG_TAG,
+                        "${plan.ambiguous.size} event(s) match several calendars and were " +
+                        "left alone; candidates: " +
+                        "${plan.ambiguous.take(AMBIGUOUS_MATCH_LOG_SAMPLE_SIZE).map { it.candidateIds }}")
+                }
+
+                if (plan.changes.isEmpty())
+                    return
+
+                val settings = getSettings(context)
+                val edits = CalendarResolutionApplier.computeEdits(
+                    plan = plan,
+                    eventsByKey = eventsByKey,
+                    isCalendarHandled = { settings.getCalendarIsHandled(it) },
+                    isCalendarHandledExplicitlySet = { settings.hasCalendarIsHandledSetting(it) }
+                )
+
+                if (edits.isEmpty)
+                    return
+
+                // Events first: the settings move is a repair of what the event
+                // rows say, so it should not run ahead of them succeeding.
+                if (!db.updateEvents(edits.updatedEvents)) {
+                    DevLog.error(LOG_TAG, "Calendar re-link failed writing event rows")
+                    return
+                }
+
+                edits.handledSettingsToMove.forEach { (calendarId, handled) ->
+                    settings.setCalendarIsHandled(calendarId, handled)
+                }
+                edits.handledSettingsToClear.forEach { settings.clearCalendarIsHandled(it) }
+
+                DevLog.info(LOG_TAG, "Calendar re-link: ${edits.summary()}")
+            }
+        }
+        catch (ex: SQLException) {
+            DevLog.error(LOG_TAG, "Calendar re-link failed (SQL): ${ex.message}")
+        }
+        catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "Calendar re-link failed (calendar permission): ${ex.message}")
+        }
+        catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Calendar re-link failed (provider state): ${ex.message}")
+        }
+        catch (ex: LinkageError) {
+            DevLog.error(LOG_TAG, "Calendar re-link unavailable (native SQLite missing): ${ex.message}")
+        }
+        catch (ex: RuntimeException) {
+            onUnexpectedIdentityFailure("Calendar re-link", ex)
+        }
+    }
+
+    /**
+     * Re-key stored events whose provider id has changed on this device.
+     *
+     * The companion to [resolveEventCalendars]. That fixes `cid`; this fixes
+     * `id`. Runs on the same wake-locked background service pass, straight
+     * after `resolveEventCalendars` has finished, and swallows its own
+     * failures for the same reason capture does: a missed re-key costs some
+     * accuracy at restore time, while a propagated exception would cost the
+     * user a notification.
+     *
+     * ### Cross-database writes with rollback
+     *
+     * `eventsV9`'s primary key is `(id, instanceStartTime)`, so changing `id`
+     * is a delete + re-insert. The same `id` lives in three other databases
+     * (`RoomEventIdentity`, `dismissedEventsV2`, `manualAlertsV1`) that all
+     * have to move in lockstep. Those are four separate SQLite files -- no
+     * shared transaction is possible -- so we use the same manual-rollback
+     * pattern [unsnoozeToUpcoming] does, encoded once in
+     * [EventIdRekeyApplier]. The applier reports per-event failure and this
+     * method logs a summary; a per-event failure stops that event's re-key
+     * but does not stop the batch.
+     */
+    fun resolveEventIds(context: Context) {
+        try {
+            val identityStorage = getEventIdentityStorage(context)
+            val identities = identityStorage.getAll()
+            if (identities.isEmpty())
+                return
+
+            val eventsDb = getEventsStorage(context)
+            val dismissedDb = getDismissedEventsStorage(context)
+            val monitorDb = getMonitorStorage(context)
+
+            eventsDb.use { events ->
+                val liveIds = events.events
+                    .associate { (it.eventId to it.instanceStartTime) to it.eventId }
+
+                val plan = EventIdRekeyPlan.compute(
+                    identities = identities,
+                    liveEventIdOf = { liveIds[it.eventId to it.instanceStartTime] },
+                    providerEventIdOf = { calendarId, syncId ->
+                        calendarProvider.findEventIdBySyncId(context, calendarId, syncId, uid2445 = null)
+                    }
+                )
+
+                if (plan.changes.isEmpty()) {
+                    if (plan.unresolved.isNotEmpty() || plan.eventRowMissing.isNotEmpty()) {
+                        DevLog.info(LOG_TAG, "Event re-key: ${plan.summary()}")
+                    }
+                    return
+                }
+
+                DevLog.info(LOG_TAG, "Event re-key: ${plan.summary()}")
+
+                val ops = object : EventIdRekeyApplier.Ops {
+                    override fun readEvent(currentId: Long, instanceStartTime: Long) =
+                        events.getEvent(currentId, instanceStartTime)
+
+                    override fun deleteEvent(currentId: Long, instanceStartTime: Long) =
+                        events.deleteEvent(currentId, instanceStartTime)
+
+                    override fun insertEvent(event: EventAlertRecord) =
+                        events.addEvent(event)
+
+                    override fun reKeyIdentity(oldId: Long, instanceStartTime: Long, newId: Long) =
+                        identityStorage.reKey(oldId, instanceStartTime, newId)
+
+                    override fun reKeyDismissed(oldId: Long, newId: Long): Boolean {
+                        dismissedDb.reKeyEventId(oldId, newId)
+                        return true
+                    }
+
+                    override fun reKeyMonitorAlerts(
+                        oldId: Long, newId: Long, instanceStartTime: Long
+                    ): Boolean {
+                        monitorDb.reKeyEventId(oldId, newId, instanceStartTime)
+                        return true
+                    }
+                }
+
+                var succeeded = 0
+                var failed = 0
+                var rollbackDirty = 0
+                for (change in plan.changes) {
+                    when (val result = EventIdRekeyApplier.applyOne(change, ops)) {
+                        is EventIdRekeyApplier.Result.Success -> succeeded++
+                        is EventIdRekeyApplier.Result.EventRowMissing -> failed++
+                        is EventIdRekeyApplier.Result.EventsWriteFailed -> {
+                            failed++
+                            DevLog.error(LOG_TAG,
+                                "Event re-key ${change.currentEventId}->${change.newEventId} " +
+                                "failed at events layer: ${result.cause?.message}")
+                        }
+                        is EventIdRekeyApplier.Result.LaterWriteFailed -> {
+                            failed++
+                            if (!result.rolledBackCleanly) rollbackDirty++
+                            DevLog.error(LOG_TAG,
+                                "Event re-key ${change.currentEventId}->${change.newEventId} " +
+                                "failed at ${result.failedAt} (rolled back: ${result.rolledBackCleanly}): " +
+                                "${result.cause?.message}")
+                        }
+                    }
+                }
+                DevLog.info(LOG_TAG,
+                    "Event re-key: $succeeded succeeded, $failed failed, " +
+                    "$rollbackDirty rollback issues")
+            }
+        }
+        catch (ex: SQLException) {
+            DevLog.error(LOG_TAG, "Event re-key failed (SQL): ${ex.message}")
+        }
+        catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "Event re-key failed (calendar permission): ${ex.message}")
+        }
+        catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Event re-key failed (provider state): ${ex.message}")
+        }
+        catch (ex: LinkageError) {
+            DevLog.error(LOG_TAG, "Event re-key unavailable (native SQLite missing): ${ex.message}")
+        }
+        catch (ex: RuntimeException) {
+            onUnexpectedIdentityFailure("Event re-key", ex)
+        }
+    }
+
+    /**
+     * The events a capture pass should consider, read from both stores.
+     *
+     * Active events are always included: that list is small and its events
+     * genuinely move -- reschedules, edits, calendar renames -- so their
+     * identity is refreshed every pass.
+     *
+     * Dismissed events are included only where nothing has been captured yet.
+     * They outnumber active ones by an order of magnitude (measured: 4183
+     * against 373) and their identity is immutable history, so re-reading
+     * captured ones would be pure waste on a pass that runs every 30 minutes on
+     * a wake-locked service. The keys are read as a projection and filtered
+     * before any row is fetched, so a steady-state pass reads no dismissed rows
+     * at all.
+     *
+     * `eventIdentityV1` and `dismissedEventsV2` live in separate SQLite files,
+     * so this set difference cannot be a join -- see the class doc on
+     * [com.github.quarck.calnotify.identitystorage.EventIdentityDatabase].
+     */
+    private fun eventsNeedingCapture(
+        context: Context,
+        alreadyCaptured: Set<Pair<Long, Long>>
+    ): List<EventAlertRecord> {
+        val active = getEventsStorage(context).use { db -> db.events }
+
+        val dismissed = getDismissedEventsStorage(context).use { db ->
+            val uncaptured = db.getAllKeys().filter {
+                (it.eventId to it.instanceStart) !in alreadyCaptured
+            }
+            if (uncaptured.isEmpty()) emptyList()
+            else db.getEventsByKeys(uncaptured).map { it.event }
+        }
+
+        // Active first: where the same event appears in both stores, the active
+        // row is the one whose identity has to be right, and distinctBy keeps
+        // the first occurrence of each key.
+        return (active + dismissed).distinctBy { it.eventId to it.instanceStartTime }
+    }
+
+    /**
+     * Record portable identity for stored events, and flag any whose stored ids
+     * have gone stale.
+     *
+     * `eventsV9` keys events by `cid`/`id`, which are row numbers local to this
+     * device's Calendar Provider -- restore the database onto a new phone and
+     * both point at nothing. This stores the server-assigned identifiers while
+     * they are still resolvable, so a restored database can find these events
+     * again. See docs/dev_todo/portable_event_identity.md.
+     *
+     * The same walk does double duty. For each event it already reads the
+     * provider, so it can compare what came back against the identity captured
+     * earlier ([checkEventIdentity]) and tell whether the stored id still means
+     * what it used to. A stale row is **not** re-captured: its id resolves to
+     * someone else's event, and writing identity from that would leave the row
+     * carrying a plausible-looking pointer to the wrong event -- worse than
+     * carrying none. Those rows are left for the resolver.
+     *
+     * **Covers dismissed events as well as active ones.** Dismissed rows are
+     * history, but they are restorable history -- the un-dismiss path puts them
+     * back into the active list, and it needs a `cid`/`id` that still resolve.
+     * Their identity has the same shelf life as anything else: measured on a
+     * real device, 2709 of 4183 dismissed rows still resolved in the provider,
+     * so skipping them would have discarded most of what was recoverable. The
+     * rest are old enough that the provider has pruned them, which is expected
+     * for history and reported rather than treated as a failure.
+     *
+     * Runs after a calendar reload, on the wake-locked background service --
+     * never on the EVENT_REMINDER path, where a notification is about to fire.
+     * Identity is only ever needed at restore time, so it is never urgent.
+     *
+     * **Entirely self-contained and best-effort.** Nothing here can affect the
+     * reload that precedes it: it takes no arguments from it, returns nothing,
+     * and swallows its own failures.
+     */
+    fun captureEventIdentities(context: Context) {
+        try {
+            val identityStorage = getEventIdentityStorage(context)
+
+            // Key plus sync id only. This table holds roughly one row per
+            // stored event -- ~3082 once dismissed history is captured -- and
+            // the pass needs just two things from it: which events are already
+            // captured, and what sync id to compare against the provider.
+            // Reading full rows would carry eleven unused columns apiece, every
+            // 30 minutes, on a wake-locked service.
+            val storedSyncIds = identityStorage.getAllSyncIds()
+                .associate { (it.eventId to it.instanceStartTime) to it.eventSyncId }
+
+            // Skip only rows that are *fully* captured. A row with a sync id
+            // but no calendar (its calendar was gone when capture ran) stays on
+            // the list, so a dismissed event gets another chance if the
+            // calendar returns -- otherwise it would be retired permanently.
+            val events = eventsNeedingCapture(
+                context,
+                identityStorage.getFullyCapturedKeys()
+                    .mapTo(HashSet()) { it.eventId to it.instanceStartTime }
+            )
+            if (events.isEmpty())
+                return
+
+            val plan = IdentityCapturePlan.compute(
+                events = events,
+                storedSyncIdOf = { storedSyncIds[it.eventId to it.instanceStartTime] },
+                providerEventOf = { calendarProvider.getEvent(context, it.eventId) },
+                backupInfoOf = { calendarProvider.getCalendarBackupInfo(context, it) },
+                capturedAtTime = clock.currentTimeMillis()
+            )
+
+            if (plan.stale.isNotEmpty()) {
+                // Expected on a restored device, and on nothing else. Logged
+                // rather than acted on: resolution is the resolver's job.
+                DevLog.warn(LOG_TAG,
+                    "${plan.stale.size} of ${events.size} event(s) no longer match their " +
+                    "stored identity -- stored ids look stale, capture skipped for those")
+            }
+
+            if (plan.isEmpty)
+                return
+
+            identityStorage.putAll(plan.toCapture)
+            DevLog.info(LOG_TAG, plan.summary(events.size))
+        }
+        catch (ex: SQLException) {
+            DevLog.error(LOG_TAG, "Identity capture failed (SQL): ${ex.message}")
+        }
+        catch (ex: SecurityException) {
+            DevLog.error(LOG_TAG, "Identity capture failed (calendar permission): ${ex.message}")
+        }
+        catch (ex: IllegalStateException) {
+            DevLog.error(LOG_TAG, "Identity capture failed (provider state): ${ex.message}")
+        }
+        catch (ex: LinkageError) {
+            // The identity database loads cr-sqlite's native library. Where that
+            // is absent the first attempt throws UnsatisfiedLinkError and later
+            // ones throw NoClassDefFoundError from the cached failed class init;
+            // LinkageError is their common supertype.
+            DevLog.error(LOG_TAG, "Identity capture unavailable (native SQLite missing): ${ex.message}")
+        }
+        catch (ex: RuntimeException) {
+            onUnexpectedIdentityFailure("Identity capture", ex)
+        }
     }
 
     private var quietHoursManagerValue: QuietHoursManagerInterface? = null
@@ -191,17 +632,39 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     val AddEventMonitorInstance: CalendarChangeRequestMonitorInterface
         get() = addEventMonitor
 
-    // Clock interface for time-related operations
-    override val clock: CNPlusClockInterface = CNPlusSystemClock()
+    // Clock interface for time-related operations - uses clockProvider if set, otherwise real clock
+    /** Provider for Clock - enables DI for testing */
+    var clockProvider: (() -> CNPlusClockInterface)? = null
+    
+    override val clock: CNPlusClockInterface
+        get() = clockProvider?.invoke() ?: CNPlusSystemClock()
+    
+    /** Reset clock provider - call in @After to prevent test pollution */
+    fun resetClockProvider() {
+        clockProvider = null
+    }
+
+    /**
+     * Drop the cached Settings - call in @After to prevent test pollution.
+     *
+     * [getSettings] memoises a Settings built from whichever Context asked
+     * first. In production that is the application context and caching is the
+     * point; across tests it means a later test reads the SharedPreferences of
+     * an earlier one's Context, so a setting written in the test is invisible
+     * to the code under test.
+     */
+    fun resetSettings() {
+        settings = null
+    }
 
 //    fun hasActiveEvents(context: Context) =
-//            EventsStorage(context).classCustomUse {
+//            EventsStorage(context).use {
 //                val settings = Settings(context)
 //                it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
 //            }
 
     override fun hasActiveEventsToRemind(context: Context) =
-            getEventsStorage(context).classCustomUse {
+            getEventsStorage(context).use {
                 //val settings = Settings(context)
                 it.events.filter { it.snoozedUntil == 0L && it.isNotSpecial && !it.isMuted && !it.isTask }.any()
             }
@@ -279,7 +742,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         DevLog.info(LOG_TAG, "onCalendarRescanForRescheduledFromService")
 
-        val changes = EventsStorage(context).classCustomUse {
+        val changes = EventsStorage(context).use {
             db -> calendarReloadManager.rescanForRescheduledEvents(context, db, calendarProvider, this)
         }
 
@@ -303,7 +766,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         DevLog.info(LOG_TAG, "calendarReloadFromService")
 
-        val changes = EventsStorage(context).classCustomUse {
+        val changes = EventsStorage(context).use {
             db -> calendarReloadManager.reloadCalendar(context, db, calendarProvider, this)
         }
 
@@ -324,6 +787,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         else {
             DevLog.debug(LOG_TAG, "No calendar changes detected")
         }
+
     }
 
   override fun onCalendarEventMovedWithinApp(context: Context, oldEvent: EventRecord, newEvent: EventRecord) {
@@ -341,7 +805,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 )
 
         if (shouldAutoDismiss) {
-            EventsStorage(context).classCustomUse {
+            EventsStorage(context).use {
                 db ->
                 val alertRecord = db.getEvent(oldEvent.eventId, oldEvent.startTime)
 
@@ -413,12 +877,21 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         tagsManager.parseEventTags(context, settings, event)
 
+        // Apply pre-mute flag if set in MonitorStorage (user marked event to be muted before it fired)
+        // This handles the EVENT_REMINDER broadcast path which doesn't go through registerNewEvents
+        getMonitorStorage(context).use { monitorDb ->
+            val alert = monitorDb.getAlert(event.eventId, event.alertTime, event.instanceStartTime)
+            if (alert?.preMuted == true && !event.isMuted) {
+                event.isMuted = true
+                DevLog.info(LOG_TAG, "Event ${event.eventId} was pre-muted, applying mute flag")
+            }
+        }
+
         DevLog.info(LOG_TAG, "registerNewEvent: Event fired: calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime ${event.alertTime}, muted: ${event.isMuted}, task: ${event.isTask}")
 
-        // 1st step - save event into DB (use injected or default to class instance)
+        // Save event into DB and verify it was stored correctly
         val eventsDb = db ?: EventsStorage(context)
-        eventsDb.classCustomUse {
-            dbInst ->
+        eventsDb.use { dbInst ->
 
             if (event.isNotSpecial)
                 event.lastStatusChangeTime = clock.currentTimeMillis()
@@ -428,7 +901,6 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             if (event.isRepeating) {
                 // repeating event - always simply add
                 dbInst.addEvent(event) // ignoring result as we are using other way of validating
-                //notificationManager.onEventAdded(context, EventFormatter(context), event)
             }
             else {
                 // non-repeating event - make sure we don't create two records with the same eventId
@@ -452,24 +924,18 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
                 // add newly fired event
                 dbInst.addEvent(event)
-                //notificationManager.onEventAdded(context, EventFormatter(context), event)
             }
-        }
 
-        // 2nd step - re-open new DB instance and make sure that event:
-        // * is there
-        // * is not set as visible
-        // * is not snoozed
-        eventsDb.classCustomUse {
-            dbInst ->
-
+            // Verify event was stored correctly:
+            // * is there
+            // * is not set as visible
+            // * is not snoozed
             if (event.isRepeating) {
                 // return true only if we can confirm, by reading event again from DB
                 // that it is there
                 // Caller is using our return value as "safeToRemoveOriginalReminder" flag
                 val dbEvent = dbInst.getEvent(event.eventId, event.instanceStartTime)
                 ret = dbEvent != null && dbEvent.snoozedUntil == 0L
-
             }
             else {
                 // return true only if we can confirm, by reading event again from DB
@@ -487,7 +953,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         else {
             DevLog.debug(LOG_TAG, "event added: ${event.eventId} (cal id: ${event.calendarId})")
 
-//            WasHandledCache(context).classCustomUse {
+//            WasHandledCache(context).use {
 //                cache -> cache.addHandledAlert(event)
 //            }
         }
@@ -518,7 +984,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         var eventsToAdd: List<EventAlertRecord>? = null
 
         // 1st step - save event into DB
-        EventsStorage(context).classCustomUse {
+        EventsStorage(context).use {
             db ->
 
             for ((alert, event) in handledPairs) {
@@ -526,6 +992,13 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                 DevLog.info(LOG_TAG, "registerNewEvents: Event fired, calId ${event.calendarId}, eventId ${event.eventId}, instanceStart ${event.instanceStartTime}, alertTime=${event.alertTime}")
 
                 tagsManager.parseEventTags(context, settings, event)
+
+                // Apply pre-mute flag if set (user marked event to be muted before it fired)
+                // Must be after parseEventTags so user preference takes precedence over tag parsing
+                if (alert.preMuted && !event.isMuted) {
+                    event.isMuted = true
+                    DevLog.info(LOG_TAG, "Event ${event.eventId} was pre-muted, applying mute flag")
+                }
 
                 if (event.isRepeating) {
                     // repeating event - always simply add
@@ -591,7 +1064,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         val validPairs = arrayListOf<Pair<MonitorEventAlertEntry, EventAlertRecord>>()
 
-        EventsStorage(context).classCustomUse {
+        EventsStorage(context).use {
             db ->
 
             for ((alert, event) in pairsToAdd) {
@@ -724,7 +1197,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         //val currentTime = clock.currentTimeMillis()
 
         val mutedEvent: EventAlertRecord? =
-                getEventsStorage(context).classCustomUse {
+                getEventsStorage(context).use {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -762,7 +1235,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         val currentTime = clock.currentTimeMillis()
 
         val snoozedEvent: EventAlertRecord? =
-                getEventsStorage(context).classCustomUse {
+                getEventsStorage(context).use {
                     db ->
                     var event = db.getEvent(eventId, instanceStartTime)
 
@@ -821,7 +1294,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         var allSuccess = true
 
-        getEventsStorage(context).classCustomUse {
+        getEventsStorage(context).use {
             db ->
             val events = db.events.filter { it.isNotSpecial && filter(it) }
 
@@ -851,7 +1324,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
                             db.updateEvent(
                                     event,
                                     snoozedUntil = newSnoozeUntil,
-                                    lastStatusChangeTime = currentTime
+                                    lastStatusChangeTime = currentTime,
+                                    displayStatus = EventDisplayStatus.Hidden
                             )
 
                     allSuccess = allSuccess && success;
@@ -885,16 +1359,49 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     fun snoozeAllCollapsedEvents(context: Context, snoozeDelay: Long, isChange: Boolean, onlySnoozeVisible: Boolean): SnoozeResult? {
-        return snoozeEvents(context, { it.displayStatus == EventDisplayStatus.DisplayedCollapsed }, snoozeDelay, isChange, onlySnoozeVisible)
+        return snoozeEvents(context, { it.displayStatus == EventDisplayStatus.DisplayedCollapsed && !it.isPinned }, snoozeDelay, isChange, onlySnoozeVisible)
     }
 
-    fun snoozeAllEvents(context: Context, snoozeDelay: Long, isChange: Boolean, onlySnoozeVisible: Boolean, searchQuery: String? = null): SnoozeResult? {
+    fun snoozeAllEvents(
+        context: Context, 
+        snoozeDelay: Long, 
+        isChange: Boolean, 
+        onlySnoozeVisible: Boolean, 
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ): SnoozeResult? {
+        val now = clock.currentTimeMillis()
         return snoozeEvents(context, { event ->
-            searchQuery?.let { query ->
-                event.title.contains(query, ignoreCase = true) ||
-                event.desc.contains(query, ignoreCase = true)
-            } ?: true
+            !event.isPinned &&
+            FilterState.matchesSearchAndFilters(event, searchQuery, filterState, now)
         }, snoozeDelay, isChange, onlySnoozeVisible)
+    }
+    
+    /**
+     * Snooze a specific set of selected events.
+     * 
+     * @param context The context
+     * @param eventKeys Set of event keys in format "eventId:instanceStartTime"
+     * @param snoozeDelay The snooze delay in milliseconds
+     * @param isChange Whether this is a "change snooze" (all events already snoozed)
+     * @return SnoozeResult if successful, null otherwise
+     */
+    fun snoozeSelectedEvents(
+        context: Context,
+        eventKeys: Set<String>,
+        snoozeDelay: Long,
+        isChange: Boolean
+    ): SnoozeResult? {
+        if (eventKeys.isEmpty()) return null
+        
+        // Parse event keys into (eventId, instanceStartTime) pairs using the shared format
+        val keyPairs = eventKeys.mapNotNull { EventAlertRecordKey.fromIntentString(it) }
+            .map { Pair(it.eventId, it.instanceStartTime) }
+            .toSet()
+        
+        return snoozeEvents(context, { event ->
+            keyPairs.contains(Pair(event.eventId, event.instanceStartTime))
+        }, snoozeDelay, isChange, false)
     }
 
     fun fireEventReminder(
@@ -955,7 +1462,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 //        if (now - prState.lastWasHandledCacheCleanup < Consts.WAS_HANDLED_CACHE_CLEANUP_INTERVALS)
 //            return
 //
-//        WasHandledCache(context).classCustomUse { it.removeOldEntries( Consts.WAS_HANDLED_CACHE_MAX_AGE_MILLIS )}
+//        WasHandledCache(context).use { it.removeOldEntries( Consts.WAS_HANDLED_CACHE_MAX_AGE_MILLIS )}
 //
 //        prState.lastWasHandledCacheCleanup = now
 //    }
@@ -971,15 +1478,15 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             events: Collection<EventAlertRecord>,
             dismissType: EventDismissType,
             notifyActivity: Boolean,
-            dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
+            dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing ${events.size}  requests")
 
         if (dismissType.shouldKeep) {
-            // Use injected storage if available, otherwise create new
-            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
-            storage.classCustomUse {
+            // Use injected storage if available, otherwise use provider
+            val storage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
+            storage.use {
                 it.addEvents(dismissType, events)
             }
         }
@@ -1017,11 +1524,11 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     fun dismissAllButRecentAndSnoozed(
         context: Context, 
         dismissType: EventDismissType,
-        dismissedEventsStorage: DismissedEventsStorage? = null
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null
     ) {
         val currentTime = clock.currentTimeMillis()
 
-        getEventsStorage(context).classCustomUse {
+        getEventsStorage(context).use {
             db ->
             val eventsToDismiss = db.events.filter {
                 event ->
@@ -1033,12 +1540,17 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
-    fun muteAllVisibleEvents(context: Context) {
-
-        getEventsStorage(context).classCustomUse {
+    fun muteAllVisibleEvents(
+        context: Context,
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ) {
+        val now = clock.currentTimeMillis()
+        getEventsStorage(context).use {
             db ->
             val eventsToMute = db.events.filter {
-                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isTask &&
+                FilterState.matchesSearchAndFilters(event, searchQuery, filterState, now)
             }
 
             if (eventsToMute.isNotEmpty()) {
@@ -1057,21 +1569,56 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
+    fun pinAllVisibleEvents(
+        context: Context,
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ) {
+        val now = clock.currentTimeMillis()
+        getEventsStorage(context).use { db ->
+            val eventsToPin = db.events.filter {
+                event -> (event.snoozedUntil == 0L) && event.isNotSpecial && !event.isPinned &&
+                FilterState.matchesSearchAndFilters(event, searchQuery, filterState, now)
+            }
+            if (eventsToPin.isNotEmpty()) {
+                val pinnedEvents = eventsToPin.map { it.isPinned = true; it }
+                db.updateEvents(pinnedEvents)
+            }
+        }
+    }
+
+    fun unpinAllVisibleEvents(
+        context: Context,
+        searchQuery: String? = null,
+        filterState: FilterState? = null
+    ) {
+        val now = clock.currentTimeMillis()
+        getEventsStorage(context).use { db ->
+            val eventsToUnpin = db.events.filter { event -> event.isPinned &&
+                FilterState.matchesSearchAndFilters(event, searchQuery, filterState, now)
+            }
+            if (eventsToUnpin.isNotEmpty()) {
+                val unpinnedEvents = eventsToUnpin.map { it.isPinned = false; it }
+                db.updateEvents(unpinnedEvents)
+            }
+        }
+    }
+
     fun dismissEvent(
             context: Context,
             db: EventsStorageInterface,
             event: EventAlertRecord,
             dismissType: EventDismissType,
             notifyActivity: Boolean,
-            dismissedEventsStorage: DismissedEventsStorage? = null // <-- Add optional parameter
+            dismissedEventsStorage: DismissedEventsStorageInterface? = null // <-- Add optional parameter
     ) {
 
         DevLog.info(LOG_TAG, "Dismissing event id ${event.eventId} / instance ${event.instanceStartTime}")
 
         if (dismissType.shouldKeep && event.isNotSpecial) {
-            // Use injected storage if available, otherwise create new
-            val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
-            storage.classCustomUse {
+            // Use injected storage if available, otherwise use provider
+            val storage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
+            storage.use {
                 it.addEvent(dismissType, event)
             }
         }
@@ -1099,7 +1646,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
     }
 
     override fun dismissEvent(context: Context, dismissType: EventDismissType, event: EventAlertRecord) {
-        EventsStorage(context).classCustomUse {
+        EventsStorage(context).use {
             db ->
             // Pass null for dismissedEventsStorage to maintain original behavior
             dismissEvent(context, db, event, dismissType, false, null)
@@ -1126,10 +1673,10 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         notificationId: Int,
         notifyActivity: Boolean,
         db: EventsStorageInterface?, // <-- existing optional parameter
-        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter here too
+        dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Add optional parameter here too
     ) {
         val storage = db ?: EventsStorage(context)
-        storage.classCustomUse {
+        storage.use {
             dbInst ->
             val event = dbInst.getEvent(eventId, instanceStartTime)
             if (event != null) {
@@ -1150,7 +1697,54 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         context: Context, 
         event: EventAlertRecord,
         db: EventsStorageInterface?,
-        dismissedEventsStorage: DismissedEventsStorage?
+        dismissedEventsStorage: DismissedEventsStorageInterface?
+    ) {
+        // Smart restore: if alert hasn't fired yet, restore to Upcoming; otherwise restore to Active
+        if (!event.hasAlertFired(clock.currentTimeMillis())) {
+            val success = restoreToUpcoming(context, event, dismissedEventsStorage)
+            if (!success) {
+                // Failed to restore to Upcoming (alert not found) - fall back to Active
+                DevLog.warn(LOG_TAG, "restoreToUpcoming failed for event ${event.eventId}, falling back to Active")
+                restoreToActive(context, event, db, dismissedEventsStorage)
+            }
+        } else {
+            restoreToActive(context, event, db, dismissedEventsStorage)
+        }
+    }
+    
+    private fun restoreToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorageInterface?
+    ): Boolean {
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Upcoming (alertTime ${event.alertTime} is in the future)")
+        
+        // 1. First verify and clear wasHandled flag - abort if alert not found to prevent data loss
+        val alertCleared = getMonitorStorage(context).use { storage ->
+            storage.clearWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+        }
+        
+        if (!alertCleared) {
+            DevLog.error(LOG_TAG, "Cannot restore to Upcoming: alert not found in MonitorStorage for event ${event.eventId}")
+            return false
+        }
+        DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+        
+        // 2. Now safe to remove from DismissedEventsStorage
+        val dismissedStorage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
+        dismissedStorage.use { dbInst ->
+            dbInst.deleteEvent(event)
+        }
+        
+        DevLog.info(LOG_TAG, "Successfully restored event ${event.eventId} to Upcoming")
+        return true
+    }
+    
+    private fun restoreToActive(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface?,
+        dismissedEventsStorage: DismissedEventsStorageInterface?
     ) {
         // Get backup info for the original calendar
         val calendarBackupInfo = calendarProvider.getCalendarBackupInfo(context, event.calendarId)
@@ -1160,7 +1754,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             calendarProvider.findMatchingCalendarId(context, backupInfo)
         } ?: event.calendarId // Fallback to original ID if no match found
         
-        DevLog.info(LOG_TAG, "Restoring event ${event.eventId}: original calendar ${event.calendarId}, matched calendar $newCalendarId")
+        DevLog.info(LOG_TAG, "Restoring event ${event.eventId} to Active: original calendar ${event.calendarId}, matched calendar $newCalendarId")
         
         // Create restored event with updated calendar ID
         val toRestore = event.copy(
@@ -1171,7 +1765,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         // Use injected storage or create new one (following pattern from safeDismissEvents)
         val eventsDb = db ?: EventsStorage(context)
-        val successOnAdd = eventsDb.classCustomUse { dbInst ->
+        val successOnAdd = eventsDb.use { dbInst ->
             val ret = dbInst.addEvent(toRestore)
             calendarReloadManager.reloadSingleEvent(context, dbInst, toRestore, calendarProvider, null)
             ret
@@ -1180,8 +1774,8 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (successOnAdd) {
             notificationManager.onEventRestored(context, EventFormatter(context), toRestore)
 
-            val dismissedStorage = dismissedEventsStorage ?: DismissedEventsStorage(context)
-            dismissedStorage.classCustomUse { dbInst ->
+            val dismissedStorage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
+            dismissedStorage.use { dbInst ->
                 dbInst.deleteEvent(event)
             }
             
@@ -1191,6 +1785,108 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         }
     }
 
+    override fun unsnoozeToUpcoming(
+        context: Context,
+        event: EventAlertRecord,
+        db: EventsStorageInterface?
+    ): Boolean {
+        // Only allow unsnooze to upcoming if alert time hasn't passed
+        if (event.hasAlertFired(clock.currentTimeMillis())) {
+            DevLog.warn(LOG_TAG, "Cannot unsnooze to upcoming: alertTime ${event.alertTime} has already passed")
+            return false
+        }
+        
+        DevLog.info(LOG_TAG, "Unsnoozing event ${event.eventId} back to Upcoming")
+        
+        // 1. First verify alert exists in MonitorStorage - abort if not found to prevent data loss
+        val alertCleared = getMonitorStorage(context).use { storage ->
+            storage.clearWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+        }
+        
+        if (!alertCleared) {
+            DevLog.error(LOG_TAG, "Cannot unsnooze: alert not found in MonitorStorage for event ${event.eventId}")
+            return false
+        }
+        DevLog.info(LOG_TAG, "Cleared wasHandled flag for event ${event.eventId}")
+        
+        // 2. Now safe to delete from EventsStorage
+        // Note: Cross-database transactions aren't possible, so we use manual rollback on failure
+        val eventsDb = db ?: EventsStorage(context)
+        var deleteSuccess = false
+        eventsDb.use { dbInst ->
+            deleteSuccess = dbInst.deleteEvent(event.eventId, event.instanceStartTime)
+        }
+        
+        if (!deleteSuccess) {
+            DevLog.error(LOG_TAG, "Failed to delete from EventsStorage - rolling back MonitorStorage")
+            getMonitorStorage(context).use { storage ->
+                storage.setWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+            }
+            return false
+        }
+        
+        // 3. Cancel any scheduled snooze alarm and repost notifications
+        notificationManager.onEventsDismissing(context, listOf(event))
+        alarmScheduler.rescheduleAlarms(context, getSettings(context), getQuietHoursManager(context))
+        
+        DevLog.info(LOG_TAG, "Successfully unsnoozed event ${event.eventId} to Upcoming")
+        return true
+    }
+
+    override fun preDismissEvent(
+        context: Context,
+        event: EventAlertRecord,
+        dismissedEventsStorage: DismissedEventsStorageInterface?
+    ): Boolean {
+        DevLog.info(LOG_TAG, "Pre-dismissing event ${event.eventId}")
+        
+        // 1. Mark as handled in MonitorStorage - must succeed before proceeding
+        val monitorSuccess = getMonitorStorage(context).use { storage ->
+            storage.setWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+        }
+        
+        if (!monitorSuccess) {
+            DevLog.error(LOG_TAG, "Could not find alert for event ${event.eventId} - aborting pre-dismiss")
+            return false
+        }
+        DevLog.info(LOG_TAG, "Marked alert as handled for pre-dismiss: event ${event.eventId}")
+        
+        // 2. Check if alert already fired (race condition: alert fired just before we set wasHandled)
+        val existingEvent = getEventsStorage(context).use { db ->
+            db.getEvent(event.eventId, event.instanceStartTime)
+        }
+        if (existingEvent != null) {
+            // Alert already fired and is in Active - dismiss from there instead
+            DevLog.info(LOG_TAG, "Event ${event.eventId} already in Active (race condition) - dismissing from Active")
+            getEventsStorage(context).use { db ->
+                dismissEvent(context, db, existingEvent, EventDismissType.ManuallyDismissedFromUpcoming, true)
+            }
+            return true
+        }
+        
+        // 3. Normal pre-dismiss: Add to DismissedEventsStorage
+        // Note: Cross-database transactions aren't possible, so we use manual rollback on failure
+        val dismissedDb = dismissedEventsStorage ?: getDismissedEventsStorage(context)
+        try {
+            dismissedDb.use { dbInst ->
+                dbInst.addEvent(EventDismissType.ManuallyDismissedFromUpcoming, event)
+            }
+            DevLog.info(LOG_TAG, "Pre-dismissed event ${event.eventId} added to DismissedEventsStorage")
+        } catch (e: android.database.SQLException) {
+            DevLog.error(LOG_TAG, "Failed to add to DismissedEventsStorage - rolling back: ${e.message}")
+            getMonitorStorage(context).use { storage ->
+                storage.clearWasHandled(event.eventId, event.alertTime, event.instanceStartTime)
+            }
+            return false
+        }
+        
+        // 4. Dismiss native calendar alert
+        calendarProvider.dismissNativeEventAlert(context, event.eventId)
+        
+        DevLog.info(LOG_TAG, "Successfully pre-dismissed event ${event.eventId}")
+        return true
+    }
+
     override fun moveEvent(context: Context, event: EventAlertRecord, addTime: Long): Boolean {
 
         val moved = calendarChangeManager.moveEvent(context, event, addTime)
@@ -1198,7 +1894,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (moved) {
             DevLog.info(LOG_TAG, "moveEvent: Moved event ${event.eventId} by ${addTime / 1000L} seconds")
 
-            EventsStorage(context).classCustomUse {
+            EventsStorage(context).use {
                 db ->
                 dismissEvent(
                         context,
@@ -1220,7 +1916,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         if (eventId != -1L) {
             DevLog.debug(LOG_TAG, "Event created: id=${eventId}")
 
-            EventsStorage(context).classCustomUse {
+            EventsStorage(context).use {
                 db ->
                 dismissEvent(
                         context,
@@ -1323,7 +2019,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         events: Collection<EventAlertRecord>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? // <-- Add optional parameter
+        dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Add optional parameter
     ): List<Pair<EventAlertRecord, EventDismissResult>> {
         val results = mutableListOf<Pair<EventAlertRecord, EventDismissResult>>()
         
@@ -1345,9 +2041,9 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
             // Store dismissed events if needed
             val successfullyStoredEvents = if (dismissType.shouldKeep) {
                 try {
-                    // Use injected storage if available, otherwise create new
-                    val storage = dismissedEventsStorage ?: DismissedEventsStorage(context)
-                    storage.classCustomUse {
+                    // Use injected storage if available, otherwise use provider
+                    val storage = dismissedEventsStorage ?: getDismissedEventsStorage(context)
+                    storage.use {
                         it.addEvents(dismissType, validEvents)
                     }
                     validEvents
@@ -1459,7 +2155,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         eventIds: Collection<Long>,
         dismissType: EventDismissType,
         notifyActivity: Boolean,
-        dismissedEventsStorage: DismissedEventsStorage? // <-- Remove default value
+        dismissedEventsStorage: DismissedEventsStorageInterface? // <-- Remove default value
     ): List<Pair<Long, EventDismissResult>> {
         val results = mutableListOf<Pair<Long, EventDismissResult>>()
         
@@ -1520,7 +2216,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
         confirmations: List<JsRescheduleConfirmationObject>,
         notifyActivity: Boolean = false,
         db: EventsStorageInterface? = null, // <-- Add optional parameter
-        dismissedEventsStorage: DismissedEventsStorage? = null,
+        dismissedEventsStorage: DismissedEventsStorageInterface? = null,
     ): List<Pair<Long, EventDismissResult>> {
         DevLog.info(LOG_TAG, "Processing ${confirmations.size} reschedule confirmations")
 
@@ -1541,7 +2237,7 @@ object ApplicationController : ApplicationControllerInterface, EventMovedHandler
 
         // Use safeDismissEventsById to handle the dismissals
         val eventsDb = db ?: EventsStorage(context)
-        eventsDb.classCustomUse { dbInst ->
+        eventsDb.use { dbInst ->
             // First get all events to check for repeating ones
             val allEvents = eventIds.mapNotNull { eventId ->
                 dbInst.getEventInstances(eventId).firstOrNull()

@@ -21,6 +21,7 @@ package com.github.quarck.calnotify.eventsstorage
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import java.io.Closeable
 
 data class EventWithNewInstanceTime(
         val event: EventAlertRecord,
@@ -28,7 +29,7 @@ data class EventWithNewInstanceTime(
         val newInstanceEndTime: Long
 )
 
-interface EventsStorageInterface {
+interface EventsStorageInterface : Closeable {
 
     fun addEvent(event: EventAlertRecord): Boolean
 

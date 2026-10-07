@@ -23,6 +23,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusUnitTestClock
 import org.junit.Assert.*
 import org.junit.Before
@@ -58,7 +59,7 @@ class UpcomingEventsLookaheadTest {
         settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_FIXED
         settings.upcomingEventsFixedHours = 8
         
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
@@ -90,7 +91,7 @@ class UpcomingEventsLookaheadTest {
         settings.upcomingEventsMode = "some_unknown_mode"
         settings.upcomingEventsFixedHours = 8
         
-        val now = System.currentTimeMillis()
+        val now = TestTimeConstants.STANDARD_TEST_TIME
         clock.setCurrentTime(now)
         
         val lookahead = UpcomingEventsLookahead(settings, clock)
@@ -272,6 +273,65 @@ class UpcomingEventsLookaheadTest {
         }
         
         assertEquals("At 2 AM with 10 AM boundary, should use 10 AM today", expectedCalendar.timeInMillis, endTime)
+    }
+
+    // === Fixed Millis Mode Tests ===
+
+    @Test
+    fun testFixedMillisMode_withDayPreset() {
+        settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_FIXED
+        settings.upcomingEventsFixedLookaheadMillis = 3 * Consts.DAY_IN_MILLISECONDS
+        
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        clock.setCurrentTime(now)
+        
+        val lookahead = UpcomingEventsLookahead(settings, clock)
+        val endTime = lookahead.getLookaheadEndTime()
+        
+        assertEquals("Should be now + 3 days", now + 3 * Consts.DAY_IN_MILLISECONDS, endTime)
+    }
+
+    @Test
+    fun testFixedMillisMode_withWeekPreset() {
+        settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_FIXED
+        settings.upcomingEventsFixedLookaheadMillis = Consts.WEEK_IN_MILLISECONDS
+        
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        clock.setCurrentTime(now)
+        
+        val lookahead = UpcomingEventsLookahead(settings, clock)
+        val endTime = lookahead.getLookaheadEndTime()
+        
+        assertEquals("Should be now + 1 week", now + Consts.WEEK_IN_MILLISECONDS, endTime)
+    }
+
+    @Test
+    fun testFixedMillisMode_legacyFallback() {
+        // When no millis value is stored, should fall back to legacy fixedHours
+        settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_FIXED
+        settings.upcomingEventsFixedHours = 12
+        
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        clock.setCurrentTime(now)
+        
+        val lookahead = UpcomingEventsLookahead(settings, clock)
+        val endTime = lookahead.getLookaheadEndTime()
+        
+        assertEquals("Legacy fallback: now + 12 hours", now + 12 * Consts.HOUR_IN_MILLISECONDS, endTime)
+    }
+
+    @Test
+    fun testFixedMillisMode_clampedToMax() {
+        settings.upcomingEventsMode = UpcomingEventsLookahead.MODE_FIXED
+        settings.upcomingEventsFixedLookaheadMillis = 60 * Consts.DAY_IN_MILLISECONDS // Way over 30d
+        
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        clock.setCurrentTime(now)
+        
+        val lookahead = UpcomingEventsLookahead(settings, clock)
+        val endTime = lookahead.getLookaheadEndTime()
+        
+        assertEquals("Should be clamped to 30 days", now + Settings.MAX_LOOKAHEAD_MILLIS, endTime)
     }
 
     // === Settings Bounds Tests ===

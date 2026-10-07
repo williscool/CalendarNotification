@@ -10,6 +10,8 @@
         <item name="android:colorBackground">@color/background</item>
         <!-- Preference list styling -->
         <item name="android:listViewStyle">@style/AppListView</item>
+        <!-- Bottom sheet dialog theme for proper theming -->
+        <item name="bottomSheetDialogTheme">@style/AppTheme.BottomSheetDialog</item>
     </style>
     
     <style name="AppListView" parent="Widget.AppCompat.ListView">
@@ -24,6 +26,15 @@
     <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"></style>
 
     <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"></style>
+
+    <!-- Bottom sheet dialog theme - uses cardview background for consistency -->
+    <style name="AppTheme.BottomSheetDialog" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/AppTheme.BottomSheet</item>
+    </style>
+
+    <style name="AppTheme.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="backgroundTint">@color/cardview_light_background</item>
+    </style>
 
     <style name="PickerDialogTheme" parent="AppTheme.NoActionBar">
         <item name="android:textSize">20sp</item>

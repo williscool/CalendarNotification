@@ -22,6 +22,7 @@ package com.github.quarck.calnotify.ui
 import android.app.Activity
 import android.content.ContentUris
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.view.View
@@ -45,6 +46,7 @@ import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.sync.SyncForegroundService
 import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.findOrThrow
 import com.github.quarck.calnotify.utils.toLongOrNull
@@ -351,7 +353,7 @@ class TestActivity : Activity() {
         )
         
         val details = CalendarEventDetails(
-            title = "Test Reminder In Feature - ${System.currentTimeMillis() % 10000}",
+            title = "Test Reminder In Feature - ${clock.currentTimeMillis() % 10000}",
             desc = "This event tests the next notification indicator feature",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,
@@ -445,7 +447,7 @@ class TestActivity : Activity() {
             val eventEnd = eventStart + Consts.HOUR_IN_MILLISECONDS
             
             val details = CalendarEventDetails(
-                title = "$title - ${System.currentTimeMillis() % 10000}",
+                title = "$title - ${clock.currentTimeMillis() % 10000}",
                 desc = "Collapsed notification test",
                 location = "",
                 timezone = java.util.TimeZone.getDefault().id,
@@ -516,7 +518,7 @@ class TestActivity : Activity() {
         val reminders = listOf(EventReminderRecord.minutes(60))  // fires in 1h
         
         val details = CalendarEventDetails(
-            title = "Muted Test Event - ${System.currentTimeMillis() % 10000}",
+            title = "Muted Test Event - ${clock.currentTimeMillis() % 10000}",
             desc = "This event is muted - should show 🔇 📅 in X",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,
@@ -602,7 +604,7 @@ class TestActivity : Activity() {
         val reminders = listOf<EventReminderRecord>()
         
         val details = CalendarEventDetails(
-            title = "App Alert Test - ${System.currentTimeMillis() % 10000}",
+            title = "App Alert Test - ${clock.currentTimeMillis() % 10000}",
             desc = "This event shows the app alert indicator (🔔). Reminders must be enabled!",
             location = "",
             timezone = java.util.TimeZone.getDefault().id,
@@ -720,6 +722,15 @@ class TestActivity : Activity() {
     @Suppress("unused", "UNUSED_PARAMETER")
     fun OnButtonToggleDebugMonitorClick(v: View) {
         //settings.enableMonitorDebug = findOrThrow<ToggleButton>(R.id.buttonTestToggleDebugMonitor).isChecked
+    }
+
+    /** Runs the background sync service against a fake upload queue, so no backend is touched */
+    @Suppress("unused", "UNUSED_PARAMETER")
+    fun OnButtonBackgroundSyncTestClick(v: View) {
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, SyncForegroundService::class.java).putExtra(SyncForegroundService.EXTRA_DEV_PAGE_FAKE_QUEUE, true)
+        )
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")

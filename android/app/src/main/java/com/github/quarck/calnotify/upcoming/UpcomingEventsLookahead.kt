@@ -19,7 +19,6 @@
 
 package com.github.quarck.calnotify.upcoming
 
-import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.Settings
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import java.util.Calendar
@@ -56,11 +55,11 @@ class UpcomingEventsLookahead(
     }
     
     /**
-     * Fixed hours lookahead: now + configured hours
+     * Fixed lookahead: now + configured interval (milliseconds).
+     * Uses upcomingEventsFixedLookaheadMillis which falls back to legacy fixedHours if needed.
      */
     private fun calculateFixedEndTime(now: Long): Long {
-        val fixedHours = settings.upcomingEventsFixedHours
-        return now + (fixedHours * Consts.HOUR_IN_MILLISECONDS)
+        return now + settings.upcomingEventsFixedLookaheadMillis
     }
     
     /**

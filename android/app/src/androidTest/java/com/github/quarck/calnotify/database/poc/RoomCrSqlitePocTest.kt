@@ -24,6 +24,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.github.quarck.calnotify.eventsstorage.LegacyEventsStorage
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -141,7 +142,7 @@ class RoomCrSqlitePocTest {
         val entity1 = RoomPocEntity(
             id = 1,
             name = "Test Entity 1",
-            timestamp = System.currentTimeMillis(),
+            timestamp = TestTimeConstants.STANDARD_TEST_TIME,
             description = "First test entity"
         )
         val insertResult = dao.insert(entity1)
@@ -231,7 +232,7 @@ class RoomCrSqlitePocTest {
             RoomPocEntity(
                 id = i.toLong(),
                 name = "Entity $i",
-                timestamp = System.currentTimeMillis() + i,
+                timestamp = TestTimeConstants.STANDARD_TEST_TIME + i,
                 description = "Description for entity $i"
             )
         }
@@ -278,7 +279,7 @@ class RoomCrSqlitePocTest {
         val dao = database!!.pocDao()
         
         // Do some operations
-        dao.insert(RoomPocEntity(1, "Test", System.currentTimeMillis()))
+        dao.insert(RoomPocEntity(1, "Test", TestTimeConstants.STANDARD_TEST_TIME))
         val retrieved = dao.getById(1)
         assertNotNull(retrieved)
         

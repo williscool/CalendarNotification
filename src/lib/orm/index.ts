@@ -22,11 +22,7 @@ export async function psInsertDbTable(
   const regDb = open({ name: dbName });
 
   try {
-    // Build query - for eventsV9, only sync active events (not dismissed)
-    // dsts is displayStatus: 0=Hidden (dismissed), 1=DisplayedNormal, 2=DisplayedCollapsed
-    const query = tableName === 'eventsV9' 
-      ? `SELECT * FROM ${tableName} WHERE dsts != 0`
-      : `SELECT * FROM ${tableName}`;
+    const query = `SELECT * FROM ${tableName}`;
     
     const fullTableResult = await regDb.execute(query);
     const rows: SqliteRow[] = fullTableResult?.rows || [];
@@ -82,5 +78,29 @@ export async function psClearTable(
     emitSyncLog('error', `Failed to clear PowerSync table ${tableName}`, { error });
     throw error;
   }
+}
+
+/**
+ * Full resync: clear all remote data then re-upload from local SQLite.
+ * This is the recommended sync workflow — avoids stale/orphaned remote data.
+ */
+export async function psResyncTable(
+  dbName: string,
+  tableName: string,
+  psDb: AbstractPowerSyncDatabase
+): Promise<void> {
+  emitSyncLog('info', `Starting full resync for ${tableName}`);
+  await psClearTable(tableName, psDb);
+  await psInsertDbTable(dbName, tableName, psDb);
+  emitSyncLog('info', `Full resync queued for ${tableName}`);
+}
+
+/** Returns the number of pending CRUD operations in the PowerSync upload queue */
+export async function getPendingCrudCount(
+  psDb: AbstractPowerSyncDatabase
+): Promise<number> {
+  const result = await psDb.execute('SELECT COUNT(*) AS cnt FROM ps_crud');
+  const row = result?.rows?.item(0);
+  return (row?.cnt as number) ?? 0;
 }
 

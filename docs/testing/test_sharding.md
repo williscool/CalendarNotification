@@ -10,14 +10,12 @@ UI tests (in `com.github.quarck.calnotify.ui`) are significantly slower than oth
 
 | Shard | Test Type | Internal Sharding |
 |-------|-----------|-------------------|
-| 0 | UI tests | Shard 0 of 2 |
-| 1 | UI tests | Shard 1 of 2 |
-| 2 | Non-UI tests | Shard 0 of 2 |
-| 3 | Non-UI tests | Shard 1 of 2 |
+| 0-3 | UI tests | Shard 0-3 of 4 |
+| 4-7 | Non-UI tests | Shard 0-3 of 4 |
 
-This gives UI tests 50% of parallel capacity (2 of 4 shards) despite being a smaller portion of the test count, because they take longer to run.
+This gives UI tests 50% of parallel capacity (4 of 8 shards) despite being a smaller portion of the test count, because they take longer to run.
 
-> **Note:** We tried 8 shards but it was flaky on GitHub Actions runners. 4 shards provides a good balance of speed and stability.
+> **History: 8 → 4 → 8.** 8 shards were first tried in #105 (Dec 2025) and dropped after the shard jobs kept hitting their 15-minute timeout. They didn't crash or fail tests. The emulator was then the heavy `7.6in Foldable` profile with 2 GB; a 4-shard run on it timed out too, so the profile was the likelier cause. Back on 8 in #310 (Oct 2026), on `Nexus 5X` with 4 GB and after the CI flakes were root-caused (#285, #286, #289, #294, #297). A shard is ~30 s setup + ~50 s emulator boot + ~15 s APK install + its share of the tests, so going from 4 to 8 cut the slowest shard from ~6.4 to ~5 min. Runners don't queue at this size (repo is public; max wait ~0.6 min).
 
 ## How It Works
 
@@ -29,27 +27,25 @@ flowchart TB
         APK["App + Test APKs"]
     end
     
-    subgraph ParallelShards["integration-test (matrix: shard 0-3)"]
+    subgraph ParallelShards["integration-test (matrix: shard 0-7)"]
         direction LR
         subgraph UIShards["UI Tests (slow)"]
-            S0["Shard 0"]
-            S1["Shard 1"]
+            S0["Shards 0-3"]
         end
         subgraph NonUIShards["Non-UI Tests (fast)"]
-            S2["Shard 2"]
-            S3["Shard 3"]
+            S1["Shards 4-7"]
         end
     end
     
     subgraph MergeJob["merge-integration-coverage job"]
         Download["Download all<br/>shard artifacts"]
         Merge["Merge .ec files"]
-        JaCoCo["Generate<br/>JaCoCo Report"]
+        JaCoCo["Generate JaCoCo<br/>Report (CLI)"]
         Download --> Merge --> JaCoCo
     end
     
-    APK --> S0 & S1 & S2 & S3
-    S0 & S1 & S2 & S3 --> Download
+    APK --> S0 & S1
+    S0 & S1 --> Download
 ```
 
 ### Android Test Sharding Mechanism
@@ -78,11 +74,11 @@ Each shard produces its own JaCoCo execution data file (`.ec`). These files are:
 ### Running Sharded Tests Locally
 
 ```bash
-# Run shard 0 of 4 shards
-./scripts/matrix_run_android_tests.sh --shard-index 0 --num-shards 4
+# Run shard 0 of 8 shards
+./scripts/matrix_run_android_tests.sh --shard-index 0 --num-shards 8
 
 # Using environment variables
-SHARD_INDEX=1 NUM_SHARDS=4 ./scripts/matrix_run_android_tests.sh
+SHARD_INDEX=1 NUM_SHARDS=8 ./scripts/matrix_run_android_tests.sh
 
 # Run all tests (no sharding)
 ./scripts/matrix_run_android_tests.sh
@@ -97,33 +93,22 @@ SHARD_INDEX=1 NUM_SHARDS=4 ./scripts/matrix_run_android_tests.sh
 | `--arch` | `ARCH` | `x86_64` | Build architecture |
 | `--module` | `MODULE` | `app` | Gradle module name |
 | `--timeout` | `TEST_TIMEOUT` | `30m` | Test execution timeout |
-| `--single-test` | `SINGLE_TEST` | - | Run specific test class/method |
 | `--help` | - | - | Show usage |
-
-### Running a Single Test
-
-```bash
-# Run specific test method
-./scripts/matrix_run_android_tests.sh --single-test com.example.MyTest#testMethod
-
-# Run all tests in a class
-./scripts/matrix_run_android_tests.sh --single-test com.example.MyTest
-```
 
 ## CI Workflow
 
-The GitHub Actions workflow is configured with 4 shards:
+The GitHub Actions workflow is configured with 8 shards:
 
 ```yaml
 strategy:
   matrix:
-    shard: [0, 1, 2, 3]
+    shard: [0, 1, 2, 3, 4, 5, 6, 7]
 ```
 
 ### Jobs Flow
 
 1. **build** - Builds app and test APKs
-2. **integration-test** (x4 parallel) - Each shard runs ~25% of tests
+2. **integration-test** (x8 parallel) - Each shard runs ~12.5% of tests
 3. **merge-integration-coverage** - Collects all coverage data, generates JaCoCo report
 4. **coverage-report** - Processes combined coverage for PR comments
 
@@ -144,23 +129,23 @@ To change the number of shards, update two places in `.github/workflows/actions.
    ```
 
 **Trade-offs:**
-- More shards = faster execution, but more CI minutes and potentially more flaky
-- Fewer shards = slower execution, but more stable
-- Current config: 4 shards (we tried 8 but it was too flaky on GitHub Actions)
+- More shards = faster execution, but each adds ~1.5 min of fixed setup/boot/install and another concurrent job
+- Fewer shards = slower execution, fewer concurrent jobs
+- Current config: 8 shards (see the history note above)
 
 ### Adjusting UI vs Non-UI Shard Ratio
 
-The ratio of UI to non-UI shards is controlled by `UI_SHARD_COUNT` in `scripts/matrix_run_android_tests.sh`:
+`UI_SHARD_COUNT` in `scripts/matrix_run_android_tests.sh` is derived as half of `NUM_SHARDS`, so changing the shard count only touches the workflow:
 
 ```bash
-UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
+UI_SHARD_COUNT=$(( ${NUM_SHARDS:-0} / 2 ))  # Shards dedicated to UI tests
 ```
 
-With 4 total shards and `UI_SHARD_COUNT=2`:
-- Shards 0-1: UI tests
-- Shards 2-3: Non-UI tests
+With 8 total shards:
+- Shards 0-3: UI tests
+- Shards 4-7: Non-UI tests
 
-To give UI tests 3 of 6 shards, set `UI_SHARD_COUNT=3` and update the matrix to `[0, 1, 2, 3, 4, 5]`.
+To use a different ratio, replace that derivation with a fixed number.
 
 ## Troubleshooting
 
@@ -179,9 +164,29 @@ If coverage files are missing from a shard:
 
 Ensure all shards completed successfully before the merge job runs. Failed shards won't upload their coverage artifacts.
 
+## CI Performance Optimizations
+
+Integration test shards use `test_runner_only` mode in the CI workflow, which significantly speeds up job startup:
+
+**What gets skipped:**
+- Node.js/Yarn setup
+- JS bundle generation
+- Gradle caches
+- React Native caches
+- Disk space cleanup
+
+**What's kept:**
+- JDK setup (for adb)
+- Android SDK/emulator setup
+
+This reduces Common Setup time from ~4 min to ~2 min per shard.
+
+See [GitHub Actions Performance](../dev_completed/github_actions_performance.md) for full details on CI optimization.
+
 ## Related Files
 
 - `scripts/matrix_run_android_tests.sh` - Main test runner with sharding support
 - `scripts/generate_android_coverage.sh` - Pulls coverage data from device
 - `.github/workflows/actions.yml` - CI workflow with sharding configuration
+- `.github/actions/common-setup/action.yml` - Common setup with `test_runner_only` option
 

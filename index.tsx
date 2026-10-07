@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PowerSyncContext } from '@powersync/react';
 import { db as psDb } from './src/lib/powersync';
 import { setupPowerSyncLogCapture } from './src/lib/powersync/Connector';
+import { BACKGROUND_SYNC_TASK, backgroundSyncTask } from './src/lib/powersync/backgroundSync';
 import { SettingsProvider } from './src/lib/hooks/SettingsContext';
 import { SyncDebugProvider } from './src/lib/hooks/SyncDebugContext';
 import { ThemeProvider, useTheme } from './src/lib/theme/ThemeContext';
@@ -147,3 +148,4 @@ function App() {
 }
 
 AppRegistry.registerComponent('CNPlusSync', () => App);
+AppRegistry.registerHeadlessTask(BACKGROUND_SYNC_TASK, () => backgroundSyncTask);

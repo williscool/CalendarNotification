@@ -2,6 +2,7 @@ package com.github.quarck.calnotify.testutils
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventKey
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.logs.DevLog
@@ -14,6 +15,16 @@ import com.github.quarck.calnotify.logs.DevLog
 class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     private val LOG_TAG = "MockDismissedEventsStorage"
     
+    // Track closed state - warn instead of throw since Room's close() is a no-op anyway
+    // TODO: When legacy storage is removed, consider stricter enforcement or removing Closeable entirely
+    private var closed = false
+    
+    private fun warnIfClosed() {
+        if (closed) {
+            DevLog.warn(LOG_TAG, "MockDismissedEventsStorage used after close() - this pattern works because Room's close() is a no-op, but is conceptually incorrect. See docs/architecture/storage_lifecycle.md")
+        }
+    }
+    
     // In-memory storage for dismissed events
     // Key: (eventId, instanceStartTime)
     private val eventsMap = mutableMapOf<EventKey, DismissedEventAlertRecord>()
@@ -21,6 +32,7 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     data class EventKey(val eventId: Long, val instanceStartTime: Long)
     
     override fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord) {
+        warnIfClosed()
         DevLog.info(LOG_TAG, "Adding dismissed event: eventId=${event.eventId}, type=$type")
         val key = EventKey(event.eventId, event.instanceStartTime)
         val dismissedRecord = DismissedEventAlertRecord(
@@ -32,33 +44,52 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     }
     
     override fun addEvent(type: EventDismissType, event: EventAlertRecord) {
-        addEvent(type, System.currentTimeMillis(), event)
+        warnIfClosed()
+        addEvent(type, TestTimeConstants.STANDARD_TEST_TIME, event)
     }
     
     override fun addEvents(type: EventDismissType, events: Collection<EventAlertRecord>) {
+        warnIfClosed()
         DevLog.info(LOG_TAG, "Adding ${events.size} dismissed events")
-        val changeTime = System.currentTimeMillis()
+        val changeTime = TestTimeConstants.STANDARD_TEST_TIME
         events.forEach { addEvent(type, changeTime, it) }
     }
     
     override fun deleteEvent(entry: DismissedEventAlertRecord) {
+        warnIfClosed()
         val key = EventKey(entry.event.eventId, entry.event.instanceStartTime)
         eventsMap.remove(key)
         DevLog.info(LOG_TAG, "Deleted dismissed event: eventId=${entry.event.eventId}")
     }
     
     override fun deleteEvent(event: EventAlertRecord) {
+        warnIfClosed()
         val key = EventKey(event.eventId, event.instanceStartTime)
         eventsMap.remove(key)
         DevLog.info(LOG_TAG, "Deleted dismissed event: eventId=${event.eventId}")
     }
     
     override fun clearHistory() {
+        warnIfClosed()
         DevLog.info(LOG_TAG, "Clearing all ${eventsMap.size} dismissed events")
         eventsMap.clear()
     }
+
+    override fun reKeyEventId(oldEventId: Long, newEventId: Long): Int {
+        warnIfClosed()
+        val toMove = eventsMap.entries
+            .filter { it.key.eventId == oldEventId }
+            .toList()
+        for ((oldKey, record) in toMove) {
+            eventsMap.remove(oldKey)
+            val movedRecord = record.copy(event = record.event.copy(eventId = newEventId))
+            eventsMap[EventKey(newEventId, oldKey.instanceStartTime)] = movedRecord
+        }
+        return toMove.size
+    }
     
     override fun purgeOld(currentTime: Long, maxLiveTime: Long) {
+        warnIfClosed()
         val cutoff = currentTime - maxLiveTime
         val toRemove = eventsMap.filter { it.value.dismissTime < cutoff }
         toRemove.forEach { eventsMap.remove(it.key) }
@@ -66,10 +97,48 @@ class MockDismissedEventsStorage : DismissedEventsStorageInterface {
     }
     
     override val events: List<DismissedEventAlertRecord>
-        get() = eventsMap.values.toList()
+        get() {
+            warnIfClosed()
+            return eventsMap.values.toList()
+        }
     
     override val eventsForDisplay: List<DismissedEventAlertRecord>
-        get() = eventsMap.values.sortedByDescending { it.dismissTime }
+        get() {
+            warnIfClosed()
+            return eventsMap.values.sortedByDescending { it.dismissTime }
+        }
+    
+    override fun close() {
+        closed = true
+    }
+
+    /** Counts key-only reads, so tests can assert full rows were not loaded. */
+    var keyReadCount = 0
+        private set
+
+    /** Counts full-row reads, likewise. */
+    var fullReadCount = 0
+        private set
+
+    override fun getAllKeys(): List<DismissedEventKey> {
+        keyReadCount++
+        return eventsMap.values.map {
+            DismissedEventKey(it.event.eventId, it.event.instanceStartTime)
+        }
+    }
+
+    override fun getEventsByKeys(
+        keys: Collection<DismissedEventKey>
+    ): List<DismissedEventAlertRecord> {
+        fullReadCount++
+        if (keys.isEmpty())
+            return emptyList()
+
+        val wanted = keys.toHashSet()
+        return eventsMap.values.filter {
+            DismissedEventKey(it.event.eventId, it.event.instanceStartTime) in wanted
+        }
+    }
     
     /**
      * Clears all events - useful for test cleanup

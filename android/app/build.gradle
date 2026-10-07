@@ -90,15 +90,40 @@ android {
     pickFirst '**/*.so'
   }
 
+  // Get the architecture from environment variable or project property or default to supporting both
+  def buildArch = providers.gradleProperty('BUILD_ARCH')
+    .orElse(providers.environmentVariable('BUILD_ARCH'))
+    .forUseAtConfigurationTime()
+
+  // Native ABIs this build compiles and packages: a per-arch build
+  // (BUILD_ARCH, as CI sets) gets only its own ABI; without BUILD_ARCH, both.
+  //
+  // Keep abiFilters ONLY in defaultConfig below. AGP unions abiFilters across
+  // defaultConfig, product flavors and build types, so listing both ABIs at
+  // any other level (as the build types and this block once did) silently
+  // brings the other ABI back -- why every per-arch build compiled both.
+  // The second ABI was dead weight anyway: React Native libraries honour
+  // -PreactNativeArchitectures, so e.g. the x86_64 APK's arm64-v8a folder
+  // already lacked libreanimated, librnscreens, libworklets and
+  // libexpo-modules-core, and couldn't run on arm64.
+  def nativeAbis = buildArch.orNull ? [buildArch.get()] : ['x86_64', 'arm64-v8a']
+
   defaultConfig {
     applicationId "com.github.quarck.calnotify"
     minSdkVersion rootProject.ext.minSdkVersion
     minSdk rootProject.ext.minSdk
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 4000063
-    versionName "9.11.2"
+    versionCode 4000101
+    versionName "9.32.2"
 
-    buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
+    // Build time and git commit for the About screen. These are string resources,
+    // not buildConfigFields: BuildConfig is compiled with the app, so values that
+    // change on every build made the whole app module (Kotlin/Java compile, dex,
+    // package) a Gradle build-cache miss even when no code changed. A resource's
+    // *value* doesn't change the R class, so compiled code stays cacheable.
+    resValue "string", "build_timestamp_millis", System.currentTimeMillis().toString()
+    def gitSha = 'git rev-parse --short HEAD'.execute().text.trim()
+    resValue "string", "git_commit_sha", gitSha
     // React Native New Architecture flags
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", project.hasProperty("newArchEnabled") ? project.property("newArchEnabled") : "false"
     buildConfigField "boolean", "IS_HERMES_ENABLED", project.hasProperty("hermesEnabled") ? project.property("hermesEnabled") : "true"
@@ -109,17 +134,19 @@ android {
     testInstrumentationRunnerArguments = [
         'coverage': 'true',
         'jacoco-agent.destfile': '/data/data/com.github.quarck.calnotify/files/coverage.ec',
-        'jacoco-agent.includes': 'com.github.quarck.calnotify.*'
+        'jacoco-agent.includes': 'com.github.quarck.calnotify.*',
+        // Run-start setup: calendar permissions, block real calendar broadcasts; see the class
+        'listener': 'com.github.quarck.calnotify.testutils.TestRunSetupListener'
     ]
 
     externalNativeBuild {
       cmake{
-        abiFilters 'x86_64', 'arm64-v8a'
+        abiFilters(*nativeAbis)
       }
     }
     
     ndk { 
-      abiFilters 'x86_64', 'arm64-v8a'
+      abiFilters(*nativeAbis)
     }
 
     // Add packagingOptions to include necessary .so files
@@ -136,11 +163,6 @@ android {
   // Define specific build variants for each architecture
   flavorDimensions "abi"
   
-  // Get the architecture from environment variable or project property or default to supporting both
-  def buildArch = providers.gradleProperty('BUILD_ARCH')
-    .orElse(providers.environmentVariable('BUILD_ARCH'))
-    .forUseAtConfigurationTime()
-
   println "Building for architecture: ${buildArch.orNull ?: 'defaulting to x86_64'}"
   
   productFlavors {
@@ -149,9 +171,6 @@ android {
       arm64v8a {
         dimension "abi"
         versionNameSuffix "-arm64-v8a"
-        ndk {
-          abiFilters 'arm64-v8a'  // Only include arm64-v8a libraries
-        }
       }
     }
     
@@ -160,9 +179,6 @@ android {
       x8664 {
         dimension "abi"
         versionNameSuffix "-x86_64"
-        ndk {
-          abiFilters 'x86_64'  // Only include x86_64 libraries
-        }
       }
     }
   }
@@ -175,9 +191,6 @@ android {
         javaMaxHeapSize "4g"
         preDexLibraries true
         threadCount = 4
-      }
-      ndk {
-        abiFilters 'x86_64', 'arm64-v8a'
       }
     }
     release {
@@ -195,9 +208,6 @@ android {
       lintOptions {
         disable 'MissingTranslation'
         abortOnError false
-      }
-      ndk {
-        abiFilters 'x86_64', 'arm64-v8a'
       }
     }
 
@@ -227,9 +237,76 @@ android {
   // Add proper JaCoCo instrumentation for tests
   testOptions {
     unitTests.all {
+      // Run test classes across parallel JVMs: one per two cores, capped at
+      // maxUnitTestForks, and never fewer than one.
+      //
+      //   machine          cores  cores/2  capped at 4  at least 1  -> forks
+      //   CI runner          4       2          2            2          2
+      //   8-core laptop      8       4          4            4          4
+      //   16-core desktop   16       8          4            4          4
+      //   1-core box         1       0          0            1          1
+      //
+      // Why half the cores: on CI's 4-core runner the test task took ~5.1m
+      // with 1 fork and ~4.1m with 2. With 4, the forks fought the Gradle
+      // daemon for CPU -- every class ran 2-2.5x slower, and the task took
+      // 3.6m on one run and 5.0m on another. The cap keeps a many-core dev
+      // machine from starting too many memory-hungry Robolectric JVMs.
+      def maxUnitTestForks = 4
+      def halfTheCores = Runtime.runtime.availableProcessors().intdiv(2)
+      def cappedForks = Math.min(halfTheCores, maxUnitTestForks)
+      maxParallelForks = Math.max(1, cappedForks)
+
+      // Optional sharding for CI: -PunitTestShardCount=N -PunitTestShardIndex=I
+      // runs only the test classes whose outer class path hashes to shard I.
+      // Without these properties every test runs, as before.
+      //
+      //   com/github/.../FooTest.class      -> key "com/github/.../FooTest"
+      //   com/github/.../FooTest$Inner.class -> same key, so it stays with FooTest
+      //
+      // With 2 shards the hash split is near even: 3.7m / 3.6m of test-class
+      // time (36 / 31 classes) on the Oct 2026 suite.
+      def unitTestShardCount = (project.findProperty('unitTestShardCount') ?: '1') as int
+      def unitTestShardIndex = (project.findProperty('unitTestShardIndex') ?: '0') as int
+      if (unitTestShardCount > 1) {
+        exclude { element ->
+          if (element.directory) return false
+          // Cut at the first '$' (inner class) and drop ".class"
+          def outerClassPath = element.relativePath.pathString.takeWhile { it != '$' } - '.class'
+          def shard = Math.floorMod(outerClassPath.hashCode(), unitTestShardCount)
+          return shard != unitTestShardIndex
+        }
+      }
       jacoco {
         includeNoLocationClasses = true
         excludes = ['jdk.internal.*']
+      }
+
+      // Gradle's Test task prints nothing per-test by default, which makes a
+      // long run indistinguishable from a hung one -- you get the task name and
+      // then silence for ~15 minutes. Android Studio papers over this with its
+      // own test UI; plain Gradle and CI do not.
+      testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat 'full'        // full stack traces, not just the first line
+        showCauses true
+        showStackTraces true
+        // Only failures are logged per-test: at ~930 tests, logging passes too
+        // would bury the failures we actually want to read in CI.
+      }
+
+      // Per-class progress, so it is obvious the build is alive. One line per
+      // test class rather than per test keeps this readable.
+      afterSuite { desc, result ->
+        if (desc.parent == null) {          // root suite: the run-wide summary
+          println "\nTest result: ${result.resultType} — " +
+                  "${result.testCount} tests, ${result.successfulTestCount} passed, " +
+                  "${result.failedTestCount} failed, ${result.skippedTestCount} skipped"
+        } else if (desc.className != null) {
+          // A class-level suite. Note the worker process adds its own nesting
+          // level, so checking parent.parent == null silently matches nothing.
+          def name = desc.className.tokenize('.').last()
+          println "  ${result.resultType} ${name} (${result.testCount} tests)"
+        }
       }
     }
     // Add Robolectric configuration
@@ -435,16 +512,83 @@ tasks.withType(Test) {
     jacoco.excludes = ['jdk.internal.*']
 }
 
-// Configure unit test coverage reports to generate XML and CSV (not just HTML)
-tasks.withType(JacocoReport).configureEach { task ->
-    // Only configure the unit test coverage reports (create*UnitTestCoverageReport)
-    if (task.name.contains('UnitTestCoverageReport')) {
-        reports {
-            xml.required = true
-            html.required = true
-            csv.required = true
+// Create a task to generate unit test coverage CSV report
+// The Android Gradle Plugin's createX8664DebugUnitTestCoverageReport generates HTML and XML
+// but doesn't support CSV output, so we create a separate JaCoCo task for CSV generation
+task jacocoUnitTestReport(type: JacocoReport) {
+    group = "Reporting"
+    description = "Generate JaCoCo CSV report for unit tests"
+    
+    // Get architecture from property or environment, defaulting to x86_64
+    def buildArch = providers.gradleProperty('BUILD_ARCH')
+        .orElse(providers.environmentVariable('BUILD_ARCH'))
+        .orElse('x86_64')
+        .forUseAtConfigurationTime()
+        .get()
+    
+    // Convert architecture to variant name format
+    def archSuffix = buildArch == 'arm64-v8a' ? 'Arm64V8a' : 'X8664'
+    def variantLower = archSuffix.toLowerCase()
+    
+    // Must run after unit test coverage report completes (which creates the .exec file)
+    dependsOn "create${archSuffix}DebugUnitTestCoverageReport"
+    
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = true
+        
+        html.outputLocation = file("${buildDir}/reports/jacoco/unitTestCoverage/html")
+        xml.outputLocation = file("${buildDir}/reports/jacoco/unitTestCoverage/xml/report.xml")
+        csv.outputLocation = file("${buildDir}/reports/jacoco/unitTestCoverage/csv/report.csv")
+    }
+    
+    // Source directories
+    sourceDirectories.setFrom(files([
+        'src/main/java',
+        'src/main/kotlin'
+    ]))
+    
+    // Class directories - use the compiled classes from unit test builds
+    classDirectories.setFrom(files([
+        fileTree(
+            dir: "${buildDir}",
+            includes: [
+                "**/tmp/kotlin-classes/${variantLower}Debug/**/*.class",
+                "**/intermediates/javac/${variantLower}Debug/classes/**/*.class"
+            ],
+            excludes: [
+                '**/R.class',
+                '**/R$*.class',
+                '**/BuildConfig.*',
+                '**/Manifest*.*',
+                '**/*Test*.*',
+                '**/com/facebook/react/**',
+                '**/com/facebook/hermes/**',
+                '**/com/facebook/jni/**',
+                '**/org/jacoco/**'
+            ]
+        )
+    ]))
+    
+    // Execution data - use explicit file path for the .exec file
+    // The AGP puts it in outputs/unit_test_code_coverage/{variant}UnitTest/
+    def execFile = file("${buildDir}/outputs/unit_test_code_coverage/${variantLower}DebugUnitTest/test${archSuffix}DebugUnitTest.exec")
+    executionData.setFrom(files(execFile))
+    
+    doFirst {
+        println "=== JaCoCo Unit Test Report Configuration ==="
+        println "Architecture: ${buildArch} (${archSuffix})"
+        println "Build dir: ${buildDir}"
+        println "Exec file path: ${execFile.absolutePath}"
+        println "Exec file exists: ${execFile.exists()}"
+        if (execFile.exists()) {
+            println "Exec file size: ${execFile.length()} bytes"
         }
     }
+    
+    // Don't skip even if file doesn't exist at config time - it will exist at execution time
+    outputs.upToDateWhen { false }
 }
 
 // Add task to generate coverage report for Android tests

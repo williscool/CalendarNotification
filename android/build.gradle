@@ -88,6 +88,27 @@ subprojects {
                 pickFirst '**/*.so'
             }
         }
+
+        // Build library native code only for the ABIs React Native is building
+        // (reactNativeArchitectures: both by default, the job's own ABI in
+        // per-arch CI builds). op-sqlite's build.gradle sets no abiFilters, so
+        // without this it compiled all four NDK ABIs (incl. armeabi-v7a, x86)
+        // on every build. Libraries that set their own filters from
+        // reactNativeArchitectures just union with the same list.
+        def rnArchitectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64')
+            .toString().split(',')*.trim()
+        android.defaultConfig {
+            ndk {
+                abiFilters.clear()
+                abiFilters.addAll(rnArchitectures)
+            }
+            externalNativeBuild {
+                cmake {
+                    abiFilters.clear()
+                    abiFilters.addAll(rnArchitectures)
+                }
+            }
+        }
     }
 }
 

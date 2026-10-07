@@ -19,10 +19,9 @@ TEST_PACKAGE="${APP_PACKAGE}.test"
 TEST_RUNNER="com.atiurin.ultron.allure.UltronAllureTestRunner"
 UI_TEST_PACKAGE="com.github.quarck.calnotify.ui"
 
-# Sharding strategy (with 4 shards):
-#   Shards 0-1: UI tests (slow) - get 2 shards
-#   Shards 2-3: Non-UI tests (fast) - get 2 shards
-UI_SHARD_COUNT=2  # Number of shards dedicated to UI tests
+# Sharding strategy: the first half of the shards run UI tests (slow), the
+# second half non-UI tests. With 8 shards: 0-3 UI, 4-7 non-UI.
+# UI_SHARD_COUNT is set from NUM_SHARDS once arguments are parsed.
 
 # --- Default Configuration (from env vars or defaults) ---
 SHARD_INDEX="${SHARD_INDEX:-}"
@@ -30,7 +29,6 @@ NUM_SHARDS="${NUM_SHARDS:-}"
 ARCH="${ARCH:-x86_64}"
 MODULE="${MODULE:-app}"
 TEST_TIMEOUT="${TEST_TIMEOUT:-30m}"
-SINGLE_TEST="${SINGLE_TEST:-}"
 
 # --- Functions ---
 show_usage() {
@@ -49,7 +47,6 @@ Options:
   --arch ARCH        Build architecture (default: x86_64). Env: ARCH
   --module MODULE    Gradle module name (default: app). Env: MODULE
   --timeout TIME     Test timeout (default: 30m). Env: TEST_TIMEOUT
-  --single-test TEST Run specific test class or class#method. Env: SINGLE_TEST
   --help             Show this help message
 
 Examples:
@@ -64,9 +61,6 @@ Examples:
 
   # Via env vars
   SHARD_INDEX=1 NUM_SHARDS=4 $(basename "$0")
-
-  # Run single test
-  $(basename "$0") --single-test com.example.MyTest#testMethod
 EOF
 }
 
@@ -78,7 +72,6 @@ parse_args() {
       --arch)         ARCH="$2"; shift 2 ;;
       --module)       MODULE="$2"; shift 2 ;;
       --timeout)      TEST_TIMEOUT="$2"; shift 2 ;;
-      --single-test)  SINGLE_TEST="$2"; shift 2 ;;
       --help)         show_usage; exit 0 ;;
       *) echo "Error: Unknown option: $1"; show_usage; exit 1 ;;
     esac
@@ -156,12 +149,12 @@ build_instrument_command() {
   cmd+=" -e outputFormat \"xml\""
   cmd+=" -e jaco-agent.destfile \"$coverage_path\""
   cmd+=" -e jaco-agent.includes \"com.github.quarck.calnotify.*\""
-  cmd+=" -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener\""
+  cmd+=" -e listener \"de.schroepf.androidxmlrunlistener.XmlRunListener,com.github.quarck.calnotify.testutils.TestRunSetupListener\""
   # Write XML report to internal storage (external storage blocked by scoped storage on API 30+)
   cmd+=" -e reportFile \"$xml_report_path\""
 
   # Smart sharding: UI tests get shards 0-(UI_SHARD_COUNT-1), non-UI get the rest
-  # With 4 total shards and UI_SHARD_COUNT=2:
+  # With 4 total shards and UI_SHARD_COUNT=2 (8 shards scale the same way):
   #   Shard 0: UI tests, shard 0 of 2
   #   Shard 1: UI tests, shard 1 of 2
   #   Shard 2: Non-UI tests, shard 0 of 2
@@ -185,11 +178,6 @@ build_instrument_command() {
   else
     # No sharding - run all tests (no package filter)
     echo "Running all tests (no sharding)" >&2
-  fi
-
-  # Add single test filter if specified (overrides package filter)
-  if [ -n "$SINGLE_TEST" ]; then
-    cmd+=" -e class $SINGLE_TEST"
   fi
 
   cmd+=" \"$TEST_PACKAGE/$TEST_RUNNER\""
@@ -221,6 +209,7 @@ pull_allure_results() {
 # --- Main ---
 main() {
   parse_args "$@"
+  UI_SHARD_COUNT=$(( ${NUM_SHARDS:-0} / 2 ))  # Shards dedicated to UI tests
 
   # Print configuration
   echo "=== Matrix Android Test Runner ==="
@@ -237,9 +226,6 @@ main() {
     fi
   else
     echo "Sharding: disabled (running all tests)"
-  fi
-  if [ -n "$SINGLE_TEST" ]; then
-    echo "Single test: $SINGLE_TEST"
   fi
   echo "=================================="
 

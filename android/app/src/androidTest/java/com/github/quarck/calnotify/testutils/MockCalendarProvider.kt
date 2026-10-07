@@ -13,7 +13,6 @@ import com.github.quarck.calnotify.calendar.CalendarProvider.getEventAlertsForIn
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitor
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorInterface
 import com.github.quarck.calnotify.calendarmonitor.CalendarMonitorState
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
@@ -169,7 +168,7 @@ class MockCalendarProvider(
                 DevLog.info(LOG_TAG, "Processing alerts for alertTime=$alertTime")
                 
                 // Get unhandled alerts for this alert time
-                MonitorStorage(context).classCustomUse { db ->
+                MonitorStorage(context).use { db ->
                     val alerts = db.alerts.filter { 
                         !it.wasHandled && it.alertTime <= alertTime 
                     }
@@ -193,7 +192,7 @@ class MockCalendarProvider(
                             
                             if (eventRecord != null) {
                                 // Add the event to storage
-                                EventsStorage(context).classCustomUse { eventsDb ->
+                                EventsStorage(context).use { eventsDb ->
                                     eventsDb.addEvent(eventRecord)
                                     DevLog.info(LOG_TAG, "Added event to storage: id=${eventRecord.eventId}, title=${eventRecord.title}")
                                 }
@@ -397,7 +396,7 @@ class MockCalendarProvider(
         DevLog.info(LOG_TAG, "Clearing storages")
         
         try {
-            EventsStorage(context).classCustomUse { db ->
+            EventsStorage(context).use { db ->
                 val count = db.events.size
                 db.deleteAllEvents()
                 DevLog.info(LOG_TAG, "Cleared $count events from storage")
@@ -407,7 +406,7 @@ class MockCalendarProvider(
         }
         
         try {
-            MonitorStorage(context).classCustomUse { db ->
+            MonitorStorage(context).use { db ->
                 val count = db.alerts.size
                 db.deleteAlertsMatching { true }
                 DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
@@ -533,7 +532,7 @@ class MockCalendarProvider(
         DevLog.info(LOG_TAG, "Created delayed event: id=$createdEventId, startTime=$eventStartTime, delay=$delay")
         
         // Create the alert in monitor storage, but DO NOT add it to event storage yet
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
             val alert = MonitorEventAlertEntry(
                 eventId = createdEventId,
                 isAllDay = false,
