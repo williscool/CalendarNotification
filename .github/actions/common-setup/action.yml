@@ -402,11 +402,18 @@ runs:
           ~/.android/avd
           ~/.android/adb_usb.ini
           /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
-        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+          /usr/local/lib/android/sdk/emulator
+        # Includes the emulator package: android-emulator-runner otherwise
+        # downloads the latest emulator on every shard (~10s), and that download
+        # has come back corrupt ("Error on ZipFile unknown archive") and killed a
+        # shard. With it cached, sdkmanager sees it installed and skips it.
+        # ("emulator" in the key: the cache version is a hash of these paths, so
+        # entries saved without the emulator can't be restored here anyway.)
+        key: ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
         # Broader fallbacks to share AVD caches when target/arch might differ slightly
         restore-keys: |
-          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-
-          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-
+          ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-${{ inputs.android_target }}-
+          ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-
 
     # Setup Android SDK for emulator if needed and not cached
     #
