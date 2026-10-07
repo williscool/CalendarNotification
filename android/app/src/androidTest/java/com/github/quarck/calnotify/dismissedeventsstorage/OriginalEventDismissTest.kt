@@ -21,7 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import com.github.quarck.calnotify.eventsstorage.EventsStorageInterface
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse // Keep import if needed by code under test
+ // Keep import if needed by code under test
 import java.util.Locale // Add import
 
 /**

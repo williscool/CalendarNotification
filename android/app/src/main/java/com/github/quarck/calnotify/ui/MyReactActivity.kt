@@ -19,4 +19,25 @@ class MyReactActivity : ReactActivity() {
      */
     override fun createReactActivityDelegate(): ReactActivityDelegate =
         DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+
+    override fun onResume() {
+        super.onResume()
+        isResumed = true
+    }
+
+    override fun onPause() {
+        isResumed = false
+        super.onPause()
+    }
+
+    companion object {
+        /**
+         * True between onResume and onPause, i.e. while the React Native sync screens (Sync Info,
+         * Sync Settings, Sync Debug) are in the foreground. SyncForegroundService reads it in the
+         * same process when a sync finishes, and skips the "Sync complete" notification if so:
+         * the screen already shows the result. Failed and paused results are still posted.
+         */
+        var isResumed = false
+            internal set
+    }
 }

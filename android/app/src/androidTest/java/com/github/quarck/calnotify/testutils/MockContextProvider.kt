@@ -277,10 +277,11 @@ class MockContextProvider(
         every { any<Context>().globalState } answers {
             mockk {
                 // Never return null from lastTimerBroadcastReceived to prevent NPEs
-                every { lastTimerBroadcastReceived } returns (this@MockContextProvider.lastTimerBroadcastReceived ?: System.currentTimeMillis())
+                // Use timeProvider for deterministic test time
+                every { lastTimerBroadcastReceived } returns (this@MockContextProvider.lastTimerBroadcastReceived ?: timeProvider.testClock.currentTimeMillis())
                 
                 // Mock all other potential globalState properties to prevent missing property errors
-                every { lastNotificationRePost } returns System.currentTimeMillis() 
+                every { lastNotificationRePost } returns timeProvider.testClock.currentTimeMillis()
                 
                 every { lastTimerBroadcastReceived = any() } answers {
                     this@MockContextProvider.lastTimerBroadcastReceived = firstArg()

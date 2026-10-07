@@ -30,7 +30,6 @@ import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmBroadcastR
 import com.github.quarck.calnotify.broadcastreceivers.ManualEventExactAlarmBroadcastReceiver
 import com.github.quarck.calnotify.broadcastreceivers.ManualEventAlarmPeriodicRescanBroadcastReceiver
 import com.github.quarck.calnotify.calendar.*
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.monitorstorage.MonitorStorage
 import com.github.quarck.calnotify.permissions.PermissionsManager
@@ -406,7 +405,7 @@ open class CalendarMonitor(
 
     override fun getAlertsAt(context: android.content.Context, time: Long): List<MonitorEventAlertEntry> {
 
-        val ret = MonitorStorage(context).classCustomUse {
+        val ret = MonitorStorage(context).use {
             db ->
             db.getAlertsAt(time)
         }
@@ -416,7 +415,7 @@ open class CalendarMonitor(
 
     override fun getAlertsForAlertRange(context: Context, scanFrom: Long, scanTo: Long): List<MonitorEventAlertEntry> {
 
-        val ret = MonitorStorage(context).classCustomUse {
+        val ret = MonitorStorage(context).use {
             db ->
             db.getAlertsForAlertRange(scanFrom, scanTo)
         }
@@ -426,7 +425,7 @@ open class CalendarMonitor(
 
     override fun setAlertWasHandled(context: Context, ev: EventAlertRecord, createdByUs: Boolean) {
 
-        MonitorStorage(context).classCustomUse {
+        MonitorStorage(context).use {
             db ->
             var alert: MonitorEventAlertEntry? = db.getAlert(ev.eventId, ev.alertTime, ev.instanceStartTime)
 
@@ -460,7 +459,7 @@ open class CalendarMonitor(
     }
 
     override fun getAlertWasHandled(context: Context, ev: EventAlertRecord): Boolean {
-        return MonitorStorage(context).classCustomUse {
+        return MonitorStorage(context).use {
             db ->
             getAlertWasHandled(db, ev)
         }

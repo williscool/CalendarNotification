@@ -42,6 +42,20 @@
         android:visible="false"/>
 
     <item
+        android:id="@+id/action_pin_all"
+        android:orderInCategory="141"
+        app:showAsAction="never"
+        android:title="@string/pin_all"
+        android:visible="false"/>
+
+    <item
+        android:id="@+id/action_unpin_all"
+        android:orderInCategory="142"
+        app:showAsAction="never"
+        android:title="@string/unpin_all"
+        android:visible="false"/>
+
+    <item
         android:id="@+id/action_dismiss_all"
         android:orderInCategory="160"
         app:showAsAction="never"

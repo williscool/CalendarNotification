@@ -202,7 +202,7 @@ class ComponentIsolationRobolectricTest {
             DevLog.info(LOG_TAG, "MockContextProvider initialized successfully")
             
             // NOTE: The instrumentation version clears EventsStorage here using:
-            //   EventsStorage(contextProvider.fakeContext).classCustomUse { db -> db.deleteAllEvents() }
+            //   EventsStorage(contextProvider.fakeContext).use { db -> db.deleteAllEvents() }
             // 
             // We skip this in Robolectric because:
             // 1. EventsStorage requires native SQLite library (sqlite3x) which isn't available in JVM environment
@@ -239,7 +239,7 @@ class ComponentIsolationRobolectricTest {
             
             // NOTE: Difference from instrumentation test
             // The instrumentation version verifies EventsStorage state here:
-            //   1. Direct verification: EventsStorage(context).classCustomUse { db -> assertTrue(db.events.isEmpty()) }
+            //   1. Direct verification: EventsStorage(context).use { db -> assertTrue(db.events.isEmpty()) }
             //   2. Indirect verification: applicationComponents.verifyNoEvents()
             //
             // We skip both in Robolectric because:

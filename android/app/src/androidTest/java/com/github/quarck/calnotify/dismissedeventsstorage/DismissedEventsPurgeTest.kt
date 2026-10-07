@@ -28,7 +28,6 @@ import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import org.junit.After
 import org.junit.Assert.*
@@ -62,14 +61,14 @@ class DismissedEventsPurgeTest {
         storage = DismissedEventsStorage(context)
         
         // Clear any existing events
-        storage.classCustomUse { it.clearHistory() }
+        storage.use { it.clearHistory() }
         
         DevLog.info(LOG_TAG, "Test setup complete")
     }
     
     @After
     fun cleanup() {
-        storage.classCustomUse { it.clearHistory() }
+        storage.use { it.clearHistory() }
         DevLog.info(LOG_TAG, "Test cleanup complete")
     }
     
@@ -109,7 +108,7 @@ class DismissedEventsPurgeTest {
         
         val currentTime = baseTime + 10 * dayInMillis
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             // Event dismissed on day 1 - should be purged with 3-day retention
             db.addEvent(
                 EventDismissType.ManuallyDismissedFromNotification,
@@ -139,7 +138,7 @@ class DismissedEventsPurgeTest {
         
         val currentTime = baseTime + 365 * dayInMillis
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             db.addEvent(
                 EventDismissType.ManuallyDismissedFromNotification,
                 baseTime + 1 * dayInMillis,
@@ -165,7 +164,7 @@ class DismissedEventsPurgeTest {
     fun testPurgeOldWithEmptyStorage() {
         DevLog.info(LOG_TAG, "Running testPurgeOldWithEmptyStorage")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             assertEquals("Should start with 0 events", 0, db.events.size)
             
             db.purgeOld(baseTime, 3 * dayInMillis)
@@ -180,7 +179,7 @@ class DismissedEventsPurgeTest {
         
         val currentTime = baseTime + 100 * dayInMillis
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             // Add event exactly at cutoff (day 10 with 90-day retention = cutoff at day 10)
             db.addEvent(
                 EventDismissType.ManuallyDismissedFromNotification,
@@ -211,7 +210,7 @@ class DismissedEventsPurgeTest {
         
         val currentTime = baseTime + 100 * dayInMillis
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             for (day in listOf(1, 10, 20, 50, 90)) {
                 db.addEvent(
                     EventDismissType.ManuallyDismissedFromNotification,
@@ -236,7 +235,7 @@ class DismissedEventsPurgeTest {
     fun testEventsReturnedInDismissTimeDescOrder() {
         DevLog.info(LOG_TAG, "Running testEventsReturnedInDismissTimeDescOrder")
         
-        storage.classCustomUse { db ->
+        storage.use { db ->
             // Add events in random order
             for (day in listOf(50, 10, 90, 30, 70)) {
                 db.addEvent(

@@ -1,5 +1,5 @@
 name: 'Cache Update'
-description: 'Updates caches for Android builds'
+description: 'Updates caches for Android builds. Skips saving caches that were already hit.'
 
 inputs:
   optional_cache_key:
@@ -22,25 +22,67 @@ inputs:
     description: 'Android target for emulator cache'
     required: false
     default: "google_apis"
+  # Cache hit inputs - skip saving if already hit
+  yarn-cache-hit:
+    description: 'Whether yarn cache was hit (skip save if true)'
+    required: false
+    default: ""
+  yarn-install-state-cache-hit:
+    description: 'Whether yarn install state cache was hit (skip save if true)'
+    required: false
+    default: ""
+  js-bundle-cache-key:
+    description: 'common-setup js-bundle-cache-key output; the bundle is saved under exactly this key'
+    required: false
+    default: ""
+  js-bundle-cache-hit:
+    description: 'Whether JS bundle cache was hit (skip save if true)'
+    required: false
+    default: ""
+  gradle-deps-cache-hit:
+    description: 'Whether Gradle deps cache was hit (skip save if true)'
+    required: false
+    default: ""
+  gradle-cache-hit:
+    description: 'Whether Gradle cache was hit (skip save if true)'
+    required: false
+    default: ""
+  build-outputs-cache-hit:
+    description: 'Whether build outputs cache was hit (skip save if true)'
+    required: false
+    default: ""
+  react-native-cache-hit:
+    description: 'Whether React Native cache was hit (skip save if true)'
+    required: false
+    default: ""
+  android-cache-hit:
+    description: 'Whether Android SDK/AVD cache was hit (skip save if true)'
+    required: false
+    default: ""
+  test_runner_only:
+    description: 'Skip non-Android caches (for jobs that only run pre-built APKs)'
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
   steps:
-    # JS Bundle and Assets Cache - Save only
+    # JS Bundle and Assets Cache - Save only if not already cached
+    # Only save from x86_64 builds to avoid race condition between arch builds
     - name: Save JS Bundle and Assets Cache
-      if: always()
-      uses: actions/cache/save@v4
+      if: always() && inputs.test_runner_only != 'true' && inputs.js-bundle-cache-hit != 'true' && inputs.js-bundle-cache-key != '' && inputs.arch == 'x86_64'
+      uses: actions/cache/save@v6
       with:
         path: |
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}') }}
+        key: ${{ inputs.js-bundle-cache-key }}
 
-    # Build Outputs Cache - Save only
+    # Build Outputs Cache - Save only if not already cached
     - name: Save Build Outputs Cache
-      if: always() && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
-      uses: actions/cache/save@v4
+      if: always() && inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests' && inputs.build-outputs-cache-hit != 'true'
+      uses: actions/cache/save@v6
       with:
         path: |
           android/app/build/intermediates
@@ -52,21 +94,21 @@ runs:
           android/app/build/intermediates/test_apk_androidTest
         key: ${{ runner.os }}-build-outputs-${{ inputs.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
 
-    # Gradle dependencies cache - Save only (more stable than build cache)
+    # Gradle dependencies cache - Save only if not already cached
     # Prevents intermittent 403s from Maven Central rate limiting in CI
     - name: Save Gradle Dependencies Cache
-      if: always()
-      uses: actions/cache/save@v4
+      if: always() && inputs.test_runner_only != 'true' && inputs.gradle-deps-cache-hit != 'true'
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.gradle/caches/modules-2
           ~/.gradle/caches/jars-*
         key: ${{ runner.os }}-gradle-deps-v1-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
-    # Gradle cache - Save only with architecture in key
+    # Gradle cache - Save only if not already cached
     - name: Save Gradle Cache
-      if: always()
-      uses: actions/cache/save@v4
+      if: always() && inputs.test_runner_only != 'true' && inputs.gradle-cache-hit != 'true'
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.gradle/caches
@@ -75,26 +117,40 @@ runs:
           android/build-cache
         key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         
-    # Yarn cache - Save only
+    # Yarn cache - Save only if not already cached
+    # Note: Yarn 3 default cache folder is .yarn/cache in project directory
     - name: Save yarn cache
-      if: always()
-      uses: actions/cache/save@v4
+      if: always() && inputs.test_runner_only != 'true' && inputs.yarn-cache-hit != 'true'
+      uses: actions/cache/save@v6
       with:
-        path: $(yarn config get cacheFolder)
+        path: .yarn/cache
         key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
 
-    # Yarn install state - Save only
+    # Yarn install state - Save only if not already cached
     - name: Save yarn install state
-      if: always()
-      uses: actions/cache/save@v4
+      if: always() && inputs.test_runner_only != 'true' && inputs.yarn-install-state-cache-hit != 'true'
+      uses: actions/cache/save@v6
       with:
         path: .yarn/ci-cache/
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
 
-    # React Native cache - Save only
+    # React Native cache - Save only if not already cached AND directories exist
+    # These dirs are only created by Metro during development, not CI builds
+    - name: Check React Native cache directories exist
+      id: check-rn-cache
+      if: always() && inputs.test_runner_only != 'true' && inputs.react-native-cache-hit != 'true'
+      shell: bash
+      run: |
+        if [ -d "node_modules/.cache/react-native" ] || [ -d "node_modules/.cache/metro" ] || [ -d "node_modules/.cache/@react-native-community/cli" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "React Native cache directories don't exist, skipping save"
+        fi
+
     - name: Save React Native cache
-      if: always()
-      uses: actions/cache/save@v4
+      if: always() && steps.check-rn-cache.outputs.exists == 'true'
+      uses: actions/cache/save@v6
       with:
         path: |
           node_modules/.cache/react-native
@@ -102,13 +158,15 @@ runs:
           node_modules/.cache/@react-native-community/cli
         key: ${{ runner.os }}-react-native-${{ hashFiles('package.json', 'yarn.lock') }}
 
-    # Android SDK and AVD cache - Save only
+    # Android SDK and AVD cache - Save only if not already cached
     - name: Save Android SDK and AVD Cache
-      if: always() && inputs.run_emulator_setup == 'true'
-      uses: actions/cache/save@v4
+      if: always() && inputs.run_emulator_setup == 'true' && inputs.android-cache-hit != 'true'
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.android/avd
           ~/.android/adb_usb.ini
           /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
-        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+          /usr/local/lib/android/sdk/emulator
+        # Must match common-setup's key and path list exactly
+        key: ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}

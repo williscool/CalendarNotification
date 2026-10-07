@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import android.Manifest
 import java.util.concurrent.TimeUnit
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
@@ -42,6 +41,7 @@ import com.github.quarck.calnotify.textutils.EventFormatterInterface
 import java.util.Locale
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.ui.UINotifier
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.cancelExactAndAlarm
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 import org.junit.Ignore
@@ -135,6 +135,11 @@ class CalendarMonitorServiceEventReminderTest {
   @After
   fun cleanup() {
     DevLog.info(LOG_TAG, "Cleaning up test environment")
+    
+    // Reset the clock providers before unmocking to avoid test pollution
+    ApplicationController.resetClockProvider()
+    CalendarProvider.resetClockProvider()
+    
     unmockkAll()
 
     // Delete test events and calendar
@@ -258,7 +263,7 @@ class CalendarMonitorServiceEventReminderTest {
     assertFalse("Calendar monitoring should be disabled for direct reminder test", settings.enableCalendarRescan)
 
     // First verify no events exist
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       assertEquals("Should start with no events", 0, events.size)
     }
@@ -292,7 +297,7 @@ class CalendarMonitorServiceEventReminderTest {
 
 
     // Verify events were processed
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Found ${events.size} events after reminder broadcast")
       assertTrue("Should have events after reminder broadcast", events.isNotEmpty())
@@ -311,7 +316,7 @@ class CalendarMonitorServiceEventReminderTest {
     verify { CalendarProvider.dismissNativeEventAlert(fakeContext, testEventId) }
 
     // Verify that monitor storage has the alert marked as handled
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alert = db.getAlert(testEventId, reminderTime, eventStartTime)
       assertNotNull("Alert should exist in storage", alert)
       alert?.let {
@@ -406,7 +411,7 @@ class CalendarMonitorServiceEventReminderTest {
     assertFalse("Calendar monitoring should be disabled", settings.enableCalendarRescan)
 
     // First verify no events exist
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       assertEquals("Should start with no events", 0, events.size)
     }
@@ -501,7 +506,7 @@ class CalendarMonitorServiceEventReminderTest {
     verify(exactly = 1) { ApplicationController.registerNewEvent(any(), match { it.eventId == testEventId }) }
     
     // Verify direct calendar event reminder was processed despite disabled monitoring
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val testEvent = db.getEvent(testEventId, eventStartTime)
       assertNotNull("Event should be processed through direct reminder", testEvent)
       assertEquals("Event should have correct title", "Test Disabled Event", testEvent?.title)
@@ -623,8 +628,12 @@ class CalendarMonitorServiceEventReminderTest {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
     currentTime.set(testClock.currentTimeMillis())
+    
+    // Inject testClock into ApplicationController and CalendarProvider so time-dependent operations use the same clock
+    ApplicationController.clockProvider = { testClock }
+    CalendarProvider.clockProvider = { testClock }
     
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block
@@ -761,12 +770,12 @@ class CalendarMonitorServiceEventReminderTest {
   }
 
   private fun clearStorages() {
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val count = db.events.size
       db.deleteAllEvents()
       DevLog.info(LOG_TAG, "Cleared $count events from storage")
     }
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val count = db.alerts.size
       db.deleteAlertsMatching { true }
       DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
@@ -916,7 +925,7 @@ class CalendarMonitorServiceEventReminderTest {
    * Fails the test if any matching events are found.
    */
   private fun verifyNoEventWithId(eventId: Long) {
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.getEventInstances(eventId)
       DevLog.info(LOG_TAG, "Verifying event with ID $eventId does not exist")
       if (events.isNotEmpty()) {
@@ -933,7 +942,7 @@ class CalendarMonitorServiceEventReminderTest {
    * Fails the test if any events are found.
    */
   private fun verifyNoEvents() {
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Verifying no events in storage, found ${events.size}")
       events.forEach { event ->

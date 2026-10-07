@@ -1,0 +1,146 @@
+# Makes sure connectedAndroidTest (cAT) itself still works. The main emulator
+# tests run through `am instrument` in actions.yml; this single cAT test only
+# guards the cAT path, which breaks for build / test-infrastructure reasons
+# (Gradle, AGP, the test runner), not app code. It's also slow (~10-14m, a full
+# rebuild), so instead of every PR it runs on:
+#   - every merge to master, and daily (same cadence as cache-warming.yml)
+#   - pull requests that touch the build or test infrastructure
+#   - manual dispatch, e.g. when debugging with cAT
+name: Connected Android Test Check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    paths:
+      - '**/build.gradle'
+      - '**/build.gradle.kts'
+      - 'android/settings.gradle'
+      - 'android/gradle.properties'
+      - 'android/gradle/**'
+      - 'android/app/src/androidTest/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'scripts/run_verify_connected_android_test.sh'
+      - 'scripts/wait_for_emulator.sh'
+      - '.github/actions/**'
+      - '.github/workflows/connected-android-test.yml'
+  schedule:
+    # Daily, after cache-warming.yml's 9:00 UTC run so its caches are fresh
+    - cron: '30 9 * * *'
+  workflow_dispatch:
+    inputs:
+      enable_tmate:
+        description: 'Enable tmate SSH session on failure'
+        type: boolean
+        default: false
+
+# Same values as actions.yml; keep in step
+env:
+  main_project_module: app
+  CI: true
+  ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
+  ANDROID_API_LEVEL: 34
+  ANDROID_TARGET: google_apis
+  ANDROID_PROFILE: Nexus 5X
+  ANDROID_BUILD_TOOLS_VERSION: "36.0.0"
+  ANDROID_EMULATOR_MEMORY: 4096
+  GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+  CCACHE_DEBUG: 1
+  CCACHE_VERBOSE: 1
+  CCACHE_MAXSIZE: 5G
+  CCACHE_BASEDIR: ${{ github.workspace }}
+
+jobs:
+  # NOTE: this single cAT integration test is just to make sure cAT isn't broken
+  # if we revert back to cAT as the main integration test, we can remove this job
+  verify-connected-android-test-working-single-integration-test:
+    name: "Verify Connected Android Test Still Works (Working Single Integration Test)"
+    # Skip version-bump.yml's own "build: version bump X" push: the merge that
+    # preceded it already ran this
+    if: "!startsWith(github.event.head_commit.message, 'build: version bump ')"
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [x86_64] # Only test on x86_64 to save time and resources
+      fail-fast: false
+    env:
+      ENTRY_FILE: "index.tsx"
+      GRADLE_ABI: ${{ matrix.arch }}
+      BUILD_ARCH: ${{ matrix.arch }}
+    timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        # For PRs, checkout the actual PR head commit, not the merge commit
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 1
+
+    # Execute the common setup with emulator configuration
+    - name: Common Setup
+      id: common-setup
+      uses: ./.github/actions/common-setup
+      with:
+        optional_cache_key: "integration-test"
+        gradle_max_workers: "4"
+        node_version: "22.x"
+        arch: ${{ matrix.arch }}
+        android_api_level: ${{ env.ANDROID_API_LEVEL }}
+        android_target: ${{ env.ANDROID_TARGET }}
+        android_profile: ${{ env.ANDROID_PROFILE }}
+        run_emulator_setup: "true"
+
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/wait_for_emulator.sh
+        chmod +x scripts/run_verify_connected_android_test.sh
+
+    - name: Debug directory structure
+      run: |
+        echo "Directory structure after download:"
+        if [ -d "android/${{ env.main_project_module }}/build/" ]; then
+          find android/${{ env.main_project_module }}/build/ -type d
+        else
+          echo "Directory android/${{ env.main_project_module }}/build/ doesn't exist"
+        fi
+
+    - name: Run Android Tests
+      id: run_tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        target: ${{ env.ANDROID_TARGET }}
+        arch: ${{ matrix.arch }}
+        profile: ${{ env.ANDROID_PROFILE }}
+        force-avd-creation: false
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -memory ${{ env.ANDROID_EMULATOR_MEMORY }}
+        disable-animations: true
+        # TODO: make a PR so this thing can properly take a multiline script call
+        # too easy to make mistakes with line this long
+        # super annoying to have to make yet another script to forget to chmod +x on accident
+        script: ./scripts/wait_for_emulator.sh && ./scripts/run_verify_connected_android_test.sh ${{ matrix.arch }} ${{ env.main_project_module }} ${{ env.ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL }}
+
+    # Publish integration test results
+    - name: Publish Integration Test Results
+      uses: dorny/test-reporter@v3
+      if: always()
+      with:
+        name: 'Integration Tests'
+        path: android/app/build/outputs/*.xml,android/app/build/outputs/**/*.xml
+        reporter: java-junit
+        fail-on-error: true
+
+    - name: Upload Emulator Log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: verify-connected-android-test-emulator-log
+        path: verify-connected-android-test-emulator.log
+        retention-days: 90
+
+    - name: Setup tmate session
+      if: ${{ failure() && inputs.enable_tmate == true }}
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true

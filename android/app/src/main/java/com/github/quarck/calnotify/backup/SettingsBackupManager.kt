@@ -26,6 +26,8 @@ import com.github.quarck.calnotify.bluetooth.BTCarModeStorage
 import com.github.quarck.calnotify.calendar.CalendarBackupInfo
 import com.github.quarck.calnotify.calendar.CalendarProvider
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import kotlinx.serialization.json.*
 import java.io.InputStream
 import java.io.OutputStream
@@ -63,7 +65,10 @@ data class ImportStats(
  * Exports user preferences to JSON format, excluding runtime state.
  * Uses Storage Access Framework (SAF) for file access - no permissions needed.
  */
-class SettingsBackupManager(private val context: Context) {
+class SettingsBackupManager(
+    private val context: Context,
+    private val clock: CNPlusClockInterface = CNPlusSystemClock()
+) {
 
     companion object {
         private const val LOG_TAG = "SettingsBackupManager"
@@ -174,7 +179,7 @@ class SettingsBackupManager(private val context: Context) {
         val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
 
         return BackupData(
-            exportedAt = System.currentTimeMillis(),
+            exportedAt = clock.currentTimeMillis(),
             appVersionCode = pInfo.versionCode.toLong(),
             appVersionName = pInfo.versionName ?: "unknown",
             settings = exportSharedPreferences(getDefaultPreferences(), EXCLUDED_DEFAULT_PREF_KEYS),

@@ -9,18 +9,18 @@ on:
 jobs:
   test-summary:
     name: Generate Test Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.workflow_run.conclusion != 'cancelled' }}
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         
       - name: Download artifacts
-        uses: dawidd6/action-download-artifact@v2
+        uses: actions/download-artifact@v8
         with:
-          workflow: ${{ github.event.workflow_run.workflow_id }}
-          run_id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
           path: artifacts
         continue-on-error: true
 
@@ -100,7 +100,7 @@ jobs:
           fi
 
       - name: Publish Unit Test Summary
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         if: always() && steps.find_results.outputs.has_unit_results == 'true'
         with:
           name: 'Unit Tests Summary'
@@ -111,7 +111,7 @@ jobs:
         continue-on-error: true
           
       - name: Publish Integration Test Summary
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         if: always() && steps.find_results.outputs.has_integration_results == 'true'
         with:
           name: 'Integration Tests Summary'

@@ -33,6 +33,8 @@ object Consts {
     const val DAY_IN_MILLISECONDS = 24L * 3600L * 1000L
     const val DAY_IN_SECONDS: Long = 3600L * 24
     const val DAY_IN_MINUTES: Int = 60*24
+    const val WEEK_IN_SECONDS: Long = DAY_IN_SECONDS * 7
+    const val WEEK_IN_MILLISECONDS: Long = DAY_IN_MILLISECONDS * 7
     const val HOUR_IN_SECONDS: Long = 3600L
     const val HOUR_IN_MILLISECONDS: Long = 3600L * 1000L
     const val MINUTE_IN_SECONDS: Long = 60L
@@ -54,6 +56,8 @@ object Consts {
 
     const val NOTIFICATION_ID_REMINDER = MAX_NOTIFICATION_IDS - 1
     const val NOTIFICATION_ID_BUNDLED_GROUP = MAX_NOTIFICATION_IDS - 2
+    const val NOTIFICATION_ID_SYNC = MAX_NOTIFICATION_IDS - 3
+    const val NOTIFICATION_ID_SYNC_RESULT = MAX_NOTIFICATION_IDS - 4
     const val NOTIFICATION_ID_DEBUG0_AUTO_DISMISS = MAX_NOTIFICATION_IDS - 10
     const val NOTIFICATION_ID_DEBUG1_ALARM_DELAYS = MAX_NOTIFICATION_IDS - 11
     const val NOTIFICATION_ID_DEBUG2_SNOOZE_ALARM_DELAYS = MAX_NOTIFICATION_IDS - 12
@@ -62,6 +66,7 @@ object Consts {
     //
     const val INTENT_NOTIFICATION_ID_KEY = "notificationId"
     const val INTENT_EVENT_ID_KEY = "eventId"
+    const val INTENT_CALENDAR_ID_KEY = "calendarId"
     const val INTENT_INSTANCE_START_TIME_KEY = "instanceStartTime"
     const val INTENT_SNOOZE_ALL_IS_CHANGE = "snooze_all_is_change"
     const val INTENT_SNOOZE_FROM_MAIN_ACTIVITY = "snooze_by_main_activity"
@@ -69,8 +74,23 @@ object Consts {
     const val INTENT_SNOOZE_ALL_KEY = "snooze_all"
     const val INTENT_SEARCH_QUERY = "search_query"
     const val INTENT_SEARCH_QUERY_EVENT_COUNT = "search_query_event_count"
+    const val INTENT_FILTER_STATE = "filter_state"
+    const val INTENT_PINNED_EVENT_COUNT = "pinned_event_count"
     const val INTENT_SNOOZE_ALL_COLLAPSED_KEY = "snooze_all_collapsed"
     const val INTENT_DISMISS_ALL_KEY = "dismiss_all"
+    
+    // Pre-snooze (upcoming events) intent keys
+    const val INTENT_ALERT_TIME_KEY = "alertTime"
+    const val INTENT_EVENT_TITLE_KEY = "eventTitle"
+    const val INTENT_EVENT_DESC_KEY = "eventDesc"
+    const val INTENT_EVENT_START_TIME_KEY = "eventStartTime"
+    const val INTENT_EVENT_END_TIME_KEY = "eventEndTime"
+    const val INTENT_EVENT_INSTANCE_END_TIME_KEY = "eventInstanceEndTime"
+    const val INTENT_EVENT_ALL_DAY_KEY = "eventAllDay"
+    const val INTENT_EVENT_IS_REPEATING_KEY = "eventIsRepeating"
+    const val INTENT_EVENT_LOCATION_KEY = "eventLocation"
+    const val INTENT_EVENT_COLOR_KEY = "eventColor"
+    const val INTENT_EVENT_IS_MUTED_KEY = "eventIsMuted"
 
     const val INTENT_IS_USER_ACTION = "causedByUser"
 

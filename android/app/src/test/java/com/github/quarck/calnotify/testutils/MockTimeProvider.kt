@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
  * time management interface for tests.
  */
 class MockTimeProvider(
-    startTime: Long = System.currentTimeMillis()
+    startTime: Long = TestTimeConstants.STANDARD_TEST_TIME
 ) {
     private val LOG_TAG = "MockTimeProvider"
     

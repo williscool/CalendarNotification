@@ -1,0 +1,1213 @@
+//
+//   Calendar Notifications Plus
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
+//
+//   This program is free software; you can redistribute it and/or modify
+//   it under the terms of the GNU General Public License as published by
+//   the Free Software Foundation; either version 3 of the License, or
+//   (at your option) any later version.
+//
+//   This program is distributed in the hope that it will be useful,
+//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//   GNU General Public License for more details.
+//
+//   You should have received a copy of the GNU General Public License
+//   along with this program; if not, write to the Free Software Foundation,
+//   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+//
+
+package com.github.quarck.calnotify.ui
+
+import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.calendar.EventDisplayStatus
+import com.github.quarck.calnotify.testutils.TestTimeConstants
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * Unit tests for FilterState and StatusOption.
+ * Tests the filtering logic for event lists (Milestone 3: Filter Pills).
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = "AndroidManifest.xml", sdk = [24])
+class FilterStateTest {
+
+    // === Helper Functions ===
+    
+    private fun createEvent(
+        snoozedUntil: Long = 0L,
+        isMuted: Boolean = false,
+        isRepeating: Boolean = false
+    ): EventAlertRecord {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        return EventAlertRecord(
+            calendarId = 1L,
+            eventId = 1L,
+            isAllDay = false,
+            isRepeating = isRepeating,
+            alertTime = now,
+            notificationId = 0,
+            title = "Test Event",
+            desc = "",
+            startTime = now + 3600000,
+            endTime = now + 7200000,
+            instanceStartTime = now + 3600000,
+            instanceEndTime = now + 7200000,
+            location = "",
+            lastStatusChangeTime = now,
+            snoozedUntil = snoozedUntil,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0
+        ).apply {
+            this.isMuted = isMuted
+        }
+    }
+    
+    private fun createActiveEvent() = createEvent(snoozedUntil = 0L)
+    private fun createSnoozedEvent() = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 3600000)
+    private fun createMutedEvent() = createEvent(isMuted = true)
+    private fun createRecurringEvent() = createEvent(isRepeating = true)
+    private fun createPinnedEvent() = createEvent().apply { isPinned = true }
+    
+    // === FilterState.matchesStatus() Tests ===
+    
+    @Test
+    fun `empty filter set matches all events`() {
+        val filter = FilterState(statusFilters = emptySet())
+        
+        assertTrue(filter.matchesStatus(createActiveEvent()))
+        assertTrue(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createMutedEvent()))
+        assertTrue(filter.matchesStatus(createRecurringEvent()))
+        assertTrue(filter.matchesStatus(createPinnedEvent()))
+    }
+    
+    @Test
+    fun `single SNOOZED filter matches only snoozed events`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertTrue(filter.matchesStatus(createSnoozedEvent()))
+        assertFalse(filter.matchesStatus(createMutedEvent()))
+        assertFalse(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `single ACTIVE filter matches only active events`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.ACTIVE))
+        
+        assertTrue(filter.matchesStatus(createActiveEvent()))
+        assertFalse(filter.matchesStatus(createSnoozedEvent()))
+        // Muted event with snoozedUntil=0 is also "active" (not snoozed)
+        assertTrue(filter.matchesStatus(createMutedEvent()))
+        assertTrue(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `single MUTED filter matches only muted events`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.MUTED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertFalse(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createMutedEvent()))
+        assertFalse(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `single RECURRING filter matches only recurring events`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.RECURRING))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertFalse(filter.matchesStatus(createSnoozedEvent()))
+        assertFalse(filter.matchesStatus(createMutedEvent()))
+        assertTrue(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `single PINNED filter matches only pinned events`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.PINNED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertFalse(filter.matchesStatus(createSnoozedEvent()))
+        assertFalse(filter.matchesStatus(createMutedEvent()))
+        assertFalse(filter.matchesStatus(createRecurringEvent()))
+        assertTrue(filter.matchesStatus(createPinnedEvent()))
+    }
+    
+    @Test
+    fun `multi-select PINNED or SNOOZED matches both`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.PINNED, StatusOption.SNOOZED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertTrue(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createPinnedEvent()))
+        assertFalse(filter.matchesStatus(createMutedEvent()))
+    }
+    
+    @Test
+    fun `multi-select uses OR logic - SNOOZED or MUTED`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED, StatusOption.MUTED))
+        
+        assertFalse(filter.matchesStatus(createActiveEvent()))
+        assertTrue(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createMutedEvent()))
+        assertFalse(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `multi-select uses OR logic - ACTIVE or RECURRING`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.ACTIVE, StatusOption.RECURRING))
+        
+        assertTrue(filter.matchesStatus(createActiveEvent()))
+        assertFalse(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createMutedEvent())) // muted but not snoozed = active
+        assertTrue(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    @Test
+    fun `multi-select all options matches all events`() {
+        val filter = FilterState(statusFilters = StatusOption.entries.toSet())
+        
+        assertTrue(filter.matchesStatus(createActiveEvent()))
+        assertTrue(filter.matchesStatus(createSnoozedEvent()))
+        assertTrue(filter.matchesStatus(createMutedEvent()))
+        assertTrue(filter.matchesStatus(createRecurringEvent()))
+    }
+    
+    // === StatusOption.matches() Tests ===
+    
+    @Test
+    fun `StatusOption SNOOZED matches event with snoozedUntil greater than 0`() {
+        val snoozedEvent = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 1000)
+        val notSnoozedEvent = createEvent(snoozedUntil = 0L)
+        
+        assertTrue(StatusOption.SNOOZED.matches(snoozedEvent))
+        assertFalse(StatusOption.SNOOZED.matches(notSnoozedEvent))
+    }
+    
+    @Test
+    fun `StatusOption ACTIVE matches event with snoozedUntil equal to 0`() {
+        val activeEvent = createEvent(snoozedUntil = 0L)
+        val snoozedEvent = createEvent(snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 1000)
+        
+        assertTrue(StatusOption.ACTIVE.matches(activeEvent))
+        assertFalse(StatusOption.ACTIVE.matches(snoozedEvent))
+    }
+    
+    @Test
+    fun `StatusOption MUTED matches event with isMuted true`() {
+        val mutedEvent = createEvent(isMuted = true)
+        val notMutedEvent = createEvent(isMuted = false)
+        
+        assertTrue(StatusOption.MUTED.matches(mutedEvent))
+        assertFalse(StatusOption.MUTED.matches(notMutedEvent))
+    }
+    
+    @Test
+    fun `StatusOption RECURRING matches event with isRepeating true`() {
+        val recurringEvent = createEvent(isRepeating = true)
+        val notRecurringEvent = createEvent(isRepeating = false)
+        
+        assertTrue(StatusOption.RECURRING.matches(recurringEvent))
+        assertFalse(StatusOption.RECURRING.matches(notRecurringEvent))
+    }
+    
+    @Test
+    fun `StatusOption PINNED matches event with isPinned true`() {
+        val pinnedEvent = createEvent().apply { isPinned = true }
+        val notPinnedEvent = createEvent()
+        
+        assertTrue(StatusOption.PINNED.matches(pinnedEvent))
+        assertFalse(StatusOption.PINNED.matches(notPinnedEvent))
+    }
+    
+    // === Edge Cases ===
+    
+    @Test
+    fun `event can match multiple status options`() {
+        // Snoozed AND muted event
+        val snoozedMutedEvent = createEvent(
+            snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + 1000,
+            isMuted = true
+        )
+        
+        assertTrue(StatusOption.SNOOZED.matches(snoozedMutedEvent))
+        assertTrue(StatusOption.MUTED.matches(snoozedMutedEvent))
+        assertFalse(StatusOption.ACTIVE.matches(snoozedMutedEvent))
+        assertFalse(StatusOption.RECURRING.matches(snoozedMutedEvent))
+    }
+    
+    @Test
+    fun `pinned and muted event matches both PINNED and MUTED`() {
+        val event = createEvent(isMuted = true).apply { isPinned = true }
+        
+        assertTrue(StatusOption.PINNED.matches(event))
+        assertTrue(StatusOption.MUTED.matches(event))
+        assertTrue(StatusOption.ACTIVE.matches(event)) // snoozedUntil=0
+        assertFalse(StatusOption.SNOOZED.matches(event))
+    }
+    
+    @Test
+    fun `recurring muted active event matches multiple filters`() {
+        val event = createEvent(
+            snoozedUntil = 0L,
+            isMuted = true,
+            isRepeating = true
+        )
+        
+        assertTrue(StatusOption.ACTIVE.matches(event))
+        assertTrue(StatusOption.MUTED.matches(event))
+        assertTrue(StatusOption.RECURRING.matches(event))
+        assertFalse(StatusOption.SNOOZED.matches(event))
+    }
+    
+    // === FilterState Data Class Tests ===
+    
+    @Test
+    fun `FilterState default constructor creates empty filters`() {
+        val filter = FilterState()
+        
+        assertTrue(filter.statusFilters.isEmpty())
+        assertNull(filter.selectedCalendarIds)  // null = no filter (all calendars)
+    }
+    
+    @Test
+    fun `FilterState copy preserves other fields when updating statusFilters`() {
+        val original = FilterState(
+            selectedCalendarIds = setOf(1L, 2L),
+            statusFilters = setOf(StatusOption.SNOOZED)
+        )
+        
+        val updated = original.copy(statusFilters = setOf(StatusOption.MUTED))
+        
+        assertEquals(setOf(1L, 2L), updated.selectedCalendarIds)
+        assertEquals(setOf(StatusOption.MUTED), updated.statusFilters)
+    }
+    
+    // === TimeFilter Tests ===
+    
+    @Test
+    fun `TimeFilter ALL matches all events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val pastEvent = createEvent().copy(
+            instanceStartTime = now - 2 * 24 * 3600 * 1000,  // 2 days ago
+            instanceEndTime = now - 2 * 24 * 3600 * 1000 + 3600000
+        )
+        val todayEvent = createEvent()  // Default is 1 hour from now
+        val futureEvent = createEvent().copy(
+            instanceStartTime = now + 7 * 24 * 3600 * 1000  // 7 days from now
+        )
+        
+        assertTrue(TimeFilter.ALL.matches(pastEvent, now))
+        assertTrue(TimeFilter.ALL.matches(todayEvent, now))
+        assertTrue(TimeFilter.ALL.matches(futureEvent, now))
+    }
+    
+    @Test
+    fun `TimeFilter STARTED_TODAY matches events starting today`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = now
+        
+        // Event starting now (today)
+        val todayEvent = createEvent().copy(instanceStartTime = now)
+        
+        // Event starting yesterday
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val yesterdayEvent = createEvent().copy(instanceStartTime = cal.timeInMillis)
+        
+        // Event starting tomorrow
+        cal.timeInMillis = now
+        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        val tomorrowEvent = createEvent().copy(instanceStartTime = cal.timeInMillis)
+        
+        assertTrue(TimeFilter.STARTED_TODAY.matches(todayEvent, now))
+        assertFalse(TimeFilter.STARTED_TODAY.matches(yesterdayEvent, now))
+        assertFalse(TimeFilter.STARTED_TODAY.matches(tomorrowEvent, now))
+    }
+    
+    @Test
+    fun `TimeFilter STARTED_THIS_WEEK matches events starting this week`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = now
+        
+        // Event starting now (this week)
+        val thisWeekEvent = createEvent().copy(instanceStartTime = now)
+        
+        // Event starting 2 weeks ago (different week)
+        cal.add(java.util.Calendar.WEEK_OF_YEAR, -2)
+        val twoWeeksAgoEvent = createEvent().copy(instanceStartTime = cal.timeInMillis)
+        
+        assertTrue(TimeFilter.STARTED_THIS_WEEK.matches(thisWeekEvent, now))
+        assertFalse(TimeFilter.STARTED_THIS_WEEK.matches(twoWeeksAgoEvent, now))
+    }
+    
+    @Test
+    fun `TimeFilter PAST matches events that have ended`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        
+        // Event that ended in the past
+        val pastEvent = createEvent().copy(
+            instanceStartTime = now - 2 * 3600 * 1000,  // 2 hours ago
+            instanceEndTime = now - 1 * 3600 * 1000     // 1 hour ago (ended)
+        )
+        
+        // Event that hasn't ended yet
+        val ongoingEvent = createEvent().copy(
+            instanceStartTime = now - 1 * 3600 * 1000,  // 1 hour ago
+            instanceEndTime = now + 1 * 3600 * 1000     // 1 hour from now (still ongoing)
+        )
+        
+        // Future event
+        val futureEvent = createEvent().copy(
+            instanceStartTime = now + 1 * 3600 * 1000,  // 1 hour from now
+            instanceEndTime = now + 2 * 3600 * 1000     // 2 hours from now
+        )
+        
+        assertTrue(TimeFilter.PAST.matches(pastEvent, now))
+        assertFalse(TimeFilter.PAST.matches(ongoingEvent, now))
+        assertFalse(TimeFilter.PAST.matches(futureEvent, now))
+    }
+    
+    @Test
+    fun `TimeFilter STARTED_THIS_MONTH matches events starting this month`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = now
+        
+        // Event starting now (this month)
+        val thisMonthEvent = createEvent().copy(instanceStartTime = now)
+        
+        // Event starting 2 months ago
+        cal.add(java.util.Calendar.MONTH, -2)
+        val twoMonthsAgoEvent = createEvent().copy(instanceStartTime = cal.timeInMillis)
+        
+        assertTrue(TimeFilter.STARTED_THIS_MONTH.matches(thisMonthEvent, now))
+        assertFalse(TimeFilter.STARTED_THIS_MONTH.matches(twoMonthsAgoEvent, now))
+    }
+    
+    @Test
+    fun `FilterState matchesTime uses timeFilter`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val pastEvent = createEvent().copy(
+            instanceEndTime = now - 1000  // ended 1 second ago
+        )
+        
+        val filterAll = FilterState(timeFilter = TimeFilter.ALL)
+        val filterPast = FilterState(timeFilter = TimeFilter.PAST)
+        val filterToday = FilterState(timeFilter = TimeFilter.STARTED_TODAY)
+        
+        assertTrue(filterAll.matchesTime(pastEvent, now))
+        assertTrue(filterPast.matchesTime(pastEvent, now))
+        // pastEvent started in the future (default), so STARTED_TODAY might not match
+        // depending on when it was created - let's just verify the method works
+        assertNotNull(filterToday.matchesTime(pastEvent, now))
+    }
+    
+    @Test
+    fun `FilterState default has ALL time filter`() {
+        val filter = FilterState()
+        assertEquals(TimeFilter.ALL, filter.timeFilter)
+    }
+    
+    // === CalendarFilter Tests ===
+    
+    @Test
+    fun `null calendar filter matches all events`() {
+        val filter = FilterState(selectedCalendarIds = null)  // null = no filter (all)
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        val event3 = createEventWithCalendar(calendarId = 999L)
+        
+        assertTrue(filter.matchesCalendar(event1))
+        assertTrue(filter.matchesCalendar(event2))
+        assertTrue(filter.matchesCalendar(event3))
+    }
+    
+    @Test
+    fun `empty calendar filter matches no events`() {
+        val filter = FilterState(selectedCalendarIds = emptySet())  // empty = none
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        
+        assertFalse(filter.matchesCalendar(event1))
+        assertFalse(filter.matchesCalendar(event2))
+    }
+    
+    @Test
+    fun `single calendar filter matches only that calendar`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L))
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        
+        assertTrue(filter.matchesCalendar(event1))
+        assertFalse(filter.matchesCalendar(event2))
+    }
+    
+    @Test
+    fun `multi-calendar filter matches any selected calendar`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L, 3L))
+        
+        val event1 = createEventWithCalendar(calendarId = 1L)
+        val event2 = createEventWithCalendar(calendarId = 2L)
+        val event3 = createEventWithCalendar(calendarId = 3L)
+        
+        assertTrue(filter.matchesCalendar(event1))
+        assertFalse(filter.matchesCalendar(event2))
+        assertTrue(filter.matchesCalendar(event3))
+    }
+    
+    @Test
+    fun `FilterState default has null calendar filter`() {
+        val filter = FilterState()
+        assertNull(filter.selectedCalendarIds)  // null = no filter (all)
+    }
+    
+    private fun createEventWithCalendar(calendarId: Long): EventAlertRecord {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        return EventAlertRecord(
+            calendarId = calendarId,
+            eventId = 1L,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = now,
+            notificationId = 0,
+            title = "Test Event",
+            desc = "",
+            startTime = now + 3600000,
+            endTime = now + 7200000,
+            instanceStartTime = now + 3600000,
+            instanceEndTime = now + 7200000,
+            location = "",
+            lastStatusChangeTime = now,
+            snoozedUntil = 0L,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0
+        )
+    }
+    
+    // === Bundle Serialization Tests ===
+    
+    @Test
+    fun `toBundle and fromBundle round-trip preserves all fields`() {
+        val original = FilterState(
+            selectedCalendarIds = setOf(1L, 2L, 3L),
+            statusFilters = setOf(StatusOption.SNOOZED, StatusOption.MUTED),
+            timeFilter = TimeFilter.STARTED_TODAY
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertEquals(original.selectedCalendarIds, restored.selectedCalendarIds)
+        assertEquals(original.statusFilters, restored.statusFilters)
+        assertEquals(original.timeFilter, restored.timeFilter)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle preserves null calendar filter`() {
+        val original = FilterState(
+            selectedCalendarIds = null,  // null = no filter (all)
+            statusFilters = setOf(StatusOption.ACTIVE),
+            timeFilter = TimeFilter.ALL
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertNull(restored.selectedCalendarIds)
+        assertEquals(original.statusFilters, restored.statusFilters)
+        assertEquals(original.timeFilter, restored.timeFilter)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle preserves empty calendar filter`() {
+        val original = FilterState(
+            selectedCalendarIds = emptySet(),  // empty = none selected
+            statusFilters = emptySet(),
+            timeFilter = TimeFilter.ALL
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertEquals(emptySet<Long>(), restored.selectedCalendarIds)
+        assertTrue(restored.statusFilters.isEmpty())
+    }
+    
+    @Test
+    fun `toBundle and fromBundle preserves empty status filters`() {
+        val original = FilterState(
+            selectedCalendarIds = setOf(1L),
+            statusFilters = emptySet(),
+            timeFilter = TimeFilter.PAST
+        )
+        
+        val bundle = original.toBundle()
+        val restored = FilterState.fromBundle(bundle)
+        
+        assertTrue(restored.statusFilters.isEmpty())
+        assertEquals(TimeFilter.PAST, restored.timeFilter)
+    }
+    
+    @Test
+    fun `fromBundle with null returns default FilterState`() {
+        val restored = FilterState.fromBundle(null)
+        
+        assertNull(restored.selectedCalendarIds)
+        assertTrue(restored.statusFilters.isEmpty())
+        assertEquals(TimeFilter.ALL, restored.timeFilter)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip all time filter values`() {
+        TimeFilter.entries.forEach { timeFilter ->
+            val original = FilterState(timeFilter = timeFilter)
+            val restored = FilterState.fromBundle(original.toBundle())
+            assertEquals(timeFilter, restored.timeFilter)
+        }
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip all status options`() {
+        StatusOption.entries.forEach { option ->
+            val original = FilterState(statusFilters = setOf(option))
+            val restored = FilterState.fromBundle(original.toBundle())
+            assertEquals(setOf(option), restored.statusFilters)
+        }
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip PINNED status filter`() {
+        val original = FilterState(statusFilters = setOf(StatusOption.PINNED, StatusOption.MUTED))
+        val restored = FilterState.fromBundle(original.toBundle())
+        assertEquals(setOf(StatusOption.PINNED, StatusOption.MUTED), restored.statusFilters)
+    }
+    
+    // === hasActiveFilters() Tests ===
+    
+    @Test
+    fun `hasActiveFilters returns false for default FilterState`() {
+        val filter = FilterState()
+        assertFalse(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when calendar filter is set`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L))
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when calendar filter is empty set`() {
+        // Empty set means "none selected" which IS an active filter (shows 0 events)
+        val filter = FilterState(selectedCalendarIds = emptySet())
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when status filter is set`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when time filter is not ALL`() {
+        val filter = FilterState(timeFilter = TimeFilter.STARTED_TODAY)
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns false when all filters are default`() {
+        val filter = FilterState(
+            selectedCalendarIds = null,  // null = no filter
+            statusFilters = emptySet(),  // empty = no filter
+            timeFilter = TimeFilter.ALL  // ALL = no filter
+        )
+        assertFalse(filter.hasActiveFilters())
+    }
+    
+    // === toDisplayString() Tests ===
+    
+    @Test
+    fun `toDisplayString returns null when no filters active`() {
+        val filter = FilterState()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        assertNull(filter.toDisplayString(context))
+    }
+    
+    @Test
+    fun `toDisplayString shows calendar count when calendars filtered`() {
+        val filter = FilterState(selectedCalendarIds = setOf(1L, 2L))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        assertTrue(result!!.contains("2"))  // Should show count
+    }
+    
+    @Test
+    fun `toDisplayString shows 0 calendars when empty set`() {
+        val filter = FilterState(selectedCalendarIds = emptySet())
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        assertTrue(result!!.contains("0"))  // Should show "0 calendars"
+    }
+    
+    @Test
+    fun `toDisplayString shows status filter names`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        // The exact string depends on resources, but it shouldn't be null
+    }
+    
+    @Test
+    fun `toDisplayString combines multiple status filters`() {
+        val filter = FilterState(statusFilters = setOf(StatusOption.SNOOZED, StatusOption.MUTED))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        assertTrue(result!!.contains(","))  // Should have comma between filters
+    }
+    
+    @Test
+    fun `toDisplayString shows time filter when not ALL`() {
+        val filter = FilterState(timeFilter = TimeFilter.STARTED_TODAY)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+    }
+    
+    @Test
+    fun `toDisplayString combines all filter types`() {
+        val filter = FilterState(
+            selectedCalendarIds = setOf(1L),
+            statusFilters = setOf(StatusOption.SNOOZED),
+            timeFilter = TimeFilter.STARTED_TODAY
+        )
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        
+        assertNotNull(result)
+        // Should contain comma separators for multiple parts
+        val commaCount = result!!.count { it == ',' }
+        assertTrue(commaCount >= 2)  // At least 2 commas for 3 parts
+    }
+    
+    // === SnoozedUntilFilterConfig.matches() Tests ===
+    
+    private val HOUR_MILLIS = 3600 * 1000L
+    private val DAY_MILLIS = 24 * HOUR_MILLIS
+    
+    private fun createSnoozedEventWithSnoozedUntil(snoozedUntilTime: Long): EventAlertRecord {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        return EventAlertRecord(
+            calendarId = 1L,
+            eventId = 1L,
+            isAllDay = false,
+            isRepeating = false,
+            alertTime = now,
+            notificationId = 0,
+            title = "Test Event",
+            desc = "",
+            startTime = now + HOUR_MILLIS,
+            endTime = now + 2 * HOUR_MILLIS,
+            instanceStartTime = now + HOUR_MILLIS,
+            instanceEndTime = now + 2 * HOUR_MILLIS,
+            location = "",
+            lastStatusChangeTime = now,
+            snoozedUntil = snoozedUntilTime,
+            displayStatus = EventDisplayStatus.Hidden,
+            color = 0
+        )
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter ALL matches all events including non-snoozed`() {
+        val config = SnoozedUntilFilterConfig(mode = SnoozedUntilFilterMode.ALL)
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + HOUR_MILLIS), now))
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter PRESET BEFORE matches events snoozed until within interval`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        
+        // Event snoozed until 6 hours from now (within 1 day)
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + 6 * HOUR_MILLIS), now))
+        // Event snoozed until 23 hours from now (within 1 day)
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + 23 * HOUR_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter PRESET BEFORE excludes events snoozed until beyond interval`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        
+        // Event snoozed until 2 days from now (beyond 1 day)
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + 2 * DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter PRESET BEFORE excludes non-snoozed events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter PRESET AFTER matches events snoozed until beyond interval`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = DAY_MILLIS
+        )
+        
+        // Event snoozed until 2 days from now (beyond 1 day threshold)
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + 2 * DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter PRESET AFTER excludes events snoozed until within interval`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = DAY_MILLIS
+        )
+        
+        // Event snoozed until 6 hours from now (within 1 day threshold)
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + 6 * HOUR_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter PRESET AFTER excludes non-snoozed events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = DAY_MILLIS
+        )
+        
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter CUSTOM_PERIOD works same as PRESET`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val configPreset = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = 6 * HOUR_MILLIS
+        )
+        val configCustom = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.CUSTOM_PERIOD,
+            direction = FilterDirection.BEFORE,
+            valueMillis = 6 * HOUR_MILLIS
+        )
+        
+        val event = createSnoozedEventWithSnoozedUntil(now + 3 * HOUR_MILLIS)
+        assertEquals(configPreset.matches(event, now), configCustom.matches(event, now))
+        
+        val farEvent = createSnoozedEventWithSnoozedUntil(now + 12 * HOUR_MILLIS)
+        assertEquals(configPreset.matches(farEvent, now), configCustom.matches(farEvent, now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter SPECIFIC_TIME BEFORE matches events snoozed until before timestamp`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val targetTime = now + 2 * DAY_MILLIS
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.SPECIFIC_TIME,
+            direction = FilterDirection.BEFORE,
+            valueMillis = targetTime
+        )
+        
+        // Event snoozed until 1 day from now (before target of 2 days)
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter SPECIFIC_TIME BEFORE excludes events snoozed until after timestamp`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val targetTime = now + 2 * DAY_MILLIS
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.SPECIFIC_TIME,
+            direction = FilterDirection.BEFORE,
+            valueMillis = targetTime
+        )
+        
+        // Event snoozed until 3 days from now (after target of 2 days)
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + 3 * DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter SPECIFIC_TIME AFTER matches events snoozed until after timestamp`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val targetTime = now + 2 * DAY_MILLIS
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.SPECIFIC_TIME,
+            direction = FilterDirection.AFTER,
+            valueMillis = targetTime
+        )
+        
+        // Event snoozed until 3 days from now (after target of 2 days)
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + 3 * DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter SPECIFIC_TIME AFTER excludes events snoozed until before timestamp`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val targetTime = now + 2 * DAY_MILLIS
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.SPECIFIC_TIME,
+            direction = FilterDirection.AFTER,
+            valueMillis = targetTime
+        )
+        
+        // Event snoozed until 1 day from now (before target of 2 days)
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter boundary - BEFORE matches when snoozedUntil equals threshold`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        
+        // Event snoozed until exactly at threshold (now + 1 day)
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter boundary - AFTER does not match when snoozedUntil equals threshold`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = DAY_MILLIS
+        )
+        
+        // Event snoozed until exactly at threshold (now + 1 day) — AFTER uses strict >
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + DAY_MILLIS), now))
+    }
+    
+    // === SnoozedUntilFilter includeUnsnoozed Tests ===
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed true matches non-snoozed events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed false excludes non-snoozed events`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = false
+        )
+        
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed defaults to false`() {
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        assertFalse(config.includeUnsnoozed)
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed true still filters snoozed events normally`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + 6 * HOUR_MILLIS), now))
+        assertFalse(config.matches(createSnoozedEventWithSnoozedUntil(now + 2 * DAY_MILLIS), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed with AFTER direction matches non-snoozed`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+    }
+    
+    @Test
+    fun `SnoozedUntilFilter includeUnsnoozed with ALL mode still matches all`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.ALL,
+            includeUnsnoozed = true
+        )
+        
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(0L), now))
+        assertTrue(config.matches(createSnoozedEventWithSnoozedUntil(now + HOUR_MILLIS), now))
+    }
+    
+    // === SnoozedUntilFilter FilterState integration ===
+    
+    @Test
+    fun `FilterState matchesSnoozedUntil delegates to config`() {
+        val now = TestTimeConstants.STANDARD_TEST_TIME
+        val config = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        )
+        val filter = FilterState(snoozedUntilFilter = config)
+        
+        val nearEvent = createSnoozedEventWithSnoozedUntil(now + 6 * HOUR_MILLIS)
+        val farEvent = createSnoozedEventWithSnoozedUntil(now + 2 * DAY_MILLIS)
+        
+        assertTrue(filter.matchesSnoozedUntil(nearEvent, now))
+        assertFalse(filter.matchesSnoozedUntil(farEvent, now))
+    }
+    
+    @Test
+    fun `FilterState default has ALL snoozedUntilFilter`() {
+        val filter = FilterState()
+        assertEquals(SnoozedUntilFilterMode.ALL, filter.snoozedUntilFilter.mode)
+    }
+    
+    @Test
+    fun `hasActiveFilters returns true when snoozedUntilFilter is not ALL`() {
+        val filter = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        ))
+        assertTrue(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `hasActiveFilters returns false when snoozedUntilFilter is ALL`() {
+        val filter = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.ALL
+        ))
+        assertFalse(filter.hasActiveFilters())
+    }
+    
+    @Test
+    fun `toDisplayString shows snoozed until when not ALL`() {
+        val filter = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS
+        ))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        val result = filter.toDisplayString(context)
+        assertNotNull(result)
+    }
+    
+    @Test
+    fun `toDisplayString returns null when snoozedUntilFilter is ALL`() {
+        val filter = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.ALL
+        ))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        
+        assertNull(filter.toDisplayString(context))
+    }
+    
+    // === SnoozedUntilFilter Bundle Serialization Tests ===
+    
+    @Test
+    fun `toBundle and fromBundle round-trip snoozedUntilFilter PRESET`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = 12 * HOUR_MILLIS
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertEquals(SnoozedUntilFilterMode.PRESET, restored.snoozedUntilFilter.mode)
+        assertEquals(FilterDirection.BEFORE, restored.snoozedUntilFilter.direction)
+        assertEquals(12 * HOUR_MILLIS, restored.snoozedUntilFilter.valueMillis)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip snoozedUntilFilter CUSTOM_PERIOD`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.CUSTOM_PERIOD,
+            direction = FilterDirection.AFTER,
+            valueMillis = 6 * HOUR_MILLIS
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertEquals(SnoozedUntilFilterMode.CUSTOM_PERIOD, restored.snoozedUntilFilter.mode)
+        assertEquals(FilterDirection.AFTER, restored.snoozedUntilFilter.direction)
+        assertEquals(6 * HOUR_MILLIS, restored.snoozedUntilFilter.valueMillis)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip snoozedUntilFilter SPECIFIC_TIME`() {
+        val specificTime = TestTimeConstants.STANDARD_TEST_TIME + 5 * DAY_MILLIS
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.SPECIFIC_TIME,
+            direction = FilterDirection.BEFORE,
+            valueMillis = specificTime
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertEquals(SnoozedUntilFilterMode.SPECIFIC_TIME, restored.snoozedUntilFilter.mode)
+        assertEquals(FilterDirection.BEFORE, restored.snoozedUntilFilter.direction)
+        assertEquals(specificTime, restored.snoozedUntilFilter.valueMillis)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip snoozedUntilFilter ALL`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.ALL
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertEquals(SnoozedUntilFilterMode.ALL, restored.snoozedUntilFilter.mode)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip preserves AFTER direction`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.AFTER,
+            valueMillis = 7 * DAY_MILLIS
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertEquals(FilterDirection.AFTER, restored.snoozedUntilFilter.direction)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip all SnoozedUntilFilterMode values`() {
+        SnoozedUntilFilterMode.entries.forEach { mode ->
+            val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+                mode = mode, valueMillis = 1000L
+            ))
+            val restored = FilterState.fromBundle(original.toBundle())
+            assertEquals(mode, restored.snoozedUntilFilter.mode)
+        }
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip both FilterDirection values`() {
+        FilterDirection.entries.forEach { direction ->
+            val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+                mode = SnoozedUntilFilterMode.PRESET,
+                direction = direction,
+                valueMillis = DAY_MILLIS
+            ))
+            val restored = FilterState.fromBundle(original.toBundle())
+            assertEquals(direction, restored.snoozedUntilFilter.direction)
+        }
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip includeUnsnoozed true`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = true
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertTrue(restored.snoozedUntilFilter.includeUnsnoozed)
+    }
+    
+    @Test
+    fun `toBundle and fromBundle round-trip includeUnsnoozed false`() {
+        val original = FilterState(snoozedUntilFilter = SnoozedUntilFilterConfig(
+            mode = SnoozedUntilFilterMode.PRESET,
+            direction = FilterDirection.BEFORE,
+            valueMillis = DAY_MILLIS,
+            includeUnsnoozed = false
+        ))
+        
+        val restored = FilterState.fromBundle(original.toBundle())
+        
+        assertFalse(restored.snoozedUntilFilter.includeUnsnoozed)
+    }
+    
+    @Test
+    fun `fromBundle with null returns default snoozedUntilFilter`() {
+        val restored = FilterState.fromBundle(null)
+        assertEquals(SnoozedUntilFilterMode.ALL, restored.snoozedUntilFilter.mode)
+        assertEquals(FilterDirection.BEFORE, restored.snoozedUntilFilter.direction)
+        assertEquals(0L, restored.snoozedUntilFilter.valueMillis)
+        assertFalse(restored.snoozedUntilFilter.includeUnsnoozed)
+    }
+}

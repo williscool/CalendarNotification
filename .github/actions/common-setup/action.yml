@@ -42,6 +42,30 @@ inputs:
     description: 'Optional cache key'
     required: false
     default: ""
+  skip_codegen:
+    description: 'Skip React Native codegen (for jobs that use pre-built APKs)'
+    required: false
+    default: "false"
+  test_runner_only:
+    description: 'Minimal setup for running pre-built APKs on emulator (skips Node, Yarn, Gradle, JS bundle)'
+    required: false
+    default: "false"
+  skip_disk_space:
+    description: 'Skip free disk space cleanup (for jobs that dont need extra space)'
+    required: false
+    default: "false"
+  skip_js_bundle:
+    description: 'Skip restoring/generating the JS bundle (for jobs that never package an APK, e.g. unit tests)'
+    required: false
+    default: "false"
+  js_bundle_in_background:
+    description: 'Generate the JS bundle in the background; the caller must run scripts/wait_for_js_bundle.sh before Gradle packages the APK'
+    required: false
+    default: "false"
+  min_free_disk_gb:
+    description: 'Run the full disk cleanup only when the runner has less than this many GB free'
+    required: false
+    default: "40"
 
 outputs:
   build-outputs-cache-hit:
@@ -50,6 +74,27 @@ outputs:
   android-cache-hit:
     description: 'Whether the Android SDK and AVD cache was hit'
     value: ${{ steps.android-cache.outputs.cache-hit }}
+  yarn-cache-hit:
+    description: 'Whether the yarn download cache was hit'
+    value: ${{ steps.yarn-download-cache-restore.outputs.cache-hit }}
+  yarn-install-state-cache-hit:
+    description: 'Whether the yarn install state cache was hit'
+    value: ${{ steps.yarn-install-state-cache-restore.outputs.cache-hit }}
+  js-bundle-cache-hit:
+    description: 'Whether the JS bundle cache was hit'
+    value: ${{ steps.js-bundle-cache-restore.outputs.cache-hit }}
+  js-bundle-cache-key:
+    description: 'Key the JS bundle cache was looked up under; cache-update saves under the same key'
+    value: ${{ steps.js-bundle-cache-restore.outputs.cache-primary-key }}
+  gradle-deps-cache-hit:
+    description: 'Whether the Gradle dependencies cache was hit'
+    value: ${{ steps.gradle-deps-cache-restore.outputs.cache-hit }}
+  gradle-cache-hit:
+    description: 'Whether the Gradle cache was hit'
+    value: ${{ steps.gradle-cache-restore.outputs.cache-hit }}
+  react-native-cache-hit:
+    description: 'Whether the React Native cache was hit'
+    value: ${{ steps.react-native-cache-restore.outputs.cache-hit }}
 
 runs:
   using: "composite"
@@ -63,8 +108,26 @@ runs:
         echo "Detected ${CPU_COUNT} CPUs for parallel builds"
       shell: bash
 
-    # Free Disk Space - run for all jobs to prevent out-of-space errors
+    # Free Disk Space - skip for test_runner_only or skip_disk_space
+    # (emulator + APKs, or coverage merge jobs fit comfortably in default runner disk space)
+    #
+    # Only when the runner is actually short on space. This became unconditional
+    # in #116 (Dec 2025), when runners had ~14-20GB free and bloated Gradle caches
+    # filled them. Hosted runners now have a 145GB disk with ~86GB free, and the
+    # cleanup costs ~1.7m on the build's critical path. The bloat itself is
+    # handled by "Pre-cleanup old Gradle caches" below, which always runs.
+    - name: Check free disk space
+      id: disk
+      if: inputs.test_runner_only != 'true' && inputs.skip_disk_space != 'true'
+      shell: bash
+      run: |
+        free_gb=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+        low=false; [ "$free_gb" -lt "${{ inputs.min_free_disk_gb }}" ] && low=true
+        echo "Free disk: ${free_gb}GB, cleanup threshold ${{ inputs.min_free_disk_gb }}GB, cleanup: $low"
+        echo "low=$low" >> $GITHUB_OUTPUT
+
     - name: Free Disk Space
+      if: steps.disk.outputs.low == 'true'
       uses: endersonmenezes/free-disk-space@v3
       with:
         remove_android: false        # Keep Android SDK
@@ -77,6 +140,7 @@ runs:
 
     # Early cleanup of old Gradle caches BEFORE restoring (prevents accumulation)
     - name: Pre-cleanup old Gradle caches
+      if: inputs.test_runner_only != 'true'
       shell: bash
       run: |
         echo "Pre-cleanup: Checking for old Gradle caches..."
@@ -110,12 +174,14 @@ runs:
         df -h / | tail -1
 
     - name: Use Node.js ${{ inputs.node_version }}
-      uses: actions/setup-node@v3
+      if: inputs.test_runner_only != 'true'
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node_version }}
         cache: "yarn"
 
     - name: Expose yarn config as "$GITHUB_OUTPUT"
+      if: inputs.test_runner_only != 'true'
       id: yarn-config
       shell: bash
       run: |
@@ -123,7 +189,8 @@ runs:
 
     # Yarn caches
     - name: Restore yarn cache
-      uses: actions/cache/restore@v4
+      if: inputs.test_runner_only != 'true'
+      uses: actions/cache/restore@v6
       id: yarn-download-cache-restore
       with:
         path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
@@ -132,6 +199,7 @@ runs:
           yarn-download-cache-
 
     - name: Install dependencies
+      if: inputs.test_runner_only != 'true'
       run: yarn install --immutable --inline-builds
       shell: bash
       env:
@@ -144,6 +212,7 @@ runs:
     # This prevents "duplicate class" errors when dependencies change
     # (e.g., react-native-worklets removed since reanimated includes it)
     - name: Clean stale node_modules build artifacts
+      if: inputs.test_runner_only != 'true'
       shell: bash
       run: |
         echo "Cleaning stale native build artifacts from node_modules..."
@@ -161,8 +230,9 @@ runs:
         echo "Cleanup complete"
 
     - name: Restore yarn install state
+      if: inputs.test_runner_only != 'true'
       id: yarn-install-state-cache-restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       with:
         path: .yarn/ci-cache/
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
@@ -171,29 +241,48 @@ runs:
 
     # Cache JS Bundle and Assets
     - name: Restore JS Bundle and Assets Cache
-      uses: actions/cache/restore@v4
+      if: inputs.test_runner_only != 'true' && inputs.skip_js_bundle != 'true'
+      uses: actions/cache/restore@v6
       id: js-bundle-cache-restore
       with:
         path: |
           android/app/src/main/assets/index.android.bundle
           android/app/src/main/res/drawable-*
           android/app/src/main/res/raw-*
-        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**/*.{js,jsx,ts,tsx}', 'lib/**/*.{js,jsx,ts,tsx}', 'app/**/*.{js,jsx,ts,tsx}', 'modules/**/*.{js,jsx,ts,tsx}', 'App.{js,jsx,ts,tsx}', 'index.{js,jsx,ts,tsx}', 'global.css', 'tailwind.config.js') }}
+        # Everything that can change the bundle. hashFiles doesn't expand braces
+        # (src/**/*.{js,ts} matches nothing), so whole directories. This key is
+        # published as the js-bundle-cache-key output and saved under verbatim
+        # by cache-update, so lookup and save can't drift apart again.
+        key: ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-${{ hashFiles('src/**', 'modules/**', 'app/**', 'lib/**', 'index.*', 'App.*', 'global.css', 'tailwind.config.js', 'babel.config.js', 'metro.config.js', 'app.json') }}
         restore-keys: |
           ${{ runner.os }}-js-bundle-${{ hashFiles('package.json', 'yarn.lock') }}-
           ${{ runner.os }}-js-bundle-
 
     # Generate JS bundle if needed
     - name: Generate JS Bundle
-      if: steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
-      run: yarn bundle:android --dev=true
+      if: inputs.test_runner_only != 'true' && inputs.skip_js_bundle != 'true' && steps.js-bundle-cache-restore.outputs.cache-hit != 'true'
+      run: |
+        if [ "${{ inputs.js_bundle_in_background }}" != "true" ]; then
+          yarn bundle:android --dev=true
+          exit 0
+        fi
+        # Take the lock here, before the bundler starts, so there's no window
+        # where scripts/wait_for_js_bundle.sh could get it first. The background
+        # bundler inherits fd 9, keeping the lock held until it finishes, after
+        # this step's shell has exited.
+        exec 9>"$RUNNER_TEMP/js-bundle.lock"
+        flock 9
+        rm -f "$RUNNER_TEMP/js-bundle.status"
+        ( yarn bundle:android --dev=true > "$RUNNER_TEMP/js-bundle.log" 2>&1
+          echo $? > "$RUNNER_TEMP/js-bundle.status" ) &
+        echo "JS bundle generating in the background (log: $RUNNER_TEMP/js-bundle.log)"
       shell: bash
 
     # Note: JS Bundle is an exception - we need to save it immediately if generated
     # This is because it's used by subsequent steps and we can't wait until the end of the job
 
     - name: Set up JDK 21
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v6
       with:
         java-version: '21'
         distribution: 'temurin'
@@ -202,7 +291,8 @@ runs:
     # This uses a stable key so dependencies persist across gradle file changes
     # Prevents intermittent 403s from Maven Central rate limiting in CI
     - name: Restore Gradle Dependencies Cache
-      uses: actions/cache/restore@v4
+      if: inputs.test_runner_only != 'true'
+      uses: actions/cache/restore@v6
       id: gradle-deps-cache-restore
       with:
         path: |
@@ -216,7 +306,8 @@ runs:
     # Cache Gradle files
     # Note: Cache key includes gradle-wrapper.properties hash to invalidate on Gradle version changes
     - name: Restore Cache Gradle files
-      uses: actions/cache/restore@v4
+      if: inputs.test_runner_only != 'true'
+      uses: actions/cache/restore@v6
       id: gradle-cache-restore
       with:
         path: |
@@ -225,12 +316,16 @@ runs:
           android/.gradle
           android/build-cache
         key: ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        # Removed broad fallback patterns to prevent accumulating old Gradle version caches
+        # Broad fallback patterns to share caches across jobs and branches
+        # Falls back to: same job type -> any job type with same arch -> any cache with same arch
         restore-keys: |
           ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-${{ hashFiles('**/gradle-wrapper.properties') }}-
+          ${{ runner.os }}${{ inputs.optional_cache_key != '' && format('-{0}', inputs.optional_cache_key) || '' }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
+          ${{ runner.os }}-gradle-${{ inputs.arch != '' && format('-{0}', inputs.arch) || '' }}-
 
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4.0.0
+      if: inputs.test_runner_only != 'true'
+      uses: gradle/actions/setup-gradle@v5
       with:
         # Cache is writeable for: tag builds (to update after release) and manual dispatch from master (to refresh cache)
         # Cache is read-only for: PRs and manual dispatch from other branches
@@ -245,8 +340,8 @@ runs:
 
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
-      if: inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
-      uses: actions/cache/restore@v4
+      if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
+      uses: actions/cache/restore@v6
       id: build-outputs-cache-restore
       with:
         path: |
@@ -263,25 +358,21 @@ runs:
           ${{ runner.os }}-build-outputs-${{ inputs.arch }}-
 
     - name: Ccachify the Native Modules
+      if: inputs.test_runner_only != 'true'
       shell: bash
       run: |
         chmod +x scripts/ccachify_native_modules.sh
         ./scripts/ccachify_native_modules.sh
 
     - name: Grant execute permission for gradlew
+      if: inputs.test_runner_only != 'true'
       run: cd android && chmod +x gradlew
       shell: bash
 
-    # List all available Gradle tasks (also warms up Gradle cache)
-    - name: List Gradle Tasks
-      run: |
-        cd android && \
-        ./gradlew tasks --all > gradle-tasks.txt
-        cat gradle-tasks.txt
-      shell: bash
-
     # Run codegen for all React Native libraries (required for New Architecture)
+    # Skip for jobs that use pre-built APKs (integration test shards)
     - name: Generate React Native Codegen
+      if: inputs.test_runner_only != 'true' && inputs.skip_codegen != 'true'
       run: |
         cd android && \
         ./gradlew generateCodegenSchemaFromJavaScript generateCodegenArtifactsFromSchema --parallel --max-workers=$MAX_WORKERS
@@ -289,7 +380,8 @@ runs:
 
     # Cache React Native specific files
     - name: Restore Cache React Native files
-      uses: actions/cache/restore@v4
+      if: inputs.test_runner_only != 'true'
+      uses: actions/cache/restore@v6
       id: react-native-cache-restore
       with:
         path: |
@@ -303,23 +395,40 @@ runs:
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       id: android-cache
       with:
         path: |
           ~/.android/avd
           ~/.android/adb_usb.ini
           /usr/local/lib/android/sdk/system-images/android-${{ inputs.android_api_level }}
-        key: ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+          /usr/local/lib/android/sdk/emulator
+        # Includes the emulator package: android-emulator-runner otherwise
+        # downloads the latest emulator on every shard (~10s), and that download
+        # has come back corrupt ("Error on ZipFile unknown archive") and killed a
+        # shard. With it cached, sdkmanager sees it installed and skips it.
+        # ("emulator" in the key: the cache version is a hash of these paths, so
+        # entries saved without the emulator can't be restored here anyway.)
+        key: ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+        # Broader fallbacks to share AVD caches when target/arch might differ slightly
         restore-keys: |
-          ${{ runner.os }}-android-avd-${{ inputs.android_api_level }}-${{ inputs.android_target }}-${{ inputs.arch }}
+          ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-${{ inputs.android_target }}-
+          ${{ runner.os }}-android-avd-emulator-${{ inputs.android_api_level }}-
 
     # Setup Android SDK for emulator if needed and not cached
+    #
+    # NOTE: do not add the legacy 'tools' package here. Google removed it from
+    # the SDK repository (superseded by cmdline-tools), so sdkmanager exits 1
+    # with "Failed to find package 'tools'" and the whole setup step dies --
+    # which shows up downstream as "No test result XML files found" because the
+    # emulator never starts. Nothing in this repo uses the old tools/ binaries;
+    # avdmanager and emulator come from cmdline-tools and the emulator package,
+    # and reactivecircus/android-emulator-runner installs what else it needs.
     - name: Setup Android SDK
       if: inputs.run_emulator_setup == 'true' && steps.android-cache.outputs.cache-hit != 'true'
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
       with:
-        packages: 'tools platform-tools system-images;android-${{ inputs.android_api_level }};${{ inputs.android_target }};${{ inputs.arch }}'
+        packages: 'platform-tools system-images;android-${{ inputs.android_api_level }};${{ inputs.android_target }};${{ inputs.arch }}'
         accept-android-sdk-licenses: true
         log-accepted-android-sdk-licenses: false
 

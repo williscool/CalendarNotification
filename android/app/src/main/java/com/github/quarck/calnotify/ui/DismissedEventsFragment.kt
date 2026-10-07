@@ -43,11 +43,12 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventAlertRecord
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorageInterface
 import com.github.quarck.calnotify.logs.DevLog
+import com.github.quarck.calnotify.utils.CNPlusClockInterface
+import com.github.quarck.calnotify.utils.CNPlusSystemClock
 import com.github.quarck.calnotify.utils.background
 
 /**
@@ -56,10 +57,13 @@ import com.github.quarck.calnotify.utils.background
  */
 class DismissedEventsFragment : Fragment(), DismissedEventListCallback, SearchableFragment {
     
+    private val clock: CNPlusClockInterface get() = getClock()
+    
     private lateinit var recyclerView: RecyclerView
     private lateinit var refreshLayout: SwipeRefreshLayout
     private lateinit var emptyView: TextView
     private lateinit var adapter: DismissedEventListAdapter
+    private var totalEventCount: Int = 0
     
     private val dataUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -130,7 +134,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     
     private fun removeAllDismissedEvents() {
         val ctx = context ?: return
-        getDismissedEventsStorage(ctx).classCustomUse { db ->
+        getDismissedEventsStorage(ctx).use { db ->
             db.clearHistory()
         }
         adapter.removeAll()
@@ -159,12 +163,17 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
 
     private fun loadEvents() {
         val ctx = context ?: return
+        val filterState = getFilterState()
+        val now = clock.currentTimeMillis()
+        
         background {
-            val events = getDismissedEventsStorage(ctx).classCustomUse { db ->
-                db.eventsForDisplay.toTypedArray()
+            val (total, events) = getDismissedEventsStorage(ctx).use { db ->
+                val allDbEvents = db.eventsForDisplay
+                Pair(allDbEvents.size, filterState.filterDismissedEvents(allDbEvents, now))
             }
             
             activity?.runOnUiThread {
+                totalEventCount = total
                 adapter.setEventsToDisplay(events)
                 updateEmptyState()
                 refreshLayout.isRefreshing = false
@@ -173,9 +182,42 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
             }
         }
     }
+    
+    private fun getFilterState(): FilterState {
+        return filterStateProvider?.invoke() 
+            ?: (activity as? MainActivityModern)?.getCurrentFilterState() 
+            ?: FilterState()
+    }
 
     private fun updateEmptyState() {
-        emptyView.visibility = if (adapter.itemCount == 0) View.VISIBLE else View.GONE
+        if (!isAdded) return  // Fragment detached, skip update
+        
+        val isEmpty = adapter.itemCount == 0
+        emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        
+        if (isEmpty) {
+            val filterState = getFilterState()
+            val searchQuery = getSearchQuery()
+            val hasSearch = !searchQuery.isNullOrEmpty()
+            val hasFilter = filterState.hasActiveFilters()
+            
+            val tabName = getString(R.string.nav_dismissed)
+            val itemType = getString(R.string.events_lowercase)
+            val baseMessage = getString(R.string.empty_dismissed)
+            val message = when {
+                hasSearch && hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_search_and_filters, tabName, itemType, searchQuery, filterDesc)
+                }
+                hasSearch -> getString(R.string.empty_state_with_search, tabName, itemType, searchQuery)
+                hasFilter -> {
+                    val filterDesc = filterState.toDisplayString(requireContext()) ?: ""
+                    getString(R.string.empty_state_with_filters, tabName, itemType, filterDesc)
+                }
+                else -> baseMessage
+            }
+            emptyView.text = message
+        }
     }
 
     // DismissedEventListCallback implementation
@@ -203,7 +245,7 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
 
     override fun onItemRemoved(entry: DismissedEventAlertRecord) {
         val ctx = context ?: return
-        getDismissedEventsStorage(ctx).classCustomUse { db ->
+        getDismissedEventsStorage(ctx).use { db ->
             db.deleteEvent(entry)
         }
         updateEmptyState()
@@ -213,11 +255,18 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
     
     override fun setSearchQuery(query: String?) {
         adapter.setSearchText(query)
+        updateEmptyState()
     }
     
     override fun getSearchQuery(): String? = adapter.searchString
     
     override fun getEventCount(): Int = adapter.getAllItemCount()
+    
+    override fun getTotalEventCount(): Int = totalEventCount
+    
+    override fun onFilterChanged() {
+        loadEvents()
+    }
 
     companion object {
         private const val LOG_TAG = "DismissedEventsFragment"
@@ -225,13 +274,25 @@ class DismissedEventsFragment : Fragment(), DismissedEventListCallback, Searchab
         /** Provider for DismissedEventsStorage - enables DI for testing */
         var dismissedEventsStorageProvider: ((Context) -> DismissedEventsStorageInterface)? = null
         
+        /** Provider for FilterState - enables DI for testing */
+        var filterStateProvider: (() -> FilterState)? = null
+        
+        /** Provider for Clock - enables DI for testing */
+        var clockProvider: (() -> CNPlusClockInterface)? = null
+        
         /** Gets DismissedEventsStorage - uses provider if set, otherwise creates real instance */
         fun getDismissedEventsStorage(ctx: Context): DismissedEventsStorageInterface =
             dismissedEventsStorageProvider?.invoke(ctx) ?: DismissedEventsStorage(ctx)
         
+        /** Gets Clock - uses provider if set, otherwise returns real instance */
+        fun getClock(): CNPlusClockInterface =
+            clockProvider?.invoke() ?: CNPlusSystemClock()
+        
         /** Reset providers - call in @After to prevent test pollution */
         fun resetProviders() {
             dismissedEventsStorageProvider = null
+            filterStateProvider = null
+            clockProvider = null
         }
     }
 }

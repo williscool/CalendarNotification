@@ -1,0 +1,146 @@
+# Workflow to keep caches warm for faster CI runs
+# Runs on every push to master and on a daily schedule
+name: Cache Warming
+
+on:
+  schedule:
+    # Run daily at 9 AM UTC (4 AM EST, before most development activity)
+    # GitHub disables scheduled workflows after 60 days without repo activity
+    - cron: '0 9 * * *'
+  push:
+    # Every merge: this is a full build with ccache, so code changes matter,
+    # not just dependency files. PRs and tag builds can only restore caches
+    # from master.
+    branches: [master]
+  workflow_dispatch:
+    # Allow manual triggering to refresh caches
+
+env:
+  # Reuse settings from main workflow
+  GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.workers.max=4 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+  # ccache settings must match main workflow for cache hits
+  CCACHE_DEBUG: 1
+  CCACHE_VERBOSE: 1
+  CCACHE_MAXSIZE: 5G
+  CCACHE_BASEDIR: ${{ github.workspace }}
+
+jobs:
+  warm-build-caches:
+    name: Warm Build Caches (${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [arm64-v8a, x86_64]
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      # ccache for native compilation - critical for fast builds
+      # This creates a cache entry on master that PR branches can restore from
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2.24
+        with:
+          create-symlink: true
+
+      - name: Common Setup
+        id: common-setup
+        uses: ./.github/actions/common-setup
+        with:
+          gradle_max_workers: "4"
+          node_version: "22.x"
+          arch: ${{ matrix.arch }}
+
+      # Build debug, release, and test APKs to fully populate ccache
+      # Regular builds compile ~596 native files (debug + release + test)
+      # This is slower but makes PR builds much faster
+      - name: Warm Gradle and Native Caches
+        run: |
+          cd android && \
+          ./gradlew -PBUILD_ARCH="${{ matrix.arch }}" \
+                    -PreactNativeArchitectures="${{ matrix.arch }}" \
+                    :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Debug \
+                    :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}Release \
+                    :app:assemble${{ matrix.arch == 'arm64-v8a' && 'Arm64V8a' || 'X8664' }}DebugAndroidTest \
+                    --parallel --max-workers=4 --build-cache
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+
+      # Save caches (common-setup uses cache/restore, we need explicit save)
+      - name: Save Caches
+        uses: ./.github/actions/cache-update
+        with:
+          arch: ${{ matrix.arch }}
+          # The only job that saves the JS bundle cache (PR runs don't save)
+          js-bundle-cache-hit: ${{ steps.common-setup.outputs.js-bundle-cache-hit }}
+          js-bundle-cache-key: ${{ steps.common-setup.outputs.js-bundle-cache-key }}
+
+  warm-test-caches:
+    name: Warm Test Caches
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Common Setup
+        uses: ./.github/actions/common-setup
+        with:
+          optional_cache_key: "unit-tests"
+          gradle_max_workers: "4"
+          node_version: "22.x"
+          arch: x86_64
+
+      # Warm up unit test related caches
+      # Use architecture-specific task (X8664 for x86_64)
+      - name: Warm Unit Test Caches
+        run: |
+          cd android && \
+          ./gradlew -PBUILD_ARCH="x86_64" \
+                    -PreactNativeArchitectures="x86_64" \
+                    :app:dependencies \
+                    :app:compileX8664DebugUnitTestKotlin \
+                    --parallel --max-workers=4 --build-cache \
+                    -Pandroid.externalNativeBuild.skip=true
+        env:
+          BUILD_ARCH: x86_64
+
+      - name: Save Caches
+        uses: ./.github/actions/cache-update
+        with:
+          arch: x86_64
+          optional_cache_key: "unit-tests"
+
+  warm-integration-test-caches:
+    name: Warm Integration Test Caches
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Common Setup
+        uses: ./.github/actions/common-setup
+        with:
+          optional_cache_key: "integration-test"
+          gradle_max_workers: "4"
+          node_version: "22.x"
+          arch: x86_64
+          android_api_level: "34"
+          android_target: "google_apis"
+          android_profile: "Nexus 5X"
+          run_emulator_setup: "true"
+          skip_codegen: "true"
+
+      - name: Save Caches
+        uses: ./.github/actions/cache-update
+        with:
+          arch: x86_64
+          optional_cache_key: "integration-test"
+          run_emulator_setup: "true"
+          android_api_level: "34"
+          android_target: "google_apis"

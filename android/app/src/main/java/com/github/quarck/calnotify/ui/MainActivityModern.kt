@@ -1,0 +1,856 @@
+//
+//   Calendar Notifications Plus
+//   Copyright (C) 2016 Sergey Parshin (s.parshin.sc@gmail.com)
+//   Copyright (C) 2025 William Harris (wharris+cnplus@upscalews.com)
+//
+//   This program is free software; you can redistribute it and/or modify
+//   it under the terms of the GNU General Public License as published by
+//   the Free Software Foundation; either version 3 of the License, or
+//   (at your option) any later version.
+//
+//   This program is distributed in the hope that it will be useful,
+//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//   GNU General Public License for more details.
+//
+//   You should have received a copy of the GNU General Public License
+//   along with this program; if not, write to the Free Software Foundation,
+//   Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+//
+
+package com.github.quarck.calnotify.ui
+
+import android.app.AlertDialog
+import android.app.SearchManager
+import androidx.annotation.VisibleForTesting
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.widget.PopupMenu
+import android.widget.Toast
+import androidx.appcompat.widget.SearchView
+import androidx.appcompat.widget.Toolbar
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.navigation.NavController
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.setupWithNavController
+import com.github.quarck.calnotify.BuildConfig
+import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
+import com.github.quarck.calnotify.Settings
+import com.github.quarck.calnotify.prefs.PreferenceUtils
+import com.github.quarck.calnotify.upcoming.UpcomingEventsLookahead
+import com.github.quarck.calnotify.app.ApplicationController
+import com.github.quarck.calnotify.calendar.CalendarProvider
+import com.github.quarck.calnotify.calendar.EventAlertRecord
+import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
+import com.github.quarck.calnotify.globalState
+import com.github.quarck.calnotify.utils.DateTimeUtils
+import com.github.quarck.calnotify.utils.find
+import com.github.quarck.calnotify.utils.findOrThrow
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
+import com.github.quarck.calnotify.utils.truncateForChip
+import androidx.appcompat.view.ContextThemeWrapper
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+
+// FilterState, StatusOption, TimeFilter are defined in FilterState.kt
+
+/**
+ * Modern MainActivity implementation with fragment-based navigation.
+ * Uses BottomNavigationView with separate tabs for Active, Upcoming, and Dismissed events.
+ */
+class MainActivityModern : MainActivityBase() {
+
+    private var navController: NavController? = null
+
+    private lateinit var floatingAddEvent: FloatingActionButton
+    
+    // Filter state - in-memory only, clears on tab switch and app restart
+    private var filterState = FilterState()
+    private var chipGroup: ChipGroup? = null
+    private var currentDestinationId: Int? = null  // Track to detect actual tab switches
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Restore filter state if available (survives rotation)
+        savedInstanceState?.let { restoreFilterState(it) }
+        
+        setupUI()
+    }
+    
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        saveFilterState(outState)
+    }
+    
+    private fun saveFilterState(outState: Bundle) {
+        // Use FilterState's serialization (stored under INTENT_FILTER_STATE key to avoid conflicts)
+        outState.putBundle(Consts.INTENT_FILTER_STATE, filterState.toBundle())
+        
+        // Save current destination to detect recreation vs tab switch
+        currentDestinationId?.let { outState.putInt(STATE_DESTINATION_ID, it) }
+    }
+    
+    private fun restoreFilterState(savedState: Bundle) {
+        // Use FilterState's deserialization
+        filterState = FilterState.fromBundle(savedState.getBundle(Consts.INTENT_FILTER_STATE))
+        
+        // Restore destination ID to detect recreation vs tab switch
+        if (savedState.containsKey(STATE_DESTINATION_ID)) {
+            currentDestinationId = savedState.getInt(STATE_DESTINATION_ID)
+        }
+    }
+    
+    /** Get current filter state for fragments to use */
+    fun getCurrentFilterState(): FilterState = filterState
+
+    @VisibleForTesting
+    fun setFilterStateForTesting(state: FilterState) {
+        filterState = state
+    }
+
+    private fun setupUI() {
+        setContentView(R.layout.activity_main)
+        val toolbar = find<Toolbar?>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayShowHomeEnabled(true)
+
+        // Set status bar color explicitly to match toolbar (fixes edge-to-edge displays)
+        window.statusBarColor = getColor(R.color.primary_dark)
+
+        // Set status bar spacer height (pinned, doesn't scroll with toolbar)
+        setupStatusBarSpacer()
+
+        // Set up navigation
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+        navController = navHostFragment.navController
+
+        val bottomNav = find<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNav?.setupWithNavController(navController!!)
+
+        // Apply nav bar inset to bottom navigation only
+        // (AppBarLayout handles status bar via fitsSystemWindows in XML)
+        bottomNav?.let { nav ->
+            ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+                val navBarInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                view.setPadding(0, 0, 0, navBarInset)
+                insets
+            }
+            ViewCompat.requestApplyInsets(nav)
+        }
+
+        // Setup filter chips
+        chipGroup = find<ChipGroup>(R.id.filter_chips)
+        
+        // Setup Fragment Result listeners for bottom sheets (survives config changes)
+        setupFilterResultListeners()
+
+        // Update toolbar title based on current destination
+        navController?.addOnDestinationChangedListener { _, destination, _ ->
+            supportActionBar?.title = when (destination.id) {
+                R.id.activeEventsFragment -> getString(R.string.title_active)
+                R.id.upcomingEventsFragment -> getString(R.string.title_upcoming)
+                R.id.dismissedEventsFragment -> getString(R.string.title_dismissed)
+                else -> getString(R.string.app_name)
+            }
+            
+            // Only clear filters/search on actual tab switches, not on initial setup or recreation
+            val isActualTabSwitch = currentDestinationId != null && currentDestinationId != destination.id
+            if (isActualTabSwitch) {
+                // Clear search when switching tabs
+                searchView?.setQuery("", false)
+                searchMenuItem?.collapseActionView()
+                // Clear filters when switching tabs (same behavior as search)
+                filterState = FilterState()
+                // Exit selection mode and restore UI when switching tabs
+                exitSelectionModeIfActive()
+            }
+            
+            currentDestinationId = destination.id
+            updateFilterChipsForCurrentTab()
+            // Update menu items based on current tab (e.g., hide snooze/dismiss all on non-active tabs)
+            invalidateOptionsMenu()
+        }
+
+        // FAB for adding events
+        floatingAddEvent = findOrThrow<FloatingActionButton>(R.id.action_btn_add_event)
+        floatingAddEvent.setOnClickListener {
+            startActivity(
+                Intent(this, EditEventActivity::class.java)
+                    .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        }
+
+        shouldForceRepost = (clock.currentTimeMillis() - (globalState?.lastNotificationRePost ?: 0L)) > Consts.MIN_FORCE_REPOST_INTERVAL
+        shouldRemindForEventsWithNoReminders = settings.shouldRemindForEventsWithNoReminders
+        calendarRescanEnabled = settings.enableCalendarRescan
+    }
+
+    /**
+     * Get the currently visible fragment that implements SearchableFragment.
+     */
+    private fun getCurrentSearchableFragment(): SearchableFragment? {
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        return navHostFragment?.childFragmentManager?.primaryNavigationFragment as? SearchableFragment
+    }
+
+    // === Menu handling ===
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main, menu)
+
+        val currentFragment = getCurrentSearchableFragment()
+
+        // Dismissed events is now a tab, not a menu item
+        menu.findItem(R.id.action_dismissed_events)?.isVisible = false
+        // Custom quiet hours is deprecated
+        menu.findItem(R.id.action_custom_quiet_interval)?.isVisible = false
+
+        val hasFilters = filterState.hasActiveFilters() || !currentFragment?.getSearchQuery().isNullOrEmpty()
+
+        // Show mute all only for fragments that support it (Active events)
+        val muteAllMenuItem = menu.findItem(R.id.action_mute_all)
+        val supportsMuteAll = currentFragment?.supportsMuteAll() == true
+        muteAllMenuItem?.isVisible = supportsMuteAll && settings.enableNotificationMute
+        muteAllMenuItem?.isEnabled = currentFragment?.anyForMuteAll() == true
+        muteAllMenuItem?.title = getString(if (hasFilters) R.string.mute_all_filtered else R.string.mute_all)
+
+        // Show dismiss all only for fragments that support it (Active events)
+        val dismissAllMenuItem = menu.findItem(R.id.action_dismiss_all)
+        val supportsDismissAll = currentFragment?.supportsDismissAll() == true
+        dismissAllMenuItem?.isVisible = supportsDismissAll
+        dismissAllMenuItem?.isEnabled = currentFragment?.anyForDismissAll() == true
+
+        // Show pin all / unpin all only for fragments that support it
+        val supportsPinAll = currentFragment?.supportsPinAll() == true
+        val pinAllMenuItem = menu.findItem(R.id.action_pin_all)
+        pinAllMenuItem?.isVisible = supportsPinAll
+        pinAllMenuItem?.isEnabled = currentFragment?.anyForPinAll() == true
+        pinAllMenuItem?.title = getString(if (hasFilters) R.string.pin_all_filtered else R.string.pin_all)
+        val unpinAllMenuItem = menu.findItem(R.id.action_unpin_all)
+        unpinAllMenuItem?.isVisible = supportsPinAll
+        unpinAllMenuItem?.isEnabled = currentFragment?.anyForUnpinAll() == true
+        unpinAllMenuItem?.title = getString(if (hasFilters) R.string.unpin_all_filtered else R.string.unpin_all)
+
+        // Show snooze all only for fragments that support it (Active events)
+        val snoozeAllMenuItem = menu.findItem(R.id.action_snooze_all)
+        val supportsSnoozeAll = currentFragment?.supportsSnoozeAll() == true
+        snoozeAllMenuItem?.isVisible = supportsSnoozeAll
+        if (supportsSnoozeAll) {
+            snoozeAllMenuItem?.title = resources.getString(
+                if (currentFragment?.hasUnpinnedActiveEvents() == true) R.string.snooze_all else R.string.change_all
+            )
+        }
+
+        // Set up search for new nav UI
+        searchMenuItem = menu.findItem(R.id.action_search)
+        searchMenuItem?.isVisible = true
+        searchMenuItem?.isEnabled = true
+
+        searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean = true
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                if (searchView?.hasFocus() == true) {
+                    searchView?.clearFocus()
+                    return false
+                }
+                getCurrentSearchableFragment()?.setSearchQuery(null)
+                return true
+            }
+        })
+
+        searchView = searchMenuItem?.actionView as? SearchView
+        val manager = getSystemService(Context.SEARCH_SERVICE) as SearchManager
+
+        val count = currentFragment?.getEventCount() ?: 0
+        val totalCount = currentFragment?.getTotalEventCount() ?: count
+        val tabName = when (navController?.currentDestination?.id) {
+            R.id.activeEventsFragment -> getString(R.string.nav_active)
+            R.id.upcomingEventsFragment -> getString(R.string.nav_upcoming)
+            R.id.dismissedEventsFragment -> getString(R.string.nav_dismissed)
+            else -> ""
+        }
+        searchView?.queryHint = if (filterState.hasActiveFilters() && count != totalCount) {
+            resources.getQuantityString(R.plurals.search_placeholder_filtered, count, count, totalCount, tabName)
+        } else {
+            resources.getQuantityString(R.plurals.search_placeholder, count, count, tabName)
+        }
+        searchView?.setSearchableInfo(manager.getSearchableInfo(componentName))
+
+        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                getCurrentSearchableFragment()?.setSearchQuery(query)
+                searchView?.clearFocus()
+                searchView?.setQuery(query, false)
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                getCurrentSearchableFragment()?.setSearchQuery(newText)
+                return true
+            }
+        })
+
+        val closebutton: View? = searchView?.findViewById(androidx.appcompat.R.id.search_close_btn)
+        closebutton?.setOnClickListener {
+            searchView?.setQuery("", false)
+            searchView?.clearFocus()
+            getCurrentSearchableFragment()?.setSearchQuery(null)
+            searchMenuItem?.collapseActionView()
+        }
+
+        // DEV_PAGE_ENABLED is set via local.properties (gitignored, can't leak to releases)
+        menu.findItem(R.id.action_test_page)?.isVisible = BuildConfig.DEV_PAGE_ENABLED || settings.devModeEnabled
+
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        // Try common handlers first
+        if (handleCommonMenuItem(item)) {
+            return true
+        }
+
+        refreshReminderLastFired()
+
+        when (item.itemId) {
+            R.id.action_snooze_all -> {
+                val fragment = getCurrentSearchableFragment()
+                val isChange = fragment?.hasUnpinnedActiveEvents() != true
+                val searchQuery = fragment?.getSearchQuery()
+                val eventCount = fragment?.getDisplayedEventCount() ?: 0
+                val currentFilterState = getCurrentFilterState()
+
+                if (eventCount == 0) {
+                    // Show feedback when no events match filters/search
+                    val hasSearch = !searchQuery.isNullOrEmpty()
+                    val hasFilter = currentFilterState.hasActiveFilters()
+                    val message = when {
+                        hasSearch && hasFilter -> getString(R.string.snooze_all_no_events_search_and_filters)
+                        hasSearch -> getString(R.string.snooze_all_no_events_search)
+                        hasFilter -> getString(R.string.snooze_all_no_events_filters)
+                        else -> getString(R.string.snooze_all_no_events)
+                    }
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    return true
+                }
+
+                val pinnedCount = fragment?.getPinnedEventCount() ?: 0
+
+                startActivity(
+                    Intent(this, SnoozeAllActivity::class.java)
+                        .putExtra(Consts.INTENT_SNOOZE_ALL_IS_CHANGE, isChange)
+                        .putExtra(Consts.INTENT_SNOOZE_FROM_MAIN_ACTIVITY, true)
+                        .putExtra(Consts.INTENT_SEARCH_QUERY, searchQuery)
+                        .putExtra(Consts.INTENT_SEARCH_QUERY_EVENT_COUNT, eventCount)
+                        .putExtra(Consts.INTENT_FILTER_STATE, currentFilterState.toBundle())
+                        .putExtra(Consts.INTENT_PINNED_EVENT_COUNT, pinnedCount)
+                        .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                )
+            }
+
+            R.id.action_mute_all -> onMuteAll()
+
+            R.id.action_pin_all -> onPinAll()
+
+            R.id.action_unpin_all -> onUnpinAll()
+
+            R.id.action_dismiss_all -> onDismissAll()
+        }
+
+        return super.onOptionsItemSelected(item)
+    }
+
+    // === Bulk actions ===
+
+    private fun onDismissAll() {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.dismiss_all_events_confirmation)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doDismissAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doDismissAll() {
+        ApplicationController.dismissAllButRecentAndSnoozed(
+            this, EventDismissType.ManuallyDismissedFromActivity
+        )
+        getCurrentSearchableFragment()?.onDismissAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onMuteAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
+        AlertDialog.Builder(this)
+            .setMessage(if (hasFilters) R.string.mute_all_filtered_events_question else R.string.mute_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doMuteAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doMuteAll() {
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.muteAllVisibleEvents(this, searchQuery, currentFilterState)
+        getCurrentSearchableFragment()?.onMuteAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onPinAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
+        AlertDialog.Builder(this)
+            .setMessage(if (hasFilters) R.string.pin_all_filtered_events_question else R.string.pin_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doPinAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doPinAll() {
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.pinAllVisibleEvents(this, searchQuery, currentFilterState)
+        getCurrentSearchableFragment()?.onPinAllComplete()
+        invalidateOptionsMenu()
+    }
+
+    private fun onUnpinAll() {
+        val hasFilters = filterState.hasActiveFilters() || !getCurrentSearchableFragment()?.getSearchQuery().isNullOrEmpty()
+        AlertDialog.Builder(this)
+            .setMessage(if (hasFilters) R.string.unpin_all_filtered_events_question else R.string.unpin_all_events_question)
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.yes) { _, _ ->
+                doUnpinAll()
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .create()
+            .show()
+    }
+
+    private fun doUnpinAll() {
+        val searchQuery = getCurrentSearchableFragment()?.getSearchQuery()
+        val currentFilterState = getCurrentFilterState()
+        ApplicationController.unpinAllVisibleEvents(this, searchQuery, currentFilterState)
+        getCurrentSearchableFragment()?.onPinAllComplete()
+        invalidateOptionsMenu()
+    }
+    
+    // === Filter Chips ===
+    
+    private fun updateFilterChipsForCurrentTab() {
+        chipGroup?.removeAllViews()
+        
+        val currentDestination = navController?.currentDestination?.id ?: return
+        
+        when (currentDestination) {
+            R.id.activeEventsFragment -> {
+                // Active tab: Calendar, Status, Time, Snoozed Until
+                addCalendarChip()
+                addStatusChip()
+                addTimeChip(TimeFilterBottomSheet.TabType.ACTIVE)
+                addSnoozedUntilChip()
+            }
+            R.id.upcomingEventsFragment -> {
+                addCalendarChip()
+                addStatusChip()
+                addUpcomingTimeChip()
+            }
+            R.id.dismissedEventsFragment -> {
+                // Dismissed tab: Calendar, Time
+                addCalendarChip()
+                addTimeChip(TimeFilterBottomSheet.TabType.DISMISSED)
+            }
+        }
+    }
+    
+    private fun addStatusChip() {
+        // Chip requires MaterialComponents theme - wrap context
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getStatusChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showStatusFilterPopup(it) }
+            setOnCloseIconClickListener { showStatusFilterPopup(it) }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getStatusChipText(): String {
+        val filters = filterState.statusFilters
+        return when {
+            filters.isEmpty() -> getString(R.string.filter_status)
+            filters.size == 1 -> filters.first().toDisplayString()
+            filters.size == 2 -> {
+                // Two filters - show both, but truncate if combined too long
+                val combined = filters.joinToString(", ") { it.toDisplayString() }
+                if (combined.length <= MAX_COMBINED_STATUS_CHIP_LENGTH) {
+                    combined
+                } else {
+                    getString(R.string.filter_name_plus_count, filters.first().toDisplayString(), 1)
+                }
+            }
+            else -> {
+                // Show first filter + count of remaining
+                val first = filters.first().toDisplayString()
+                getString(R.string.filter_name_plus_count, first, filters.size - 1)
+            }
+        }
+    }
+    
+    private fun StatusOption.toDisplayString(): String = when (this) {
+        StatusOption.SNOOZED -> getString(R.string.filter_status_snoozed)
+        StatusOption.ACTIVE -> getString(R.string.filter_status_active)
+        StatusOption.MUTED -> getString(R.string.filter_status_muted)
+        StatusOption.RECURRING -> getString(R.string.filter_status_recurring)
+        StatusOption.PINNED -> getString(R.string.filter_status_pinned)
+        StatusOption.UNPINNED -> getString(R.string.filter_status_unpinned)
+    }
+    
+    private fun showStatusFilterPopup(anchor: View) {
+        val isUpcoming = navController?.currentDestination?.id == R.id.upcomingEventsFragment
+        
+        PopupMenu(this, anchor).apply {
+            // Add "All" option with special ID
+            menu.add(Menu.NONE, -1, 0, R.string.filter_status_all).isCheckable = true
+            
+            // Add status options - exclude SNOOZED and ACTIVE for Upcoming tab (not applicable)
+            StatusOption.entries.forEachIndexed { index, option ->
+                if (isUpcoming && option in listOf(StatusOption.SNOOZED, StatusOption.ACTIVE)) return@forEachIndexed
+                menu.add(Menu.NONE, option.ordinal, index + 1, option.toDisplayString()).isCheckable = true
+            }
+            
+            // Set current checked states
+            val currentFilters = filterState.statusFilters
+            menu.findItem(-1)?.isChecked = currentFilters.isEmpty()
+            StatusOption.entries.forEach { option ->
+                menu.findItem(option.ordinal)?.isChecked = option in currentFilters
+            }
+            
+            setOnMenuItemClickListener { item ->
+                if (item.itemId == -1) {
+                    // "All" selected - clear all filters
+                    filterState = filterState.copy(statusFilters = emptySet())
+                } else {
+                    val option = StatusOption.entries[item.itemId]
+                    val newFilters = if (option in filterState.statusFilters) {
+                        filterState.statusFilters - option
+                    } else {
+                        filterState.statusFilters + option
+                    }
+                    filterState = filterState.copy(statusFilters = newFilters)
+                }
+                updateFilterChipsForCurrentTab()
+                notifyCurrentFragmentFilterChanged()
+                true
+            }
+            show()
+        }
+    }
+    
+    private fun notifyCurrentFragmentFilterChanged() {
+        getCurrentSearchableFragment()?.onFilterChanged()
+    }
+    
+    // === Time Filter Chip ===
+    
+    private fun addTimeChip(tabType: TimeFilterBottomSheet.TabType) {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getTimeChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showTimeFilterBottomSheet(tabType) }
+            setOnCloseIconClickListener { showTimeFilterBottomSheet(tabType) }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getTimeChipText(): String {
+        return when (filterState.timeFilter) {
+            TimeFilter.ALL -> getString(R.string.filter_time)
+            TimeFilter.STARTED_TODAY -> getString(R.string.filter_time_started_today)
+            TimeFilter.STARTED_THIS_WEEK -> getString(R.string.filter_time_started_this_week)
+            TimeFilter.PAST -> getString(R.string.filter_time_past)
+            TimeFilter.STARTED_THIS_MONTH -> getString(R.string.filter_time_started_this_month)
+        }
+    }
+    
+    private fun showTimeFilterBottomSheet(tabType: TimeFilterBottomSheet.TabType) {
+        val bottomSheet = TimeFilterBottomSheet.newInstance(filterState.timeFilter, tabType)
+        bottomSheet.show(supportFragmentManager, "TimeFilterBottomSheet")
+    }
+    
+    // === Calendar Filter Chip ===
+    
+    private fun addCalendarChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getCalendarChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showCalendarFilterBottomSheet() }
+            setOnCloseIconClickListener { showCalendarFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getCalendarChipText(): String {
+        val selectedIds = filterState.selectedCalendarIds
+        // null = no filter (all calendars), empty = none selected
+        if (selectedIds == null) return getString(R.string.filter_calendar)
+        
+        val selectedCount = selectedIds.size
+        return when {
+            selectedCount == 0 -> getString(R.string.filter_calendar_none)
+            selectedCount == 1 -> {
+                // Single calendar - show name (already truncated by getCalendarName)
+                val calendarId = selectedIds.first()
+                getCalendarName(calendarId) ?: getString(R.string.filter_calendar)
+            }
+            selectedCount == 2 -> {
+                // Two calendars - show both names if combined fits, else first + count
+                val names = selectedIds.mapNotNull { getCalendarName(it) }
+                if (names.size == 2) {
+                    val combined = names.joinToString(", ")
+                    if (combined.length <= MAX_COMBINED_CALENDAR_CHIP_LENGTH) {
+                        combined
+                    } else {
+                        getString(R.string.filter_name_plus_count, names.first(), 1)
+                    }
+                } else {
+                    getString(R.string.filter_calendar_count, selectedCount)
+                }
+            }
+            else -> {
+                // 3+ calendars - show first name + count
+                val firstName = getCalendarName(selectedIds.first())
+                if (firstName != null) {
+                    getString(R.string.filter_name_plus_count, firstName, selectedCount - 1)
+                } else {
+                    getString(R.string.filter_calendar_count, selectedCount)
+                }
+            }
+        }
+    }
+    
+    private fun getCalendarName(calendarId: Long): String? {
+        val calendar = CalendarProvider.getCalendarById(this, calendarId)
+        val name = calendar?.displayName?.takeIf { it.isNotEmpty() } ?: calendar?.name
+        return name?.truncateForChip()
+    }
+    
+    private fun showCalendarFilterBottomSheet() {
+        val bottomSheet = CalendarFilterBottomSheet.newInstance(filterState.selectedCalendarIds)
+        bottomSheet.show(supportFragmentManager, "CalendarFilterBottomSheet")
+    }
+    
+    // === Upcoming Time Filter Chip ===
+    
+    private fun addUpcomingTimeChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getUpcomingTimeChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showUpcomingTimeFilterBottomSheet() }
+            setOnCloseIconClickListener { showUpcomingTimeFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getUpcomingTimeChipText(): String {
+        val settings = Settings(this)
+        return if (settings.upcomingEventsMode == UpcomingEventsLookahead.MODE_DAY_BOUNDARY) {
+            getString(R.string.upcoming_events_mode_day_boundary)
+        } else {
+            PreferenceUtils.formatPresetHumanReadable(this, settings.upcomingEventsFixedLookaheadMillis)
+        }
+    }
+    
+    private fun showUpcomingTimeFilterBottomSheet() {
+        val bottomSheet = UpcomingTimeFilterBottomSheet.newInstance()
+        bottomSheet.show(supportFragmentManager, "UpcomingTimeFilterBottomSheet")
+    }
+    
+    // === Snoozed Until Filter Chip ===
+    
+    private fun addSnoozedUntilChip() {
+        val materialContext = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight)
+        val chip = Chip(materialContext).apply {
+            text = getSnoozedUntilChipText()
+            isCheckable = false
+            isChipIconVisible = false
+            isCloseIconVisible = true
+            closeIcon = getDrawable(R.drawable.ic_arrow_drop_down)
+            setOnClickListener { showSnoozedUntilFilterBottomSheet() }
+            setOnCloseIconClickListener { showSnoozedUntilFilterBottomSheet() }
+        }
+        chipGroup?.addView(chip)
+    }
+    
+    private fun getSnoozedUntilChipText(): String {
+        val config = filterState.snoozedUntilFilter
+        if (config.mode == SnoozedUntilFilterMode.ALL) {
+            return getString(R.string.filter_snoozed_until)
+        }
+        val symbol = when (config.direction) {
+            FilterDirection.BEFORE -> "\u2264"  // ≤
+            FilterDirection.AFTER -> ">"
+        }
+        val valueText = when (config.mode) {
+            SnoozedUntilFilterMode.ALL -> ""
+            SnoozedUntilFilterMode.PRESET, SnoozedUntilFilterMode.CUSTOM_PERIOD ->
+                PreferenceUtils.formatPresetHumanReadable(this, config.valueMillis)
+            SnoozedUntilFilterMode.SPECIFIC_TIME ->
+                android.text.format.DateUtils.formatDateTime(
+                    this, config.valueMillis,
+                    android.text.format.DateUtils.FORMAT_SHOW_DATE or
+                    android.text.format.DateUtils.FORMAT_SHOW_TIME or
+                    android.text.format.DateUtils.FORMAT_ABBREV_ALL
+                )
+        }
+        return "$symbol $valueText"
+    }
+    
+    private fun showSnoozedUntilFilterBottomSheet() {
+        val bottomSheet = SnoozedUntilFilterBottomSheet.newInstance(filterState.snoozedUntilFilter)
+        bottomSheet.show(supportFragmentManager, "SnoozedUntilFilterBottomSheet")
+    }
+    
+    /** Setup Fragment Result listeners for bottom sheets (survives config changes) */
+    private fun setupFilterResultListeners() {
+        // Time filter result
+        supportFragmentManager.setFragmentResultListener(
+            TimeFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val filterOrdinal = bundle.getInt(TimeFilterBottomSheet.RESULT_FILTER, 0)
+            val selectedFilter = TimeFilter.entries.getOrNull(filterOrdinal) ?: TimeFilter.ALL
+            filterState = filterState.copy(timeFilter = selectedFilter)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Calendar filter result
+        supportFragmentManager.setFragmentResultListener(
+            CalendarFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val calendarArray = bundle.getLongArray(CalendarFilterBottomSheet.RESULT_CALENDARS)
+            val selectedCalendars: Set<Long>? = calendarArray?.toSet()
+            filterState = filterState.copy(selectedCalendarIds = selectedCalendars)
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Upcoming time filter result — writes to Settings, not FilterState
+        supportFragmentManager.setFragmentResultListener(
+            UpcomingTimeFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val mode = bundle.getString(UpcomingTimeFilterBottomSheet.RESULT_MODE) ?: return@setFragmentResultListener
+            val settings = Settings(this)
+            settings.upcomingEventsMode = mode
+            if (mode == UpcomingEventsLookahead.MODE_FIXED) {
+                val millis = bundle.getLong(UpcomingTimeFilterBottomSheet.RESULT_MILLIS, -1L)
+                if (millis > 0) {
+                    settings.upcomingEventsFixedLookaheadMillis = millis
+                }
+            }
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+        
+        // Snoozed until filter result
+        supportFragmentManager.setFragmentResultListener(
+            SnoozedUntilFilterBottomSheet.REQUEST_KEY, this
+        ) { _, bundle ->
+            val mode = SnoozedUntilFilterMode.entries.getOrNull(
+                bundle.getInt(SnoozedUntilFilterBottomSheet.RESULT_MODE, 0)
+            ) ?: SnoozedUntilFilterMode.ALL
+            val direction = FilterDirection.entries.getOrNull(
+                bundle.getInt(SnoozedUntilFilterBottomSheet.RESULT_DIRECTION, 0)
+            ) ?: FilterDirection.BEFORE
+            val value = bundle.getLong(SnoozedUntilFilterBottomSheet.RESULT_VALUE, 0L)
+            val includeUnsnoozed = bundle.getBoolean(SnoozedUntilFilterBottomSheet.RESULT_INCLUDE_UNSNOOZED, false)
+            filterState = filterState.copy(snoozedUntilFilter = SnoozedUntilFilterConfig(mode, direction, value, includeUnsnoozed))
+            updateFilterChipsForCurrentTab()
+            notifyCurrentFragmentFilterChanged()
+        }
+    }
+
+    // === Selection Mode Coordination ===
+    
+    /** Called by ActiveEventsFragment when selection mode changes */
+    fun onSelectionModeChanged(active: Boolean) {
+        // Hide/show the app toolbar
+        supportActionBar?.let { actionBar ->
+            if (active) {
+                actionBar.hide()
+            } else {
+                actionBar.show()
+            }
+        }
+        
+        // Hide/show the FAB
+        floatingAddEvent.visibility = if (active) View.GONE else View.VISIBLE
+        
+        // Hide/show the filter chips
+        chipGroup?.visibility = if (active) View.GONE else View.VISIBLE
+    }
+    
+    /** Exit selection mode if active (e.g., when switching tabs) */
+    private fun exitSelectionModeIfActive() {
+        // Find the ActiveEventsFragment and exit selection mode
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        val activeFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull { it is ActiveEventsFragment } as? ActiveEventsFragment
+        
+        if (activeFragment?.isInSelectionMode() == true) {
+            activeFragment.exitSelectionMode()
+        }
+        
+        // Always restore UI state when switching tabs (in case fragment was already destroyed)
+        onSelectionModeChanged(false)
+    }
+
+    companion object {
+        private const val LOG_TAG = "MainActivityModern"
+        
+        /** Max length for combined status filter names before showing "+N" */
+        private const val MAX_COMBINED_STATUS_CHIP_LENGTH = 20
+        
+        /** Max length for combined calendar names before showing "+N" */
+        private const val MAX_COMBINED_CALENDAR_CHIP_LENGTH = 25
+        
+        // SavedInstanceState key for destination (filter state uses FilterState.toBundle())
+        private const val STATE_DESTINATION_ID = "filter_destination_id"
+    }
+}

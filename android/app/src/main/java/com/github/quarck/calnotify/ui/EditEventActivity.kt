@@ -46,6 +46,7 @@ import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.textutils.dateToStr
 import com.github.quarck.calnotify.utils.*
+import com.github.quarck.calnotify.utils.setupStatusBarSpacer
 import java.util.*
 
 // FIXME: on the snooze activity - show all the reminders, not just next
@@ -315,6 +316,7 @@ open class EditEventActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_add_event)
+        setupStatusBarSpacer()
 
         val toolbar = find<Toolbar?>(R.id.toolbar)
         toolbar?.visibility = View.GONE

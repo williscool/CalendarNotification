@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto'
 
-import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry } from '@powersync/react-native';
+import { UpdateType, AbstractPowerSyncDatabase, PowerSyncBackendConnector, CrudEntry, BaseObserver } from '@powersync/react-native';
 import { SupabaseClient, createClient, PostgrestSingleResponse } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
 import { Settings } from '../hooks/SettingsContext';
@@ -109,6 +109,53 @@ const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 const MAX_FAILED_OPS = 50;
 const FAILED_OPS_STORAGE_KEY = '@powersync_failed_operations';
+
+// Live upload progress counters — incremented per successful op in uploadData
+export interface UploadProgress {
+  upserts: number;
+  updates: number;
+  deletes: number;
+}
+const _uploadProgress: UploadProgress = { upserts: 0, updates: 0, deletes: 0 };
+export const getUploadProgress = (): UploadProgress => ({ ..._uploadProgress });
+export const resetUploadProgress = (): void => {
+  _uploadProgress.upserts = 0;
+  _uploadProgress.updates = 0;
+  _uploadProgress.deletes = 0;
+};
+
+type InFlightUploadsListener = { countChanged: () => void };
+
+/**
+ * Ops uploaded from the transaction currently in flight. The upload queue only shrinks when a
+ * whole transaction completes, so this is what moves background sync progress in between.
+ * Listen with `inFlightUploads.registerListener({ countChanged })`, the same way as
+ * `db.registerListener({ statusChanged })`.
+ */
+class InFlightUploads extends BaseObserver<InFlightUploadsListener> {
+  private _count = 0;
+  private _operation: UpdateType | null = null;
+
+  get count(): number {
+    return this._count;
+  }
+
+  /** What the op being uploaded does. A Full Resync deletes everything, then inserts everything. */
+  get operation(): UpdateType | null {
+    return this._operation;
+  }
+
+  setOperation(operation: UpdateType): void {
+    this._operation = operation;
+  }
+
+  set(count: number): void {
+    this._count = count;
+    this.iterateListeners(listener => listener.countChanged?.());
+  }
+}
+
+export const inFlightUploads = new InFlightUploads();
 
 interface SupabaseError {
   code: string;
@@ -367,7 +414,12 @@ export class Connector implements PowerSyncBackendConnector {
         try {
             for (const op of transaction.crud) {
                 lastOp = op;
+                inFlightUploads.setOperation(op.op);
                 await this.executeWithRetry(op);
+                if (op.op === UpdateType.PUT) _uploadProgress.upserts++;
+                else if (op.op === UpdateType.PATCH) _uploadProgress.updates++;
+                else if (op.op === UpdateType.DELETE) _uploadProgress.deletes++;
+                inFlightUploads.set(inFlightUploads.count + 1);
             }
     
             await transaction.complete();
@@ -411,6 +463,9 @@ export class Connector implements PowerSyncBackendConnector {
                 });
                 throw ex;
             }
+        } finally {
+            // Completed or about to be retried from the start: either way nothing is in flight
+            inFlightUploads.set(0);
         }
     }
 }

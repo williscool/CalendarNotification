@@ -28,8 +28,6 @@ import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.setFlag
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.utils.detailed
-import java.io.Closeable
-
 /**
  * Room-based implementation of EventsStorageInterface.
  * 
@@ -40,7 +38,7 @@ import java.io.Closeable
  * guarantees, particularly for notification ID generation which requires atomic
  * read-then-write.
  */
-class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
+class RoomEventsStorage(context: Context) : EventsStorageInterface {
 
     companion object {
         private const val LOG_TAG = "RoomEventsStorage"
@@ -405,6 +403,16 @@ class RoomEventsStorage(context: Context) : EventsStorageInterface, Closeable {
         }
 
     /** Room manages connections via singleton; individual close is a no-op. */
+    /**
+     * No-op for Room storage.
+     * 
+     * Room databases are singletons managed by Room's lifecycle - we don't close them.
+     * The .use {} pattern in callers exists for LegacyEventsStorage compatibility,
+     * which uses SQLiteOpenHelper and DOES need closing.
+     * 
+     * TODO: When LegacyEventsStorage is removed, consider removing Closeable
+     * from EventsStorageInterface and dropping .use {} calls throughout the codebase.
+     */
     override fun close() {
     }
 

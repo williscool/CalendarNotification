@@ -2062,10 +2062,24 @@ Add ability to act on upcoming events:
 - Full parity: anything you can do with active events works with upcoming events
 - Storage mutations, undo functionality, cross-storage coordination
 
-### Milestone 3: Polish
+### Milestone 3: Filter Pills
 
-11. **Phase 2** - Collapsing filter bar
-12. **Phase 3** - Calendar multi-select
+**Detailed spec:** [event_lookahead_milestone3_filter_pills.md](./event_lookahead_milestone3_filter_pills.md)
+
+Add filter chips to all event tabs for quick filtering:
+
+11. **Phase 3.1** - Filter infrastructure + Chip row layout
+12. **Phase 3.2** - Status filter (dropdown popup)
+13. **Phase 3.3** - Time filter (bottom sheet)
+14. **Phase 3.4** - Calendar filter (bottom sheet with multi-select)
+
+**Milestone 3 delivers:**
+- Horizontally scrollable filter chip row
+- Status filter: All/Snoozed/Active/Muted/Recurring
+- Time filter: Today/Tomorrow/Next 7 days/etc.
+- Calendar multi-select filter with colors and search
+- Filters clear on tab switch (same as search)
+- Filters survive backgrounding but clear on cold restart
 
 **Test-Driven Approach:**
 - Write tests for each phase before/during implementation
@@ -2079,3 +2093,5 @@ Each phase is independently testable and deliverable.
 - `docs/architecture/calendar_monitoring.md` - How MonitorStorage is populated
 - `docs/dev_completed/constructor-mocking-android.md` - Testing patterns for CalendarProvider
 - `docs/dev_todo/dismissed_events_long_storage.md` - Related bin/history work
+- `docs/dev_todo/event_lookahead_milestone2_pre_actions.md` - Milestone 2 detailed spec
+- `docs/dev_todo/event_lookahead_milestone3_filter_pills.md` - Milestone 3 detailed spec

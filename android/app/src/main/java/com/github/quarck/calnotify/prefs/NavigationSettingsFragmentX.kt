@@ -28,9 +28,11 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceDialogFragmentCompat
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
-import com.github.quarck.calnotify.ui.MainActivity
+import com.github.quarck.calnotify.ui.MainActivityLegacy
+import com.github.quarck.calnotify.ui.MainActivityModern
 
 /**
  * Settings fragment for Navigation/UI preferences.
@@ -41,6 +43,7 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     companion object {
         // Delay before restarting app to let user see the "Restarting..." toast
         private const val RESTART_DELAY_FOR_TOAST_VISIBILITY_MS = 500L
+        private const val DIALOG_FRAGMENT_TAG = "NavigationSettingsFragmentX.DIALOG"
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -52,13 +55,11 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
             true
         }
         
-        // Set up click handler for "Switch to Classic View" button
         findPreference<Preference>("switch_to_classic_view")?.setOnPreferenceClickListener {
             showSwitchToClassicViewDialog()
             true
         }
         
-        // Set up click handler for "Switch to New View" button
         findPreference<Preference>("switch_to_new_view")?.setOnPreferenceClickListener {
             showSwitchToNewViewDialog()
             true
@@ -82,6 +83,24 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         val docsUrl = ctx.getString(R.string.upcoming_events_docs_url)
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(docsUrl))
         startActivity(intent)
+    }
+    
+    override fun onDisplayPreferenceDialog(preference: Preference) {
+        when (preference) {
+            is UpcomingTimePresetPreferenceX -> {
+                val dialogFragment = UpcomingTimePresetPreferenceX.Dialog.newInstance(preference.key)
+                @Suppress("DEPRECATION")
+                dialogFragment.setTargetFragment(this, 0)
+                dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+            }
+            is SnoozedUntilPresetPreferenceX -> {
+                val dialogFragment = SnoozedUntilPresetPreferenceX.Dialog.newInstance(preference.key)
+                @Suppress("DEPRECATION")
+                dialogFragment.setTargetFragment(this, 0)
+                dialogFragment.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+            }
+            else -> super.onDisplayPreferenceDialog(preference)
+        }
     }
     
     private fun showSwitchToClassicViewDialog() {
@@ -116,10 +135,10 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         // Show toast and restart
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
         
-        // Restart MainActivity after a short delay
+        // Launch Legacy activity directly after a short delay
         // Use applicationContext since activity may be destroyed during delay
         Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(appContext, MainActivity::class.java).apply {
+            val intent = Intent(appContext, MainActivityLegacy::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             appContext.startActivity(intent)
@@ -136,10 +155,10 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         // Show toast and restart
         Toast.makeText(ctx, R.string.restarting, Toast.LENGTH_SHORT).show()
         
-        // Restart MainActivity after a short delay
+        // Launch Modern activity directly after a short delay
         // Use applicationContext since activity may be destroyed during delay
         Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(appContext, MainActivity::class.java).apply {
+            val intent = Intent(appContext, MainActivityModern::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             }
             appContext.startActivity(intent)

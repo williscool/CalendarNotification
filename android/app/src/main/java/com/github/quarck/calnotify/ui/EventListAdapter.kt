@@ -31,6 +31,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.TextView
@@ -45,21 +46,35 @@ import com.github.quarck.calnotify.utils.findOrThrow
 
 interface EventListCallback {
     fun onItemClick(v: View, position: Int, eventId: Long): Unit
-    fun onItemDismiss(v: View, position: Int, eventId: Long): Unit
-    fun onItemSnooze(v: View, position: Int, eventId: Long): Unit
+    fun onItemLongClick(v: View, position: Int, eventId: Long): Boolean
     fun onItemRemoved(event: EventAlertRecord)
     fun onItemRestored(event: EventAlertRecord) // e.g. undo
     fun onScrollPositionChange(newPos: Int)
+    fun onPinToggle(event: EventAlertRecord) {}
+}
+
+interface SelectionModeCallback {
+    fun onSelectionModeChanged(active: Boolean)
+    fun onSelectionCountChanged(selected: Int, visible: Int, hiddenSelected: Int)
 }
 
 class EventListAdapter(
         val context: Context,
         val callback: EventListCallback,
-        val swipeEnabled: Boolean = true)
+        val swipeEnabled: Boolean = true,
+        val showAlertTime: Boolean = false)
 
     : RecyclerView.Adapter<EventListAdapter.ViewHolder>() {
 
     val cardVewResourceId: Int = R.layout.event_card_compact
+    
+    // Selection mode state
+    private var _selectionMode = false
+    val selectionMode: Boolean get() = _selectionMode
+    
+    private val selectedKeys = mutableSetOf<EventAlertRecordKey>()
+    
+    var selectionModeCallback: SelectionModeCallback? = null
 
     inner class ViewHolder(itemView: View)
         : RecyclerView.ViewHolder(itemView) {
@@ -78,9 +93,12 @@ class EventListAdapter(
 
         var undoButton: Button?
 
+        var pinImage: ImageView?
         var muteImage: ImageView?
         var taskImage: ImageView?
         val alarmImage: ImageView?
+        
+        var selectionCheckbox: CheckBox?
 
         var calendarColor: ColorDrawable
 
@@ -99,19 +117,40 @@ class EventListAdapter(
 
             undoButton = itemView.find<Button?>(R.id.card_view_button_undo)
 
+            pinImage = itemView.find<ImageView?>(R.id.imageview_is_pinned_indicator)
             muteImage = itemView.find<ImageView?>(R.id.imageview_is_muted_indicator)
             taskImage = itemView.find<ImageView?>(R.id.imageview_is_task_indicator)
             alarmImage = itemView.find<ImageView?>(R.id.imageview_is_alarm_indicator)
+            
+            selectionCheckbox = itemView.find<CheckBox?>(R.id.selection_checkbox)
 
             calendarColor = ColorDrawable(0)
 
             val itemClickListener = View.OnClickListener {
-                callback.onItemClick(itemView, adapterPosition, eventId);
+                if (_selectionMode) {
+                    val event = getEventAtPosition(adapterPosition)
+                    if (event != null) {
+                        toggleSelection(event)
+                    }
+                } else {
+                    callback.onItemClick(itemView, adapterPosition, eventId)
+                }
+            }
+            
+            val itemLongClickListener = View.OnLongClickListener {
+                if (!_selectionMode) {
+                    callback.onItemLongClick(itemView, adapterPosition, eventId)
+                } else {
+                    false
+                }
             }
 
             eventHolder?.setOnClickListener(itemClickListener)
+            eventHolder?.setOnLongClickListener(itemLongClickListener)
             eventDateText.setOnClickListener(itemClickListener)
+            eventDateText.setOnLongClickListener(itemLongClickListener)
             eventTimeText.setOnClickListener(itemClickListener)
+            eventTimeText.setOnLongClickListener(itemLongClickListener)
         }
     }
 
@@ -190,6 +229,11 @@ class EventListAdapter(
 
                         if (adapter.isPendingRemoval(position)) {
                             DevLog.info(LOG_TAG, "getMovementFlags: pos ${position} is pending removal, returning 0")
+                            return 0
+                        }
+                        
+                        // Disable swipe in selection mode
+                        if (adapter.selectionMode) {
                             return 0
                         }
 
@@ -311,6 +355,7 @@ class EventListAdapter(
             // we need to show the "undo" state of the row
             holder.undoLayout?.visibility = View.VISIBLE
             holder.compactViewContentLayout?.visibility = View.GONE
+            holder.selectionCheckbox?.visibility = View.GONE
 
             holder.undoButton?.setOnClickListener {
                 _ ->
@@ -329,6 +374,12 @@ class EventListAdapter(
 
             holder.eventTitleText.text = event.titleAsOneLine
 
+            holder.pinImage?.visibility = if (event.isPinned) View.VISIBLE else View.GONE
+            holder.pinImage?.setOnClickListener {
+                val ev = getEventAtPosition(holder.adapterPosition)
+                if (ev != null) callback.onPinToggle(ev)
+            }
+
             holder.muteImage?.visibility = if (event.isMuted) View.VISIBLE else View.GONE
 
             holder.taskImage?.visibility = if (event.isTask) View.VISIBLE else View.GONE
@@ -337,6 +388,14 @@ class EventListAdapter(
 
             holder.undoLayout?.visibility = View.GONE
             holder.compactViewContentLayout?.visibility = View.VISIBLE
+            
+            // Selection mode: show checkbox for non-special events
+            if (_selectionMode && !event.isSpecial) {
+                holder.selectionCheckbox?.visibility = View.VISIBLE
+                holder.selectionCheckbox?.isChecked = selectedKeys.contains(eventKey)
+            } else {
+                holder.selectionCheckbox?.visibility = View.GONE
+            }
 
             if (!event.isSpecial) {
                 val time = eventFormatter.formatDateTimeOneLine(event)
@@ -349,15 +408,26 @@ class EventListAdapter(
                 holder.eventTimeText.text = detail2
             }
 
-            if (event.snoozedUntil != 0L) {
-                holder.snoozedUntilText?.text =
-                        context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event);
-
-                holder.snoozedUntilText?.visibility = View.VISIBLE;
-            }
-            else {
-                holder.snoozedUntilText?.text = "";
-                holder.snoozedUntilText?.visibility = View.GONE;
+            when {
+                // Upcoming events: show when the notification will fire
+                showAlertTime -> {
+                    holder.snoozedUntilText?.text = context.resources.getString(
+                        R.string.alert_fires_at,
+                        eventFormatter.formatTimePoint(event.alertTime)
+                    )
+                    holder.snoozedUntilText?.visibility = View.VISIBLE
+                }
+                // Active snoozed events: show "Snoozed until X"
+                event.snoozedUntil != 0L -> {
+                    holder.snoozedUntilText?.text =
+                        context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event)
+                    holder.snoozedUntilText?.visibility = View.VISIBLE
+                }
+                // Active non-snoozed events: hide the text
+                else -> {
+                    holder.snoozedUntilText?.text = ""
+                    holder.snoozedUntilText?.visibility = View.GONE
+                }
             }
 
             holder.calendarColor.color =
@@ -380,6 +450,9 @@ class EventListAdapter(
 
     val hasActiveEvents: Boolean
         get() = events.any { it.snoozedUntil == 0L }
+
+    val hasUnpinnedActiveEvents: Boolean
+        get() = events.any { it.snoozedUntil == 0L && !it.isPinned }
 
     fun setSearchText(query: String?) {
       currentSearchString = query
@@ -406,7 +479,12 @@ class EventListAdapter(
 
         eventsPendingRemoval.clear()
         pendingEventRemoveRunnables.clear()
-        notifyDataSetChanged();
+        notifyDataSetChanged()
+        
+        // Update selection count if in selection mode (hidden count may have changed)
+        if (_selectionMode) {
+            updateSelectionCount()
+        }
     }
 
     fun getEventAtPosition(position: Int, expectedEventId: Long): EventAlertRecord?
@@ -534,6 +612,79 @@ class EventListAdapter(
 
     val anyForMute: Boolean
         get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial}
+
+    val anyForPinAll: Boolean
+        get() = events.any { it.snoozedUntil == 0L && it.isNotSpecial && !it.isPinned }
+
+    val anyForUnpinAll: Boolean
+        get() = events.any { it.isPinned }
+
+    val pinnedCount: Int
+        get() = events.count { it.isPinned }
+
+    // === Selection Mode Methods ===
+    
+    fun enterSelectionMode(firstEvent: EventAlertRecord) {
+        if (firstEvent.isSpecial) return
+        _selectionMode = true
+        selectedKeys.clear()
+        selectedKeys.add(firstEvent.key)
+        notifyDataSetChanged()
+        selectionModeCallback?.onSelectionModeChanged(true)
+        updateSelectionCount()
+    }
+    
+    fun exitSelectionMode() {
+        _selectionMode = false
+        selectedKeys.clear()
+        notifyDataSetChanged()
+        selectionModeCallback?.onSelectionModeChanged(false)
+    }
+    
+    fun toggleSelection(event: EventAlertRecord) {
+        if (event.isSpecial) return
+        val key = event.key
+        if (selectedKeys.contains(key)) {
+            selectedKeys.remove(key)
+            // Exit selection mode if no items selected
+            if (selectedKeys.isEmpty()) {
+                exitSelectionMode()
+                return
+            }
+        } else {
+            selectedKeys.add(key)
+        }
+        val position = events.indexOf(event)
+        if (position >= 0) {
+            notifyItemChanged(position)
+        }
+        updateSelectionCount()
+    }
+    
+    fun selectAllVisible() {
+        events.filter { !it.isSpecial }.forEach { selectedKeys.add(it.key) }
+        notifyDataSetChanged()
+        updateSelectionCount()
+    }
+    
+    fun isSelected(event: EventAlertRecord): Boolean = selectedKeys.contains(event.key)
+    
+    fun getSelectedEvents(): List<EventAlertRecord> {
+        // Return selected events from allEvents (includes filtered-out ones)
+        return allEvents.filter { selectedKeys.contains(it.key) }
+    }
+    
+    fun getVisibleSelectedCount(): Int = events.count { selectedKeys.contains(it.key) }
+    
+    fun getHiddenSelectedCount(): Int = selectedKeys.size - getVisibleSelectedCount()
+    
+    private fun updateSelectionCount() {
+        selectionModeCallback?.onSelectionCountChanged(
+            selected = selectedKeys.size,
+            visible = getVisibleSelectedCount(),
+            hiddenSelected = getHiddenSelectedCount()
+        )
+    }
 
     companion object {
         private const val LOG_TAG = "EventListAdapter"

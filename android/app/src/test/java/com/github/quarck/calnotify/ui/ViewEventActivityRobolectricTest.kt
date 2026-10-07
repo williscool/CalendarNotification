@@ -17,6 +17,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowPopupMenu
 import org.robolectric.shadows.ShadowToast
 
 /**
@@ -375,6 +376,78 @@ class ViewEventActivityRobolectricTest {
                 "URI should contain instance start time",
                 intent.data.toString().contains(event.instanceStartTime.toString())
             )
+        }
+        
+        scenario.close()
+    }
+    
+    // === Pin/Unpin Popup Menu Tests ===
+    
+    @Test
+    fun popupMenu_shows_pin_for_unpinned_event() {
+        val event = fixture.createEvent(title = "Unpinned Event")
+        
+        val scenario = fixture.launchViewEventActivity(event)
+        
+        scenario.onActivity { activity ->
+            val menuButton = activity.findViewById<View>(R.id.snooze_view_menu)
+            assertNotNull("Menu button should exist", menuButton)
+            menuButton.performClick()
+            
+            val shadowPopup = ShadowPopupMenu.getLatestPopupMenu()
+            assertNotNull("Popup menu should be shown", shadowPopup)
+            
+            val pinItem = shadowPopup.menu.findItem(R.id.action_pin_event)
+            val unpinItem = shadowPopup.menu.findItem(R.id.action_unpin_event)
+            
+            assertTrue("Pin should be visible for unpinned event", pinItem.isVisible)
+            assertFalse("Unpin should be hidden for unpinned event", unpinItem.isVisible)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun popupMenu_shows_unpin_for_pinned_event() {
+        val event = fixture.createEvent(title = "Pinned Event").apply { isPinned = true }
+        fixture.eventsStorage.updateEvent(event)
+        
+        val scenario = fixture.launchViewEventActivity(event)
+        
+        scenario.onActivity { activity ->
+            val menuButton = activity.findViewById<View>(R.id.snooze_view_menu)
+            assertNotNull("Menu button should exist", menuButton)
+            menuButton.performClick()
+            
+            val shadowPopup = ShadowPopupMenu.getLatestPopupMenu()
+            assertNotNull("Popup menu should be shown", shadowPopup)
+            
+            val pinItem = shadowPopup.menu.findItem(R.id.action_pin_event)
+            val unpinItem = shadowPopup.menu.findItem(R.id.action_unpin_event)
+            
+            assertFalse("Pin should be hidden for pinned event", pinItem.isVisible)
+            assertTrue("Unpin should be visible for pinned event", unpinItem.isVisible)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun popupMenu_shows_pin_for_task_event() {
+        val event = fixture.createEvent(title = "Task Event", isTask = true)
+        
+        val scenario = fixture.launchViewEventActivity(event)
+        
+        scenario.onActivity { activity ->
+            val menuButton = activity.findViewById<View>(R.id.snooze_view_menu)
+            assertNotNull("Menu button should exist", menuButton)
+            menuButton.performClick()
+            
+            val shadowPopup = ShadowPopupMenu.getLatestPopupMenu()
+            assertNotNull("Popup menu should be shown", shadowPopup)
+            
+            val pinItem = shadowPopup.menu.findItem(R.id.action_pin_event)
+            assertTrue("Pin should be visible for task event (pinning is orthogonal)", pinItem.isVisible)
         }
         
         scenario.close()

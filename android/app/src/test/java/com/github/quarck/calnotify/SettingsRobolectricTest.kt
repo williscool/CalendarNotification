@@ -165,6 +165,105 @@ class SettingsRobolectricTest {
         assertEquals("45s", PreferenceUtils.formatSnoozePreset(45 * 1000L))
     }
 
+    @Test
+    fun testFormatSnoozePresetWeeks() {
+        assertEquals("1w", PreferenceUtils.formatSnoozePreset(7 * 24 * 60 * 60 * 1000L))
+        assertEquals("2w", PreferenceUtils.formatSnoozePreset(14 * 24 * 60 * 60 * 1000L))
+    }
+
+    @Test
+    fun testParseSnoozePresetsWeeks() {
+        val parsed = PreferenceUtils.parseSnoozePresets("1w, 2w")
+        assertNotNull(parsed)
+        assertEquals(2, parsed!!.size)
+        assertEquals(Consts.WEEK_IN_MILLISECONDS, parsed[0])
+        assertEquals(2 * Consts.WEEK_IN_MILLISECONDS, parsed[1])
+    }
+
+    @Test
+    fun testFormatPresetHumanReadable() {
+        assertEquals("4 hours", PreferenceUtils.formatPresetHumanReadable(4 * Consts.HOUR_IN_MILLISECONDS))
+        assertEquals("1 hour", PreferenceUtils.formatPresetHumanReadable(Consts.HOUR_IN_MILLISECONDS))
+        assertEquals("1 day", PreferenceUtils.formatPresetHumanReadable(Consts.DAY_IN_MILLISECONDS))
+        assertEquals("3 days", PreferenceUtils.formatPresetHumanReadable(3 * Consts.DAY_IN_MILLISECONDS))
+        assertEquals("1 week", PreferenceUtils.formatPresetHumanReadable(Consts.WEEK_IN_MILLISECONDS))
+        assertEquals("2 weeks", PreferenceUtils.formatPresetHumanReadable(2 * Consts.WEEK_IN_MILLISECONDS))
+        assertEquals("30 minutes", PreferenceUtils.formatPresetHumanReadable(30 * Consts.MINUTE_IN_MILLISECONDS))
+        assertEquals("1 minute", PreferenceUtils.formatPresetHumanReadable(Consts.MINUTE_IN_MILLISECONDS))
+    }
+
+    @Test
+    fun testRoundtripWeekPresets() {
+        val original = "4h, 8h, 1d, 3d, 1w"
+        val parsed = PreferenceUtils.parseSnoozePresets(original)
+        assertNotNull(parsed)
+        val formatted = PreferenceUtils.formatPattern(parsed!!)
+        assertEquals(original, formatted)
+    }
+
+    // === Upcoming Time Presets Tests ===
+
+    @Test
+    fun testUpcomingTimePresetsDefault() {
+        val presets = settings.upcomingTimePresets
+        assertTrue("Default upcoming presets should not be empty", presets.isNotEmpty())
+        assertEquals(5, presets.size)
+        assertEquals(4 * Consts.HOUR_IN_MILLISECONDS, presets[0])
+        assertEquals(8 * Consts.HOUR_IN_MILLISECONDS, presets[1])
+        assertEquals(Consts.DAY_IN_MILLISECONDS, presets[2])
+        assertEquals(3 * Consts.DAY_IN_MILLISECONDS, presets[3])
+        assertEquals(Consts.WEEK_IN_MILLISECONDS, presets[4])
+    }
+
+    @Test
+    fun testUpcomingTimePresetsFiltersNegatives() {
+        val parsed = PreferenceUtils.parseSnoozePresets("-5m, 4h, 1d")
+        assertNotNull(parsed)
+        val filtered = parsed!!.filter { it > 0 && it <= Settings.MAX_LOOKAHEAD_MILLIS }.toLongArray()
+        assertEquals(2, filtered.size)
+        assertEquals(4 * Consts.HOUR_IN_MILLISECONDS, filtered[0])
+        assertEquals(Consts.DAY_IN_MILLISECONDS, filtered[1])
+    }
+
+    @Test
+    fun testUpcomingTimePresetsFiltersExceedingMax() {
+        val parsed = PreferenceUtils.parseSnoozePresets("1d, 5w, 1w")
+        assertNotNull(parsed)
+        val filtered = parsed!!.filter { it > 0 && it <= Settings.MAX_LOOKAHEAD_MILLIS }.toLongArray()
+        assertEquals("5w (35d) exceeds 30d max, should be filtered out", 2, filtered.size)
+        assertEquals(Consts.DAY_IN_MILLISECONDS, filtered[0])
+        assertEquals(Consts.WEEK_IN_MILLISECONDS, filtered[1])
+    }
+
+    // === Fixed Lookahead Millis Tests ===
+
+    @Test
+    fun testFixedLookaheadMillisDefault_fallsBackToLegacyHours() {
+        settings.upcomingEventsFixedHours = 8
+        val millis = settings.upcomingEventsFixedLookaheadMillis
+        assertEquals(8 * Consts.HOUR_IN_MILLISECONDS, millis)
+    }
+
+    @Test
+    fun testFixedLookaheadMillis_setAndGet() {
+        val threeDays = 3 * Consts.DAY_IN_MILLISECONDS
+        settings.upcomingEventsFixedLookaheadMillis = threeDays
+        assertEquals(threeDays, settings.upcomingEventsFixedLookaheadMillis)
+    }
+
+    @Test
+    fun testFixedLookaheadMillis_clampedToMax() {
+        val tooLarge = 60 * Consts.DAY_IN_MILLISECONDS
+        settings.upcomingEventsFixedLookaheadMillis = tooLarge
+        assertEquals(Settings.MAX_LOOKAHEAD_MILLIS, settings.upcomingEventsFixedLookaheadMillis)
+    }
+
+    @Test
+    fun testMaxLookaheadConstants() {
+        assertEquals(30L, Settings.MAX_LOOKAHEAD_DAYS)
+        assertEquals(30L * Consts.DAY_IN_MILLISECONDS, Settings.MAX_LOOKAHEAD_MILLIS)
+    }
+
     // === Display Next Alert Settings Tests ===
 
     @Test

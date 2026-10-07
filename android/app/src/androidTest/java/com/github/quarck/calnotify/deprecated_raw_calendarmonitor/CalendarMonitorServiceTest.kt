@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import android.Manifest
 import java.util.concurrent.TimeUnit
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
@@ -46,6 +45,7 @@ import com.github.quarck.calnotify.NotificationSettings
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.globalState
 import org.junit.Ignore
+import com.github.quarck.calnotify.testutils.TestTimeConstants
 import com.github.quarck.calnotify.utils.CNPlusClockInterface
 import com.github.quarck.calnotify.utils.CNPlusTestClock
 
@@ -340,7 +340,10 @@ class CalendarMonitorServiceTest {
 
   private fun setupMockTimer() {
     // Create CNPlusTestClock with mockTimer - it will automatically set up the mock
-    testClock = CNPlusTestClock(System.currentTimeMillis(), mockTimer)
+    testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME, mockTimer)
+    
+    // Inject testClock into ApplicationController so time-dependent operations use the same clock
+    ApplicationController.clockProvider = { testClock }
     
     // No need to manually configure mockTimer's schedule behavior anymore
     // as this is now handled by CNPlusTestClock's init block
@@ -380,7 +383,7 @@ class CalendarMonitorServiceTest {
 
       if (alertTime > 0) {
         // Simulate firing the events at this alert time
-        MonitorStorage(context).classCustomUse { db ->
+        MonitorStorage(context).use { db ->
           val alerts = db.getAlertsAt(alertTime).filter { !it.wasHandled }
           if (alerts.isNotEmpty()) {
             DevLog.info(LOG_TAG, "Found ${alerts.size} alerts to process for alertTime=$alertTime")
@@ -482,7 +485,7 @@ class CalendarMonitorServiceTest {
 
         // Only mark alerts as handled if this is triggered as part of alarm handling
         if (primaryEventId != null || lastTimerBroadcastReceived != null) {
-          MonitorStorage(ctx).classCustomUse { db ->
+          MonitorStorage(ctx).use { db ->
             val alertsToHandle = if (primaryEventId != null) {
               db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
             } else {
@@ -707,7 +710,7 @@ class CalendarMonitorServiceTest {
 
   private fun clearStorages() {
     try {
-      EventsStorage(fakeContext).classCustomUse { db ->
+      EventsStorage(fakeContext).use { db ->
         val count = db.events.size
         db.deleteAllEvents()
         DevLog.info(LOG_TAG, "Cleared $count events from storage")
@@ -718,7 +721,7 @@ class CalendarMonitorServiceTest {
     }
     
     try {
-      MonitorStorage(fakeContext).classCustomUse { db ->
+      MonitorStorage(fakeContext).use { db ->
         val count = db.alerts.size
         db.deleteAlertsMatching { true }
         DevLog.info(LOG_TAG, "Cleared $count alerts from storage")
@@ -776,6 +779,10 @@ class CalendarMonitorServiceTest {
   @After
   fun cleanup() {
     DevLog.info(LOG_TAG, "Cleaning up test environment")
+    
+    // Reset the clock provider before unmocking to avoid test pollution
+    ApplicationController.resetClockProvider()
+    
     unmockkAll()
 
     // Delete test events and calendar
@@ -820,7 +827,7 @@ class CalendarMonitorServiceTest {
     monitorState.firstScanEver = false
     
     // Use consistent time method
-    testClock.setCurrentTime(System.currentTimeMillis())
+    testClock.setCurrentTime(TestTimeConstants.STANDARD_TEST_TIME)
     val startTime = testClock.currentTimeMillis() // Capture initial time
 
     // Calculate event times first
@@ -883,7 +890,7 @@ class CalendarMonitorServiceTest {
     assertTrue("Calendar monitoring should be enabled", settings.enableCalendarRescan)
 
     // First verify no alerts exist
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts
       assertEquals("Should start with no alerts", 0, alerts.size)
     }
@@ -892,7 +899,7 @@ class CalendarMonitorServiceTest {
     notifyCalendarChangeAndWait()
 
     // Verify alerts were added but not handled
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after scan")
       alerts.forEach { alert ->
@@ -942,7 +949,7 @@ class CalendarMonitorServiceTest {
     advanceTimer(1000)
 
     // Verify alerts were handled
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
       val alerts = db.alerts
       DevLog.info(LOG_TAG, "Found ${alerts.size} alerts after processing")
       alerts.forEach { alert ->
@@ -1070,7 +1077,7 @@ class CalendarMonitorServiceTest {
     notifyCalendarChangeAndWait()
 
     // Verify alerts were added but not handled (similar to manual rescan test)
-    MonitorStorage(fakeContext).classCustomUse { db ->
+    MonitorStorage(fakeContext).use { db ->
         val alerts = db.alerts
         DevLog.info(LOG_TAG, "[testCalendarReload] Found ${alerts.size} alerts after initial scan")
         alerts.forEach { alert ->
@@ -1092,7 +1099,7 @@ class CalendarMonitorServiceTest {
       // IMPORTANT FIX: Reset alert handling state before each verification
       // This is needed because mock behavior in onRescanFromService may mark alerts as handled
       if (index > 0) {
-        MonitorStorage(fakeContext).classCustomUse { db ->
+        MonitorStorage(fakeContext).use { db ->
           // Get all alerts and reset wasHandled flag
           val alerts = db.alerts
           alerts.forEach { alert -> 
@@ -1107,7 +1114,7 @@ class CalendarMonitorServiceTest {
 
       // --- Verify Alert Exists Before Processing ---
       // Ensure the alert from the initial scan is still present and unhandled before we process it
-      MonitorStorage(fakeContext).classCustomUse { db ->
+      MonitorStorage(fakeContext).use { db ->
           val alertBeforeProcessing = db.alerts.find { it.eventId == eventId && it.alertTime == alertTime }
           assertNotNull("[testCalendarReload] Alert for event $eventId should exist before processing", alertBeforeProcessing)
           assertFalse("[testCalendarReload] Alert for event $eventId should be unhandled before processing", alertBeforeProcessing!!.wasHandled)
@@ -1156,7 +1163,7 @@ class CalendarMonitorServiceTest {
 
       // --- Verify Alert Handled ---
       DevLog.info(LOG_TAG, "[testCalendarReload] Verifying alert handling for event $eventId")
-      MonitorStorage(fakeContext).classCustomUse { db ->
+      MonitorStorage(fakeContext).use { db ->
         val alerts = db.alerts
         val alert = alerts.find { it.eventId == eventId && it.alertTime == alertTime } // Find the specific alert
         assertNotNull("[testCalendarReload] Alert for event $eventId should exist after processing", alert)
@@ -1165,7 +1172,7 @@ class CalendarMonitorServiceTest {
 
       // --- Verify Event Stored ---
       DevLog.info(LOG_TAG, "[testCalendarReload] Verifying event storage for event $eventId")
-      EventsStorage(fakeContext).classCustomUse { db ->
+      EventsStorage(fakeContext).use { db ->
         // Find event by ID and start time
         val event = db.getEvent(eventId, eventStartTime)
         assertNotNull("[testCalendarReload] Event $eventId (startTime=$eventStartTime) should be in EventsStorage", event)
@@ -1180,7 +1187,7 @@ class CalendarMonitorServiceTest {
     } // End of loop
 
     // Final verification that all events were processed
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       // Get only the events with IDs from our test list to ensure we're not catching events from other tests
       val relevantEvents = db.events.filter { it.eventId in events }
       DevLog.info(LOG_TAG, "Found ${relevantEvents.size} relevant events out of ${db.events.size} total events")
@@ -1738,7 +1745,7 @@ class CalendarMonitorServiceTest {
    * Fails the test if any events are found.
    */
   private fun verifyNoEvents() {
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Verifying no events in storage, found ${events.size}")
       events.forEach { event ->
@@ -1765,7 +1772,7 @@ class CalendarMonitorServiceTest {
     DevLog.info(LOG_TAG, "Verifying event processing for eventId=$eventId, startTime=$startTime, title=$title")
 
     // First verify event storage
-    EventsStorage(fakeContext).classCustomUse { db ->
+    EventsStorage(fakeContext).use { db ->
       val events = db.events
       DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
       events.forEach { event ->

@@ -25,6 +25,8 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixtureRobolectric
+import com.github.quarck.calnotify.ui.FilterState
+import com.github.quarck.calnotify.ui.TimeFilter
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -208,6 +210,51 @@ class DismissedEventsFragmentRobolectricTest {
             fragment.setSearchQuery(null)
             fixture.waitForAsyncTasks()
             assertEquals(3, recyclerView.adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    // === Time Filter Tests ===
+    
+    @Test
+    fun dismissedEventsFragment_time_filter_ALL_shows_all_events() {
+        fixture.createDismissedEvent(title = "Dismissed 1")
+        fixture.createDismissedEvent(title = "Dismissed 2")
+        
+        // Set filter to ALL
+        DismissedEventsFragment.filterStateProvider = { FilterState(timeFilter = TimeFilter.ALL) }
+        
+        val scenario = fixture.launchDismissedEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("All dismissed events should be shown with ALL filter", 2, adapter?.itemCount)
+        }
+        
+        scenario.close()
+    }
+    
+    @Test
+    fun dismissedEventsFragment_empty_filter_shows_all_events() {
+        fixture.createDismissedEvent(title = "Dismissed 1")
+        fixture.createDismissedEvent(title = "Dismissed 2")
+        fixture.createDismissedEvent(title = "Dismissed 3")
+        
+        // Empty/default filter = show all
+        DismissedEventsFragment.filterStateProvider = { FilterState() }
+        
+        val scenario = fixture.launchDismissedEventsFragment()
+        fixture.waitForAsyncTasks()
+        
+        scenario.onFragment { fragment ->
+            val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+            val adapter = recyclerView.adapter
+            assertNotNull(adapter)
+            assertEquals("All dismissed events should be shown", 3, adapter?.itemCount)
         }
         
         scenario.close()

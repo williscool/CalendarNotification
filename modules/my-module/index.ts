@@ -76,6 +76,49 @@ export function isUsingRoomStorage(): boolean {
   return MyModule.isUsingRoomStorage();
 }
 
+/**
+ * Starts the foreground service that keeps the sync upload running after the
+ * Data Sync screen is left. Safe to call while it is already running.
+ */
+export async function startBackgroundSync(): Promise<void> {
+  return await MyModule.startBackgroundSync();
+}
+
+/**
+ * Called by the background sync task just before it finishes. A task that
+ * finishes without reporting is recorded by the service as timed out.
+ */
+export async function reportBackgroundSyncOutcome(ok: boolean, error?: string): Promise<void> {
+  return await MyModule.reportBackgroundSyncOutcome(ok, error ?? null);
+}
+
+/** Feeds the progress bar in the background sync notification. */
+export async function reportBackgroundSyncProgress(
+  done: number,
+  total: number,
+  queued: number,
+  operation: string | null
+): Promise<void> {
+  return await MyModule.reportBackgroundSyncProgress(done, total, queued, operation);
+}
+
+export interface BackgroundSyncResult {
+  /** Epoch milliseconds */
+  completedAt: number;
+  ok: boolean;
+  error: string | null;
+}
+
+/** How the last background sync ended, or null if there has never been one. */
+export function getLastBackgroundSyncResult(): BackgroundSyncResult | null {
+  return MyModule.getLastBackgroundSyncResult();
+}
+
+/** False when notifications are turned off, so background sync progress is hidden. */
+export function areNotificationsEnabled(): boolean {
+  return MyModule.areNotificationsEnabled();
+}
+
 const emitter = new EventEmitter(MyModule ?? NativeModulesProxy.MyModule);
 
 export function addChangeListener(listener: (event: ChangeEventPayload) => void): Subscription {

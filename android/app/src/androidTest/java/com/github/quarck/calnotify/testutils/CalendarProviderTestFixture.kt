@@ -29,6 +29,9 @@ class CalendarProviderTestFixture {
     }
     
     private fun setupInitialState() {
+        // Inject test clock into CalendarProvider for deterministic time behavior
+        CalendarProvider.clockProvider = { timeProvider.testClock }
+        
         // Clear any existing settings that might affect calendar handling
         val settings = Settings(contextProvider.fakeContext)
         settings.setBoolean("enable_manual_calendar_rescan", false)
@@ -324,6 +327,9 @@ class CalendarProviderTestFixture {
      * Cleans up test resources
      */
     fun cleanup() {
+        // Reset CalendarProvider clock to prevent test pollution
+        CalendarProvider.resetClockProvider()
+        
         baseFixture.cleanup()
     }
 
@@ -342,7 +348,7 @@ class CalendarProviderTestFixture {
         clearStorages(contextProvider.fakeContext)
         
         // Reset test clock to a known state
-        timeProvider.testClock.setCurrentTime(System.currentTimeMillis())
+        timeProvider.testClock.setCurrentTime(TestTimeConstants.STANDARD_TEST_TIME)
         
         // Clear any mock overrides
         unmockkAll()

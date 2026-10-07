@@ -19,7 +19,9 @@
 
 package com.github.quarck.calnotify.prefs
 
+import android.content.Context
 import com.github.quarck.calnotify.Consts
+import com.github.quarck.calnotify.R
 
 object PreferenceUtils {
 
@@ -36,18 +38,23 @@ object PreferenceUtils {
     internal fun formatSnoozePreset(value: Long): String {
         val seconds = value / 1000L
 
-        if (seconds % (3600L * 24) == 0L) {
-            val days = seconds / (3600L * 24)
+        if (seconds % Consts.WEEK_IN_SECONDS == 0L) {
+            val weeks = seconds / Consts.WEEK_IN_SECONDS
+            return "${weeks}w"
+        }
+
+        if (seconds % Consts.DAY_IN_SECONDS == 0L) {
+            val days = seconds / Consts.DAY_IN_SECONDS
             return "${days}d"
         }
 
-        if (seconds % 3600L == 0L) {
-            val hours = seconds / 3600L
+        if (seconds % Consts.HOUR_IN_SECONDS == 0L) {
+            val hours = seconds / Consts.HOUR_IN_SECONDS
             return "${hours}h"
         }
 
-        if (seconds % 60L == 0L) {
-            val minutes = seconds / 60L
+        if (seconds % Consts.MINUTE_IN_SECONDS == 0L) {
+            val minutes = seconds / Consts.MINUTE_IN_SECONDS
             return "${minutes}m"
         }
 
@@ -70,9 +77,10 @@ object PreferenceUtils {
                         val seconds =
                                 when (unit) {
                                     "s" -> num
-                                    "m" -> num * Consts.MINUTE_IN_SECONDS;
-                                    "h" -> num * Consts.HOUR_IN_SECONDS;
-                                    "d" -> num * Consts.DAY_IN_SECONDS;
+                                    "m" -> num * Consts.MINUTE_IN_SECONDS
+                                    "h" -> num * Consts.HOUR_IN_SECONDS
+                                    "d" -> num * Consts.DAY_IN_SECONDS
+                                    "w" -> num * Consts.WEEK_IN_SECONDS
                                     else -> throw Exception("Unknown unit ${unit}")
                                 }
                         seconds * 1000L
@@ -108,4 +116,75 @@ object PreferenceUtils {
 
     fun formatPattern(pattern: LongArray): String =
             pattern.map { p -> formatSnoozePreset(p) }.joinToString(", ")
+
+    data class NormalizeResult(val value: String, val droppedCount: Int)
+
+    /**
+     * Parse and normalize a comma-separated preset string.
+     * Returns null if parsing failed entirely.
+     * [filter] removes individual millis values that don't pass (e.g., negative, over max).
+     * [droppedCount] in the result indicates how many values were removed by the filter.
+     */
+    fun normalizePresetInput(value: String, defaultValue: String, filter: ((Long) -> Boolean)? = null): NormalizeResult? {
+        val presets = parseSnoozePresets(value) ?: return null
+        val tokens = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        val totalCount = tokens.size
+        val kept = if (filter != null) {
+            tokens.zip(presets.toList()).filter { (_, millis) -> filter(millis) }.map { it.first }
+        } else {
+            tokens
+        }
+        if (kept.isEmpty()) return NormalizeResult(defaultValue, totalCount)
+        return NormalizeResult(kept.joinToString(", "), totalCount - kept.size)
+    }
+
+    /**
+     * Format a millisecond duration as a localizable human-readable label using Android plural resources.
+     * Prefer this over the non-Context overload for user-facing text.
+     */
+    fun formatPresetHumanReadable(context: Context, millis: Long): String {
+        val seconds = millis / 1000L
+        val res = context.resources
+
+        if (seconds % Consts.WEEK_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.WEEK_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_weeks, n, n)
+        }
+        if (seconds % Consts.DAY_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.DAY_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_days, n, n)
+        }
+        if (seconds % Consts.HOUR_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.HOUR_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_hours, n, n)
+        }
+        if (seconds % Consts.MINUTE_IN_SECONDS == 0L) {
+            val n = (seconds / Consts.MINUTE_IN_SECONDS).toInt()
+            return res.getQuantityString(R.plurals.duration_minutes, n, n)
+        }
+        return res.getQuantityString(R.plurals.duration_seconds, seconds.toInt(), seconds.toInt())
+    }
+
+    /** Non-Context fallback — English-only. Prefer the Context overload for user-facing text. */
+    fun formatPresetHumanReadable(millis: Long): String {
+        val seconds = millis / 1000L
+
+        if (seconds % Consts.WEEK_IN_SECONDS == 0L) {
+            val weeks = seconds / Consts.WEEK_IN_SECONDS
+            return if (weeks == 1L) "1 week" else "$weeks weeks"
+        }
+        if (seconds % Consts.DAY_IN_SECONDS == 0L) {
+            val days = seconds / Consts.DAY_IN_SECONDS
+            return if (days == 1L) "1 day" else "$days days"
+        }
+        if (seconds % Consts.HOUR_IN_SECONDS == 0L) {
+            val hours = seconds / Consts.HOUR_IN_SECONDS
+            return if (hours == 1L) "1 hour" else "$hours hours"
+        }
+        if (seconds % Consts.MINUTE_IN_SECONDS == 0L) {
+            val minutes = seconds / Consts.MINUTE_IN_SECONDS
+            return if (minutes == 1L) "1 minute" else "$minutes minutes"
+        }
+        return "$seconds seconds"
+    }
 }

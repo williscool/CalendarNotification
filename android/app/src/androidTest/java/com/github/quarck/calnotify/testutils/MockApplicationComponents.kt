@@ -13,7 +13,6 @@ import com.github.quarck.calnotify.calendar.EventOrigin
 import com.github.quarck.calnotify.calendar.EventStatus
 import com.github.quarck.calnotify.calendar.MonitorEventAlertEntry
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.notification.EventNotificationManager
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
@@ -156,7 +155,7 @@ class MockApplicationComponents(
                 
                 // Only mark events as handled when explicitly processing
                 if (primaryEventId != null) {
-                    com.github.quarck.calnotify.monitorstorage.MonitorStorage(ctx).classCustomUse { db ->
+                    com.github.quarck.calnotify.monitorstorage.MonitorStorage(ctx).use { db ->
                         val alertsToHandle = db.alerts.filter { it.eventId == primaryEventId && !it.wasHandled }
                         if (alertsToHandle.isNotEmpty()) {
                             alertsToHandle.forEach { alert ->
@@ -408,7 +407,7 @@ class MockApplicationComponents(
         
         var eventFound = false
         
-        EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+        EventsStorage(contextProvider.fakeContext).use { db ->
             val events = db.events
             DevLog.info(LOG_TAG, "Found ${events.size} events in storage")
             
@@ -451,7 +450,7 @@ class MockApplicationComponents(
     fun verifyNoEvents(): Boolean {
         var hasNoEvents = true
 
-        EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+        EventsStorage(contextProvider.fakeContext).use { db ->
             val events = db.events
             hasNoEvents = events.isEmpty()
             
@@ -482,7 +481,7 @@ class MockApplicationComponents(
     ) {
         DevLog.info(LOG_TAG, "Directly adding event to storage: id=${event.eventId}, title=${event.title}")
         
-        EventsStorage(contextProvider.fakeContext).classCustomUse { db ->
+        EventsStorage(contextProvider.fakeContext).use { db ->
             db.addEvent(event)
         }
     }

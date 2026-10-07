@@ -9,10 +9,15 @@ import android.os.Build
 import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.IdlingRegistry
+import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
+import com.atiurin.ultron.extensions.click
+import com.atiurin.ultron.extensions.isClickable
+import com.atiurin.ultron.extensions.isDisplayed
+import com.atiurin.ultron.extensions.withTimeout
 import com.github.quarck.calnotify.Consts
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.Settings
@@ -21,7 +26,6 @@ import com.github.quarck.calnotify.calendar.CalendarProviderInterface
 import com.github.quarck.calnotify.calendar.EventAlertRecord
 import com.github.quarck.calnotify.calendar.EventDisplayStatus
 import com.github.quarck.calnotify.calendar.EventRecord
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.dismissedeventsstorage.DismissedEventsStorage
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
@@ -32,10 +36,14 @@ import com.github.quarck.calnotify.ui.ActiveEventsFragment
 import com.github.quarck.calnotify.ui.DismissedEventsActivity
 import com.github.quarck.calnotify.ui.DismissedEventsFragment
 import com.github.quarck.calnotify.ui.MainActivity
+import com.github.quarck.calnotify.ui.MainActivityBase
+import com.github.quarck.calnotify.ui.MainActivityLegacy
+import com.github.quarck.calnotify.ui.MainActivityModern
 import com.github.quarck.calnotify.ui.SettingsActivityX
 import com.github.quarck.calnotify.ui.SnoozeAllActivity
 import com.github.quarck.calnotify.ui.UpcomingEventsFragment
 import com.github.quarck.calnotify.ui.ViewEventActivityNoRecents
+import com.github.quarck.calnotify.utils.CNPlusTestClock
 import com.github.quarck.calnotify.utils.globalAsyncTaskCallback
 import androidx.test.espresso.Espresso.pressBackUnconditionally
 import io.mockk.every
@@ -57,6 +65,9 @@ class UITestFixture {
     
     private var eventIdCounter = 100000L
     private val seededEvents = mutableListOf<EventAlertRecord>()
+    
+    // Test clock for consistent time across test events and fragment filtering
+    private val testClock = CNPlusTestClock(TestTimeConstants.STANDARD_TEST_TIME)
     
     // Track if calendar reload prevention is active
     private var calendarReloadPrevented = false
@@ -98,6 +109,14 @@ class UITestFixture {
         navigationDepth = 0
         
         clearAllEvents()
+        
+        // Inject test clock into components that use time-dependent logic
+        // This ensures events created with TestTimeConstants.STANDARD_TEST_TIME
+        // are correctly filtered by fragments using the same time reference
+        UpcomingEventsFragment.clockProvider = { testClock }
+        ActiveEventsFragment.clockProvider = { testClock }
+        DismissedEventsFragment.clockProvider = { testClock }
+        ApplicationController.clockProvider = { testClock }
         
         // Suppress battery optimization dialog if requested
         // This must be done BEFORE launching activity
@@ -351,6 +370,71 @@ class UITestFixture {
     }
     
     /**
+     * Opens the SearchView reliably in a MainActivity.
+     * Uses multiple strategies to handle timing issues:
+     * 1. Ensure menu item is displayed and clickable
+     * 2. Click the menu item
+     * 3. Check if SearchView expanded (search_src_text visible) with short timeout
+     * 4. If not, fall back to programmatic expansion via activity
+     * 5. Retry the entire flow up to 3 times
+     */
+    fun <T : MainActivityBase> openSearchViewReliably(scenario: ActivityScenario<T>) {
+        val maxAttempts = 3
+        val shortTimeout = 2000L
+        
+        for (attempt in 1..maxAttempts) {
+            // Strategy 1: Ensure menu item is fully ready before clicking
+            withId(R.id.action_search).isDisplayed()
+            withId(R.id.action_search).isClickable()
+            
+            // Strategy 2: Try clicking the menu item
+            withId(R.id.action_search).click()
+            
+            // Check if SearchView expanded with a short timeout
+            val expanded = try {
+                withId(androidx.appcompat.R.id.search_src_text)
+                    .withTimeout(shortTimeout)
+                    .isDisplayed()
+                true
+            } catch (e: AssertionError) {
+                false
+            } catch (e: RuntimeException) {
+                false
+            }
+            
+            if (expanded) {
+                return // Success!
+            }
+            
+            // Strategy 3: Fall back to programmatic expansion
+            if (attempt < maxAttempts) {
+                scenario.onActivity { activity ->
+                    activity.searchMenuItem?.expandActionView()
+                }
+                
+                // Check again after programmatic expansion
+                val expandedProgrammatically = try {
+                    withId(androidx.appcompat.R.id.search_src_text)
+                        .withTimeout(shortTimeout)
+                        .isDisplayed()
+                    true
+                } catch (e: AssertionError) {
+                    false
+                } catch (e: RuntimeException) {
+                    false
+                }
+                
+                if (expandedProgrammatically) {
+                    return // Success via programmatic expansion!
+                }
+            }
+        }
+        
+        // Final attempt - use standard assertion which will throw with full error details
+        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
+    }
+    
+    /**
      * Cleans up after tests. Call in @After.
      */
     fun cleanup() {
@@ -370,10 +454,11 @@ class UITestFixture {
             DevLog.error(LOG_TAG, "Failed to reset battery dialog setting: ${e.message}")
         }
         
-        // Reset fragment providers to prevent test pollution
+        // Reset fragment providers and ApplicationController clock to prevent test pollution
         UpcomingEventsFragment.resetProviders()
         ActiveEventsFragment.resetProviders()
         DismissedEventsFragment.resetProviders()
+        ApplicationController.resetClockProvider()
         
         // Clear IdlingResources to ensure clean state for next test
         clearIdlingResources()
@@ -396,7 +481,7 @@ class UITestFixture {
         isTask: Boolean = false,
         snoozedUntil: Long = 0L
     ): EventAlertRecord {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val startTime = currentTime + startTimeOffset
         val endTime = startTime + durationMillis
         val eventId = eventIdCounter++
@@ -424,7 +509,7 @@ class UITestFixture {
         event.isMuted = isMuted
         event.isTask = isTask
         
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             db.addEvent(event)
         }
         
@@ -456,7 +541,7 @@ class UITestFixture {
         title: String = "Snoozed Event",
         snoozeMinutes: Int = 30
     ): EventAlertRecord {
-        val snoozedUntil = System.currentTimeMillis() + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
+        val snoozedUntil = TestTimeConstants.STANDARD_TEST_TIME + (snoozeMinutes * Consts.MINUTE_IN_MILLISECONDS)
         return createEvent(
             title = title,
             snoozedUntil = snoozedUntil
@@ -487,12 +572,12 @@ class UITestFixture {
         val event = createEvent(title = title)
         
         // Remove from active storage
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             db.deleteEvent(event.eventId, event.instanceStartTime)
         }
         
         // Add to dismissed storage
-        DismissedEventsStorage(context).classCustomUse { db ->
+        DismissedEventsStorage(context).use { db ->
             db.addEvent(dismissType, event)
         }
         
@@ -504,13 +589,13 @@ class UITestFixture {
      * Clears all events from storage.
      */
     fun clearAllEvents() {
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             db.events.forEach { event ->
                 db.deleteEvent(event.eventId, event.instanceStartTime)
             }
         }
         
-        DismissedEventsStorage(context).classCustomUse { db ->
+        DismissedEventsStorage(context).use { db ->
             db.events.forEach { entry ->
                 db.deleteEvent(entry)
             }
@@ -574,7 +659,7 @@ class UITestFixture {
      */
     fun getActiveEvents(): List<EventAlertRecord> {
         var events: List<EventAlertRecord> = emptyList()
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             events = db.events.toList()
         }
         return events
@@ -585,24 +670,54 @@ class UITestFixture {
      */
     fun getEventCount(): Int {
         var count = 0
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             count = db.events.size
         }
         return count
     }
     
     /**
-     * Launches MainActivity with ActivityScenario.
+     * Launches MainActivityLegacy with ActivityScenario.
+     * 
+     * This directly launches the legacy activity (bypassing the MainActivity router)
+     * since tests are configured with useNewNavigationUI = false.
      * 
      * If calendar reload prevention is active, also clears any pre-existing notifications
      * to prevent them from interfering with UI tests (e.g., blocking toolbar buttons).
      */
-    fun launchMainActivity(): ActivityScenario<MainActivity> {
-        DevLog.info(LOG_TAG, "Launching MainActivity")
-        val scenario = ActivityScenario.launch<MainActivity>(MainActivity::class.java)
+    fun launchMainActivity(): ActivityScenario<MainActivityLegacy> {
+        DevLog.info(LOG_TAG, "Launching MainActivityLegacy")
+        val scenario = ActivityScenario.launch<MainActivityLegacy>(MainActivityLegacy::class.java)
         // Wait for activity to be created and ready before proceeding
         scenario.onActivity { activity ->
-            DevLog.info(LOG_TAG, "MainActivity is ready: ${activity.javaClass.simpleName}")
+            DevLog.info(LOG_TAG, "MainActivityLegacy is ready: ${activity.javaClass.simpleName}")
+        }
+        dismissStartupDialogs()
+        
+        // Clear any pre-existing notifications that could interfere with UI tests
+        // (e.g., heads-up notifications blocking toolbar buttons)
+        if (calendarReloadPrevented) {
+            cancelAllNotifications()
+        }
+        
+        return scenario
+    }
+    
+    /**
+     * Launches MainActivityModern with ActivityScenario.
+     * 
+     * This directly launches the modern activity with fragment-based navigation.
+     * Use this for tests that need the new navigation UI with bottom tabs.
+     * 
+     * Note: Callers should set useNewNavigationUI = true before calling this method
+     * to ensure consistent behavior.
+     */
+    fun launchMainActivityModern(): ActivityScenario<MainActivityModern> {
+        DevLog.info(LOG_TAG, "Launching MainActivityModern")
+        val scenario = ActivityScenario.launch<MainActivityModern>(MainActivityModern::class.java)
+        // Wait for activity to be created and ready before proceeding
+        scenario.onActivity { activity ->
+            DevLog.info(LOG_TAG, "MainActivityModern is ready: ${activity.javaClass.simpleName}")
         }
         dismissStartupDialogs()
         
@@ -719,8 +834,14 @@ class UITestFixture {
     /**
      * Mocks ApplicationController for isolated UI testing.
      * Call this when you want to verify UI calls methods without side effects.
+     *
+     * No-op when calendar reload prevention already mocked it: re-running
+     * mockkObject clears every stub on the object, including the
+     * onMainActivityResumed stub. The real rescan then runs and outlives the
+     * test, crashing the process after unmockkAll() ("can't find stub").
      */
     fun mockApplicationController() {
+        if (calendarReloadPrevented) return
         DevLog.info(LOG_TAG, "Mocking ApplicationController")
         mockkObject(ApplicationController)
     }
@@ -768,7 +889,7 @@ class UITestFixture {
      * Used for testing UpcomingEventsFragment without real calendar data.
      */
     private val mockCalendarProvider = object : CalendarProviderInterface {
-        override val clock = com.github.quarck.calnotify.utils.CNPlusSystemClock()
+        override val clock get() = testClock
         
         override fun getCalendars(context: Context) = listOf<com.github.quarck.calnotify.calendar.CalendarRecord>()
         override fun getHandledCalendarsIds(context: Context, settings: Settings) = setOf<Long>()
@@ -793,7 +914,7 @@ class UITestFixture {
         override fun getEventReminders(context: Context, eventId: Long) = listOf<com.github.quarck.calnotify.calendar.EventReminderRecord>()
         override fun getEvent(context: Context, eventId: Long): EventRecord? {
             // Return a mock EventRecord for any eventId
-            val now = System.currentTimeMillis()
+            val now = TestTimeConstants.STANDARD_TEST_TIME
             val details = com.github.quarck.calnotify.calendar.CalendarEventDetails(
                 title = "Mock Event $eventId",
                 desc = "",
@@ -828,6 +949,7 @@ class UITestFixture {
         override fun deleteEvent(context: Context, eventId: Long) = false
         override fun getCalendarBackupInfo(context: Context, calendarId: Long) = null
         override fun findMatchingCalendarId(context: Context, backupInfo: com.github.quarck.calnotify.calendar.CalendarBackupInfo) = -1L
+        override fun findEventIdBySyncId(context: Context, calendarId: Long, syncId: String?, uid2445: String?) = -1L
         override fun getUpcomingEventCountsByCalendar(context: Context, daysAhead: Int) = mapOf<Long, Int>()
     }
     
@@ -842,7 +964,7 @@ class UITestFixture {
         durationMinutes: Int = 60,
         isAllDay: Boolean = false
     ): MonitorEventAlertEntry {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = TestTimeConstants.STANDARD_TEST_TIME
         val alertTime = currentTime + (alertTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceStart = currentTime + (startTimeOffsetMinutes * Consts.MINUTE_IN_MILLISECONDS)
         val instanceEnd = instanceStart + (durationMinutes * Consts.MINUTE_IN_MILLISECONDS)

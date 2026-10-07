@@ -1,5 +1,6 @@
 package com.github.quarck.calnotify.ui
 
+import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.matcher.ViewMatchers.withId
@@ -12,6 +13,7 @@ import com.atiurin.ultron.extensions.isClickable
 import com.atiurin.ultron.extensions.isDisplayed
 import com.atiurin.ultron.extensions.isNotDisplayed
 import com.atiurin.ultron.extensions.replaceText
+import com.atiurin.ultron.extensions.withTimeout
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.dismissedeventsstorage.EventDismissType
@@ -308,9 +310,8 @@ class MainActivityTest : BaseUltronTest() {
         withText("Beta Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        withId(R.id.action_search).click()
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha should be visible (Beta is filtered out completely)
@@ -331,9 +332,8 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        withId(R.id.action_search).click()
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha should be visible (Beta is filtered out completely)
@@ -362,9 +362,8 @@ class MainActivityTest : BaseUltronTest() {
         withText("Alpha Meeting").isDisplayed()
         
         // Open search (keyboard + search view = 2 navigation levels)
-        withId(R.id.action_search).click()
+        fixture.openSearchViewReliably(scenario)
         fixture.pushNavigation(2)
-        withId(androidx.appcompat.R.id.search_src_text).isDisplayed()
         withId(androidx.appcompat.R.id.search_src_text).replaceText("Alpha")
         
         // Only Alpha visible (Beta is filtered out completely)

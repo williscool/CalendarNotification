@@ -4,7 +4,6 @@ import android.content.Context
 import com.github.quarck.calnotify.app.AlarmSchedulerInterface
 import com.github.quarck.calnotify.app.ApplicationController
 import com.github.quarck.calnotify.calendar.*
-import com.github.quarck.calnotify.database.SQLiteDatabaseExtensions.classCustomUse
 import com.github.quarck.calnotify.eventsstorage.EventsStorage
 import com.github.quarck.calnotify.logs.DevLog
 import com.github.quarck.calnotify.notification.EventNotificationManagerInterface
@@ -184,7 +183,7 @@ class MockApplicationComponents(
         
         val context = contextProvider.fakeContext ?: return true // If no context, assume no events
         
-        EventsStorage(context).classCustomUse { db ->
+        EventsStorage(context).use { db ->
             val events = db.events
             hasNoEvents = events.isEmpty()
             

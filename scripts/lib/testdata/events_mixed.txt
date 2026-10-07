@@ -1,0 +1,6 @@
+Row: 0 calendar_id=1, uid2445=abc123@google.com, _sync_id=sync1, deleted=0
+Row: 1 calendar_id=1, uid2445=def456@google.com, _sync_id=sync2, deleted=0
+Row: 2 calendar_id=1, uid2445=NULL, _sync_id=sync3, deleted=0
+Row: 3 calendar_id=1, uid2445=ghi789@google.com, _sync_id=sync4, deleted=1
+Row: 4 calendar_id=2, uid2445=NULL, _sync_id=NULL, deleted=0
+Row: 5 calendar_id=2, uid2445=NULL, _sync_id=NULL, deleted=0

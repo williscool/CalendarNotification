@@ -20,8 +20,9 @@
 package com.github.quarck.calnotify.dismissedeventsstorage
 
 import com.github.quarck.calnotify.calendar.EventAlertRecord
+import java.io.Closeable
 
-interface DismissedEventsStorageInterface {
+interface DismissedEventsStorageInterface : Closeable {
 
     fun addEvent(type: EventDismissType, changeTime: Long, event: EventAlertRecord)
 
@@ -41,5 +42,31 @@ interface DismissedEventsStorageInterface {
     
     /** Events sorted for UI display: dismissTime descending (most recent first) */
     val eventsForDisplay: List<DismissedEventAlertRecord> get
+
+    /**
+     * Every dismissed event's primary key, without reading the rows.
+     *
+     * This is the app's largest table -- measured at 4183 rows against 373
+     * active events -- so callers that only need to know *which* events exist
+     * should not pay [events]' full row read, sort and mapping. Unsorted.
+     */
+    fun getAllKeys(): List<DismissedEventKey>
+
+    /**
+     * The events for [keys], and only those.
+     *
+     * The companion to [getAllKeys]: decide which dismissed events matter, then
+     * read just them. Chunks internally, since SQLite bounds how many parameters
+     * an `IN` list may carry.
+     */
+    fun getEventsByKeys(keys: Collection<DismissedEventKey>): List<DismissedEventAlertRecord>
+
+    /**
+     * Move every dismissed row from [oldEventId] to [newEventId].
+     *
+     * Used by the id re-key after a restore. Returns the number of
+     * rows moved (0 if the event was never dismissed).
+     */
+    fun reKeyEventId(oldEventId: Long, newEventId: Long): Int
 
 }

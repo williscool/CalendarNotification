@@ -7,11 +7,11 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
 /**
- * React Native package that provides the ThemeModule.
+ * React Native package that provides the app's own native modules.
  */
 class ThemePackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(ThemeModule(reactContext))
+        return listOf(ThemeModule(reactContext), HeadlessTaskSupportModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {

@@ -38,6 +38,28 @@
             android:elevation="@dimen/toolbar_elevation"
             tools:targetApi="m" />
 
+        <!-- Filter chips row - horizontally scrollable, collapses on scroll -->
+        <HorizontalScrollView
+            android:id="@+id/filter_chips_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:background="?attr/colorPrimary"
+            app:layout_scrollFlags="scroll|enterAlways|snap">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/filter_chips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="8dp"
+                app:singleLine="true"
+                app:chipSpacingHorizontal="8dp" />
+
+        </HorizontalScrollView>
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.fragment.app.FragmentContainerView

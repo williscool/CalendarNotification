@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ConfigObj } from '../config';
 import { emitSyncLog } from '../logging/syncLog';
+import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY, loadStoredSettings } from './settingsStorage';
 
 type SyncType = 'unidirectional' | 'bidirectional' | 'none';
 
@@ -13,17 +14,6 @@ export interface Settings {
   powersyncUrl: string;
   powersyncSecret: string;
 }
-
-const DEFAULT_SETTINGS: Settings = {
-  syncEnabled: false,
-  syncType: 'unidirectional',
-  supabaseUrl: '',
-  supabaseAnonKey: '',
-  powersyncUrl: '',
-  powersyncSecret: '',
-};
-
-const SETTINGS_STORAGE_KEY = '@calendar_notifications_settings';
 
 interface SettingsContextType {
   settings: Settings;
@@ -41,19 +31,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loadSettings = async () => {
     try {
-      const storedSettingsStr = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+      const storedSettings = await loadStoredSettings();
       if (__DEV__) {
-        console.log('[SettingsContext] Stored settings:', storedSettingsStr ? 'FOUND' : 'NOT FOUND');
+        console.log('[SettingsContext] Stored settings:', storedSettings ? 'FOUND' : 'NOT FOUND');
       }
       
-      if (storedSettingsStr) {
-        const parsedSettings = JSON.parse(storedSettingsStr);
-        // Merge with defaults to handle any missing keys (old keys like powersyncToken are just ignored)
-        const mergedSettings: Settings = { ...DEFAULT_SETTINGS, ...parsedSettings };
+      if (storedSettings) {
         if (__DEV__) {
           console.log('[SettingsContext] Using stored settings');
         }
-        setSettings(mergedSettings);
+        setSettings(storedSettings);
       } else {
         // Initialize with current ConfigObj values
         if (__DEV__) {
