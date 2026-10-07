@@ -213,13 +213,15 @@ class SettingsActivityRobolectricTest {
 
     // === Upcoming Events Help Tests ===
 
-    /** Opens the navigation settings screen and hands back its fragment */
+    /** Opens the navigation settings screen with the new UI on and hands back its fragment */
     private fun showNavigationSettings(activity: SettingsActivityX): NavigationSettingsFragmentX {
         val fragment = NavigationSettingsFragmentX()
         activity.supportFragmentManager.beginTransaction()
             .replace(R.id.settings_container, fragment)
             .commit()
         activity.supportFragmentManager.executePendingTransactions()
+        // The fixture turns the new UI off, which disables the Upcoming help entry and swallows clicks
+        fragment.findPreference<CheckBoxPreference>("use_new_navigation_ui")!!.isChecked = true
         return fragment
     }
 
