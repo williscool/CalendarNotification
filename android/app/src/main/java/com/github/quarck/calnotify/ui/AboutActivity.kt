@@ -25,7 +25,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import android.view.View
 import android.widget.TextView
-import com.github.quarck.calnotify.BuildConfig
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.utils.find
 import com.github.quarck.calnotify.utils.setupStatusBarSpacer
@@ -55,11 +54,11 @@ class AboutActivity : AppCompatActivity() {
         buildTime?.text = String.format(resources.getString(R.string.build_time_string_format), getBuildDate())
 
         val commitSha = find<TextView?>(R.id.text_view_app_commit_sha)
-        commitSha?.text = String.format(resources.getString(R.string.commit_sha_string_format), BuildConfig.GIT_COMMIT_SHA)
+        commitSha?.text = String.format(resources.getString(R.string.commit_sha_string_format), getString(R.string.git_commit_sha))
     }
 
     fun getBuildDate(): String {
-        return SimpleDateFormat.getInstance().format(Date(BuildConfig.TIMESTAMP));
+        return SimpleDateFormat.getInstance().format(Date(getString(R.string.build_timestamp_millis).toLong()))
     }
 
     @Suppress("UNUSED_PARAMETER", "unused")
