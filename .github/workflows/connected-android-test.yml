@@ -59,7 +59,7 @@ jobs:
     # Skip version-bump.yml's own "build: version bump X" push: the merge that
     # preceded it already ran this
     if: "!startsWith(github.event.head_commit.message, 'build: version bump ')"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [x86_64] # Only test on x86_64 to save time and resources
@@ -71,7 +71,7 @@ jobs:
     timeout-minutes: 40  # Increased for cache rebuilds after dependency updates
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         # For PRs, checkout the actual PR head commit, not the merge commit
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -123,7 +123,7 @@ jobs:
 
     # Publish integration test results
     - name: Publish Integration Test Results
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       if: always()
       with:
         name: 'Integration Tests'
@@ -133,7 +133,7 @@ jobs:
 
     - name: Upload Emulator Log
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: verify-connected-android-test-emulator-log
         path: verify-connected-android-test-emulator.log

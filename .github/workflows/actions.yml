@@ -54,7 +54,7 @@ on:
 jobs:
   set_build_datetime:
     name: Set Build Datetime
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Set Build Datetime
         id: set_date
@@ -81,9 +81,9 @@ jobs:
 
   safety_checks:
     name: Safety Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           # For PRs, checkout the actual PR head commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -107,7 +107,7 @@ jobs:
     name: Build Android App
     needs: [set_build_datetime, safety_checks]
     if: needs.set_build_datetime.outputs.code_changed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [x86_64]
@@ -121,14 +121,14 @@ jobs:
       repository_name: ${{ steps.set_repo.outputs.repository_name }}
 
     steps: &build-steps
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         # For PRs, checkout the actual PR head commit, not the merge commit
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2
+      uses: hendrikmuhs/ccache-action@v1.2.24
       with:
         create-symlink: true
         # PRs restore master's ccache; only master saves (see Update Caches)
@@ -208,7 +208,7 @@ jobs:
         find android/${{ env.main_project_module }}/build/outputs/apk/ -type f -name "*.apk" | sort
 
     - name: Upload APK artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
         path: |
@@ -219,7 +219,7 @@ jobs:
 
     # Save the test APKs separately
     - name: Upload Test APK artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: android-test-apk-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/apk/androidTest/${{ matrix.arch == 'arm64-v8a' && 'arm64v8a' || 'x8664' }}/debug/
@@ -228,7 +228,7 @@ jobs:
 
     # Save the build artifacts to be used in other jobs
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: android-coverage-artifacts-${{ matrix.arch }}
         path: |
@@ -240,7 +240,7 @@ jobs:
 
     - name: Upload Bundle artifacts
       if: env.BUILD_RELEASE == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: android-bundle-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/outputs/bundle/
@@ -270,7 +270,7 @@ jobs:
     name: Build Android App
     needs: [set_build_datetime, safety_checks]
     if: needs.set_build_datetime.outputs.code_changed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [arm64-v8a]
@@ -283,7 +283,7 @@ jobs:
   sign:
     name: Sign Android APKs and Bundles (${{ matrix.arch }})
     needs: [set_build_datetime, build-x86_64, build-arm64]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [arm64-v8a, x86_64]
@@ -292,7 +292,7 @@ jobs:
       GRADLE_ABI: ${{ matrix.arch }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           # For PRs, checkout the actual PR head commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -305,14 +305,14 @@ jobs:
 
       # Download build artifacts for current architecture
       - name: Download APK artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: android-apk-artifacts-${{ matrix.arch }}
           path: artifacts/apk/
 
       - name: Download Bundle artifacts
         if: env.BUILD_RELEASE == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: android-bundle-artifacts-${{ matrix.arch }}
           path: artifacts/bundle/
@@ -337,42 +337,33 @@ jobs:
           find signing -type f | sort
 
       # Sign the APKs and AAB
-      - uses: r0adkll/sign-android-release@v1
-        name: Sign debug app APKs
-        id: sign_debug_app
-        with:
-          releaseDirectory: signing/apk/debug/
-          signingKeyBase64: ${{ secrets.DEBUG_SIGNING_KEYSTORE }}
-          alias: ${{ secrets.DEBUG_KEYSTORE_ALIAS }}
-          keyStorePassword: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.DEBUG_KEYSTORE_ALIAS_PASS }}
+      - name: Sign debug app APKs
+        run: scripts/sign_android_artifacts.sh signing/apk/debug
         env:
+          SIGNING_KEY_BASE64: ${{ secrets.DEBUG_SIGNING_KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.DEBUG_KEYSTORE_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_ALIAS_PASS }}
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
 
-      - uses: r0adkll/sign-android-release@v1
-        name: Sign RELEASE app APKs
+      - name: Sign RELEASE app APKs
         if: env.BUILD_RELEASE == 'true'
-        id: sign_release_app
-        with:
-          releaseDirectory: signing/apk/release/
-          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
-          alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
-          keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
+        run: scripts/sign_android_artifacts.sh signing/apk/release
         env:
+          SIGNING_KEY_BASE64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
 
-      - uses: r0adkll/sign-android-release@v1
-        name: Sign RELEASE app AABs
+      - name: Sign RELEASE app AABs
         if: env.BUILD_RELEASE == 'true'
-        id: sign_release_aab
-        with:
-          releaseDirectory: signing/bundle/release/
-          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
-          alias: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
-          keyStorePassword: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
+        run: scripts/sign_android_artifacts.sh signing/bundle/release
         env:
+          SIGNING_KEY_BASE64: ${{ secrets.RELEASE_SIGNING_KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_ALIAS_PASS }}
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
 
       # Rename APKs
@@ -425,21 +416,21 @@ jobs:
 
       # Upload signed artifacts
       - name: Upload SIGNED APK Debug
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-APK-debug-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-debug.apk
 
       - name: Upload SIGNED APK RELEASE
         if: env.BUILD_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-APK-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*-release.apk
 
       - name: Upload SIGNED AAB (App Bundle) Release
         if: env.BUILD_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: "signed-${{ needs.set_build_datetime.outputs.build_datetime }}-${{ env.app_name }}-AAB-release-${{ matrix.arch }}"
           path: renamed_apks/${{env.app_file_name_prefix}}-*.aab
@@ -448,10 +439,10 @@ jobs:
     name: Comment on PR with build links
     if: github.event_name == 'pull_request'
     needs: sign
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Comment PR
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
@@ -477,19 +468,19 @@ jobs:
   # unit-tests job, which gates the required CI Result check.
   jest-tests:
     name: Run Jest Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: set_build_datetime
     if: needs.set_build_datetime.outputs.code_changed == 'true'
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         # For PRs, checkout the actual PR head commit, not the merge commit
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
         fetch-depth: 1
 
     - name: Use Node.js 22.x
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v7
       with:
         node-version: "22.x"
         cache: "yarn"
@@ -510,7 +501,7 @@ jobs:
 
     # Publish Jest test results
     - name: Publish Jest Test Results
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       if: always()
       with:
         name: 'Jest Tests'
@@ -521,7 +512,7 @@ jobs:
     # Upload Jest coverage report
     - name: Upload Jest Coverage Report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: jest-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
         path: coverage/
@@ -534,7 +525,7 @@ jobs:
   # the unit tests then finish around when build + sign do.
   unit-tests:
     name: Unit Tests (shard ${{ matrix.shard }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: set_build_datetime
     if: needs.set_build_datetime.outputs.code_changed == 'true'
     timeout-minutes: 25  # Increased for cache rebuilds after dependency updates
@@ -546,7 +537,7 @@ jobs:
     env:
       UNIT_TEST_SHARDS: 3
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         # For PRs, checkout the actual PR head commit, not the merge commit
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -588,7 +579,7 @@ jobs:
 
     # Publish test results using dorny/test-reporter
     - name: Publish Unit Test Results
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       if: always()
       with:
         name: 'Unit Tests (shard ${{ matrix.shard }})'
@@ -600,7 +591,7 @@ jobs:
     # Results, coverage data and compiled classes for merge-unit-test-coverage
     - name: Upload Unit Test Shard
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: unit-test-shard-${{ matrix.shard }}
         path: |
@@ -622,17 +613,17 @@ jobs:
   merge-unit-test-coverage:
     name: Merge Unit Test Coverage
     needs: [set_build_datetime, unit-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: always() && needs.unit-tests.result != 'cancelled' && needs.set_build_datetime.outputs.code_changed == 'true'
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Download unit test shards
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: unit-test-shard-*
           path: shards/
@@ -642,7 +633,7 @@ jobs:
 
       - name: Upload Unit Test Results and Coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: |
@@ -653,7 +644,7 @@ jobs:
   # connected-android-integration-test:
   #   name: Test Android App
   #   needs: [build]
-  #   runs-on: ubuntu-latest
+  #   runs-on: ubuntu-24.04
   #   strategy:
   #     matrix:
   #       arch: [x86_64] # Only test on x86_64 to save time and resources
@@ -665,7 +656,7 @@ jobs:
   #   timeout-minutes: 30
 
   #   steps:
-  #   - uses: actions/checkout@v3
+  #   - uses: actions/checkout@v7
   #     with:
   #       fetch-depth: 1
 
@@ -689,7 +680,7 @@ jobs:
   #       chmod +x scripts/run_android_tests.sh
 
   #   - name: Download APK artifacts
-  #     uses: actions/download-artifact@v4
+  #     uses: actions/download-artifact@v8
   #     with:
   #       name: android-apk-artifacts-${{ matrix.arch }}
   #       path: android/app/build/outputs/apk
@@ -717,7 +708,7 @@ jobs:
 
   #   # Publish integration test results
   #   - name: Publish Integration Test Results
-  #     uses: dorny/test-reporter@v2
+  #     uses: dorny/test-reporter@v3
   #     if: always()
   #     with:
   #       name: 'Integration Tests'
@@ -729,7 +720,7 @@ jobs:
 
   #   - name: Upload Coverage Report
   #     if: always()
-  #     uses: actions/upload-artifact@v4
+  #     uses: actions/upload-artifact@v7
   #     with:
   #       name: android-test-coverage-report
   #       path: |
@@ -742,7 +733,7 @@ jobs:
 
   #   - name: Upload Emulator Log
   #     if: always()
-  #     uses: actions/upload-artifact@v4
+  #     uses: actions/upload-artifact@v7
   #     with:
   #       name: emulator-log
   #       path: emulator.log
@@ -768,7 +759,7 @@ jobs:
   integration-test:
     name: Test Android App (Shard ${{ matrix.shard }})
     needs: [set_build_datetime, build-x86_64]  # x86_64 APKs only; doesn't wait for arm64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [x86_64]
@@ -782,7 +773,7 @@ jobs:
     timeout-minutes: 35  # Increased for cache rebuilds after dependency updates
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         # For PRs, checkout the actual PR head commit, not the merge commit
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -809,19 +800,19 @@ jobs:
         chmod +x scripts/generate_android_coverage.sh
 
     - name: Download APK artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: android-apk-artifacts-${{ matrix.arch }}
         path: android/app/build/outputs/apk
 
     - name: Download Test APK artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: android-test-apk-artifacts-${{ matrix.arch }}
         path: android/app/build/outputs/apk/androidTest
 
     - name: Download Coverage artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: android-coverage-artifacts-${{ matrix.arch }}
         path: android/${{ env.main_project_module }}/build/
@@ -884,7 +875,7 @@ jobs:
     # Publish integration test results (unique name per shard to avoid conflicts)
     # Only runs if verify step found XML files (prevents cryptic dorny error)
     - name: Publish Integration Test Results (Shard ${{ matrix.shard }})
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       if: always() && steps.verify_results.outputs.has_results == 'true'
       with:
         name: 'Integration Tests (Shard ${{ matrix.shard }})'
@@ -895,7 +886,7 @@ jobs:
 
     - name: Upload Shard Coverage Data
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: integration-coverage-shard-${{ matrix.shard }}
         path: android/app/build/outputs/code_coverage/
@@ -903,7 +894,7 @@ jobs:
 
     - name: Upload Allure Results (Shard ${{ matrix.shard }})
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: allure-results-shard-${{ matrix.shard }}
         # Note: pull_allure_results creates nested allure-results/allure-results structure
@@ -913,7 +904,7 @@ jobs:
 
     - name: Upload Emulator Log (Shard ${{ matrix.shard }})
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: emulator-log-shard-${{ matrix.shard }}
         path: emulator.log
@@ -941,11 +932,11 @@ jobs:
   merge-integration-coverage:
     name: Merge Integration Test Coverage
     needs: [set_build_datetime, build-x86_64, integration-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: always() && needs.integration-test.result != 'cancelled' && needs.set_build_datetime.outputs.code_changed == 'true'
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           # For PRs, checkout the actual PR head commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -961,14 +952,14 @@ jobs:
           echo "All integration test shards passed"
 
       - name: Download all shard coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: integration-coverage-shard-*
           path: android/app/build/outputs/code_coverage/
           merge-multiple: true
 
       - name: Download all shard Allure results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: allure-results-shard-*
           path: android/app/build/outputs/allure-results/
@@ -982,7 +973,7 @@ jobs:
           find android/app/build/outputs/allure-results/ -type f 2>/dev/null | head -20 || echo "No allure files found"
 
       - name: Download Coverage artifacts (classes for JaCoCo)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: android-coverage-artifacts-x86_64
           path: android/app/build/
@@ -1034,7 +1025,7 @@ jobs:
 
       - name: Upload Merged Coverage Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: |
@@ -1058,7 +1049,7 @@ jobs:
 
       - name: Upload Allure HTML Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: allure-html-report-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: android/app/build/outputs/allure-report/
@@ -1069,9 +1060,9 @@ jobs:
     name: Process Code Coverage
     needs: [set_build_datetime, unit-tests, merge-unit-test-coverage, build-x86_64, build-arm64, merge-integration-coverage]
     if: always() && needs.set_build_datetime.outputs.code_changed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           # For PRs, checkout the actual PR head commit, not the merge commit
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -1079,14 +1070,14 @@ jobs:
 
       # Download coverage results from both unit and integration tests
       - name: Download unit test coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: unit-test-results-and-coverage-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: coverage-data/unit-tests/android/app/build/
         continue-on-error: true
 
       - name: Download integration test coverage (merged from all shards)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: android-test-coverage-report-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: coverage-data/integration-tests/android/app/build/
@@ -1097,7 +1088,7 @@ jobs:
         id: jacoco
         # The action only supports pull_request and push events
         if: github.event_name != 'workflow_dispatch'
-        uses: madrapps/jacoco-report@v1.6.1
+        uses: madrapps/jacoco-report@v1.8.0
         with:
           paths: |
             ${{ github.workspace }}/coverage-data/unit-tests/android/app/build/reports/coverage/**/*.xml
@@ -1110,7 +1101,7 @@ jobs:
 
       # Upload combined coverage reports (HTML, XML, CSV)
       - name: Upload Combined Coverage Reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: full-code-coverage-reports-${{ needs.set_build_datetime.outputs.build_datetime }}
           path: |
@@ -1127,7 +1118,7 @@ jobs:
       # Create a PR comment with coverage report link if this is a PR
       - name: PR Comment with Coverage Report
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
@@ -1152,16 +1143,16 @@ jobs:
     name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [sign, merge-integration-coverage, unit-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           # For tags this is a no-op (falls back to github.sha), but consistent pattern
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: signed-*
           path: artifacts
@@ -1179,7 +1170,7 @@ jobs:
           find artifacts/ -name "*.apk" -o -name "*.aab" | xargs -I{} cp {} release_files/
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body_path: ${{ github.workspace }}-CHANGELOG.txt
           files: release_files/*
@@ -1194,7 +1185,7 @@ jobs:
     name: CI Result
     if: always()
     needs: [set_build_datetime, safety_checks, build-x86_64, build-arm64, sign, unit-tests, merge-unit-test-coverage, jest-tests]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Fail if any gated job failed or was cancelled
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
