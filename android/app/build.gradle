@@ -116,10 +116,14 @@ android {
     versionCode 4000101
     versionName "9.32.2"
 
-    buildConfigField "long", "TIMESTAMP", System.currentTimeMillis() + "L"
-    // Git commit SHA for identifying builds
+    // Build time and git commit for the About screen. These are string resources,
+    // not buildConfigFields: BuildConfig is compiled with the app, so values that
+    // change on every build made the whole app module (Kotlin/Java compile, dex,
+    // package) a Gradle build-cache miss even when no code changed. A resource's
+    // *value* doesn't change the R class, so compiled code stays cacheable.
+    resValue "string", "build_timestamp_millis", System.currentTimeMillis().toString()
     def gitSha = 'git rev-parse --short HEAD'.execute().text.trim()
-    buildConfigField "String", "GIT_COMMIT_SHA", "\"${gitSha}\""
+    resValue "string", "git_commit_sha", gitSha
     // React Native New Architecture flags
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", project.hasProperty("newArchEnabled") ? project.property("newArchEnabled") : "false"
     buildConfigField "boolean", "IS_HERMES_ENABLED", project.hasProperty("hermesEnabled") ? project.property("hermesEnabled") : "true"
