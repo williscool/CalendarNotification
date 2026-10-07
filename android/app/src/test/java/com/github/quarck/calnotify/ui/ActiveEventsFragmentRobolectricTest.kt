@@ -197,6 +197,47 @@ class ActiveEventsFragmentRobolectricTest {
         
         scenario.close()
     }
+
+    // The upcoming view reuses this line for its alert time; the active view must keep its own behaviour
+
+    /** Binds the first row and returns its "snoozed until" line */
+    private fun firstRowSnoozedText(fragment: ActiveEventsFragment): TextView {
+        val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+        val adapter = recyclerView.adapter as EventListAdapter
+        val holder = adapter.onCreateViewHolder(recyclerView, 0)
+        adapter.onBindViewHolder(holder, 0)
+        return holder.snoozedUntilText!!
+    }
+
+    @Test
+    fun activeEventsFragment_snoozed_event_shows_snoozed_until() {
+        fixture.createSnoozedEvent(title = "Snoozed Event")
+
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+
+        scenario.onFragment { fragment ->
+            val text = firstRowSnoozedText(fragment)
+            assertEquals(View.VISIBLE, text.visibility)
+            assertTrue(text.text.startsWith(fragment.getString(R.string.snoozed_until_string)))
+        }
+
+        scenario.close()
+    }
+
+    @Test
+    fun activeEventsFragment_unsnoozed_event_hides_snoozed_line() {
+        fixture.createEvent(title = "Plain Event")
+
+        val scenario = fixture.launchActiveEventsFragment()
+        fixture.waitForAsyncTasks()
+
+        scenario.onFragment { fragment ->
+            assertEquals(View.GONE, firstRowSnoozedText(fragment).visibility)
+        }
+
+        scenario.close()
+    }
     
     // === Muted Event Display Tests ===
     

@@ -61,7 +61,8 @@ interface SelectionModeCallback {
 class EventListAdapter(
         val context: Context,
         val callback: EventListCallback,
-        val swipeEnabled: Boolean = true)
+        val swipeEnabled: Boolean = true,
+        val showAlertTime: Boolean = false)
 
     : RecyclerView.Adapter<EventListAdapter.ViewHolder>() {
 
@@ -407,15 +408,26 @@ class EventListAdapter(
                 holder.eventTimeText.text = detail2
             }
 
-            if (event.snoozedUntil != 0L) {
-                holder.snoozedUntilText?.text =
-                        context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event);
-
-                holder.snoozedUntilText?.visibility = View.VISIBLE;
-            }
-            else {
-                holder.snoozedUntilText?.text = "";
-                holder.snoozedUntilText?.visibility = View.GONE;
+            when {
+                // Upcoming events: show when the notification will fire
+                showAlertTime -> {
+                    holder.snoozedUntilText?.text = context.resources.getString(
+                        R.string.alert_fires_at,
+                        eventFormatter.formatTimePoint(event.alertTime)
+                    )
+                    holder.snoozedUntilText?.visibility = View.VISIBLE
+                }
+                // Active snoozed events: show "Snoozed until X"
+                event.snoozedUntil != 0L -> {
+                    holder.snoozedUntilText?.text =
+                        context.resources.getString(R.string.snoozed_until_string) + " " + eventFormatter.formatSnoozedUntil(event)
+                    holder.snoozedUntilText?.visibility = View.VISIBLE
+                }
+                // Active non-snoozed events: hide the text
+                else -> {
+                    holder.snoozedUntilText?.text = ""
+                    holder.snoozedUntilText?.visibility = View.GONE
+                }
             }
 
             holder.calendarColor.color =

@@ -97,7 +97,7 @@ class UpcomingEventsFragment : Fragment(), EventListCallback, SearchableFragment
         emptyView.text = getString(R.string.empty_upcoming)
         
         // Enable swipe to dismiss for pre-dismiss action
-        adapter = EventListAdapter(requireContext(), this, swipeEnabled = true)
+        adapter = EventListAdapter(requireContext(), this, swipeEnabled = true, showAlertTime = true)
         recyclerView.layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
         recyclerView.adapter = adapter
         adapter.recyclerView = recyclerView
