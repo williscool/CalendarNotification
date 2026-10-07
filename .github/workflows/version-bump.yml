@@ -8,7 +8,7 @@ on:
 
 jobs:
   update-version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     permissions:
       # Give the default GITHUB_TOKEN write permission to commit and push the
@@ -21,13 +21,13 @@ jobs:
     if: "startsWith(github.event.head_commit.message, 'build: version bump ') != true"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ssh-key: ${{ secrets.VERSION_BUMP_DEPLOY_PRIVATE_KEY }}
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
           cache: 'yarn'
@@ -41,7 +41,7 @@ jobs:
         # Yarn rotates the downloaded cache archives, @see https://github.com/actions/setup-node/issues/325
         # Yarn cache is also reusable between arch and os.
       - name: Restore yarn cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: yarn-download-cache
         with:
           path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
@@ -52,7 +52,7 @@ jobs:
         # Invalidated on yarn.lock changes
       - name: Restore yarn install state
         id: yarn-install-state-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .yarn/ci-cache/
           key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}

@@ -175,7 +175,7 @@ runs:
 
     - name: Use Node.js ${{ inputs.node_version }}
       if: inputs.test_runner_only != 'true'
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node_version }}
         cache: "yarn"
@@ -190,7 +190,7 @@ runs:
     # Yarn caches
     - name: Restore yarn cache
       if: inputs.test_runner_only != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: yarn-download-cache-restore
       with:
         path: ${{ steps.yarn-config.outputs.CACHE_FOLDER }}
@@ -232,7 +232,7 @@ runs:
     - name: Restore yarn install state
       if: inputs.test_runner_only != 'true'
       id: yarn-install-state-cache-restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       with:
         path: .yarn/ci-cache/
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
@@ -242,7 +242,7 @@ runs:
     # Cache JS Bundle and Assets
     - name: Restore JS Bundle and Assets Cache
       if: inputs.test_runner_only != 'true' && inputs.skip_js_bundle != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: js-bundle-cache-restore
       with:
         path: |
@@ -282,7 +282,7 @@ runs:
     # This is because it's used by subsequent steps and we can't wait until the end of the job
 
     - name: Set up JDK 21
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v6
       with:
         java-version: '21'
         distribution: 'temurin'
@@ -292,7 +292,7 @@ runs:
     # Prevents intermittent 403s from Maven Central rate limiting in CI
     - name: Restore Gradle Dependencies Cache
       if: inputs.test_runner_only != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: gradle-deps-cache-restore
       with:
         path: |
@@ -307,7 +307,7 @@ runs:
     # Note: Cache key includes gradle-wrapper.properties hash to invalidate on Gradle version changes
     - name: Restore Cache Gradle files
       if: inputs.test_runner_only != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: gradle-cache-restore
       with:
         path: |
@@ -325,7 +325,7 @@ runs:
 
     - name: Setup Gradle
       if: inputs.test_runner_only != 'true'
-      uses: gradle/actions/setup-gradle@v4.0.0
+      uses: gradle/actions/setup-gradle@v5
       with:
         # Cache is writeable for: tag builds (to update after release) and manual dispatch from master (to refresh cache)
         # Cache is read-only for: PRs and manual dispatch from other branches
@@ -341,7 +341,7 @@ runs:
     # Restore Build Outputs Cache if arch is provided
     - name: Restore Build Outputs Cache
       if: inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: build-outputs-cache-restore
       with:
         path: |
@@ -381,7 +381,7 @@ runs:
     # Cache React Native specific files
     - name: Restore Cache React Native files
       if: inputs.test_runner_only != 'true'
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       id: react-native-cache-restore
       with:
         path: |
@@ -395,7 +395,7 @@ runs:
     # Android SDK and AVD cache for emulator tests
     - name: Restore Cache Android SDK and AVD
       if: inputs.run_emulator_setup == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       id: android-cache
       with:
         path: |
@@ -426,7 +426,7 @@ runs:
     # and reactivecircus/android-emulator-runner installs what else it needs.
     - name: Setup Android SDK
       if: inputs.run_emulator_setup == 'true' && steps.android-cache.outputs.cache-hit != 'true'
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
       with:
         packages: 'platform-tools system-images;android-${{ inputs.android_api_level }};${{ inputs.android_target }};${{ inputs.arch }}'
         accept-android-sdk-licenses: true

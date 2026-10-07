@@ -71,7 +71,7 @@ runs:
     # Only save from x86_64 builds to avoid race condition between arch builds
     - name: Save JS Bundle and Assets Cache
       if: always() && inputs.test_runner_only != 'true' && inputs.js-bundle-cache-hit != 'true' && inputs.js-bundle-cache-key != '' && inputs.arch == 'x86_64'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           android/app/src/main/assets/index.android.bundle
@@ -82,7 +82,7 @@ runs:
     # Build Outputs Cache - Save only if not already cached
     - name: Save Build Outputs Cache
       if: always() && inputs.test_runner_only != 'true' && inputs.arch != '' && inputs.optional_cache_key != 'integration-test' && inputs.optional_cache_key != 'unit-tests' && inputs.build-outputs-cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           android/app/build/intermediates
@@ -98,7 +98,7 @@ runs:
     # Prevents intermittent 403s from Maven Central rate limiting in CI
     - name: Save Gradle Dependencies Cache
       if: always() && inputs.test_runner_only != 'true' && inputs.gradle-deps-cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.gradle/caches/modules-2
@@ -108,7 +108,7 @@ runs:
     # Gradle cache - Save only if not already cached
     - name: Save Gradle Cache
       if: always() && inputs.test_runner_only != 'true' && inputs.gradle-cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.gradle/caches
@@ -121,7 +121,7 @@ runs:
     # Note: Yarn 3 default cache folder is .yarn/cache in project directory
     - name: Save yarn cache
       if: always() && inputs.test_runner_only != 'true' && inputs.yarn-cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: .yarn/cache
         key: yarn-download-cache-${{ hashFiles('yarn.lock') }}
@@ -129,7 +129,7 @@ runs:
     # Yarn install state - Save only if not already cached
     - name: Save yarn install state
       if: always() && inputs.test_runner_only != 'true' && inputs.yarn-install-state-cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: .yarn/ci-cache/
         key: ${{ runner.os }}-yarn-install-state-cache-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
@@ -150,7 +150,7 @@ runs:
 
     - name: Save React Native cache
       if: always() && steps.check-rn-cache.outputs.exists == 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           node_modules/.cache/react-native
@@ -161,7 +161,7 @@ runs:
     # Android SDK and AVD cache - Save only if not already cached
     - name: Save Android SDK and AVD Cache
       if: always() && inputs.run_emulator_setup == 'true' && inputs.android-cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: |
           ~/.android/avd

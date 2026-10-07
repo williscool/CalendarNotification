@@ -27,21 +27,21 @@ env:
 jobs:
   warm-build-caches:
     name: Warm Build Caches (${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [arm64-v8a, x86_64]
       fail-fast: false
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       # ccache for native compilation - critical for fast builds
       # This creates a cache entry on master that PR branches can restore from
       - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@v1.2.24
         with:
           create-symlink: true
 
@@ -79,10 +79,10 @@ jobs:
 
   warm-test-caches:
     name: Warm Test Caches
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -116,10 +116,10 @@ jobs:
 
   warm-integration-test-caches:
     name: Warm Integration Test Caches
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
