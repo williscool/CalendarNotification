@@ -177,7 +177,7 @@ The hardest list: swipe-to-dismiss with undo (`SwipeToDismissBox`), multi-select
 
 ### Milestone 3 checkpoint
 
-All three tabs are Compose. Validate scroll performance on a long list (hundreds of events) on the CI emulator and a real device before continuing. This is a natural PR-merge and branch-reset point.
+All three tabs are Compose. Validate scroll performance on a long list (hundreds of events) on the CI emulator and a real device before continuing. Compare emulator UI-test minutes for the tabs against the baseline (see CI Cost below). This is a natural PR-merge and branch-reset point.
 
 ### Milestone 4 — Main scaffold
 
@@ -257,12 +257,36 @@ Only where Robolectric can't validate it:
 - `MainActivityModernTest` and `ViewEventActivityTest` ported end-to-end. Intents to calendar apps and notification-tap entry still land on the right screen.
 - Scroll performance sanity on a long list (Milestone 3 checkpoint, manual plus a basic frame-time check if cheap).
 
+### CI Cost: Slim the Emulator UI Tests After Each Port
+
+UI tests are the most expensive tests in CI, and this program rewrites the screens they cover, so it's the natural time to move most of that cost onto the JVM.
+
+**Baseline (Oct 2026, run 37554726268):** emulator tests total ~14.6 min of test time across 8 shards, and **~60% of it is UI tests**:
+
+| Class | Time | Share | Note |
+|---|---|---|---|
+| `MainActivityModernTest` | 2.6 min | 18% | 36 tests |
+| `ActiveEventsFragmentTest` | 1.4 min | 10% | ~7.6 s/test, mostly activity launch |
+| `MainActivityTest` (legacy UI) | 1.3 min | 9% | goes away with the legacy UI |
+| `ViewEventActivityTest`, `SnoozeAllActivityTest`, `DismissedEvents*`, `SettingsActivityTest`, ... | ~0.5-0.8 min each | | |
+
+On the Robolectric side the UI classes (`MainActivity*RobolectricTest`, the fragment tests) are also among the slowest unit-test classes, but they run on the JVM in the 3 unit-test shards.
+
+**Per screen, in a follow-up PR after the port is green** (the port PR itself keeps the "assertions unchanged" rule above):
+
+1. **Move device-independent assertions to Robolectric Compose tests** (`createComposeRule`), and delete their emulator twins. Rendering, state, filtering, empty states and formatting don't need a device.
+2. **Keep only device-only checks on the emulator**, i.e. the list under Instrumentation Tests: real swipe gestures, window insets, notification and intent entry points, scroll performance.
+3. **Group the remaining emulator assertions per launch.** Most of `ActiveEventsFragmentTest`'s time is launching the screen once per assertion. One launch that checks several things is far cheaper than one launch per check.
+4. **Record the emulator UI-test minutes** for that screen before and after, from the shard Allure results (per-test durations) in the PR description.
+
+Coverage must not drop: the integration coverage report in the PR comment is the guardrail, as in `docs/dev_todo/test_consolidation.md`.
+
 ## Future Enhancements
 
 1. **Navigation Compose** for the modern main screen, if the Fragment host becomes friction after the main scaffold phase.
 2. **Screenshot tests** (Roborazzi runs on Robolectric) for rows and sheets. These are cheap once composables exist and catch theme regressions.
 3. **Settings in Compose**, only alongside a settings redesign.
-4. **Delete the legacy UI**, which becomes possible once this program finishes and the modern UI has a release or two of soak time.
+4. **Delete the legacy UI**, which becomes possible once this program finishes and the modern UI has a release or two of soak time. Its tests go with it: `MainActivityTest` alone is ~1.3 min of emulator time (Oct 2026), plus its Robolectric counterpart.
 5. **R8/minification**, if the pilot shows Compose bloats the APK. It's a prerequisite only if the pilot says so.
 
 ## Notes
@@ -272,7 +296,7 @@ Only where Robolectric can't validate it:
 - **No `System.currentTimeMillis()` in composables.** Time-dependent text takes `now` or a formatter built from the injected clock.
 - **No broad `Exception` catches** in new UI code. **No sleeps** in Compose tests: use `waitUntil` / idling, and advance `mainClock` for animations.
 - `ViewEventActivity` (the 21-line shim subclass) must keep working. Notification intents target it.
-- Baseline measurements (filled in during the pilot): APK size before/after: _TBD_; CI duration before/after: _TBD_.
+- Baseline measurements: APK size before/after: _TBD_ (fill in during the pilot). CI duration before: **~12 min** full run and **~7.5-8 min** to CI Result (Oct 2026, after the CI performance pass); emulator tests ~14.6 min of test time, ~60% UI (see CI Cost). After: _TBD_.
 
 ## Related Work
 
