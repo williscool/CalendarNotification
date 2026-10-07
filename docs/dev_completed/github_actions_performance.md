@@ -1,6 +1,6 @@
 # GitHub Actions Performance Optimizations
 
-**Status**: Completed (January 2026)
+**Status**: Completed (January 2026; second pass October 2026, see below)
 
 ## Summary
 
@@ -15,6 +15,53 @@ Comprehensive optimization of GitHub Actions CI pipeline, reducing typical CI ru
 | Unit Tests | ~20 min | ~12 min | **-8 min** |
 | Integration Shards | ~12-14 min | ~4-6 min | **-6-8 min each** |
 | Total CI (warm cache) | ~45-50 min | ~20-25 min | **~50% faster** |
+
+---
+
+## October 2026: Second Pass
+
+After the flaky emulator tests were root-caused and fixed (#285, #286, #289, #290, #294, #297), runs were stable enough to measure, and a second pass took a typical full run from **~21.5 min to ~12 min**, and the required **CI Result** check from **~11 min to ~7.5-8 min**.
+
+| Milestone | Before (late Sept) | After |
+|---|---|---|
+| Builds done | ~9.7 min | ~5.3 min |
+| Emulator shards start | ~9.7 min | ~5.3 min |
+| CI Result green | ~11 min | ~7.5-8 min |
+| Whole run | ~21.5 min | ~11.8-12.3 min |
+
+### What changed
+
+| PR | Change | Effect |
+|---|---|---|
+| #288 | Cache warming runs on **every** merge to master, not just dependency changes | First run of each PR and tag builds restore warm caches (cold runs took 20-28 min) |
+| #307 | Caches saved **only on master** | -1.3 min per build; PR-scoped saves never sped up later pushes |
+| #308 | Disk cleanup only below 40 GB free | -1.7 min per build; runners now have 145 GB disks (~86 GB free) |
+| #309 | Merged integration coverage via **JaCoCo's CLI**, not Gradle | Merge job ~4.6 → ~0.9 min (JaCoCo pinned to 0.8.12, what Gradle actually ran) |
+| #310 | **8 emulator shards** (4 UI + 4 non-UI) | Slowest shard ~6.4 → ~5 min. The December "8 is flaky" was the foldable profile timing out |
+| #311 | Unit tests in **2 parallel JVM forks** (half the cores) | Test task ~5.1 → ~4.1 min; 4 forks contended for CPU |
+| #314 | Jest in its own job; unit tests drop ccache and the JS bundle | ~1 min off unit tests |
+| #315, #316, #328 | **Unit tests sharded** by test-class hash (3 shards), coverage merged with JaCoCo's CLI | Unit tests off the critical path |
+| #319 | JS bundle cache key fixed (`hashFiles` doesn't expand braces; save and lookup keys differed) | Bundle cache actually hits; -0.6 min per build |
+| #320 | PRs build **debug only**; release APKs/AABs only for tags and manual runs | Gradle step ~2.7 → ~1.8 min |
+| #321 | JS bundle generated in the background during setup (`flock`-synchronized) | Overlaps bundling with setup when JS changed |
+| **#323** | **Each per-arch build compiles native code for its own ABI only** | See below |
+| #324 | Build split into `build-x86_64` / `build-arm64` (YAML anchors); emulator shards wait for x86_64 only | Removes up to ~2 min of waiting on arm64 |
+| #327 | Android emulator package cached with the AVD | No per-shard emulator download, which once came back corrupt and killed a shard |
+| #329 | connectedAndroidTest check moved to its own workflow (merges, daily, infra PRs) | ~10-14 min job off every PR |
+
+### The native ABI fix (#323)
+
+Every per-arch build compiled native code for **both** ABIs, and op-sqlite for **all four**. Several earlier attempts (#52, #62, #71, #72, #76) only addressed the app module. There were two causes:
+
+1. **AGP unions `abiFilters`** across `defaultConfig`, product flavors and build types, so a flavor's single-ABI list can't override a both-ABI list elsewhere. The fix computes one list from `BUILD_ARCH` and keeps it **only** in `defaultConfig`.
+2. **op-sqlite sets no `abiFilters`**, so it built the NDK default of four ABIs. The root `subprojects` hook now sets library filters from `reactNativeArchitectures`.
+
+The second ABI was dead weight anyway: the x86_64 APK's `arm64-v8a` folder lacked the React Native libraries' `.so` files and couldn't run on arm64.
+
+### What's left on the critical paths
+
+- **Whole run:** build x86_64 (~5.3) → slowest emulator shard (~4-6, real test time) → coverage merge/report (~1).
+- **CI Result:** the slowest unit-test shard. Each pays ~5 min of fixed setup (cache restores, codegen, Gradle configuration, resource merge, compile) before ~1.5-2 min of tests. Codegen time is real work, not Gradle overhead (#317 folded it into the main build and saved nothing).
 
 ---
 
@@ -185,18 +232,20 @@ Bug fix: The yarn cache save was using shell substitution `$(yarn config get cac
 
 ### Job Dependencies
 
+As of October 2026:
+
 ```
-set_build_datetime ─┬─► build (arm64, x86_64) ─┬─► sign ─► comment-pr
-                    │                          │
-                    │                          └─► integration-test (4 shards)
-                    │                                      │
-                    │                                      └─► merge-integration-coverage
+set_build_datetime ─┬─► build-x86_64 ─┬─► integration-test (8 shards) ─► merge-integration-coverage ─┐
+(+ docs-only check) │                 │                                                             │
+                    ├─► build-arm64 ──┴─► sign ─► comment-pr                                        │
+                    │                                                                               │
+                    ├─► unit-tests (3 shards) ─► merge-unit-test-coverage ──────────────────────────┤
+                    │                                                                               ▼
+                    ├─► jest-tests                                                           coverage-report
                     │
-                    ├─► unit-tests ─────────────────────────────────┐
-                    │                                               │
-                    ├─► verify-connected-android-test               │
-                    │                                               ▼
-                    └───────────────────────────────────────► coverage-report
+                    └─► CI Result  (needs builds, sign, unit tests + their merge, jest, safety checks)
+
+connectedAndroidTest check: separate workflow (connected-android-test.yml)
 ```
 
 ---
@@ -218,6 +267,8 @@ Resource contention on GitHub Actions free-tier runners causes occasional emulat
 - Using retry logic in test runner
 - Accepting occasional retries as cost of parallelism
 
+**Update (Oct 2026):** the recurring "flakes" turned out to be real, fixable bugs, so treat a new one as a bug first. Examples: background work outliving a test's mocks (#285, #286), a launcher ANR dialog stealing focus (#289), tests racing async loads (#290, #297), and a permission-grant race (#294). The logcat artifact (`emulator-log-shard-N`) and Allure screenshots usually name the cause. With those fixed, CI runs 8 shards again.
+
 ### First Run on New Branch
 
 Even with cache warming, the very first CI run on a brand new branch may be slower because:
@@ -225,6 +276,8 @@ Even with cache warming, the very first CI run on a brand new branch may be slow
 - Partial cache restores via restore-keys still require some recompilation
 
 Subsequent runs on the same branch benefit from caches saved by the first run.
+
+**Update (Oct 2026):** PR runs no longer save caches (#307). Every PR run restores master's caches instead, which cache warming refreshes on every merge (#288).
 
 ---
 
