@@ -61,7 +61,8 @@ interface SelectionModeCallback {
 class EventListAdapter(
         val context: Context,
         val callback: EventListCallback,
-        val swipeEnabled: Boolean = true)
+        val swipeEnabled: Boolean = true,
+        val showAlertTime: Boolean = false)
 
     : RecyclerView.Adapter<EventListAdapter.ViewHolder>() {
 
@@ -169,7 +170,6 @@ class EventListAdapter(
     private val changeString: String
     private val snoozeString: String
     private var currentSearchString: String? = null
-    private var displayMode: EventDisplayMode = EventDisplayMode.ACTIVE
 
     private var currentScrollPosition: Int = 0
 
@@ -409,10 +409,10 @@ class EventListAdapter(
             }
 
             when {
-                // Upcoming events: show "Alert at X" (when the notification will fire)
-                displayMode == EventDisplayMode.UPCOMING -> {
+                // Upcoming events: show when the notification will fire
+                showAlertTime -> {
                     holder.snoozedUntilText?.text = context.resources.getString(
-                        R.string.alert_at,
+                        R.string.alert_fires_at,
                         eventFormatter.formatTimePoint(event.alertTime)
                     )
                     holder.snoozedUntilText?.visibility = View.VISIBLE
@@ -459,13 +459,8 @@ class EventListAdapter(
       setEventsToDisplay()
     }
 
-    fun setEventsToDisplay(
-        newEvents: Array<EventAlertRecord>? = null,
-        mode: EventDisplayMode = EventDisplayMode.ACTIVE
-    ) = synchronized(this) {
+    fun setEventsToDisplay(newEvents: Array<EventAlertRecord>? = null) = synchronized(this) {
 
-        displayMode = mode
-        
         if (newEvents != null){
           allEvents = newEvents
           events = newEvents;

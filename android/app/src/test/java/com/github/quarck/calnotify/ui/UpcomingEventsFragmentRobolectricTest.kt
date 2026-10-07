@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.testutils.UITestFixtureRobolectric
+import com.github.quarck.calnotify.textutils.EventFormatter
 import com.github.quarck.calnotify.ui.FilterState
 import com.github.quarck.calnotify.ui.StatusOption
 import org.junit.After
@@ -392,6 +393,51 @@ class UpcomingEventsFragmentRobolectricTest {
             assertEquals("All events should be shown", 3, adapter?.itemCount)
         }
         
+        scenario.close()
+    }
+
+    // === Alert Time Tests ===
+
+    /** Binds the first row and returns its "snoozed until" line, which upcoming events reuse for the alert time */
+    private fun firstRowAlertText(fragment: UpcomingEventsFragment): TextView {
+        val recyclerView = fragment.requireView().findViewById<RecyclerView>(R.id.recycler_view)
+        val adapter = recyclerView.adapter as EventListAdapter
+        val holder = adapter.onCreateViewHolder(recyclerView, 0)
+        adapter.onBindViewHolder(holder, 0)
+        return holder.snoozedUntilText!!
+    }
+
+    @Test
+    fun upcomingEventsFragment_shows_alert_time() {
+        val alert = fixture.createUpcomingEvent(title = "Alert Time Event")
+
+        val scenario = fixture.launchUpcomingEventsFragment()
+        fixture.waitForAsyncTasks()
+
+        scenario.onFragment { fragment ->
+            val expected = fragment.getString(
+                R.string.alert_fires_at, EventFormatter(fragment.requireContext()).formatTimePoint(alert.alertTime))
+            val text = firstRowAlertText(fragment)
+            assertEquals(View.VISIBLE, text.visibility)
+            assertEquals(expected, text.text.toString())
+        }
+
+        scenario.close()
+    }
+
+    @Test
+    fun upcomingEventsFragment_alert_time_survives_search() {
+        fixture.createUpcomingEvent(title = "Alert Time Event")
+
+        val scenario = fixture.launchUpcomingEventsFragment()
+        fixture.waitForAsyncTasks()
+
+        scenario.onFragment { fragment ->
+            // Clearing the search re-filters through setEventsToDisplay(), which used to reset the display mode
+            fragment.setSearchQuery(null)
+            assertEquals(View.VISIBLE, firstRowAlertText(fragment).visibility)
+        }
+
         scenario.close()
     }
 }
