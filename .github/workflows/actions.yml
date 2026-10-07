@@ -1036,25 +1036,32 @@ jobs:
             android/app/build/test-results/
           retention-days: 90
 
-      # v1.15+ is required: earlier images lack findutils, so the action's own
-      # script dies with "xargs is not available" and produces no report.
-      # See https://github.com/simple-elf/allure-report-action/pull/78
+      # One self-contained HTML file, uploaded unzipped, so the report opens
+      # with a click instead of download + unzip + a local web server (the
+      # multi-file report won't load from file://). Java and Node come
+      # preinstalled on the runner.
       - name: Generate Allure HTML Report
-        uses: simple-elf/allure-report-action@v1.15
         if: always()
-        with:
-          allure_results: android/app/build/outputs/allure-results
-          allure_report: android/app/build/outputs/allure-report
-          keep_reports: 1
+        run: |
+          npx --yes allure-commandline@2.46.1 generate --single-file --clean \
+            android/app/build/outputs/allure-results -o allure-report
+          # Allure 2's template hard-codes a Google Analytics tag; drop it
+          perl -0pe 's{<script async src="https://www\.googletagmanager\.com/.*?</script>\s*<script>\s*window\.dataLayer.*?</script>}{}s' \
+            allure-report/index.html > allure-report.html
 
       - name: Upload Allure HTML Report
+        id: upload-allure
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: allure-html-report-${{ needs.set_build_datetime.outputs.build_datetime }}
-          path: android/app/build/outputs/allure-report/
+          path: allure-report.html
+          archive: false
           retention-days: 90
           if-no-files-found: ignore
+
+      - name: Link Allure report in the job summary
+        if: always() && steps.upload-allure.outputs.artifact-url
+        run: echo "### [Allure test report](${{ steps.upload-allure.outputs.artifact-url }})" >> "$GITHUB_STEP_SUMMARY"
 
   coverage-report:
     name: Process Code Coverage
