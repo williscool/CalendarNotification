@@ -1,123 +1,101 @@
-# Upcoming Events View
+# Upcoming Events
 
-See what's coming up on your calendar before notifications fire—so you can plan your day and never be surprised by imminent events.
+See which reminders are about to fire, and deal with them before they do.
 
-## Overview
+The **Upcoming** tab lists calendar events whose reminder hasn't fired yet. Events are placed by **when the reminder fires**, not when the event starts, and are sorted soonest-first. When a reminder fires, the event leaves Upcoming and appears in **Active** as a normal notification.
 
-The Upcoming Events view displays calendar events that are scheduled to fire reminders within a configurable lookahead window. This lets you:
+Upcoming is part of the tabbed UI (on by default). The classic single-list view has no Upcoming tab.
 
-- **See what's coming** - Preview your schedule before reminders fire
-- **Plan ahead** - Know what meetings or events are approaching
-- **Never be caught off guard** - No more "I forgot about that meeting in 5 minutes!"
+## The tabs
 
-Events appear in the Upcoming tab based on when their reminder is scheduled to fire, not the event start time. Once a reminder fires, the event moves to the Active tab.
+The bottom bar has three tabs, in this order:
 
-## How to Access
+| Tab | What's in it |
+|-----|--------------|
+| **Active** | Reminders that have fired (your notifications), including snoozed ones |
+| **Upcoming** | Reminders that haven't fired yet, within the upcoming window |
+| **Dismissed** | Events you've dismissed (the "Bin") |
 
-The app uses a bottom navigation bar with three tabs:
+Switching tabs clears the search box and filters.
 
-| Tab | Icon | Description |
-|-----|------|-------------|
-| **Active** | 🔔 | Events with fired reminders (notifications you've received) |
-| **Upcoming** | ⏰ | Events with reminders scheduled to fire soon |
-| **Dismissed** | 🗑️ | Events you've dismissed (the "Bin") |
+## What each row shows
 
-![Bottom Navigation](images/bottom-navigation.png)
-*Bottom navigation showing the three tabs*
+- Event title, date and time
+- **Alert fires at …** — when the reminder will fire
+- Calendar color bar
+- A mute icon if you've pre-muted the event
 
-Tap the clock icon (⏰) to view upcoming events.
+## Choosing how far ahead to look
 
-## The Upcoming Tab
+Tap the time chip above the list to open **Upcoming Window**. Your choice is saved and stays until you change it.
 
-![Upcoming Events Tab](images/upcoming-events-tab.png)
-*The Upcoming tab showing events scheduled to fire within your lookahead window*
+- **Presets** — show reminders firing within the next 4 hours, 8 hours, 1 day, 3 days or 1 week. **8 hours** is the default.
+- **Day boundary** — show reminders until your "new day" starts (4 AM by default):
+  - Before the boundary hour, you see reminders up to today's boundary.
+  - At or after it, you see reminders up to tomorrow's boundary.
 
-Events are sorted by alert time (when the reminder will fire). Each event card shows:
-- Event title and time
-- Calendar color indicator
-- How long until the reminder fires
+  With a 4 AM boundary:
 
-## Configuring the Lookahead Window
+  | Now | Shows reminders until | |
+  |-----|----------------------|---|
+  | 1:00 AM | 4:00 AM today | It's still "last night" |
+  | 5:00 AM | 4:00 AM tomorrow | Your day has started |
+  | 10:00 PM | 4:00 AM tomorrow | Winding down |
 
-You can customize how far ahead the app looks for upcoming events. Go to **Settings → Navigation & UI → Upcoming Events**.
+  Handy if you stay up past midnight and don't want tomorrow's reminders showing up yet.
 
-![Lookahead Settings](images/lookahead-settings.png)
-*Configure how far ahead to show upcoming events*
+Change the presets or the boundary hour under **Settings → Navigation & UI → Upcoming Events**:
 
-### Lookahead Modes
+- **Lookahead interval presets** — comma-separated, e.g. `4h, 8h, 1d, 3d, 1w`. Up to 30 days ahead.
+- **Day Boundary Hour** — midnight to 10 AM.
 
-#### Fixed Hours (Default)
+## Acting on an upcoming event
 
-Shows events with reminders scheduled to fire within a fixed number of hours from now.
+**Tap** an event to open it. From there you can:
 
-| Setting | What You'll See |
-|---------|-----------------|
-| 4 hours | Events firing in the next 4 hours |
-| 8 hours (default) | Events firing in the next 8 hours |
-| 24 hours | Events firing in the next day |
+- **Pre-snooze** — choose a snooze preset, a custom period, or a specific date and time. The event moves to Active as snoozed and won't notify until then.
+- **Mute when it fires** (in the ⋮ menu) — the reminder still fires, but silently. The event stays in Upcoming with a mute icon. Choose **Unmute** to undo.
+- **Dismiss** (in the ⋮ menu) — skip the reminder entirely. The event goes to Dismissed.
+- **Open in Calendar**, or **Edit** the event (Edit is hidden for read-only calendars).
 
-**Best for:** Most users who want simple, predictable behavior.
+**Swipe** an event left or right to dismiss it. Tap **UNDO** on the row to bring it back.
 
-#### Day Boundary Mode
+### Changing your mind
 
-Shows events until a configurable "day boundary" time. This is designed for people who think in terms of "today" vs "tomorrow" rather than hours.
+- **Pre-snoozed:** open the event in Active and choose **Unsnooze (to Upcoming)**. This is only offered while the original reminder time is still in the future.
+- **Dismissed:** open the event in the Dismissed tab (it's labelled "Dismissed from Upcoming") and choose **Restore notification**. It returns to Upcoming if its reminder hasn't fired yet, otherwise to Active.
 
-**How it works:**
-- Before the boundary hour: Show events until the boundary (you're "still in yesterday")
-- After the boundary hour: Show events until tomorrow's boundary (your "new day" has begun)
+## Filtering and search
 
-**Example with 4 AM boundary:**
+The chips above the list filter what you see:
 
-| Current Time | You'll See Events Until | Why |
-|--------------|-------------------------|-----|
-| 1:00 AM | 4:00 AM today | Still "last night" mentally |
-| 5:00 AM | 4:00 AM tomorrow | "Today" has begun |
-| 10:00 PM | 4:00 AM tomorrow | Winding down the day |
+- **Calendar** — show only some calendars.
+- **Status** — All, Muted, Recurring, Pinned or Unpinned.
+- **Time** — the upcoming window, described above.
 
-**Best for:** Night owls who stay up past midnight but don't want to see "tomorrow's" events until they've actually slept.
+The search icon filters by title and description.
 
-## Switching Between Classic and New UI
+## Refreshing
 
-If you prefer the original single-list view without tabs, you can switch back:
-
-1. Go to **Settings → Navigation & UI**
-2. Tap **"Switch to Classic View"**
-3. Confirm the restart
-
-![Switch View Setting](images/switch-view-setting.png)
-*Toggle between new tabbed UI and classic view*
-
-To switch back to the new tabbed view later, use **"Switch to New View"** in the same settings screen.
-
-## Tips
-
-- **Pull down to refresh** - Swipe down on any tab to refresh the event list
-- **Events update automatically** - As time passes, events move from Upcoming → Active as their reminders fire
-- **Calendar colors** - Events show their calendar's color for easy identification
-
-## Coming Soon
-
-Future updates will add:
-- **Pre-snooze** - Snooze upcoming events before they fire
-- **Pre-mute** - Mute an event's notification in advance
-- **Pre-dismiss** - Skip an event entirely before the reminder
-- **Calendar filtering** - Show only events from specific calendars
+The list reloads when you open the tab, when you pull down on it, when you change a filter, and when the app's event data changes. It doesn't refresh on a timer, so if the app has been sitting open for a while, pull down to refresh.
 
 ## Troubleshooting
 
-### "No upcoming events" but I know I have events
+### "No upcoming events", but I know I have some
 
-1. **Check the lookahead window** - Your events may be outside the configured lookahead. Try increasing the hours in Settings → Navigation & UI → Hours to Look Ahead.
+1. **Widen the window.** The reminder may fire after the current window ends. Try a longer preset from the time chip.
+2. **Check the calendar is handled.** Only calendars enabled under **Settings → Handled Calendars** appear.
+3. **Check your filters.** A Calendar or Status filter may be hiding it.
+4. **Pull down to refresh.**
 
-2. **Check calendar selection** - Make sure the calendar containing your events is enabled in Settings → Handled Calendars.
+### The order looks wrong
 
-3. **Pull down to refresh** - Swipe down on the Upcoming tab to trigger a fresh scan.
+Events are sorted by **reminder time**, not start time. A 5 PM event with a 2-hour reminder (fires at 3 PM) is listed before a 4 PM event with a 15-minute reminder (fires at 3:45 PM).
 
-### Events not appearing in the right order
+### I don't see the Upcoming tab
 
-Events are sorted by **reminder time**, not event start time. An event at 5 PM with a 1-hour reminder will appear before an event at 3 PM with a 15-minute reminder.
+Turn on **Settings → Navigation & UI → New Navigation UI**, or use **Switch to New View** on the same screen. The app restarts to apply it.
 
-## Related Documentation
+## Related documentation
 
-- [Data Sync Setup](../DATA_SYNC_README.md) - Sync events across devices
-- [Calendar Monitoring Architecture](../architecture/calendar_monitoring.md) - Technical details on how events are tracked
+- [Calendar Monitoring Architecture](../architecture/calendar_monitoring.md) — how the app finds upcoming reminders
