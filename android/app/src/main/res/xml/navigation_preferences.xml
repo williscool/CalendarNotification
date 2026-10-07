@@ -13,13 +13,6 @@
         android:summary="@string/use_new_navigation_ui_summary"
         android:defaultValue="true" />
 
-    <!-- Help/Learn more about Upcoming Events -->
-    <Preference
-        android:key="upcoming_events_help"
-        android:title="@string/upcoming_events_help_title"
-        android:summary="@string/upcoming_events_help_summary"
-        android:icon="@drawable/ic_help_outline_24dp" />
-
     <PreferenceCategory
         android:title="@string/switch_view_category"
         android:key="_switch_view">
@@ -59,6 +52,12 @@
         android:title="@string/upcoming_events_category"
         android:key="_upcoming_events"
         android:dependency="use_new_navigation_ui">
+
+        <Preference
+            android:key="upcoming_events_help"
+            android:title="@string/upcoming_events_help_title"
+            android:summary="@string/upcoming_events_help_summary"
+            android:icon="@drawable/ic_help_outline_24dp" />
 
         <ListPreference
             android:key="upcoming_events_day_boundary_hour"

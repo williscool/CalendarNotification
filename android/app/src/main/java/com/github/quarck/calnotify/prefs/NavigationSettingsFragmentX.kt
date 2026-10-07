@@ -19,6 +19,7 @@
 
 package com.github.quarck.calnotify.prefs
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -81,8 +82,12 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     private fun openUpcomingEventsDocumentation() {
         val ctx = context ?: return
         val docsUrl = ctx.getString(R.string.upcoming_events_docs_url)
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(docsUrl))
-        startActivity(intent)
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(docsUrl)))
+        } catch (ex: ActivityNotFoundException) {
+            // No browser installed: show the link so the user can open it elsewhere
+            Toast.makeText(ctx, docsUrl, Toast.LENGTH_LONG).show()
+        }
     }
     
     override fun onDisplayPreferenceDialog(preference: Preference) {

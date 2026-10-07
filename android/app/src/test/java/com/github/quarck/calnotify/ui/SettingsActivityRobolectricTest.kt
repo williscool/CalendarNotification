@@ -1,6 +1,10 @@
 package com.github.quarck.calnotify.ui
 
+import android.content.Intent
 import android.view.View
+import androidx.appcompat.app.AlertDialog
+import androidx.preference.CheckBoxPreference
+import androidx.preference.Preference
 import com.github.quarck.calnotify.R
 import com.github.quarck.calnotify.prefs.*
 import com.github.quarck.calnotify.testutils.UITestFixtureRobolectric
@@ -10,6 +14,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowDialog
 import org.robolectric.annotation.Config
 
 /**
@@ -204,5 +210,67 @@ class SettingsActivityRobolectricTest {
         
         scenario.close()
     }
-}
 
+    // === Upcoming Events Help Tests ===
+
+    /** Opens the navigation settings screen and hands back its fragment */
+    private fun showNavigationSettings(activity: SettingsActivityX): NavigationSettingsFragmentX {
+        val fragment = NavigationSettingsFragmentX()
+        activity.supportFragmentManager.beginTransaction()
+            .replace(R.id.settings_container, fragment)
+            .commit()
+        activity.supportFragmentManager.executePendingTransactions()
+        return fragment
+    }
+
+    @Test
+    fun upcoming_events_help_follows_new_navigation_toggle() {
+        val scenario = fixture.launchSettingsActivity()
+
+        scenario.onActivity { activity: SettingsActivityX ->
+            val fragment = showNavigationSettings(activity)
+            val toggle = fragment.findPreference<CheckBoxPreference>("use_new_navigation_ui")!!
+            val help = fragment.findPreference<Preference>("upcoming_events_help")!!
+
+            toggle.isChecked = true
+            assertTrue("Help should be enabled with the new UI", help.isEnabled)
+
+            toggle.isChecked = false
+            assertFalse("Help should be disabled without the Upcoming tab", help.isEnabled)
+        }
+
+        scenario.close()
+    }
+
+    @Test
+    fun upcoming_events_help_click_shows_dialog() {
+        val scenario = fixture.launchSettingsActivity()
+
+        scenario.onActivity { activity: SettingsActivityX ->
+            val fragment = showNavigationSettings(activity)
+            fragment.findPreference<Preference>("upcoming_events_help")!!.performClick()
+
+            val dialog = ShadowDialog.getLatestDialog() as AlertDialog
+            assertTrue(dialog.isShowing)
+        }
+
+        scenario.close()
+    }
+
+    @Test
+    fun upcoming_events_help_full_docs_opens_docs_url() {
+        val scenario = fixture.launchSettingsActivity()
+
+        scenario.onActivity { activity: SettingsActivityX ->
+            val fragment = showNavigationSettings(activity)
+            fragment.findPreference<Preference>("upcoming_events_help")!!.performClick()
+            (ShadowDialog.getLatestDialog() as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+
+            val started = shadowOf(activity).nextStartedActivity
+            assertEquals(Intent.ACTION_VIEW, started.action)
+            assertEquals(activity.getString(R.string.upcoming_events_docs_url), started.dataString)
+        }
+
+        scenario.close()
+    }
+}
