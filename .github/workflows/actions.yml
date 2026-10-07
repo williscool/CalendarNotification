@@ -541,10 +541,10 @@ jobs:
     strategy:
       matrix:
         arch: [x86_64] # Only test on x86_64 to save time and resources
-        shard: [0, 1]  # keep in step with UNIT_TEST_SHARDS
+        shard: [0, 1, 2]  # keep in step with UNIT_TEST_SHARDS
       fail-fast: false
     env:
-      UNIT_TEST_SHARDS: 2
+      UNIT_TEST_SHARDS: 3
     steps:
     - uses: actions/checkout@v3
       with:
