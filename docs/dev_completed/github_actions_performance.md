@@ -209,6 +209,8 @@ The Android Gradle Plugin's `connectedAndroidTest` task has hardcoded dependenci
 
 **Workaround**: Main integration tests use `am instrument` directly via `matrix_run_android_tests.sh`. The `verify-connected-android-test` job is a non-blocking sanity check.
 
+**Update (Oct 2026):** the check moved out of `actions.yml` into its own workflow, `.github/workflows/connected-android-test.yml`. It runs on merges to master, daily, on manual dispatch, and on PRs that touch the build or test infrastructure, instead of on every PR.
+
 ### Integration Test Shard Flakiness
 
 Resource contention on GitHub Actions free-tier runners causes occasional emulator failures. Mitigated by:
