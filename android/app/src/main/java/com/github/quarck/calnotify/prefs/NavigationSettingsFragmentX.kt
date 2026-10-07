@@ -19,7 +19,9 @@
 
 package com.github.quarck.calnotify.prefs
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -48,6 +50,12 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.navigation_preferences, rootKey)
         
+        // Set up click handler for "About Upcoming Events" help
+        findPreference<Preference>("upcoming_events_help")?.setOnPreferenceClickListener {
+            showUpcomingEventsHelpDialog()
+            true
+        }
+        
         findPreference<Preference>("switch_to_classic_view")?.setOnPreferenceClickListener {
             showSwitchToClassicViewDialog()
             true
@@ -56,6 +64,29 @@ class NavigationSettingsFragmentX : PreferenceFragmentCompat() {
         findPreference<Preference>("switch_to_new_view")?.setOnPreferenceClickListener {
             showSwitchToNewViewDialog()
             true
+        }
+    }
+    
+    private fun showUpcomingEventsHelpDialog() {
+        val ctx = context ?: return
+        AlertDialog.Builder(ctx)
+            .setTitle(R.string.upcoming_events_help_dialog_title)
+            .setMessage(R.string.upcoming_events_help_dialog_message)
+            .setPositiveButton(R.string.upcoming_events_help_view_full_docs) { _, _ ->
+                openUpcomingEventsDocumentation()
+            }
+            .setNegativeButton(android.R.string.ok, null)
+            .show()
+    }
+    
+    private fun openUpcomingEventsDocumentation() {
+        val ctx = context ?: return
+        val docsUrl = ctx.getString(R.string.upcoming_events_docs_url)
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(docsUrl)))
+        } catch (ex: ActivityNotFoundException) {
+            // No browser installed: show the link so the user can open it elsewhere
+            Toast.makeText(ctx, docsUrl, Toast.LENGTH_LONG).show()
         }
     }
     

@@ -24,6 +24,12 @@
 - [Data Sync Setup](DATA_SYNC_README.md) - Supabase/PowerSync configuration
 - [Background Data Sync](architecture/background_data_sync.md) - How sync keeps running after you leave the screen
 
+## Features
+
+User-facing feature documentation:
+
+- [Upcoming Events View](features/UPCOMING_EVENTS_README.md) - See events before reminders fire (new tabbed UI)
+
 ## Testing Infrastructure
 
 - [Dependency Injection Patterns](testing/dependency_injection_patterns.md) - Manual DI for testability ⭐ *Key Reference*
